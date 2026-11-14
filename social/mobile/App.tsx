@@ -875,26 +875,24 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               <Text numberOfLines={2} style={{ color: C.ink, fontSize: 13,
                 fontWeight: '800', lineHeight: 18, padding: 9 }}>{reel.title}</Text>
             </Pressable>)}
-          </View> : <View style={{ gap: 12, paddingTop: 7 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13,
-              borderRadius: 16, backgroundColor: C.panel, padding: 15 }}>
-              <View style={{ width: 48, height: 48, borderRadius: 15,
-                backgroundColor: C.accentDark, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="bookmark-outline" size={26} color={C.accent}/>
-              </View>
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={[s.cardHeading, { fontSize: 15 }]}>No saved Reels yet</Text>
-                <Text style={[s.small, { fontSize: 12, lineHeight: 18 }]}>
-                  Bookmark videos to revisit them during testing.
-                </Text>
-              </View>
+          </View> : <Pressable accessibilityRole="button"
+            accessibilityLabel="Explore Reels from Saved"
+            onPress={() => { setReelStartId(null); navigate('Reels'); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 13,
+              backgroundColor: C.panel, borderRadius: 16,
+              paddingHorizontal: 15, paddingVertical: 14, minHeight: 78 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 15,
+              backgroundColor: C.accentDark, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="bookmark-outline" size={26} color={C.accent}/>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Explore Reels from Saved"
-              style={[s.cta, { minHeight: 46 }]}
-              onPress={() => { setReelStartId(null); navigate('Reels'); }}>
-              <Text style={s.ctaText}>Explore Reels</Text>
-            </Pressable>
-          </View>}
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[s.cardHeading, { fontSize: 15 }]}>No saved Reels yet</Text>
+              <Text style={[s.small, { fontSize: 12, lineHeight: 18 }]}>
+                Explore videos and bookmark them for later.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={C.accent}/>
+          </Pressable>}
         </View> : null}
         {profileTab === 'Garage' ? <>
         <View style={s.rowBetween}>
