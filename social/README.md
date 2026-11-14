@@ -136,3 +136,8 @@ The Create tab now opens a dedicated full-screen studio rather than retaining th
 Media editing occupies the principal canvas, with genuine crop/rotate, reorder, remove and gallery controls. Details have an optional title, caption and manual hashtag/mention typing, an actual in-app preview, audience and community options, a paid-promotion declaration, and text-only drafts. The Post action remains disabled until moderated backend publishing exists. The Create route preserves iOS status-bar/home-indicator safe areas; physical device recording and keyboard review is still required.
 
 The social interface follows the hard human-designed, AI-free-feeling product requirement in PRODUCT_SPEC.md. This is an original app UI, not a branded TikTok copy.
+
+
+## Home / Reels navigation separation (14 November 2026)
+
+Home is the photo, Stories and community-updates timeline with one stable feed and compact contextual preferences. Reels is the **only** full-screen viewer with `For You` / `Following` selectors. This avoids duplicating TikTok-like feed tabs across both surfaces, and the Home preference controls do not silently switch the Reels video stream. The production Home empty state remains explicit about unpublished backend content, while isolated Playwright fixtures still exercise card interactions and layout.
