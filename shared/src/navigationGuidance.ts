@@ -223,3 +223,82 @@ export function maneuverIcon(maneuver?: string): NavigationManeuverIcon {
       return 'navigate';
   }
 }
+
+/** A point on a route, as both apps hold them. */
+export interface RouteChoicePoint { lat: number; lon: number }
+
+/** How twisty a route is: degrees of turning per kilometre, measured over
+ * stretches of at least 30 m so GPS-scale wiggles in the line don't count.
+ * A straight motorway scores near 0; a mountain pass well over 200. */
+export function routeTwistiness(points: readonly RouteChoicePoint[]): number {
+  const toRad = Math.PI / 180;
+  const metres = (a: RouteChoicePoint, b: RouteChoicePoint) => {
+    const dLat = (b.lat - a.lat) * toRad;
+    const dLon = (b.lon - a.lon) * toRad * Math.cos(((a.lat + b.lat) / 2) * toRad);
+    return Math.sqrt(dLat * dLat + dLon * dLon) * 6_371_000;
+  };
+  const bearing = (a: RouteChoicePoint, b: RouteChoicePoint) => Math.atan2(
+    (b.lon - a.lon) * Math.cos(((a.lat + b.lat) / 2) * toRad),
+    b.lat - a.lat,
+  ) / toRad;
+  let length = 0;
+  let turning = 0;
+  let anchor = points[0];
+  let previousBearing: number | null = null;
+  for (let i = 1; anchor && i < points.length; i += 1) {
+    const point = points[i]!;
+    const stretch = metres(anchor, point);
+    if (stretch < 30) continue;
+    const heading = bearing(anchor, point);
+    if (previousBearing !== null) {
+      const change = Math.abs(((heading - previousBearing + 540) % 360) - 180);
+      turning += change;
+    }
+    previousBearing = heading;
+    length += stretch;
+    anchor = point;
+  }
+  return length >= 200 ? turning / (length / 1000) : 0;
+}
+
+/** One of the ways to a destination, as the rider sees it before choosing. */
+export interface RouteChoice {
+  index: number;
+  label: 'Fastest' | 'Twisty' | 'Alternative';
+  /** "Twisty · 29 min · +6 min" */
+  text: string;
+}
+
+/**
+ * Labels the ways Google offers: the quickest is "Fastest"; another that
+ * turns at least a third more per kilometre (and isn't a straight road
+ * with one bend) is "Twisty", the one riders often want; the rest are
+ * "Alternative". Each says its time and how much longer it is.
+ */
+export function routeChoices(
+  routes: ReadonlyArray<{ durationSeconds: number; coordinates: readonly RouteChoicePoint[] }>,
+): RouteChoice[] {
+  if (routes.length === 0) return [];
+  let fastest = 0;
+  routes.forEach((route, index) => { if (route.durationSeconds < routes[fastest]!.durationSeconds) fastest = index; });
+  const twist = routes.map((route) => routeTwistiness(route.coordinates));
+  let twisty = -1;
+  routes.forEach((_route, index) => {
+    if (index === fastest || twist[index]! < 40 || twist[index]! < twist[fastest]! * 1.33) return;
+    if (twisty === -1 || twist[index]! > twist[twisty]!) twisty = index;
+  });
+  return routes.map((route, index) => {
+    const label = index === fastest ? 'Fastest' : index === twisty ? 'Twisty' : 'Alternative';
+    const extra = route.durationSeconds - routes[fastest]!.durationSeconds;
+    const parts = [label, formatNavigationDuration(route.durationSeconds)];
+    if (index !== fastest && extra >= 60) parts.push(`+${formatNavigationDuration(extra)}`);
+    return { index, label, text: parts.join(' · ') };
+  });
+}
+
+/** "+8 min traffic" when today's traffic adds two minutes or more, else ''. */
+export function routeTrafficDelayText(durationSeconds: number, typicalDurationSeconds: number | null | undefined): string {
+  if (typeof typicalDurationSeconds !== 'number' || !Number.isFinite(typicalDurationSeconds)) return '';
+  const delay = durationSeconds - typicalDurationSeconds;
+  return delay >= 120 ? `+${formatNavigationDuration(delay)} traffic` : '';
+}

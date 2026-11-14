@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv } from './liveKitToken.ts';
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
-import { fetchGoogleDrivingRoute } from './directionsProvider.ts';
+import { fetchDrivingRoute } from './directionsProvider.ts';
 import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
 import type { DirectionsProvider } from './directionsCache.ts';
 import { RetentionStore } from './retentionStore.ts';
@@ -214,7 +214,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
   const directionsCache = options.directionsCache ?? new DirectionsCache();
   const directionsProvider = wrapDirectionsProviderWithCache(
-    options.directionsProvider ?? ((origin, destination, avoid) => fetchGoogleDrivingRoute(origin, destination, { avoid })),
+    options.directionsProvider ?? ((origin, destination, avoid) => fetchDrivingRoute(origin, destination, { avoid })),
     directionsCache,
   );
   const placesProvider = options.placesProvider ?? ((request: PlaceSearchRequest) => fetchGooglePlaces(request));

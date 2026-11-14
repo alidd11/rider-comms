@@ -19,7 +19,12 @@ export interface DrivingRoute {
   coordinates: RouteCoordinate[];
   steps: NavigationRouteStep[];
   distanceMeters: number;
+  /** With live traffic when the route came from the Routes API. */
   durationSeconds: number;
+  /** The same trip in normal traffic, when known: the gap is today's delay. */
+  typicalDurationSeconds?: number;
+  /** Up to two other ways there, for the rider to choose from. */
+  alternatives?: DrivingRoute[];
 }
 
 export type DirectionsProviderErrorCode =
@@ -254,5 +259,178 @@ export async function fetchGoogleDrivingRoute(
     return parseGoogleResponse(payload);
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+// --- Routes API (Google's successor to the Directions API) ----------------
+//
+// Asked for live-traffic routes and up to two alternatives, like Google Maps
+// and Waze. Until the Routes API is switched on for the key, Google answers
+// 403 and the legacy Directions API is used instead, so routing never stops.
+
+const ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+const ROUTES_FIELD_MASK = [
+  'routes.distanceMeters',
+  'routes.duration',
+  'routes.staticDuration',
+  'routes.polyline.encodedPolyline',
+  'routes.legs.steps.distanceMeters',
+  'routes.legs.steps.staticDuration',
+  'routes.legs.steps.polyline.encodedPolyline',
+  'routes.legs.steps.startLocation.latLng',
+  'routes.legs.steps.endLocation.latLng',
+  'routes.legs.steps.navigationInstruction',
+].join(',');
+
+interface RoutesLatLng { latLng?: { latitude?: number; longitude?: number } }
+interface RoutesStep {
+  distanceMeters?: number;
+  staticDuration?: string;
+  polyline?: { encodedPolyline?: string };
+  startLocation?: RoutesLatLng;
+  endLocation?: RoutesLatLng;
+  navigationInstruction?: { maneuver?: string; instructions?: string };
+}
+interface RoutesRoute {
+  distanceMeters?: number;
+  duration?: string;
+  staticDuration?: string;
+  polyline?: { encodedPolyline?: string };
+  legs?: Array<{ steps?: RoutesStep[] }>;
+}
+
+/** The Routes API isn't enabled for this key (or refuses it): use the legacy API. */
+class RoutesApiUnavailable extends Error {}
+
+/** "123s" or "123.4s" → seconds. */
+function routesSeconds(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const match = /^(\d+(?:\.\d+)?)s$/.exec(value);
+  return match ? Number(match[1]) : null;
+}
+
+function routesCoordinate(value: RoutesLatLng | undefined): RouteCoordinate | null {
+  const latLng = value?.latLng;
+  if (!latLng) return null;
+  return parseGoogleCoordinate({ lat: latLng.latitude, lng: latLng.longitude });
+}
+
+/** TURN_SLIGHT_LEFT → turn-slight-left, the legacy names both apps draw. */
+export function routesManeuver(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value || value === 'MANEUVER_UNSPECIFIED') return undefined;
+  return value.toLowerCase().replace(/_/g, '-');
+}
+
+function parseRoutesRoute(route: RoutesRoute): DrivingRoute {
+  const encoded = route.polyline?.encodedPolyline;
+  const rawSteps = route.legs?.[0]?.steps;
+  if (typeof encoded !== 'string' || !Array.isArray(rawSteps) || rawSteps.length === 0) {
+    throw new DirectionsProviderError('directions_invalid_response');
+  }
+  const coordinates = decodeGooglePolyline(encoded);
+  if (coordinates.length < 2) throw new DirectionsProviderError('directions_invalid_response');
+
+  const parsed = rawSteps.map((step) => {
+    const start = routesCoordinate(step.startLocation);
+    const end = routesCoordinate(step.endLocation);
+    const stepEncoded = step.polyline?.encodedPolyline;
+    const stepCoordinates = typeof stepEncoded === 'string' ? decodeGooglePolyline(stepEncoded) : [];
+    const seconds = routesSeconds(step.staticDuration);
+    if (!start || !end || !nonNegativeFinite(step.distanceMeters) || seconds === null || stepCoordinates.length < 2) {
+      throw new DirectionsProviderError('directions_invalid_response');
+    }
+    const instruction = normalizeNavigationInstructionText(step.navigationInstruction?.instructions ?? '') || 'Continue';
+    const maneuver = routesManeuver(step.navigationInstruction?.maneuver);
+    return { instruction, ...(maneuver ? { maneuver } : {}), distanceMeters: step.distanceMeters, seconds, start, end, coordinates: stepCoordinates };
+  });
+
+  const typical = routesSeconds(route.staticDuration) ?? parsed.reduce((sum, step) => sum + step.seconds, 0);
+  const withTraffic = routesSeconds(route.duration) ?? typical;
+  // Google times each step in normal traffic only; spread today's delay
+  // across them so the arrival time each app adds up matches the route's.
+  const stepTotal = parsed.reduce((sum, step) => sum + step.seconds, 0);
+  const scale = stepTotal > 0 ? withTraffic / stepTotal : 1;
+  const steps = parsed.map(({ seconds, ...step }): NavigationRouteStep => ({ ...step, durationSeconds: Math.round(seconds * scale) }));
+
+  return {
+    coordinates,
+    steps,
+    distanceMeters: nonNegativeFinite(route.distanceMeters) ? route.distanceMeters : steps.reduce((sum, step) => sum + step.distanceMeters, 0),
+    durationSeconds: Math.round(withTraffic),
+    typicalDurationSeconds: Math.round(typical),
+  };
+}
+
+export async function fetchGoogleRoutes(
+  origin: RouteCoordinate,
+  destination: RouteCoordinate,
+  options: GoogleDirectionsOptions = {},
+): Promise<DrivingRoute> {
+  if (!isCoordinate(origin) || !isCoordinate(destination)) {
+    throw new DirectionsProviderError('directions_invalid_request');
+  }
+  const apiKey = options.apiKey ?? process.env.GOOGLE_DIRECTIONS_API_KEY ?? '';
+  if (!apiKey) throw new DirectionsProviderError('directions_not_configured');
+
+  const point = (coordinate: RouteCoordinate) => ({ location: { latLng: { latitude: coordinate.lat, longitude: coordinate.lon } } });
+  const body = {
+    origin: point(origin),
+    destination: point(destination),
+    travelMode: 'DRIVE',
+    routingPreference: 'TRAFFIC_AWARE',
+    computeAlternativeRoutes: true,
+    routeModifiers: {
+      avoidHighways: options.avoid?.highways === true,
+      avoidTolls: options.avoid?.tolls === true,
+      avoidFerries: options.avoid?.ferries === true,
+    },
+    languageCode: 'en-GB',
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  try {
+    let response: Response;
+    try {
+      response = await (options.fetchImpl ?? fetch)(ROUTES_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': ROUTES_FIELD_MASK },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch {
+      throw new DirectionsProviderError(controller.signal.aborted ? 'directions_timeout' : 'directions_unavailable');
+    }
+    if (response.status === 403) throw new RoutesApiUnavailable();
+    if (!response.ok) throw new DirectionsProviderError('directions_unavailable');
+
+    let payload: { routes?: RoutesRoute[] };
+    try {
+      payload = await response.json() as { routes?: RoutesRoute[] };
+    } catch {
+      throw new DirectionsProviderError('directions_invalid_response');
+    }
+    const routes = Array.isArray(payload.routes) ? payload.routes : [];
+    if (routes.length === 0) throw new DirectionsProviderError('directions_no_route');
+    const [best, ...others] = routes.map(parseRoutesRoute);
+    const alternatives = others.slice(0, 2);
+    return alternatives.length ? { ...best!, alternatives } : best!;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Live-traffic routes with alternatives; the legacy Directions API while
+ * the Routes API isn't enabled for the key. */
+export async function fetchDrivingRoute(
+  origin: RouteCoordinate,
+  destination: RouteCoordinate,
+  options: GoogleDirectionsOptions = {},
+): Promise<DrivingRoute> {
+  try {
+    return await fetchGoogleRoutes(origin, destination, options);
+  } catch (error) {
+    if (error instanceof RoutesApiUnavailable) return fetchGoogleDrivingRoute(origin, destination, options);
+    throw error;
   }
 }

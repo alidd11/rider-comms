@@ -146,8 +146,46 @@
       avoidHighways: state.avoidHighways === true,
       avoidTolls: state.avoidTolls === true,
       avoidFerries: state.avoidFerries === true,
+      // Live traffic and the other ways there, as in Google Maps and Waze
+      // (native: the backend's Routes API request).
+      provideRouteAlternatives: true,
+      drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel?.BEST_GUESS ?? 'bestguess' },
     };
   }
+
+  // The ways Google offered when navigation began (shared routeChoices),
+  // shown above the trip card while parked; a reroute clears them.
+  let navRouteResult = null;
+  let navRouteIndex = 0;
+  // Google times each step in normal traffic: stretch them by today's delay
+  // so the arrival time matches the route's live-traffic duration.
+  let navTrafficScale = 1;
+
+  function routeLegSeconds(leg) {
+    return (leg?.duration_in_traffic?.value ?? leg?.duration?.value) || 0;
+  }
+
+  function renderNavRouteChoices() {
+    const box = $('#navRouteChoices');
+    if (!box) return;
+    const routes = navRouteResult?.routes || [];
+    if (routes.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
+    const choices = navigationGuidance.routeChoices(routes.map((route) => ({
+      durationSeconds: routeLegSeconds(route.legs?.[0]),
+      coordinates: (route.overview_path || []).map((point) => ({ lat: point.lat(), lon: point.lng() })),
+    })));
+    box.innerHTML = choices.map((choice) => `<button type="button" role="radio" aria-checked="${choice.index === navRouteIndex}" data-route-choice="${choice.index}">${escapeHtml(choice.text)}</button>`).join('');
+    box.hidden = false;
+  }
+
+  $('#navRouteChoices')?.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-route-choice]');
+    if (!button || !navRouteResult || !navDestination) return;
+    const index = Number(button.dataset.routeChoice);
+    if (index === navRouteIndex || !navRouteResult.routes[index]) return;
+    const { label, ...destination } = navDestination;
+    applyRoute(navRouteResult, destination, label, { preserveMute: true, routeIndex: index });
+  });
 
   function getDirectionsService() {
     if (!directionsService) directionsService = new google.maps.DirectionsService();
@@ -302,6 +340,7 @@
       remainingMeters += navSteps[i].distance.value;
       remainingSeconds += navSteps[i].duration.value;
     }
+    remainingSeconds *= navTrafficScale;
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     navRemainingSeconds = remainingSeconds;
@@ -666,11 +705,23 @@
 
   // Navigation now extends the real app surface through the installed-iPhone
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
-  function applyRoute(result, destination, label, { preserveMute = false, routeNotice = null } = {}) {
-    const leg = result.routes[0]?.legs[0];
+  function applyRoute(result, destination, label, { preserveMute = false, routeNotice = null, routeIndex = 0 } = {}) {
+    const leg = result.routes[routeIndex]?.legs[0];
     if (!leg) { showToast('Couldn’t calculate a route. Try again.'); return; }
     stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
+    getDirectionsRenderer().setRouteIndex?.(routeIndex);
+    // Choices are offered when navigation begins; a reroute doesn't offer them.
+    navRouteResult = routeNotice ? null : result;
+    navRouteIndex = routeIndex;
+    navTrafficScale = leg.duration?.value > 0 && leg.duration_in_traffic?.value > 0 ? leg.duration_in_traffic.value / leg.duration.value : 1;
+    const traffic = $('#navTraffic');
+    if (traffic) {
+      const text = navigationGuidance.routeTrafficDelayText(routeLegSeconds(leg), leg.duration?.value);
+      traffic.textContent = text;
+      traffic.hidden = !text;
+    }
+    renderNavRouteChoices();
     navSteps = leg.steps;
     const routePath = combineNavigationCameraPaths(...navSteps.map((step) => navigationStepPath(step)));
     renderNavigationRouteLine(routePath);
@@ -1011,6 +1062,11 @@
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     void keepScreenOnForNavigation(false);
+    navRouteResult = null;
+    navTrafficScale = 1;
+    renderNavRouteChoices();
+    const traffic = $('#navTraffic');
+    if (traffic) traffic.hidden = true;
     renderMapChrome();
     if (arrived) {
       if (arrival) showArrivalCard(arrival);

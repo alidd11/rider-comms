@@ -16,7 +16,12 @@ export interface InAppNavigationRoute {
   coordinates: RouteCoordinate[];
   steps: NavigationRouteStep[];
   distanceMeters: number;
+  /** With live traffic when the server had it. */
   durationSeconds: number;
+  /** The same trip in normal traffic, when known. */
+  typicalDurationSeconds?: number;
+  /** Other ways there, offered before the rider sets off. */
+  alternatives?: InAppNavigationRoute[];
 }
 
 export function metersBetween(a: RouteCoordinate, b: RouteCoordinate): number {

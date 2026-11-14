@@ -51,7 +51,7 @@ import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
@@ -261,6 +261,9 @@ export function MapScreen(): React.JSX.Element {
     startInAppNavigation,
     stopFollowingRoute,
     resumeFollowingRoute,
+    routeChoices: navigationRouteChoices,
+    chosenRouteIndex,
+    chooseRoute,
   } = useInAppNavigation(
     client,
     mapRef,
@@ -958,6 +961,11 @@ export function MapScreen(): React.JSX.Element {
             remainingMeters={remainingNavigationMeters}
             unitSystem={unitSystem}
             onHeight={setNavigationSummaryHeight}
+            // Choosing a way is for when parked: Ride Safe hides it on the move.
+            routeChoices={lockedForSafety ? [] : navigationRouteChoices}
+            chosenRouteIndex={chosenRouteIndex}
+            onChooseRoute={chooseRoute}
+            trafficText={activeRoute ? routeTrafficDelayText(activeRoute.durationSeconds, activeRoute.typicalDurationSeconds) : ''}
           />
         </NavigationNightContext.Provider>
       )}

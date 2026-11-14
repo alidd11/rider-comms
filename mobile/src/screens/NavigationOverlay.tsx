@@ -13,6 +13,7 @@ import {
   navigationInstructionRoad,
   navigationSpeedUnit,
 } from '../navigationGuidance';
+import type { RouteChoice } from '@rider-comms/shared';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { colors, darkColors, pressedFeedback } from '../theme';
 import { GLANCE_TEXT_MAX_SCALE, useNavigationPalette } from '../navigationTone';
@@ -170,6 +171,10 @@ export function NavigationTripSummary({
   remainingMeters,
   unitSystem,
   onHeight,
+  routeChoices = [],
+  chosenRouteIndex = -1,
+  onChooseRoute,
+  trafficText = '',
 }: {
   bottomPadding: number;
   arrivalLabel: string;
@@ -177,6 +182,12 @@ export function NavigationTripSummary({
   remainingMeters: number;
   unitSystem: UnitSystem;
   onHeight: React.Dispatch<React.SetStateAction<number>>;
+  /** Other ways there, offered while parked (PWA: #navRouteChoices). */
+  routeChoices?: RouteChoice[];
+  chosenRouteIndex?: number;
+  onChooseRoute?: (index: number) => void;
+  /** "+8 min traffic" when today's traffic is adding time. */
+  trafficText?: string;
 }): React.JSX.Element {
   const { night: isNight } = useNavigationPalette();
   const label = [styles.navigationSummaryLabel, isNight && night.mutedText];
@@ -185,6 +196,32 @@ export function NavigationTripSummary({
   return (
     <View testID="navigation-summary" style={[styles.navigationSummary, isNight && night.card, { paddingBottom: bottomPadding }]} onLayout={measured(onHeight)}>
       <View style={[styles.navigationSummaryHandle, isNight && night.handle]} />
+      {routeChoices.length > 1 && onChooseRoute ? (
+        <View style={styles.navigationRouteChoices} accessibilityRole="radiogroup" accessibilityLabel="Routes" testID="navigation-route-choices">
+          {routeChoices.map((choice) => {
+            const selected = choice.index === chosenRouteIndex;
+            return (
+              <Pressable
+                key={choice.index}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                accessibilityLabel={choice.text}
+                onPress={() => onChooseRoute(choice.index)}
+                style={({ pressed }) => [
+                  styles.navigationRouteChoice,
+                  isNight && night.card,
+                  selected && styles.navigationRouteChoiceSelected,
+                  pressed && styles.navigationRouteChoicePressed,
+                ]}
+              >
+                <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={2} style={[styles.navigationRouteChoiceText, isNight && night.primaryText, selected && styles.navigationRouteChoiceTextSelected]}>
+                  {choice.text}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
       <View style={styles.navigationSummaryContent}>
         <View style={styles.navigationSummaryPrimary}>
           <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationArrival, isNight && night.arrival]}>{arrivalLabel}</Text>
@@ -194,6 +231,7 @@ export function NavigationTripSummary({
         <View style={styles.navigationSummaryStat}>
           <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={value}>{formatNavigationDuration(remainingSeconds)}</Text>
           <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={label}>left</Text>
+          {trafficText ? <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={styles.navigationTraffic} testID="navigation-traffic">{trafficText}</Text> : null}
         </View>
         <View style={divider} />
         <View style={styles.navigationSummaryStat}>

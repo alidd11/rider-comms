@@ -81,3 +81,57 @@ test('PWA says how far a long road goes when navigation starts', async ({ page }
   await expect(page.locator('#app')).toHaveClass(/nav-mode/);
   await expect.poll(() => page.evaluate(() => window.__spoken)).toContain('Head north on the A1. Continue for 12 mi.');
 });
+
+test('PWA asks for live traffic, offers the other ways there while parked, and switches on a tap', async ({ page }) => {
+  await startNavigationHome(page);
+  // Replace the route with two ways and live traffic, then start again.
+  await page.locator('#endNavBtn').click();
+  await page.evaluate(() => {
+    const latLng = (lat, lng) => new google.maps.LatLng(lat, lng);
+    const way = (minutes, typicalMinutes, zigzag) => {
+      const path = Array.from({ length: 30 }, (_, i) => latLng(51.5 + i * 0.001, -0.1 + (zigzag ? (i % 2) * 0.0008 : 0)));
+      const step = (from, to, instructions, maneuver) => ({
+        instructions, maneuver,
+        distance: { value: 1600, text: '' }, duration: { value: typicalMinutes * 30, text: '' },
+        start_location: path[from], end_location: path[to], path: path.slice(from, to + 1),
+      });
+      return {
+        overview_path: path,
+        legs: [{
+          steps: [step(0, 14, 'Head <b>north</b>', ''), step(14, 29, 'Turn <b>left</b>', 'turn-left')],
+          distance: { value: 3200, text: '' },
+          duration: { value: typicalMinutes * 60, text: '' },
+          duration_in_traffic: { value: minutes * 60, text: '' },
+          start_location: path[0], end_location: path[29],
+        }],
+      };
+    };
+    window.__riderCommsTestRoute = { routes: [way(23, 15, false), way(29, 29, true)] };
+    window.__riderCommsTestRouteRequests = [];
+  });
+  await page.locator('[data-saved-place="home"]').click();
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+
+  const request = await page.evaluate(() => window.__riderCommsTestRouteRequests[0]);
+  expect(request.provideRouteAlternatives).toBe(true);
+  expect(request.drivingOptions.trafficModel).toBe('bestguess');
+  expect(Number.isNaN(Date.parse(request.drivingOptions.departureTime))).toBe(false);
+
+  const choices = page.locator('#navRouteChoices [role="radio"]');
+  await expect(choices).toHaveText(['Fastest · 23 min', 'Twisty · 29 min · +6 min']);
+  await expect(choices.first()).toHaveAttribute('aria-checked', 'true');
+  // Traffic is adding 8 minutes today; the arrival time counts it.
+  await expect(page.locator('#navTraffic')).toHaveText('+8 min traffic');
+  const minutes = async () => Number((await page.locator('#navEta').textContent()).replace(/\D+/g, ''));
+  const withTraffic = await minutes();
+
+  await choices.nth(1).click();
+  await expect(page.locator('#navRouteChoices [role="radio"]').nth(1)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#navTraffic')).toBeHidden();
+  // Same road geometry, so the times left compare as 23 (15 plus 8 of
+  // traffic) to 29: the first counts today's traffic.
+  await expect.poll(async () => Math.abs(withTraffic / await minutes() - 23 / 29)).toBeLessThan(0.07);
+
+  await page.locator('#endNavBtn').click();
+  await expect(page.locator('#navRouteChoices')).toBeHidden();
+});

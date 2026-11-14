@@ -11,6 +11,9 @@ import {
   navigationPromptText,
   navigationSpeedUnit,
   navigationStepStartPrompt,
+  routeChoices,
+  routeTrafficDelayText,
+  routeTwistiness,
 } from '../shared/src/navigationGuidance.ts';
 
 await import('../docs/navigation-guidance.js');
@@ -117,3 +120,24 @@ for (const instruction of fixtures.instruction) {
 }
 
 console.log('Navigation guidance PWA/native parity valid');
+
+{
+  const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+  const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+  const jitter = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.00005, lon: -0.1 + (i % 2) * 0.00001 }));
+  for (const points of [straight, zigzag, jitter, [], [straight[0]]]) {
+    assert.equal(browser.routeTwistiness(points), routeTwistiness(points));
+  }
+  for (const routes of [
+    [],
+    [{ durationSeconds: 1380, coordinates: straight }],
+    [{ durationSeconds: 1380, coordinates: straight }, { durationSeconds: 1740, coordinates: zigzag }, { durationSeconds: 1500, coordinates: straight }],
+    [{ durationSeconds: 1740, coordinates: zigzag }, { durationSeconds: 1380, coordinates: zigzag }],
+    [{ durationSeconds: 1400, coordinates: straight }, { durationSeconds: 1420, coordinates: straight }],
+  ]) {
+    assert.deepEqual(browser.routeChoices(routes), routeChoices(routes));
+  }
+  for (const [duration, typical] of [[1800, 1200], [1800, 1750], [1800, null], [1800, undefined], [1800, Number.NaN]]) {
+    assert.equal(browser.routeTrafficDelayText(duration, typical), routeTrafficDelayText(duration, typical));
+  }
+}

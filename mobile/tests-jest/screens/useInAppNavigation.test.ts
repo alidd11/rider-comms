@@ -378,6 +378,27 @@ test('muting silences prompts and stops speech without re-subscribing GPS', asyn
   expect(mockWatchNavigationLocation).toHaveBeenCalledTimes(1);
 });
 
+test('offers the other ways there before setting off, and switches on a tap', async () => {
+  const twisty: InAppNavigationRoute = { ...ROUTE, durationSeconds: 400, steps: ROUTE.steps.slice(1) };
+  const client = { getDrivingRoute: jest.fn(async () => ({ ...ROUTE, alternatives: [{ ...twisty, alternatives: [] }] })) };
+  const { result } = await startNavigation({ client: client as never });
+  expect(result.current.routeChoices.map((choice) => choice.label)).toEqual(['Fastest', 'Alternative']);
+  expect(result.current.chosenRouteIndex).toBe(0);
+  expect(result.current.activeRoute).not.toHaveProperty('alternatives');
+
+  await act(async () => { result.current.chooseRoute(1); });
+  expect(result.current.chosenRouteIndex).toBe(1);
+  expect(result.current.activeRoute?.steps).toEqual(twisty.steps);
+  expect(result.current.navigationStepIndex).toBe(0);
+  // The same one again, or one that doesn't exist, changes nothing.
+  const current = result.current.activeRoute;
+  await act(async () => { result.current.chooseRoute(1); result.current.chooseRoute(5); });
+  expect(result.current.activeRoute).toBe(current);
+
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(result.current.routeChoices).toEqual([]);
+});
+
 test('reroutes only after staying off route for the grace period', async () => {
   const rerouted: InAppNavigationRoute = { ...ROUTE, steps: ROUTE.steps.slice(1) };
   const client = { getDrivingRoute: jest.fn().mockResolvedValueOnce(ROUTE).mockResolvedValueOnce(rerouted) };
@@ -396,7 +417,9 @@ test('reroutes only after staying off route for the grace period', async () => {
   expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Rerouting.');
   expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
   expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5005, lon: -0.097 }, DESTINATION, { highways: false, tolls: false, ferries: false });
-  expect(result.current.activeRoute).toBe(rerouted);
+  expect(result.current.activeRoute).toStrictEqual(rerouted);
+  // A reroute takes Google's best way; it doesn't offer choices mid-ride.
+  expect(result.current.routeChoices).toEqual([]);
   expect(result.current.navigationStepIndex).toBe(0);
   expect(result.current.navigationNotice).toBe('Route updated.');
   // The new route restarts the GPS feed, but the prompt audio session stays up.

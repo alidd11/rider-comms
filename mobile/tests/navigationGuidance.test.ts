@@ -11,6 +11,7 @@ import {
   navigationSpeedUnit,
   navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
+import { routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
 
 describe('navigation guidance presentation', () => {
   it('formats metric and imperial distances consistently for navigation', () => {
@@ -114,5 +115,42 @@ describe('navigationInstructionRoad', () => {
     assert.equal(navigationInstructionRoad('Turn left'), null);
     assert.equal(navigationInstructionRoad('Your destination is on the left'), null);
     assert.equal(navigationInstructionRoad(''), null);
+  });
+
+  it('scores how twisty a route is, ignoring GPS-scale wiggles', () => {
+    const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+    const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+    const jitter = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.00005, lon: -0.1 + (i % 2) * 0.00001 }));
+    assert.ok(routeTwistiness(straight) < 1);
+    assert.ok(routeTwistiness(zigzag) > 200);
+    // Under 200 m measured: too short to judge.
+    assert.equal(routeTwistiness(jitter), 0);
+    assert.equal(routeTwistiness([]), 0);
+  });
+
+  it('labels the fastest way, a twisty one and the rest, with how much longer', () => {
+    const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+    const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+    assert.deepEqual(routeChoices([
+      { durationSeconds: 1380, coordinates: straight },
+      { durationSeconds: 1740, coordinates: zigzag },
+      { durationSeconds: 1500, coordinates: straight },
+    ]).map((choice) => choice.text), ['Fastest · 23 min', 'Twisty · 29 min · +6 min', 'Alternative · 25 min · +2 min']);
+    // Only one route: just the fastest.
+    assert.deepEqual(routeChoices([{ durationSeconds: 600, coordinates: straight }]), [{ index: 0, label: 'Fastest', text: 'Fastest · 10 min' }]);
+    // The fastest is itself the twisty one: no separate Twisty label, and
+    // under a minute longer says no extra time.
+    assert.deepEqual(routeChoices([
+      { durationSeconds: 1740, coordinates: zigzag },
+      { durationSeconds: 1720, coordinates: zigzag },
+    ]).map((choice) => choice.text), ['Alternative · 29 min', 'Fastest · 29 min']);
+    assert.deepEqual(routeChoices([]), []);
+  });
+
+  it('says how much today\'s traffic adds, from two minutes up', () => {
+    assert.equal(routeTrafficDelayText(1800, 1200), '+10 min traffic');
+    assert.equal(routeTrafficDelayText(1800, 1750), '');
+    assert.equal(routeTrafficDelayText(1800, null), '');
+    assert.equal(routeTrafficDelayText(1800, Number.NaN), '');
   });
 });

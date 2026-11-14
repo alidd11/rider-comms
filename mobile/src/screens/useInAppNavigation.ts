@@ -47,8 +47,10 @@ import {
   navigationRouteStatus,
   navigationTripSeconds,
   recordNavigationTripFix,
+  routeChoices,
   startNavigationTrip,
   type NavigationTrip,
+  type RouteChoice,
   predictNavigationPuck,
 } from '@rider-comms/shared';
 import { bearingDegrees } from './mapMarkers';
@@ -108,6 +110,11 @@ export interface InAppNavigation {
   startInAppNavigation: (target: NavigationTarget) => Promise<void>;
   stopFollowingRoute: () => void;
   resumeFollowingRoute: () => void;
+  /** The ways there, labelled; empty with only one, or once rerouted. */
+  routeChoices: RouteChoice[];
+  /** Which of routeChoices is being followed. */
+  chosenRouteIndex: number;
+  chooseRoute: (index: number) => void;
 }
 
 /**
@@ -149,6 +156,7 @@ export function useInAppNavigation(
   const routeAvoidanceRef = React.useRef(routeAvoidance);
   routeAvoidanceRef.current = routeAvoidance;
   const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
+  const [routeOptions, setRouteOptions] = React.useState<InAppNavigationRoute[]>([]);
   // The screen stays on while navigating, as in Google Maps, Waze and Apple
   // Maps: a rider glancing down mustn't find a locked phone (PWA: Screen
   // Wake Lock in 17-navigation.js).
@@ -370,6 +378,7 @@ export function useInAppNavigation(
     setNavigationMuted(false);
     setNavigationSpeedMps(null);
     setNavigationNotice(arrived ? 'You’ve arrived.' : null);
+    setRouteOptions([]);
     const trip = tripRef.current;
     tripRef.current = null;
     setNavigationArrival(arrived && trip ? {
@@ -387,7 +396,12 @@ export function useInAppNavigation(
     if (rerouting) navRerouting.current = true;
     try {
       const nextRoute = await client.getDrivingRoute(origin, target, routeAvoidanceRef.current);
-      setActiveRoute(nextRoute);
+      // The ways there, offered before setting off; a reroute offers none.
+      const withoutAlternatives = ({ alternatives: _others, ...route }: InAppNavigationRoute): InAppNavigationRoute => route;
+      const alternatives = nextRoute.alternatives ?? [];
+      const chosen = nextRoute.alternatives ? withoutAlternatives(nextRoute) : nextRoute;
+      setRouteOptions(rerouting || alternatives.length === 0 ? [] : [chosen, ...alternatives.map(withoutAlternatives)]);
+      setActiveRoute(chosen);
       setNavigationDestination(target);
       setNavigationStepIndex(0);
       announcedNavigationStep.current = null;
@@ -403,11 +417,27 @@ export function useInAppNavigation(
       }
       navigationFollowingRef.current = true;
       setNavigationFollowing(true);
-      if (nextRoute.steps[0]) focusNavigationCamera(origin, nextRoute, 0);
+      if (chosen.steps[0]) focusNavigationCamera(origin, chosen, 0);
     } finally {
       if (rerouting) navRerouting.current = false;
     }
   }, [client, focusNavigationCamera]);
+
+  /** Switches to another of the offered ways there, before setting off. */
+  const chooseRoute = React.useCallback((index: number) => {
+    const route = routeOptions[index];
+    if (!route || route === activeRoute) return;
+    setActiveRoute(route);
+    setNavigationStepIndex(0);
+    announcedNavigationStep.current = null;
+    navigationPromptProgress.current = null;
+    finalNavigationPrompt.current = null;
+    navOffRouteSince.current = null;
+    navigationFollowingRef.current = true;
+    setNavigationFollowing(true);
+    const here = currentLocation ?? route.steps[0]?.start;
+    if (here && route.steps[0]) focusNavigationCamera(here, route, 0);
+  }, [activeRoute, currentLocation, focusNavigationCamera, routeOptions]);
 
   const startInAppNavigation = React.useCallback(async (target: NavigationTarget): Promise<void> => {
     const origin = currentLocation ?? await requestCurrentLocation(true);
@@ -698,5 +728,9 @@ export function useInAppNavigation(
     startInAppNavigation,
     stopFollowingRoute,
     resumeFollowingRoute,
+    /** The ways there, labelled (shared routeChoices); empty once rerouted. */
+    routeChoices: routeOptions.length > 1 ? routeChoices(routeOptions) : [],
+    chosenRouteIndex: activeRoute ? routeOptions.indexOf(activeRoute) : -1,
+    chooseRoute,
   };
 }

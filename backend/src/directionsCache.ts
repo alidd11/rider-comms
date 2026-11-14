@@ -4,7 +4,8 @@ import type { DrivingRoute, RouteAvoidance, RouteCoordinate } from './directions
 // than traffic-aware. Keep a successful route for 15 minutes to avoid
 // repeatedly paying for the same destination while a rider previews,
 // starts, or briefly revisits a route.
-const DEFAULT_TTL_MS = 15 * 60_000;
+// Routes carry live traffic, so a cached one is reused for 5 minutes only.
+const DEFAULT_TTL_MS = 5 * 60_000;
 const DEFAULT_MAX_ENTRIES = 500;
 // Google's Directions API here is called without departure_time, so it
 // returns a static (non-traffic-aware) route -- the same origin/destination
