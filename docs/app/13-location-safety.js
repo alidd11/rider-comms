@@ -319,6 +319,7 @@
           await apiFetch('POST', `/rides/${encodeURIComponent(ride.rideId)}/location`, {
             lat: position.coords.latitude,
             lon: position.coords.longitude,
+            batteryLow: await rideBatteryLow(),
           });
           const { locations } = await apiFetch('GET', `/rides/${encodeURIComponent(ride.rideId)}/locations`);
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;

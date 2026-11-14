@@ -11,6 +11,12 @@ const mockRequestForegroundPermissionsAsync = jest.fn();
 const mockGetForegroundPermissionsAsync = jest.fn();
 const mockGetCurrentPositionAsync = jest.fn();
 
+const mockPowerState = jest.fn(async (): Promise<{ batteryLevel: number; batteryState: number }> => ({ batteryLevel: 0.8, batteryState: 1 }));
+jest.mock('expo-battery', () => ({
+  BatteryState: { UNKNOWN: 0, UNPLUGGED: 1, CHARGING: 2, FULL: 3 },
+  getPowerStateAsync: () => mockPowerState(),
+}));
+
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: (...args: unknown[]) => mockRequestForegroundPermissionsAsync(...args),
   getForegroundPermissionsAsync: (...args: unknown[]) => mockGetForegroundPermissionsAsync(...args),
@@ -257,8 +263,24 @@ test('ticks a location update to the server while ride location sharing is on', 
   };
   const { result } = await renderRide(client);
 
-  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledWith('ride-1', 51.5, -0.1));
+  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledWith('ride-1', 51.5, -0.1, false));
   await waitFor(() => expect(result.current.rideLocations).toHaveLength(1));
+});
+
+test.each([
+  ['nearly flat and unplugged', { batteryLevel: 0.12, batteryState: 1 }, true],
+  ['nearly flat but charging', { batteryLevel: 0.12, batteryState: 2 }, false],
+  ['full', { batteryLevel: 1, batteryState: 3 }, false],
+  ['unreadable', null, false],
+])('tells the group when this phone\'s battery is low: %s', async (_name, power, low) => {
+  if (power) mockPowerState.mockResolvedValueOnce(power);
+  else mockPowerState.mockRejectedValueOnce(new Error('unavailable'));
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ shareRideLocation: true }) })),
+    updateRideLocation: jest.fn(async () => ({ locations: [] })),
+  };
+  await renderRide(client);
+  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledWith('ride-1', 51.5, -0.1, low));
 });
 
 test('flags group positions as unreachable after repeated network failures, and clears on recovery', async () => {

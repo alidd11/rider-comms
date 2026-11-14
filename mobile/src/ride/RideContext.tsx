@@ -1,8 +1,9 @@
 import * as React from 'react';
+import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import { Alert, AppState } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
-import { recordNavigationTripFix, rideSummary, startNavigationTrip } from '@rider-comms/shared';
+import { isRideBatteryLow, recordNavigationTripFix, rideSummary, startNavigationTrip } from '@rider-comms/shared';
 import type { NavigationTrip, RegroupPoint } from '@rider-comms/shared';
 import { useSettings } from '../settings/SettingsContext';
 import { ApiError, type RideMemberLocation } from '../api/client';
@@ -14,6 +15,17 @@ export const RIDE_LOCATION_REFRESH_MS = 10_000;
 export const RIDE_ROSTER_REFRESH_MS = 10_000;
 // Three failed ticks (~30 s), matching the web app's notice.
 const RIDE_UNREACHABLE_TICKS = 3;
+
+/** Sent with each ride position so the group hears when this phone is
+ * about to die (shared isRideBatteryLow). Unknown counts as fine. */
+async function rideBatteryLow(): Promise<boolean> {
+  try {
+    const { batteryLevel, batteryState } = await Battery.getPowerStateAsync();
+    return isRideBatteryLow(batteryLevel, batteryState === Battery.BatteryState.CHARGING || batteryState === Battery.BatteryState.FULL);
+  } catch {
+    return false;
+  }
+}
 const RIDE_RESTORE_RETRY_MS = 10_000;
 
 export interface ActiveRide {
@@ -274,6 +286,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
             activeRide.rideId,
             fix.coords.latitude,
             fix.coords.longitude,
+            await rideBatteryLow(),
           ));
         } catch (error) {
           // A network failure, timeout or 5xx means the backend is

@@ -51,7 +51,7 @@ import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideDropAnnouncements, rideMemberLastSeenAgo, type RegroupPoint, type RideDropState } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
@@ -453,21 +453,22 @@ export function MapScreen(): React.JSX.Element {
   // (shared rideDropAnnouncements). Checked only when a fresh set of
   // positions arrives, so this rider's own lost signal never reads as
   // everyone else dropping.
-  const rideDrops = React.useRef<{ rideId: string | null; state: RideDropState }>({ rideId: null, state: {} });
+  const rideDrops = React.useRef<{ rideId: string | null; state: RideDropState; battery: RideBatteryState }>({ rideId: null, state: {}, battery: {} });
   React.useEffect(() => {
     const rideId = activeRide?.rideId ?? null;
-    if (rideDrops.current.rideId !== rideId) rideDrops.current = { rideId, state: {} };
+    if (rideDrops.current.rideId !== rideId) rideDrops.current = { rideId, state: {}, battery: {} };
     if (!rideId) return;
     const names = Object.fromEntries(Object.entries(rideProfiles).map(([id, profile]) => [id, profile.displayName]));
-    const step = rideDropAnnouncements(
-      rideDrops.current.state,
-      rideLocations.filter((location) => location.riderId !== riderId),
-      names,
-      Date.now(),
-    );
+    const others = rideLocations.filter((location) => location.riderId !== riderId);
+    const step = rideDropAnnouncements(rideDrops.current.state, others, names, Date.now());
     rideDrops.current.state = step.state;
-    if (step.announcements.length === 0) return;
-    const message = step.announcements.join(' ');
+    // A rider whose phone is nearly flat is called out once too (shared
+    // rideBatteryAnnouncements), so the group knows why they may go quiet.
+    const battery = rideBatteryAnnouncements(rideDrops.current.battery, others, names);
+    rideDrops.current.battery = battery.state;
+    const said = [...step.announcements, ...battery.announcements];
+    if (said.length === 0) return;
+    const message = said.join(' ');
     AccessibilityInfo.announceForAccessibility(message);
     if (spokenDirections && !(activeRoute && navigationMuted)) speakNavigationPrompt(message);
     // Only a new set of positions should be checked.

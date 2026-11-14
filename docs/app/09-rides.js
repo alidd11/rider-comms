@@ -442,6 +442,34 @@
     return { state, announcements };
   }
 
+  // Mirrors shared isRideBatteryLow and rideBatteryAnnouncements
+  // (shared/src/rideCode.ts); scripts/check-client-parity.mjs runs both.
+  const RIDE_BATTERY_LOW_LEVEL = 0.15;
+  function isRideBatteryLow(level, charging) {
+    return !charging && typeof level === 'number' && level >= 0 && level <= RIDE_BATTERY_LOW_LEVEL;
+  }
+  function rideBatteryAnnouncements(previous, locations, names) {
+    const state = {};
+    const announcements = [];
+    for (const { riderId, batteryLow } of locations) {
+      if (!batteryLow) continue;
+      if (!previous[riderId]) announcements.push(`${names[riderId] || 'A rider'}’s phone battery is low.`);
+      state[riderId] = true;
+    }
+    return { state, announcements };
+  }
+
+  /** Sent with each ride position so the group hears when this phone is
+   * about to die. Browsers without the Battery API (Safari) never say so. */
+  async function rideBatteryLow() {
+    try {
+      const battery = await navigator.getBattery?.();
+      return battery ? isRideBatteryLow(battery.level, battery.charging) : false;
+    } catch {
+      return false;
+    }
+  }
+
   // A rider whose position stops updating mid-ride (no signal, flat battery,
   // a fall) is called out to the group once, and again when they're back:
   // a toast, and spoken unless spoken directions are off or navigation is
@@ -453,6 +481,7 @@
   // is being reloaded, and before profiles load a member's name is their ID
   // (said as "A rider" rather than read out).
   let rideDropNames = {};
+  let rideBatteryState = {};
   function announceDroppedRiders(locations) {
     const ride = state.activeRide;
     if (!ride) return;
@@ -460,6 +489,7 @@
       rideDropRideId = ride.rideId;
       rideDropState = {};
       rideDropNames = {};
+      rideBatteryState = {};
     }
     for (const member of ride.members || []) {
       if (member.displayName && member.displayName !== member.riderId) rideDropNames[member.riderId] = member.displayName;
@@ -468,9 +498,14 @@
     const others = locations.filter((entry) => entry.riderId !== state.profile.riderId);
     const step = rideDropAnnouncements(rideDropState, others, names, Date.now());
     rideDropState = step.state;
-    if (!step.announcements.length) return;
-    const message = step.announcements.join(' ');
-    showToast(message);
+    // A rider whose phone is nearly flat is called out once too, so the
+    // group knows why they may go quiet.
+    const battery = rideBatteryAnnouncements(rideBatteryState, others, names);
+    rideBatteryState = battery.state;
+    const said = [...step.announcements, ...battery.announcements];
+    if (!said.length) return;
+    const message = said.join(' ');
+    showToast(message, 'info');
     if (state.spokenDirections !== false) speak(message);
   }
 

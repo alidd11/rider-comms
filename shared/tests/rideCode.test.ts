@@ -7,6 +7,8 @@ import {
   isRideCodeExpired,
   normalizeRegroupLabel,
   regroupAnnouncement,
+  isRideBatteryLow,
+  rideBatteryAnnouncements,
   rideDropAnnouncements,
   rideMemberLastSeenAgo,
   rideSummary,
@@ -140,5 +142,31 @@ describe('ride summary', () => {
   it('leaves out a distance too small to mean anything and copes with odd input', () => {
     expect(rideSummary(20_000, 3, 50, 'mi')).toBe('Under a minute · 3 riders');
     expect(rideSummary(Number.NaN, 2, Number.NaN, 'km')).toBe('Under a minute · 2 riders');
+  });
+});
+
+describe('low battery announcements', () => {
+  it('reports battery low at 15% or under, only when not charging', () => {
+    expect(isRideBatteryLow(0.15, false)).toBe(true);
+    expect(isRideBatteryLow(0.05, false)).toBe(true);
+    expect(isRideBatteryLow(0.16, false)).toBe(false);
+    expect(isRideBatteryLow(0.05, true)).toBe(false);
+    // Unknown levels (-1 on simulators, missing on some browsers).
+    expect(isRideBatteryLow(-1, false)).toBe(false);
+    expect(isRideBatteryLow(null, false)).toBe(false);
+    expect(isRideBatteryLow(undefined, false)).toBe(false);
+  });
+  it('says it once per rider, and again if they run low after charging', () => {
+    const names = { sam: 'Sam' };
+    let step = rideBatteryAnnouncements({}, [{ riderId: 'sam' }, { riderId: 'x', batteryLow: true }], names);
+    expect(step.announcements).toEqual(['A rider’s phone battery is low.']);
+    step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam', batteryLow: true }, { riderId: 'x', batteryLow: true }], names);
+    expect(step.announcements).toEqual(['Sam’s phone battery is low.']);
+    step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam', batteryLow: true }], names);
+    expect(step.announcements).toEqual([]);
+    step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam' }], names);
+    expect(step.state).toEqual({});
+    step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam', batteryLow: true }], names);
+    expect(step.announcements).toEqual(['Sam’s phone battery is low.']);
   });
 });

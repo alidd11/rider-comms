@@ -156,6 +156,37 @@ export function rideDropAnnouncements(
   return { state, announcements };
 }
 
+/** Riders already announced as on a low battery. */
+export type RideBatteryState = Readonly<Record<string, true>>;
+
+/** A phone at or under this charge, and not charging, reports battery low. */
+export const RIDE_BATTERY_LOW_LEVEL = 0.15;
+
+/** Whether this phone should tell the group its battery is low. */
+export function isRideBatteryLow(level: number | null | undefined, charging: boolean): boolean {
+  return !charging && typeof level === 'number' && level >= 0 && level <= RIDE_BATTERY_LOW_LEVEL;
+}
+
+/**
+ * What the group hears when another rider's phone battery runs low, so a
+ * rider who then stops updating has an explanation. Said once per rider;
+ * if they charge up and run low again, it's said again.
+ */
+export function rideBatteryAnnouncements(
+  previous: RideBatteryState,
+  locations: ReadonlyArray<{ riderId: string; batteryLow?: boolean }>,
+  names: Readonly<Record<string, string>>,
+): { state: RideBatteryState; announcements: string[] } {
+  const state: Record<string, true> = {};
+  const announcements: string[] = [];
+  for (const { riderId, batteryLow } of locations) {
+    if (!batteryLow) continue;
+    if (!previous[riderId]) announcements.push(`${names[riderId] || 'A rider'}’s phone battery is low.`);
+    state[riderId] = true;
+  }
+  return { state, announcements };
+}
+
 /**
  * The line a rider sees when their ride ends: how long it lasted, how many
  * rode, and how far this rider went when their position was shared

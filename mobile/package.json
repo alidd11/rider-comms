@@ -26,6 +26,7 @@
     "@rider-comms/shared": "*",
     "@supersami/rn-foreground-service": "2.2.5",
     "expo": "~58.0.25",
+    "expo-battery": "~58.0.4",
     "expo-build-properties": "~58.0.12",
     "expo-clipboard": "~58.0.4",
     "expo-constants": "~58.0.16",

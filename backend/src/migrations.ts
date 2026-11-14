@@ -921,4 +921,12 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE rides ADD COLUMN IF NOT EXISTS regroup_set_at BIGINT;
     `,
   },
+  {
+    // A rider's phone says its battery is nearly flat (and not charging),
+    // so the group knows why that rider may soon stop updating.
+    name: '0054_ride_location_battery_low',
+    sql: `
+      ALTER TABLE ride_locations ADD COLUMN IF NOT EXISTS battery_low BOOLEAN NOT NULL DEFAULT FALSE;
+    `,
+  },
 ];

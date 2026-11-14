@@ -627,6 +627,33 @@ if (!/function NavigationTripSummary[\s\S]*?onLayout=\{measured\(onHeight\)\}/.t
   }
 }
 
+// A rider's low battery is judged and announced the same in both apps.
+{
+  const shared = await import('../shared/src/rideCode.ts');
+  const body = pwaMapSource.match(/const RIDE_BATTERY_LOW_LEVEL = ([\d.]+);\s*function isRideBatteryLow\(level, charging\) \{[\s\S]*?\n {2}\}\s*function rideBatteryAnnouncements\(previous, locations, names\) \{[\s\S]*?\n {2}\}/);
+  if (!body) throw new Error('PWA must define isRideBatteryLow and rideBatteryAnnouncements next to RIDE_BATTERY_LOW_LEVEL');
+  if (Number(body[1]) !== shared.RIDE_BATTERY_LOW_LEVEL) throw new Error('PWA RIDE_BATTERY_LOW_LEVEL must match shared');
+  const pwa = new Function(`${body[0]}; return { isRideBatteryLow, rideBatteryAnnouncements };`)();
+  for (const [level, charging] of [[0.15, false], [0.1, true], [0.16, false], [-1, false], [null, false], [undefined, false], [0, false]]) {
+    if (pwa.isRideBatteryLow(level, charging) !== shared.isRideBatteryLow(level, charging)) throw new Error('PWA and shared isRideBatteryLow disagree');
+  }
+  const names = { sam: 'Sam' };
+  const cases = [
+    [{}, [{ riderId: 'sam', batteryLow: true }]],
+    [{ sam: true }, [{ riderId: 'sam', batteryLow: true }]],
+    [{ sam: true }, [{ riderId: 'sam' }]],
+    [{}, [{ riderId: 'x', batteryLow: true }, { riderId: 'sam', batteryLow: false }]],
+  ];
+  for (const [previous, locations] of cases) {
+    if (JSON.stringify(pwa.rideBatteryAnnouncements(previous, locations, names)) !== JSON.stringify(shared.rideBatteryAnnouncements(previous, locations, names))) {
+      throw new Error('PWA and shared rideBatteryAnnouncements disagree');
+    }
+  }
+  if (!/rideBatteryAnnouncements\(/.test(nativeMapScreenSource)) {
+    throw new Error('Native map must announce low batteries with the shared rideBatteryAnnouncements');
+  }
+}
+
 // The end-of-ride summary reads the same in both apps.
 {
   const shared = await import('../shared/src/rideCode.ts');

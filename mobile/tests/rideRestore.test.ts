@@ -37,6 +37,7 @@ test('native restores ride membership and consent from the server and ignores la
     require(name: string) {
       if (name === 'react') return react;
       if (name === 'expo-location') return {};
+      if (name === 'expo-battery') return {};
       if (name === 'react-native') return { AppState: {
         currentState: 'active', addEventListener: () => ({ remove() {} }),
       } };
@@ -105,6 +106,8 @@ test('native stops polling after an authoritative no-ride restore and retries on
       require(name: string) {
         if (name === 'react') return react;
         if (name === 'expo-location') return {};
+        if (name === 'expo-battery') return {};
+      if (name === 'expo-battery') return {};
         if (name === 'react-native') return { AppState: {
           currentState: 'active', addEventListener: () => ({ remove() {} }),
         } };
