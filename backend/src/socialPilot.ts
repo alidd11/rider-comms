@@ -8,6 +8,11 @@
  */
 const RIDER_ID = /^rider_[A-Za-z0-9_-]{4,100}$/;
 
+/** Explicit opt-in for an authenticated, open testing beta. Never inferred from a missing allowlist. */
+export function isSocialOpenBetaEnabled(value: string | undefined): boolean {
+  return value === 'true';
+}
+
 export function parseSocialPilotRiderIds(value: string | undefined): ReadonlySet<string> {
   if (!value?.trim()) return new Set();
   const ids = value.split(',').map(id => id.trim());

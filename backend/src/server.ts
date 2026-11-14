@@ -41,7 +41,7 @@ import { handleProfileRoutes } from './routes/profiles.ts';
 import { handleRideRoutes } from './routes/rides.ts';
 import { handleRiderRoutes } from './routes/riders.ts';
 import { handleSocialRoutes } from './routes/social.ts';
-import { isReservedSocialAppPath, parseSocialPilotRiderIds, SOCIAL_PILOT_CAPABILITIES } from './socialPilot.ts';
+import { isReservedSocialAppPath, isSocialOpenBetaEnabled, parseSocialPilotRiderIds, SOCIAL_PILOT_CAPABILITIES } from './socialPilot.ts';
 import { handlePushRoutes } from './routes/push.ts';
 import { PushNotifier } from './pushNotifier.ts';
 import { PushStore } from './pushStore.ts';
@@ -98,6 +98,8 @@ export interface ApiServerOptions {
   socialEventStore?: Pick<SocialEventStore, 'waitForEvents'> & Partial<Pick<SocialEventStore, 'close'>>;
   /** Test override; production reads SOCIAL_PILOT_RIDER_IDS server-side only. */
   socialPilotRiderIds?: readonly string[];
+  /** Explicit open Social testing beta; still requires a valid Rider Comms session. */
+  socialOpenBetaEnabled?: boolean;
   readinessCheck?: () => Promise<void>;
   pushStore?: PushStore;
   /** Tests pass a recorder; by default notifications are really sent. */
@@ -201,6 +203,8 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   const socialPilotRiderIds = parseSocialPilotRiderIds(
     options.socialPilotRiderIds?.join(',') ?? process.env.SOCIAL_PILOT_RIDER_IDS,
   );
+  const socialOpenBetaEnabled = options.socialOpenBetaEnabled ??
+    isSocialOpenBetaEnabled(process.env.SOCIAL_OPEN_BETA_ENABLED);
   const pushStore = options.pushStore ?? new PushStore();
   const pushNotifier = options.pushNotifier ?? new PushNotifier({
     store: pushStore,
@@ -298,11 +302,12 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       await socialActivityStore.touch(actorId);
       if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'api'))) return;
       if (isReservedSocialAppPath(url.pathname)) {
-        if (!socialPilotRiderIds.has(actorId)) return sendJson(res, 403, { error: 'social_beta_not_enabled' });
+        if (!socialOpenBetaEnabled && !socialPilotRiderIds.has(actorId))
+          return sendJson(res, 403, { error: 'social_beta_not_enabled' });
         if (req.method === 'GET' && url.pathname === '/social/bootstrap') {
           return sendJson(res, 200, {
-            entitlement: 'pilot',
-            policyVersion: 'social-pilot-v1',
+            entitlement: socialOpenBetaEnabled ? 'beta' : 'pilot',
+            policyVersion: socialOpenBetaEnabled ? 'social-open-beta-v1' : 'social-pilot-v1',
             capabilities: SOCIAL_PILOT_CAPABILITIES,
           });
         }

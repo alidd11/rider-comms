@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { authenticatedFetch, startTestServer } from './httpTestUtils.ts';
 import type { TestServer } from './httpTestUtils.ts';
 import {
-  isReservedSocialAppPath, parseSocialPilotRiderIds, SOCIAL_PILOT_CAPABILITIES,
+  isReservedSocialAppPath, isSocialOpenBetaEnabled, parseSocialPilotRiderIds, SOCIAL_PILOT_CAPABILITIES,
 } from '../src/socialPilot.ts';
 
 describe('Rider Social beta admission policy', () => {
@@ -17,6 +17,15 @@ describe('Rider Social beta admission policy', () => {
     assert.deepEqual([...parseSocialPilotRiderIds(' rider_good123 , rider_other123 ')],
       ['rider_good123', 'rider_other123']);
     assert.equal(parseSocialPilotRiderIds('rider_good123').has('rider_other123'), false);
+  });
+
+  it('only enables open beta for an explicit true value', () => {
+    assert.equal(isSocialOpenBetaEnabled(undefined), false);
+    assert.equal(isSocialOpenBetaEnabled(''), false);
+    assert.equal(isSocialOpenBetaEnabled('1'), false);
+    assert.equal(isSocialOpenBetaEnabled('TRUE'), false);
+    assert.equal(isSocialOpenBetaEnabled('false'), false);
+    assert.equal(isSocialOpenBetaEnabled('true'), true);
   });
 
   it('reserves future Social product URLs without breaking legacy Rider Comms API routes', () => {
@@ -98,5 +107,41 @@ describe('Social admission defaults', () => {
     assert.deepEqual(await denied.json(), { error: 'social_beta_not_enabled' });
     assert.equal((await authenticatedFetch(ctx, 'rider_pilot123', '/auth/me')).status, 200);
     assert.equal((await fetch(ctx.baseUrl() + '/health')).status, 200);
+  });
+});
+
+describe('Social open beta HTTP admission', () => {
+  let ctx: TestServer;
+  before(async () => {
+    ctx = startTestServer({ socialPilotRiderIds: [], socialOpenBetaEnabled: true });
+    await ctx.ready;
+  });
+  after(() => ctx.close());
+
+  it('requires authentication for every open beta request', async () => {
+    const res = await fetch(ctx.baseUrl() + '/social/bootstrap');
+    assert.equal(res.status, 401);
+    assert.deepEqual(await res.json(), { error: 'unauthorized' });
+  });
+
+  it('accepts any authenticated rider without exposing identity or enabling publishing', async () => {
+    for (const riderId of ['rider_one1234', 'rider_two1234']) {
+      const res = await authenticatedFetch(ctx, riderId, '/social/bootstrap');
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), {
+        entitlement: 'beta',
+        policyVersion: 'social-open-beta-v1',
+        capabilities: SOCIAL_PILOT_CAPABILITIES,
+      });
+      assert.equal(res.headers.get('cache-control'), 'no-store');
+    }
+  });
+
+  it('keeps unfinished Social routes unavailable while leaving ordinary account routes intact', async () => {
+    const riderId = 'rider_beta123';
+    assert.equal((await authenticatedFetch(ctx, riderId, '/social/posts/mine')).status, 404);
+    assert.equal((await authenticatedFetch(ctx, riderId, '/social/media/uploads', { method: 'POST' })).status, 404);
+    assert.equal((await authenticatedFetch(ctx, riderId, '/social/bootstrap', { method: 'POST' })).status, 404);
+    assert.equal((await authenticatedFetch(ctx, riderId, '/auth/me')).status, 200);
   });
 });
