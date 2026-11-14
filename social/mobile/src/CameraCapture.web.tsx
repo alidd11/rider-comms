@@ -263,7 +263,17 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             requesting ? 'Opening camera…' :
               'Enable your camera to take a photo, or select one from your gallery.'}
         </Text>
-        {!isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Enable camera"
+        {isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Choose Reel video"
+          disabled={disabled} onPress={openLibrary}
+          style={{ backgroundColor: WHITE, borderRadius: 24,
+            opacity: disabled ? 0.6 : 1,
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            paddingVertical: 14, paddingHorizontal: 22, minHeight: 52 }}>
+          <Ionicons name="images-outline" color={BLACK} size={23}/>
+          <Text style={{ color: BLACK, fontSize: 15, fontWeight: '800' }}>
+            Choose video
+          </Text>
+        </Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Enable camera"
           disabled={requesting || disabled}
           onPress={() => { void enableCamera(); }}
           style={{ backgroundColor: WHITE, borderRadius: 22,
@@ -272,7 +282,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
           <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>
             {requesting ? 'Opening camera…' : 'Enable camera'}
           </Text>
-        </Pressable> : null}
+        </Pressable>}
         {error ? <Text accessibilityRole="alert" style={{
           color: '#F5B7C5', fontSize: 12, textAlign: 'center', lineHeight: 18,
         }}>{error}</Text> : null}
@@ -292,7 +302,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             {mode === 'Reel' ? 'New reel' : mode === 'Story' ? 'New story' : 'New post'}
           </Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Flip camera"
+        {!isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Flip camera"
           disabled={!live || requesting}
           onPress={() => {
             const nextFacing = facing === 'environment' ? 'user' : 'environment';
@@ -303,7 +313,8 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             justifyContent: 'center', alignItems: 'center',
             opacity: live && !requesting ? 1 : 0.4 }}>
           <Ionicons name="camera-reverse-outline" color={WHITE} size={27}/>
-        </Pressable>
+        </Pressable> : <View style={{ width: 43, height: 43 }}/>}
+
       </View>
 
       {live && !isReel ? <View style={{ position: 'absolute', top: 88, right: 9,
@@ -326,37 +337,32 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         {countdown}
       </Text></View> : null}
 
-      <View style={{ position: 'absolute', bottom: 14, left: 0, right: 0 }}>
+      {!isReel ? <View style={{ position: 'absolute', bottom: 14, left: 0, right: 0 }}>
         <View style={{ paddingHorizontal: 15, flexDirection: 'row',
           alignItems: 'center', justifyContent: 'space-between' }}>
-          {!isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
+          <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
             onPress={openLibrary} disabled={disabled}
             style={{ width: 64, height: 66, alignItems: 'center',
               justifyContent: 'center', gap: 5, backgroundColor: DIM, borderRadius: 16 }}>
             <Ionicons name="images-outline" size={25} color={WHITE}/>
             <Text style={{ fontSize: 10, fontWeight: '700', color: WHITE }}>Gallery</Text>
-          </Pressable> : <View style={{ width: 64 }} />}
-          <Pressable accessibilityRole="button"
-            accessibilityLabel={isReel ? 'Choose Reel video' : 'Take photo'}
-            disabled={disabled || requesting || countdown !== null || (!live && !isReel)}
-            onPress={isReel ? openLibrary : startCountdown}
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Take photo"
+            disabled={disabled || requesting || countdown !== null || !live}
+            onPress={startCountdown}
             style={{ width: 81, height: 81, borderRadius: 42, borderWidth: 5,
               borderColor: WHITE, backgroundColor: DIM,
               alignItems: 'center', justifyContent: 'center',
-              opacity: disabled || (!live && !isReel) ? 0.45 : 1 }}>
-            {isReel ? <Ionicons name="videocam-outline" size={31} color={WHITE}/> :
-              <View style={{ width: 60, height: 60, borderRadius: 30,
-                backgroundColor: WHITE }}/>}
+              opacity: disabled || !live ? 0.45 : 1 }}>
+            <View style={{ width: 60, height: 60, borderRadius: 30,
+              backgroundColor: WHITE }}/>
           </Pressable>
           <View style={{ width: 64, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name={isReel ? 'videocam-outline' : 'image-outline'}
-              size={22} color={WHITE}/>
-            <Text style={{ color: WHITE, fontSize: 10, marginTop: 4 }}>
-              {isReel ? 'From Gallery' : 'Photo'}
-            </Text>
+            <Ionicons name="image-outline" size={22} color={WHITE}/>
+            <Text style={{ color: WHITE, fontSize: 10, marginTop: 4 }}>Photo</Text>
           </View>
         </View>
-      </View>
+      </View> : null}
     </View>
     {isReel ? <Text style={{ color: '#A8ADB5', fontSize: 11,
       textAlign: 'center', paddingTop: 5 }}>
