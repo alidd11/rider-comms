@@ -200,6 +200,8 @@ test('production: every major route and empty state is visible, navigable and er
   await verifyScreen(page, testInfo, 'profile-saved');
   await exploreSaved.click();
   await expect(page.getByTestId('reels-empty-state')).toBeVisible();
+  // Immersive Reels intentionally hides the global header; Home restores it.
+  await page.getByRole('tab', { name: 'Home', exact: true }).click();
   await page.getByRole('button', { name: 'Open profile' }).click();
   await page.getByRole('tab', { name: 'Garage profile tab' }).click();
   await expect(page.getByText('Your garage starts here')).toBeVisible();
