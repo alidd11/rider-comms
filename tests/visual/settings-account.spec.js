@@ -401,9 +401,13 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   page.on('dialog', (dialog) => void dialog.accept());
   await page.locator('#deleteAccountBtn').click();
   await expect.poll(() => accountDeleted).toBe(true);
-  // Nothing of the deleted rider stays on the device; other riders' data does.
-  // (The app reloads after deleting, so a read can land mid-navigation.)
-  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((key) => key.includes('rider_')).sort()).catch(() => null))
+  // The deleted rider's saved places, recent rides and waiting reports are
+  // gone; other riders' data stays. (The app reloads after deleting, so a
+  // read can land mid-navigation. The test fixture signs the rider straight
+  // back in on that reload, so the app's own settings key is written afresh
+  // and isn't part of this check.)
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage)
+    .filter((key) => key.startsWith('riderComms.') && key.includes('rider_')).sort()).catch(() => null))
     .toEqual(['riderComms.rideHistory.rider_other']);
 });
 
