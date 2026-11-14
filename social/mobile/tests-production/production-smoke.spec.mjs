@@ -79,7 +79,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();
   await expect(page.getByTestId('home-editorial-heading')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Browse Reels from Home' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Open messages from Home' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Go to inbox from Home' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'For You', exact: true })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: 'Following', exact: true })).toHaveCount(0);
   await expect(page.getByText('Sample feed')).toHaveCount(0);
@@ -367,7 +367,7 @@ test('production: empty Home offers real navigation without implying posts are l
   await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
   await page.getByRole('tab', { name: 'Home' }).click();
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();
-  await page.getByRole('button', { name: 'Open messages from Home' }).click();
+  await page.getByRole('button', { name: 'Go to inbox from Home' }).click();
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
   await page.getByRole('tab', { name: 'Home' }).click();
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();

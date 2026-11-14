@@ -169,7 +169,7 @@ function HomeEmpty({ onCreate, onReels, onMessages }: {
         <Ionicons name="play-circle-outline" size={18} color={C.ink} />
         <Text style={[s.small, { color: C.ink, fontWeight: '800' }]}>Reels</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Open messages from Home"
+      <Pressable accessibilityRole="button" accessibilityLabel="Go to inbox from Home"
         onPress={onMessages} style={{ flex: 1, minHeight: 46, flexDirection: 'row',
           justifyContent: 'center', alignItems: 'center', gap: 7,
           borderWidth: 1, borderColor: C.border, borderRadius: 13 }}>
