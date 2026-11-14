@@ -430,11 +430,14 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
                   setActive(index => Math.min(media.length - 1, index + 1));
                 }}/>
             </> : null}
-            <Tool icon="refresh-outline" label="Rotate" onPress={() => void editImage({ rotate: true })}
-              disabled={isVideo || processing}/>
+            {selected.kind === 'image' ? <Tool icon="refresh-outline" label="Rotate"
+              onPress={() => void editImage({ rotate: true })}
+              disabled={processing || selecting}/> : null}
             <Tool icon="trash-outline" label="Remove" disabled={processing || selecting} onPress={removeSelected}/>
-            <Tool icon="images-outline" label="Library" onPress={() => void chooseMedia()}
-              disabled={selecting || processing || !allowedMore}/>
+            {mode !== 'Post' || allowedMore ? <Tool icon="images-outline"
+              label={mode === 'Reel' ? 'Replace video' : mode === 'Story' ? 'Replace media' : 'Library'}
+              onPress={() => void chooseMedia()}
+              disabled={selecting || processing}/> : null}
           </ScrollView>
         </View>
       </> : null}
