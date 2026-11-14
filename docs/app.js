@@ -1094,6 +1094,58 @@
     rate_limited: 'Too many reports. Wait a few minutes and try again.',
   };
 
+  // Reports made with no signal are kept and retried, because riders lose
+  // signal on exactly the roads worth reporting. After half an hour the
+  // hazard may be gone, so an unsent report is dropped. Native:
+  // useHazardReports (QUEUED_REPORT_RETRY_MS, QUEUED_REPORT_MAX_AGE_MS).
+  const QUEUED_REPORT_RETRY_MS = 15_000;
+  const QUEUED_REPORT_MAX_AGE_MS = 30 * 60_000;
+  let queuedHazardReports = [];
+  let queuedHazardTimer = null;
+  let sendingQueuedHazards = false;
+
+  function sayHazardReport(message) {
+    showToast(message, 'info');
+    if (state.spokenDirections !== false) speak(message);
+  }
+
+  function queueHazardReport(type, position) {
+    queuedHazardReports.push({ type, lat: position.lat, lon: position.lon, queuedAt: Date.now() });
+    sayHazardReport(`No signal. Your ${HAZARD_TYPES[type].label.toLowerCase()} report will send when you’re back in signal.`);
+    if (!queuedHazardTimer) queuedHazardTimer = setInterval(sendQueuedHazardReports, QUEUED_REPORT_RETRY_MS);
+  }
+
+  /** Sends each waiting report once; one the server turns down, or that
+   * has waited too long, is dropped. Stops at the first with no answer. */
+  async function sendQueuedHazardReports() {
+    if (sendingQueuedHazards) return;
+    sendingQueuedHazards = true;
+    try {
+      while (queuedHazardReports.length) {
+        const report = queuedHazardReports[0];
+        const label = HAZARD_TYPES[report.type].label;
+        if (Date.now() - report.queuedAt > QUEUED_REPORT_MAX_AGE_MS) {
+          sayHazardReport(`Couldn’t send your earlier ${label.toLowerCase()} report. There was no signal for too long.`);
+        } else {
+          try {
+            const hazard = await apiFetch('POST', '/hazards', { type: report.type, lat: report.lat, lon: report.lon });
+            nearbyHazards = [hazard, ...nearbyHazards.filter((entry) => entry.id !== hazard.id)];
+            renderHazardMarkers();
+            sayHazardReport(`${label} report sent.`);
+          } catch (error) {
+            if (!(error instanceof ApiError) || error.status === 0) return;
+          }
+        }
+        queuedHazardReports.shift();
+      }
+      clearInterval(queuedHazardTimer);
+      queuedHazardTimer = null;
+    } finally {
+      sendingQueuedHazards = false;
+    }
+  }
+  window.addEventListener('online', () => { if (queuedHazardReports.length) void sendQueuedHazardReports(); });
+
   /** Reports a real hazard (POST /hazards) at the rider's live GPS
    * position — reuses currentPosition(), the same geolocation helper the
    * locate/go-live buttons use. The backend requires a real coordinate, so
@@ -1125,10 +1177,18 @@
       renderHazardMarkers();
       closeSheet();
       selectHazard(hazard.id);
-      showToast(alreadyReported ? `${HAZARD_TYPES[type].label} already reported here. Thanks for confirming it.` : `${HAZARD_TYPES[type].label} reported.`);
+      sayHazardReport(alreadyReported ? `${HAZARD_TYPES[type].label} already reported here. Thanks for confirming it.` : `${HAZARD_TYPES[type].label} reported.`);
       await loadNearbyHazards(hazard.lat, hazard.lon);
       if (nearbyHazards.some((entry) => entry.id === hazard.id)) selectHazard(hazard.id);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 0) {
+        // No answer from the server: keep the report and send it once
+        // there's signal, rather than holding the rider at the sheet.
+        pendingHazardReportPosition = null;
+        closeSheet();
+        queueHazardReport(type, reportPosition);
+        return;
+      }
       const code = error instanceof ApiError ? error.body?.error : undefined;
       if (errorEl) { errorEl.textContent = HAZARD_ERROR_MESSAGES[code] || 'Couldn’t report that hazard. Try again.'; errorEl.hidden = false; }
     } finally {
@@ -2423,7 +2483,9 @@
         shareRideLocation: ride.shareRideLocation === true,
         regroup: ride.regroup ?? null,
         members: previous?.rideId === ride.rideId ? previous.members : undefined,
+        createdAt: ride.createdAt,
       } : null;
+      noteRideStats(state.activeRide);
       announceRegroup(previous?.rideId === ride?.rideId ? previous?.regroup : undefined, ride?.regroup ?? null, ride?.createdBy === state.profile.riderId);
       if (ride) await stopPublicPresenceForRide();
       if (!ride) {
@@ -2434,7 +2496,7 @@
       renderRide();
       const membersChanged = !previous?.members || previous.rideId !== ride?.rideId || !sameMembers(previous.memberIds, ride?.memberIds);
       if (ride && (!poll || membersChanged)) await loadRideRoster();
-      else if (!ride && previous) showToast('That ride is no longer active.');
+      else if (!ride && previous) showToast(`That ride has ended. ${rideEndSummary(previous.rideId)}`.trim());
     } catch {
       // Transient failures leave the last verified state intact. A fresh
       // login starts with no verified ride and can retry from the Ride tab.
@@ -2534,7 +2596,7 @@
       persist();
       renderRide();
       renderMapRiders();
-      showToast(ride.isHost ? 'Ride ended.' : 'You left the ride.');
+      showToast(`${ride.isHost ? 'Ride ended.' : 'You left the ride.'} ${rideEndSummary(ride.rideId)}`.trim());
     } catch {
       showToast(ride.isHost ? 'Couldn’t end the ride. Try again.' : 'Couldn’t leave the ride. Try again.');
     }
@@ -2693,6 +2755,43 @@
     return next.label ? `Regroup at ${next.label}.` : 'Regroup point set. It’s on your map.';
   }
 
+  // Mirrors shared rideSummary (shared/src/rideCode.ts);
+  // scripts/check-client-parity.mjs runs both on the same cases.
+  function rideSummary(durationMs, riders, distanceMeters, unit) {
+    const minutes = Math.max(0, Math.round((Number.isFinite(durationMs) ? durationMs : 0) / 60_000));
+    const duration = minutes < 1
+      ? 'Under a minute'
+      : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''}`;
+    const parts = [duration, riders > 1 ? `${riders} riders` : 'Just you'];
+    const distance = distanceMeters != null && Number.isFinite(distanceMeters)
+      ? distanceMeters / (unit === 'km' ? 1000 : 1609.344)
+      : 0;
+    if (distance >= 0.1) parts.push(`${distance.toFixed(1)} ${unit}`);
+    return parts.join(' · ');
+  }
+
+  // What the end-of-ride summary needs: when it started, the most riders at
+  // once, and how far this rider went while sharing their position.
+  let rideStats = { rideId: null, startedAt: 0, riders: 1, trip: null };
+  function noteRideStats(ride) {
+    if (!ride) return;
+    if (rideStats.rideId !== ride.rideId) rideStats = { rideId: ride.rideId, startedAt: Date.now(), riders: 1, trip: null };
+    if (Number.isFinite(ride.createdAt) && ride.createdAt > 0) rideStats.startedAt = ride.createdAt;
+    rideStats.riders = Math.max(rideStats.riders, (ride.memberIds || []).length);
+  }
+  function noteRideDistance(rideId, position) {
+    if (rideStats.rideId !== rideId || !navigationPuck) return;
+    rideStats.trip = navigationPuck.recordNavigationTripFix(rideStats.trip || navigationPuck.startNavigationTrip(Date.now()), {
+      lat: position.coords.latitude, lon: position.coords.longitude, accuracyMeters: position.coords.accuracy,
+    });
+  }
+  function rideEndSummary(rideId) {
+    if (rideStats.rideId !== rideId) return '';
+    const summary = rideSummary(Date.now() - rideStats.startedAt, rideStats.riders, rideStats.trip ? rideStats.trip.distanceMeters : null, state.unit === 'km' ? 'km' : 'mi');
+    rideStats = { rideId: null, startedAt: 0, riders: 1, trip: null };
+    return summary;
+  }
+
   // Mirrors shared rideDropAnnouncements (shared/src/rideCode.ts);
   // scripts/check-client-parity.mjs runs both on the same cases.
   const RIDE_DROPPED_ALERT_MS = 120_000;
@@ -2716,6 +2815,34 @@
     return { state, announcements };
   }
 
+  // Mirrors shared isRideBatteryLow and rideBatteryAnnouncements
+  // (shared/src/rideCode.ts); scripts/check-client-parity.mjs runs both.
+  const RIDE_BATTERY_LOW_LEVEL = 0.15;
+  function isRideBatteryLow(level, charging) {
+    return !charging && typeof level === 'number' && level >= 0 && level <= RIDE_BATTERY_LOW_LEVEL;
+  }
+  function rideBatteryAnnouncements(previous, locations, names) {
+    const state = {};
+    const announcements = [];
+    for (const { riderId, batteryLow } of locations) {
+      if (!batteryLow) continue;
+      if (!previous[riderId]) announcements.push(`${names[riderId] || 'A rider'}’s phone battery is low.`);
+      state[riderId] = true;
+    }
+    return { state, announcements };
+  }
+
+  /** Sent with each ride position so the group hears when this phone is
+   * about to die. Browsers without the Battery API (Safari) never say so. */
+  async function rideBatteryLow() {
+    try {
+      const battery = await navigator.getBattery?.();
+      return battery ? isRideBatteryLow(battery.level, battery.charging) : false;
+    } catch {
+      return false;
+    }
+  }
+
   // A rider whose position stops updating mid-ride (no signal, flat battery,
   // a fall) is called out to the group once, and again when they're back:
   // a toast, and spoken unless spoken directions are off or navigation is
@@ -2727,6 +2854,7 @@
   // is being reloaded, and before profiles load a member's name is their ID
   // (said as "A rider" rather than read out).
   let rideDropNames = {};
+  let rideBatteryState = {};
   function announceDroppedRiders(locations) {
     const ride = state.activeRide;
     if (!ride) return;
@@ -2734,6 +2862,7 @@
       rideDropRideId = ride.rideId;
       rideDropState = {};
       rideDropNames = {};
+      rideBatteryState = {};
     }
     for (const member of ride.members || []) {
       if (member.displayName && member.displayName !== member.riderId) rideDropNames[member.riderId] = member.displayName;
@@ -2742,9 +2871,14 @@
     const others = locations.filter((entry) => entry.riderId !== state.profile.riderId);
     const step = rideDropAnnouncements(rideDropState, others, names, Date.now());
     rideDropState = step.state;
-    if (!step.announcements.length) return;
-    const message = step.announcements.join(' ');
-    showToast(message);
+    // A rider whose phone is nearly flat is called out once too, so the
+    // group knows why they may go quiet.
+    const battery = rideBatteryAnnouncements(rideBatteryState, others, names);
+    rideBatteryState = battery.state;
+    const said = [...step.announcements, ...battery.announcements];
+    if (!said.length) return;
+    const message = said.join(' ');
+    showToast(message, 'info');
     if (state.spokenDirections !== false) speak(message);
   }
 
@@ -5280,9 +5414,12 @@
         try {
           const position = await currentPosition();
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
+          noteRideStats(state.activeRide);
+          noteRideDistance(ride.rideId, position);
           await apiFetch('POST', `/rides/${encodeURIComponent(ride.rideId)}/location`, {
             lat: position.coords.latitude,
             lon: position.coords.longitude,
+            batteryLow: await rideBatteryLow(),
           });
           const { locations } = await apiFetch('GET', `/rides/${encodeURIComponent(ride.rideId)}/locations`);
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;

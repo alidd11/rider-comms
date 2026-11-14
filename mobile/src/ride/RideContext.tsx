@@ -1,8 +1,11 @@
 import * as React from 'react';
+import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
-import { AppState } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
-import type { RegroupPoint } from '@rider-comms/shared';
+import { isRideBatteryLow, recordNavigationTripFix, rideSummary, startNavigationTrip } from '@rider-comms/shared';
+import type { NavigationTrip, RegroupPoint } from '@rider-comms/shared';
+import { useSettings } from '../settings/SettingsContext';
 import { ApiError, type RideMemberLocation } from '../api/client';
 
 export const RIDE_LOCATION_REFRESH_MS = 10_000;
@@ -12,6 +15,17 @@ export const RIDE_LOCATION_REFRESH_MS = 10_000;
 export const RIDE_ROSTER_REFRESH_MS = 10_000;
 // Three failed ticks (~30 s), matching the web app's notice.
 const RIDE_UNREACHABLE_TICKS = 3;
+
+/** Sent with each ride position so the group hears when this phone is
+ * about to die (shared isRideBatteryLow). Unknown counts as fine. */
+async function rideBatteryLow(): Promise<boolean> {
+  try {
+    const { batteryLevel, batteryState } = await Battery.getPowerStateAsync();
+    return isRideBatteryLow(batteryLevel, batteryState === Battery.BatteryState.CHARGING || batteryState === Battery.BatteryState.FULL);
+  } catch {
+    return false;
+  }
+}
 const RIDE_RESTORE_RETRY_MS = 10_000;
 
 export interface ActiveRide {
@@ -21,6 +35,8 @@ export interface ActiveRide {
   shareRideLocation?: boolean;
   /** Where the host has asked the group to meet up. */
   regroup?: RegroupPoint | null;
+  /** When the ride started, from the server. */
+  createdAt?: number;
 }
 
 interface Value {
@@ -43,6 +59,7 @@ const RideContext = React.createContext<Value | null>(null);
 
 export function RideProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const { client, riderId } = useAuth();
+  const { unitSystem } = useSettings();
   const [activeRide, setActiveRide] = React.useState<ActiveRide | null>(null);
   const [roster, setRoster] = React.useState<string[]>([]);
   const [rideLocations, setRideLocations] = React.useState<RideMemberLocation[]>([]);
@@ -50,6 +67,20 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
   const localRideChange = React.useRef(0);
   const activeRideId = React.useRef<string | null>(null);
   activeRideId.current = activeRide?.rideId ?? null;
+  // What the end-of-ride summary needs: when it started, the most riders
+  // at once, and how far this rider went while sharing their position.
+  const rideStats = React.useRef<{ rideId: string | null; startedAt: number; riders: number; trip: NavigationTrip | null }>({ rideId: null, startedAt: 0, riders: 1, trip: null });
+  if (activeRide && rideStats.current.rideId !== activeRide.rideId) {
+    rideStats.current = { rideId: activeRide.rideId, startedAt: Date.now(), riders: 1, trip: null };
+  }
+  if (activeRide?.createdAt) rideStats.current.startedAt = activeRide.createdAt;
+  const showRideSummary = React.useCallback((title: string) => {
+    const stats = rideStats.current;
+    if (!stats.rideId) return;
+    Alert.alert(title, rideSummary(Date.now() - stats.startedAt, stats.riders, stats.trip?.distanceMeters ?? null, unitSystem === 'km' ? 'km' : 'mi'));
+    rideStats.current = { rideId: null, startedAt: 0, riders: 1, trip: null };
+  }, [unitSystem]);
+  rideStats.current.riders = Math.max(rideStats.current.riders, roster.length);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -84,6 +115,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
           isHost: ride.createdBy === riderId,
           shareRideLocation: ride.shareRideLocation === true,
           regroup: ride.regroup ?? null,
+          ...(ride.createdAt ? { createdAt: ride.createdAt } : {}),
         } : null);
         setRoster(ride?.memberIds ?? []);
         if (!ride?.shareRideLocation) setRideLocations([]);
@@ -162,6 +194,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     try {
       if (ride.isHost) await client.endRide(ride.rideId);
       else await client.leaveRide(ride.rideId);
+      showRideSummary('Ride over');
       localRideChange.current += 1;
       setActiveRide(null);
       setRoster([]);
@@ -170,7 +203,7 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
       // Keep authoritative local ride state when the server operation fails.
       // The rider can retry instead of appearing to have left when they have not.
     }
-  }, [activeRide, client]);
+  }, [activeRide, client, showRideSummary]);
 
   const removeRider = React.useCallback(async (id: string) => {
     if (!activeRide?.isHost || id === riderId) return;
@@ -198,10 +231,12 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
             shareRideLocation: ride.shareRideLocation === true,
             code: ride.code || undefined,
             regroup: ride.regroup ?? null,
+            ...(ride.createdAt ? { createdAt: ride.createdAt } : {}),
           } : current);
         }
       } catch (error) {
         if (!cancelled && error instanceof ApiError && (error.status === 403 || error.status === 404)) {
+          showRideSummary('Your ride has ended');
           setActiveRide(null);
           setRoster([]);
           setRideLocations([]);
@@ -241,12 +276,17 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
         if (!permission.granted || cancelled) return;
         const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         if (cancelled) return;
+        if (rideStats.current.rideId === activeRide.rideId) {
+          const fixPoint = { lat: fix.coords.latitude, lon: fix.coords.longitude, accuracyMeters: fix.coords.accuracy };
+          rideStats.current.trip = recordNavigationTripFix(rideStats.current.trip ?? startNavigationTrip(Date.now()), fixPoint);
+        }
         let locations: RideMemberLocation[];
         try {
           ({ locations } = await client.updateRideLocation(
             activeRide.rideId,
             fix.coords.latitude,
             fix.coords.longitude,
+            await rideBatteryLow(),
           ));
         } catch (error) {
           // A network failure, timeout or 5xx means the backend is

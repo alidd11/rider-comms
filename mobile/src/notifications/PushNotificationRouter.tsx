@@ -28,6 +28,10 @@ export function PushNotificationRouter({ navigationRef }: {
     const open = (data: unknown) => {
       const route = notificationRoute(data);
       if (!route || !navigationRef.isReady()) return;
+      if (route.screen === 'map') {
+        navigationRef.navigate('Tabs', { screen: 'Map' });
+        return;
+      }
       if (route.screen === 'chat') {
         const friend = friendsRef.current.find((person) => person.riderId === route.riderId);
         if (friend) {

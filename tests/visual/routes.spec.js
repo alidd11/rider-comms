@@ -55,3 +55,15 @@ test('PWA Routes shows only roads that suit the rider’s vehicle', async ({ pag
   await page.evaluate(() => window.RiderCuratedRoutes.setVehicle('motorcycle_small'));
   await expect(count).toHaveText('21 rides');
 });
+
+test('PWA loads no route photos until Routes is opened', async ({ page }) => {
+  const photos = [];
+  page.on('request', (request) => { if (/assets\/routes\/cards|wikimedia/.test(request.url())) photos.push(request.url()); });
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await expect(page.locator('#app')).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(photos).toEqual([]);
+  await openFromMenu(page, 'routes');
+  await expect.poll(() => photos.length).toBeGreaterThan(0);
+});

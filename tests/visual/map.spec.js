@@ -184,7 +184,11 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   await expect(page.locator('#mapDrawerRecent')).toBeHidden();
   await expect(page.locator('#placeSearchInput')).toHaveAttribute('placeholder', 'Where to?');
 
-  // The floating controls rest above the drawer, inside the screen.
+  // The floating controls rest above the drawer, inside the screen,
+  // measured once the screen's 3px slide-in has finished.
+  await page.locator('[data-screen="map"]').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
   const [drawerBox, hazardBox] = await Promise.all([drawer.boundingBox(), page.locator('#reportHazardBtn').boundingBox()]);
   expect(hazardBox.y + hazardBox.height).toBeLessThanOrEqual(drawerBox.y);
   expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(page.viewportSize().height + 1);
@@ -477,4 +481,48 @@ test('PWA works out the riding speed from GPS fixes when Safari reports none', a
     });
   });
   await expect(page.locator('#hudSpeedValue')).toHaveText('0');
+});
+
+test('PWA keeps a road report made with no signal and sends it when signal returns', async ({ page }) => {
+  let signal = false;
+  const sent = [];
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/hazards' && request.method() === 'POST') {
+      const report = request.postDataJSON();
+      sent.push(report.type);
+      return { status: 201, body: { id: 'hz_queued', ...report, reportedBy: RIDER_ID, createdAt: Date.now(), expiresAt: Date.now() + 3_600_000, confirmations: 0, denials: 0 } };
+    }
+    return null;
+  });
+  // Registered after the mock, so it's consulted first: no signal drops the
+  // report before it reaches the server.
+  await page.route('https://backend-production-7fa0.up.railway.app/hazards', (route) => (
+    !signal && route.request().method() === 'POST' ? route.abort('internetdisconnected') : route.fallback()
+  ));
+  await page.addInitScript(() => {
+    window.__spoken = [];
+    window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) { this.text = text; };
+    Object.defineProperty(window, 'speechSynthesis', { value: { cancel() {}, speak(utterance) { window.__spoken.push(utterance.text); } } });
+  });
+  await page.clock.install();
+  await page.goto('/');
+
+  await page.locator('#reportHazardBtn').click();
+  await page.locator('[data-hazard-type="police"]').click();
+  // The sheet closes rather than holding the rider there with an error.
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+  await expect(page.locator('#appNotification')).toContainText('No signal. Your police report will send when you’re back in signal.');
+  expect(sent).toEqual([]);
+
+  signal = true;
+  await page.clock.runFor(16_000);
+  await expect.poll(() => sent).toEqual(['police']);
+  await expect(page.locator('#appNotification')).toContainText('Police report sent.');
+  expect(await page.evaluate(() => window.__spoken)).toEqual([
+    'No signal. Your police report will send when you’re back in signal.',
+    'Police report sent.',
+  ]);
+  // Sent once only.
+  await page.clock.runFor(30_000);
+  expect(sent).toEqual(['police']);
 });

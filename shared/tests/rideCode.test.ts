@@ -7,8 +7,11 @@ import {
   isRideCodeExpired,
   normalizeRegroupLabel,
   regroupAnnouncement,
+  isRideBatteryLow,
+  rideBatteryAnnouncements,
   rideDropAnnouncements,
   rideMemberLastSeenAgo,
+  rideSummary,
 } from '../src/rideCode.ts';
 
 describe('generateRideCode', () => {
@@ -127,5 +130,43 @@ describe('dropped rider announcements', () => {
   it('names an unknown rider plainly', () => {
     const step = rideDropAnnouncements({ x: 'fresh' }, [{ riderId: 'x', updatedAt: now - 130_000 }], {}, now);
     expect(step.announcements).toEqual(['A rider’s position hasn’t updated for 2 minutes.']);
+  });
+});
+
+describe('ride summary', () => {
+  it('reads the length, the group and the distance', () => {
+    expect(rideSummary(102 * 60_000, 4, 61_472, 'mi')).toBe('1 h 42 min · 4 riders · 38.2 mi');
+    expect(rideSummary(120 * 60_000, 2, 12_345, 'km')).toBe('2 h · 2 riders · 12.3 km');
+    expect(rideSummary(25 * 60_000, 1, null, 'mi')).toBe('25 min · Just you');
+  });
+  it('leaves out a distance too small to mean anything and copes with odd input', () => {
+    expect(rideSummary(20_000, 3, 50, 'mi')).toBe('Under a minute · 3 riders');
+    expect(rideSummary(Number.NaN, 2, Number.NaN, 'km')).toBe('Under a minute · 2 riders');
+  });
+});
+
+describe('low battery announcements', () => {
+  it('reports battery low at 15% or under, only when not charging', () => {
+    expect(isRideBatteryLow(0.15, false)).toBe(true);
+    expect(isRideBatteryLow(0.05, false)).toBe(true);
+    expect(isRideBatteryLow(0.16, false)).toBe(false);
+    expect(isRideBatteryLow(0.05, true)).toBe(false);
+    // Unknown levels (-1 on simulators, missing on some browsers).
+    expect(isRideBatteryLow(-1, false)).toBe(false);
+    expect(isRideBatteryLow(null, false)).toBe(false);
+    expect(isRideBatteryLow(undefined, false)).toBe(false);
+  });
+  it('says it once per rider, and again if they run low after charging', () => {
+    const names = { sam: 'Sam' };
+    let step = rideBatteryAnnouncements({}, [{ riderId: 'sam' }, { riderId: 'x', batteryLow: true }], names);
+    expect(step.announcements).toEqual(['A rider’s phone battery is low.']);
+    step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam', batteryLow: true }, { riderId: 'x', batteryLow: true }], names);
+    expect(step.announcements).toEqual(['Sam’s phone battery is low.']);
+    step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam', batteryLow: true }], names);
+    expect(step.announcements).toEqual([]);
+    step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam' }], names);
+    expect(step.state).toEqual({});
+    step = rideBatteryAnnouncements(step.state, [{ riderId: 'sam', batteryLow: true }], names);
+    expect(step.announcements).toEqual(['Sam’s phone battery is low.']);
   });
 });

@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
 import { ApiError } from '../../src/api/client';
 import type { RiderCommsClient } from '../../src/api/client';
-import { useHazardReports } from '../../src/screens/useHazardReports';
+import { QUEUED_REPORT_MAX_AGE_MS, QUEUED_REPORT_RETRY_MS, queuedReportsText, useHazardReports } from '../../src/screens/useHazardReports';
 
 function fakeHazard(id: string, type: HazardType = 'police'): HazardReport {
   return {
@@ -273,4 +273,66 @@ test('confirms the rider\'s report on its card, and says when it was already the
   // Selecting another report hides the confirmation.
   await act(async () => { result.current.setSelectedHazardId('fresh'); });
   expect(result.current.reportNotice).toBeNull();
+});
+
+describe('a report made with no signal', () => {
+  async function reportOffline(createHazard: jest.Mock, announce = jest.fn()) {
+    const props = {
+      hasCurrentLocation: true,
+      currentLocationRef: { current: { lat: 51.5, lon: -0.1 } },
+      requestCurrentLocation: jest.fn(),
+      client: { getNearbyHazards: jest.fn(async () => ({ hazards: [] })), createHazard } as Partial<RiderCommsClient>,
+    };
+    const view = await renderHook(() => useHazardReports(
+      props.client as RiderCommsClient, props.hasCurrentLocation, props.currentLocationRef, props.requestCurrentLocation, announce,
+    ));
+    await act(async () => { await view.result.current.openReportSheet(); });
+    await act(async () => { await view.result.current.handleReport('police'); });
+    return { ...view, announce };
+  }
+
+  test('waits for signal, then sends and says so', async () => {
+    const createHazard = jest.fn()
+      .mockRejectedValueOnce(new TypeError('Network request failed'))
+      .mockRejectedValueOnce(new TypeError('Network request failed'))
+      .mockResolvedValueOnce(fakeHazard('sent'));
+    const { result, announce } = await reportOffline(createHazard);
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(result.current.queuedReportCount).toBe(1);
+    expect(announce).toHaveBeenLastCalledWith('No signal. Your police report will send when you’re back in signal.');
+
+    // Still no signal on the first retry.
+    await act(async () => { await jest.advanceTimersByTimeAsync(QUEUED_REPORT_RETRY_MS); });
+    expect(result.current.queuedReportCount).toBe(1);
+
+    await act(async () => { await jest.advanceTimersByTimeAsync(QUEUED_REPORT_RETRY_MS); });
+    expect(createHazard).toHaveBeenCalledTimes(3);
+    expect(createHazard).toHaveBeenLastCalledWith('police', 51.5, -0.1);
+    expect(result.current.queuedReportCount).toBe(0);
+    expect(result.current.hazards.map((hazard) => hazard.id)).toEqual(['sent']);
+    expect(announce).toHaveBeenLastCalledWith('Police report sent.');
+  });
+
+  test('is dropped if the server turns it down', async () => {
+    const createHazard = jest.fn()
+      .mockRejectedValueOnce(new TypeError('Network request failed'))
+      .mockRejectedValueOnce(new ApiError(429, { error: 'rate_limited' }));
+    const { result } = await reportOffline(createHazard);
+    await act(async () => { await jest.advanceTimersByTimeAsync(QUEUED_REPORT_RETRY_MS); });
+    expect(result.current.queuedReportCount).toBe(0);
+    expect(result.current.hazards).toEqual([]);
+  });
+
+  test('is dropped, with a word, after waiting too long', async () => {
+    const createHazard = jest.fn(async () => { throw new TypeError('Network request failed'); });
+    const { result, announce } = await reportOffline(createHazard);
+    await act(async () => { await jest.advanceTimersByTimeAsync(QUEUED_REPORT_MAX_AGE_MS + QUEUED_REPORT_RETRY_MS); });
+    expect(result.current.queuedReportCount).toBe(0);
+    expect(announce).toHaveBeenLastCalledWith('Couldn’t send your earlier police report. There was no signal for too long.');
+  });
+
+  test('the map text counts the waiting reports', () => {
+    expect(queuedReportsText(1)).toBe('Road report waiting for signal.');
+    expect(queuedReportsText(3)).toBe('3 road reports waiting for signal.');
+  });
 });

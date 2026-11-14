@@ -149,7 +149,7 @@ describe('RiderCommsClient private ride location', () => {
       {
         url: 'http://example.test/rides/ride%2F1/location',
         method: 'POST',
-        body: { lat: 51.5, lon: -0.1 },
+        body: { lat: 51.5, lon: -0.1, batteryLow: false },
       },
     ]);
   });

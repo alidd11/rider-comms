@@ -1303,8 +1303,14 @@
     });
   };
 
+  // Nothing route-photo related loads until Routes is first opened: the
+  // catalogue's photos (local cards, then Wikimedia's sharper copies) are
+  // a couple of megabytes the map screen doesn't need on mobile data.
+  let routesScreenSeen = false;
+  const routesScreenActive = () => document.documentElement.dataset.activeScreen === 'routes';
+
   const upgradeRouteCardImages = (root) => {
-    if (navigator.connection?.saveData) return;
+    if (navigator.connection?.saveData || !routesScreenSeen) return;
     ensureWikimediaConnections();
     root.querySelectorAll('img[data-route-card-image]').forEach((image, index) => {
       const route = routes.find((item) => item.id === image.dataset.routeCardImage);
@@ -1540,7 +1546,7 @@
     }
     root.innerHTML = visible.map((route, index) => {
       const approach = riderLocation ? formatApproach(haversineMiles(riderLocation, route.start)) : '';
-      const eager = index < ROUTE_IMAGE_PREFETCH_COUNT;
+      const eager = routesScreenSeen && index < ROUTE_IMAGE_PREFETCH_COUNT;
       return `<button class="curated-route-card" data-curated-route="${route.id}" aria-label="View ${escapeHtml(route.name)} route overview">
         <img src="${routeCardImage(route)}" data-route-card-image="${route.id}" alt="${escapeHtml(route.alt)}" loading="${eager ? 'eager' : 'lazy'}" fetchpriority="${index < 4 ? 'high' : 'auto'}" decoding="async" referrerpolicy="no-referrer">
         <span class="route-photo-fallback" aria-hidden="true"><svg><use href="#i-route"/></svg></span>
@@ -1623,7 +1629,17 @@
     renderFilters();
     renderHeading();
     renderRoutes();
-    scheduleRouteImageWarmup();
+    const routesShown = () => {
+      if (routesScreenSeen || !routesScreenActive()) return false;
+      routesScreenSeen = true;
+      renderRoutes();
+      scheduleRouteImageWarmup();
+      return true;
+    };
+    if (!routesShown()) {
+      const observer = new MutationObserver(() => { if (routesShown()) observer.disconnect(); });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-active-screen'] });
+    }
     void useGrantedLocation();
   }
 

@@ -564,3 +564,56 @@ test('PWA tells the group aloud (and in a toast) when a rider\'s position stops 
     'Sam’s position is updating again.',
   ]);
 });
+
+test('PWA sums up a ride when it ends: how long, how many rode', async ({ page }) => {
+  const startedAt = Date.now() - 42 * 60_000;
+  let ended = false;
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: ended ? null : {
+      rideId: 'ride-sum-1', code: 'ABCDEF', createdBy: RIDER_ID, createdAt: startedAt,
+      memberIds: [RIDER_ID, 'rider_a', 'rider_b'], shareRideLocation: false,
+    } } };
+    if (url.pathname === '/rides/ride-sum-1' && request.method() === 'DELETE') { ended = true; return { body: {} }; }
+    return null;
+  });
+  page.on('dialog', (dialog) => dialog.accept());
+  await page.goto('/');
+  await openTab(page, 'ride');
+  await expect(page.locator('#leaveRideBtn')).toHaveText('End ride');
+  await page.locator('#leaveRideBtn').click();
+  await expect(page.locator('[data-notification-message]')).toHaveText(/^Ride ended\. 4[23] min · 3 riders$/);
+});
+
+test('PWA sends its low battery with the ride position and says once when another rider\'s is low', async ({ page }) => {
+  const other = { riderId: 'rider_batt01', displayName: 'Sam', handle: '@sam' };
+  const uploads = [];
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: {
+      rideId: 'ride-batt-1', code: 'ABCDEF', createdBy: RIDER_ID,
+      memberIds: [RIDER_ID, other.riderId], shareRideLocation: true,
+    } } };
+    if (url.pathname === `/profiles/${other.riderId}`) return { body: other };
+    if (url.pathname === '/profiles/batch') return { body: { profiles: { [other.riderId]: other } } };
+    if (url.pathname === '/rides/ride-batt-1/location' && request.method() === 'POST') {
+      uploads.push(request.postDataJSON());
+      return { body: { ok: true } };
+    }
+    if (url.pathname === '/rides/ride-batt-1/locations') return { body: { locations: [
+      { riderId: other.riderId, lat: 51.51, lon: -0.13, updatedAt: Date.now(), batteryLow: true },
+    ] } };
+    return null;
+  });
+  await page.addInitScript(() => {
+    window.__spoken = [];
+    window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) { this.text = text; };
+    Object.defineProperty(window, 'speechSynthesis', { value: { cancel() {}, speak(utterance) { window.__spoken.push(utterance.text); } } });
+    navigator.getBattery = async () => ({ level: 0.09, charging: false });
+  });
+  await page.goto('/');
+  await expect.poll(() => uploads.length).toBeGreaterThan(0);
+  expect(uploads[0]).toMatchObject({ batteryLow: true });
+  await expect.poll(() => page.evaluate(() => window.__spoken)).toContain('Sam’s phone battery is low.');
+  // Said once, however many refreshes report it.
+  await expect.poll(() => uploads.length, { timeout: 20_000 }).toBeGreaterThan(1);
+  expect((await page.evaluate(() => window.__spoken)).filter((text) => text.includes('battery'))).toHaveLength(1);
+});

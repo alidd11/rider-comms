@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, darkColors } from '../theme';
-import { useNavigationPalette } from '../navigationTone';
+import { GLANCE_TEXT_MAX_SCALE, useNavigationPalette } from '../navigationTone';
 import { HazardNavigationIcon } from './HazardIcon';
 import { formatNavigationDistance, type NavigationUnit } from '../navigationGuidance';
 import {
@@ -21,7 +21,7 @@ export function NavigationRoadAhead({
 
   return (
     <View style={[styles.container, isNight && night.container]} accessibilityRole="summary">
-      <Text style={[styles.eyebrow, isNight && night.eyebrow]}>Reports ahead</Text>
+      <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.eyebrow, isNight && night.eyebrow]}>Reports ahead</Text>
       <View style={styles.events}>
         {alerts.slice(0, 2).map((alert) => {
           const label = navigationHazardLabel(alert.hazard.type);
@@ -34,7 +34,7 @@ export function NavigationRoadAhead({
               accessibilityLabel={`${label}, ${distance} ahead`}
             >
               <HazardNavigationIcon type={alert.hazard.type} size={22} />
-              <Text numberOfLines={1} style={[styles.distance, isNight && night.distance]}>{distance}</Text>
+              <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={1} style={[styles.distance, isNight && night.distance]}>{distance}</Text>
             </View>
           );
         })}

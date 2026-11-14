@@ -90,10 +90,12 @@ export async function syncPush(client: PushClient, riderId: string): Promise<voi
   await AsyncStorage.setItem(tokenKey(riderId), token);
 }
 
-/** The in-app route a notification opens: '#friends' or '#chat:<riderId>'. */
-export function notificationRoute(data: unknown): { screen: 'friends' } | { screen: 'chat'; riderId: string } | null {
+/** The in-app route a notification opens: '#friends', '#chat:<riderId>'
+ * or '#map' (a regroup point from the ride's host). */
+export function notificationRoute(data: unknown): { screen: 'friends' } | { screen: 'map' } | { screen: 'chat'; riderId: string } | null {
   const route = data && typeof data === 'object' ? (data as { route?: unknown }).route : undefined;
   if (route === '#friends') return { screen: 'friends' };
+  if (route === '#map') return { screen: 'map' };
   const chat = typeof route === 'string' ? /^#chat:([A-Za-z0-9_-]+)$/.exec(route) : null;
   return chat ? { screen: 'chat', riderId: chat[1]! } : null;
 }

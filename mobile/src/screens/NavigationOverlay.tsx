@@ -15,7 +15,7 @@ import {
 } from '../navigationGuidance';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { colors, darkColors, pressedFeedback } from '../theme';
-import { useNavigationPalette } from '../navigationTone';
+import { GLANCE_TEXT_MAX_SCALE, useNavigationPalette } from '../navigationTone';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { styles } from './MapScreen.styles';
@@ -88,7 +88,7 @@ export function NavigationBanner({
           />
         </View>
         <View style={styles.navigationBannerCopy}>
-          <Text style={[styles.navigationDistance, isNight && night.distance]}>{formatNavigationDistance(distanceToStepEnd, unitSystem)}</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationDistance, isNight && night.distance]}>{formatNavigationDistance(distanceToStepEnd, unitSystem)}</Text>
           {/* As in Google and Apple Maps: the distance, then the road the
               turn leads onto in large type (the arrow shows the turn).
               Without a named road, the action and full instruction show. */}
@@ -101,7 +101,7 @@ export function NavigationBanner({
             {roadName ?? glanceAction}
           </Text>
           {roadName ? null : (
-            <Text numberOfLines={2} accessible={false} style={[styles.navigationProviderInstruction, isNight && night.secondaryText]}>
+            <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={2} accessible={false} style={[styles.navigationProviderInstruction, isNight && night.secondaryText]}>
               {guidanceInstruction}
             </Text>
           )}
@@ -120,8 +120,8 @@ export function NavigationBanner({
               secondaryColor={palette.textMuted}
             />
           </View>
-          <Text style={[styles.navigationNextLabel, isNight && night.mutedText]}>Then</Text>
-          <Text numberOfLines={1} style={[styles.navigationNextInstruction, isNight && night.secondaryText]} accessibilityLabel={followingStep.instruction}>{navigationInstructionRoad(followingStep.instruction) ?? followingStep.instruction}</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationNextLabel, isNight && night.mutedText]}>Then</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={1} style={[styles.navigationNextInstruction, isNight && night.secondaryText]} accessibilityLabel={followingStep.instruction}>{navigationInstructionRoad(followingStep.instruction) ?? followingStep.instruction}</Text>
         </View>
       ) : null}
       <NavigationRoadAhead alerts={roadAlerts} unit={unitSystem} />
@@ -136,7 +136,7 @@ export function NavigationBanner({
             size={16}
             color={notice === ROUTE_UPDATED_NOTICE ? palette.accent : palette.warning}
           />
-          <Text style={[styles.navigationNotice, isNight && night.secondaryText]}>{notice}</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationNotice, isNight && night.secondaryText]}>{notice}</Text>
         </View>
       ) : null}
     </View>
@@ -157,8 +157,8 @@ export function NavigationSpeedBadge({ top, navigationSpeedMps, unitSystem }: {
         ? 'Current speed unavailable'
         : `Current speed ${formatNavigationSpeed(navigationSpeedMps, unitSystem)} ${navigationSpeedUnit(unitSystem)}`}
     >
-      <Text style={[styles.navigationSpeedBadgeValue, isNight && night.primaryText]}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
-      <Text style={[styles.navigationSpeedBadgeUnit, isNight && night.mutedText]}>{navigationSpeedUnit(unitSystem)}</Text>
+      <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationSpeedBadgeValue, isNight && night.primaryText]}>{formatNavigationSpeed(navigationSpeedMps, unitSystem)}</Text>
+      <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationSpeedBadgeUnit, isNight && night.mutedText]}>{navigationSpeedUnit(unitSystem)}</Text>
     </View>
   );
 }
@@ -187,18 +187,18 @@ export function NavigationTripSummary({
       <View style={[styles.navigationSummaryHandle, isNight && night.handle]} />
       <View style={styles.navigationSummaryContent}>
         <View style={styles.navigationSummaryPrimary}>
-          <Text style={[styles.navigationArrival, isNight && night.arrival]}>{arrivalLabel}</Text>
-          <Text style={label}>arrival</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationArrival, isNight && night.arrival]}>{arrivalLabel}</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={label}>arrival</Text>
         </View>
         <View style={divider} />
         <View style={styles.navigationSummaryStat}>
-          <Text style={value}>{formatNavigationDuration(remainingSeconds)}</Text>
-          <Text style={label}>left</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={value}>{formatNavigationDuration(remainingSeconds)}</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={label}>left</Text>
         </View>
         <View style={divider} />
         <View style={styles.navigationSummaryStat}>
-          <Text style={value}>{formatNavigationDistance(remainingMeters, unitSystem)}</Text>
-          <Text style={label}>away</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={value}>{formatNavigationDistance(remainingMeters, unitSystem)}</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={label}>away</Text>
         </View>
       </View>
     </View>

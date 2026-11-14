@@ -40,6 +40,8 @@ export interface RideMemberLocation {
   lat: number;
   lon: number;
   updatedAt: number;
+  /** Present (true) only while the rider's phone battery is nearly flat. */
+  batteryLow?: true;
 }
 
 export type RideLocationsResult =
@@ -366,8 +368,8 @@ export class RideStore {
     const pool = getPool();
     const freshSince = Date.now() - RIDE_LOCATION_LAST_SEEN_MS;
     await pool.query('DELETE FROM ride_locations WHERE ride_id = $1 AND updated_at < $2', [rideId, freshSince]);
-    const { rows } = await pool.query<{ rider_id: string; lat: number; lon: number; updated_at: string | number }>(
-      `SELECT location.rider_id, location.lat, location.lon, location.updated_at
+    const { rows } = await pool.query<{ rider_id: string; lat: number; lon: number; updated_at: string | number; battery_low: boolean }>(
+      `SELECT location.rider_id, location.lat, location.lon, location.updated_at, location.battery_low
        FROM ride_locations location
        INNER JOIN ride_members member
          ON member.ride_id = location.ride_id
@@ -383,6 +385,7 @@ export class RideStore {
       lat: row.lat,
       lon: row.lon,
       updatedAt: Number(row.updated_at),
+      ...(row.battery_low ? { batteryLow: true as const } : {}),
     }));
   }
 
@@ -390,19 +393,19 @@ export class RideStore {
    * explicit, per-ride consent. Membership alone never enables upload.
    * Return the same fresh ride-location snapshot that the read endpoint
    * exposes so clients do not need a second authenticated request per tick. */
-  async updateMemberLocation(rideId: string, riderId: string, lat: number, lon: number): Promise<RideLocationUpdateResult> {
+  async updateMemberLocation(rideId: string, riderId: string, lat: number, lon: number, batteryLow = false): Promise<RideLocationUpdateResult> {
     const result = await this.getRideForMember(rideId, riderId);
     if (!result.ok) return result;
     const pool = getPool();
     const updated = await pool.query(
-      `INSERT INTO ride_locations (ride_id, rider_id, lat, lon, updated_at)
-       SELECT $1, $2, $3, $4, $5
+      `INSERT INTO ride_locations (ride_id, rider_id, lat, lon, updated_at, battery_low)
+       SELECT $1, $2, $3, $4, $5, $6
        FROM ride_members
        WHERE ride_id = $1 AND rider_id = $2 AND location_sharing_enabled = TRUE
        ON CONFLICT (ride_id, rider_id)
-       DO UPDATE SET lat = $3, lon = $4, updated_at = $5
+       DO UPDATE SET lat = $3, lon = $4, updated_at = $5, battery_low = $6
        RETURNING rider_id`,
-      [rideId, riderId, lat, lon, Date.now()]
+      [rideId, riderId, lat, lon, Date.now(), batteryLow]
     );
     if (updated.rowCount === 0) return { ok: false, reason: 'location_sharing_disabled' };
     await slideRideCode(pool, rideId);

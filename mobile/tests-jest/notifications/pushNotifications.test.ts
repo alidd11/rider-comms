@@ -64,6 +64,7 @@ test('a build without an Expo project id says so instead of failing silently', a
 
 test('notification routes open Friends or a chat, and nothing else', () => {
   expect(notificationRoute({ route: '#friends' })).toEqual({ screen: 'friends' });
+  expect(notificationRoute({ route: '#map' })).toEqual({ screen: 'map' });
   expect(notificationRoute({ route: '#chat:rider_abc-1' })).toEqual({ screen: 'chat', riderId: 'rider_abc-1' });
   expect(notificationRoute({ route: 'https://evil.example' })).toBeNull();
   expect(notificationRoute(null)).toBeNull();

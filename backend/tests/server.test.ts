@@ -667,6 +667,21 @@ describe('authenticated API', () => {
     const afterWithdrawal = await authenticatedFetch(ctx, 'host', `/rides/${ride.rideId}/locations`);
     assert.deepEqual((await afterWithdrawal.json() as { locations: unknown[] }).locations, []);
   });
+  it('passes a rider\'s low battery on to the group with their position', needsDb, async () => {
+    const made = await postJson(ctx, 'battery-host', '/rides', {}); const ride = await made.json() as { rideId: string; code: string };
+    await postJson(ctx, 'battery-member', '/rides/join', { code: ride.code });
+    await authenticatedFetch(ctx, 'battery-member', `/rides/${ride.rideId}/location-sharing`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+    });
+    assert.equal((await postJson(ctx, 'battery-member', `/rides/${ride.rideId}/location`, { lat: 51.5, lon: -0.1, batteryLow: 'yes' })).status, 400);
+    assert.equal((await postJson(ctx, 'battery-member', `/rides/${ride.rideId}/location`, { lat: 51.5, lon: -0.1, batteryLow: true })).status, 200);
+    const seen = async () => (await (await authenticatedFetch(ctx, 'battery-host', `/rides/${ride.rideId}/locations`)).json() as { locations: Array<{ batteryLow?: boolean }> }).locations;
+    assert.equal((await seen())[0]?.batteryLow, true);
+    // Charging again (or an older app that never sends it): the flag goes.
+    assert.equal((await postJson(ctx, 'battery-member', `/rides/${ride.rideId}/location`, { lat: 51.5, lon: -0.1 })).status, 200);
+    assert.equal('batteryLow' in ((await seen())[0] ?? {}), false);
+    await authenticatedFetch(ctx, 'battery-host', `/rides/${ride.rideId}`, { method: 'DELETE' });
+  });
   it('hides private ride locations between blocked members in both directions', needsDb, async () => {
     const made = await postJson(ctx, 'block-location-host', '/rides', {});
     const ride = await made.json() as { rideId: string; code: string };
