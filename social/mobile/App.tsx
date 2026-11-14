@@ -354,6 +354,16 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     () => reelPreviews.filter(reel => savedReelIds.has(reel.id)),
     [reelPreviews, savedReelIds],
   );
+  // Deep-linking from Saved puts the selected eligible Reel first for that
+  // viewing session. A pixel scroll on the first WebKit layout is unreliable
+  // and can clamp to zero before the virtualised content has sized itself.
+  const viewingReelPreviews = useMemo(() => {
+    if (!reelStartId) return reelPreviews;
+    const selected = reelPreviews.find(reel => reel.id === reelStartId);
+    return selected
+      ? [selected, ...reelPreviews.filter(reel => reel.id !== reelStartId)]
+      : reelPreviews;
+  }, [reelPreviews, reelStartId]);
   const recommendedClubs = useMemo(() =>
     rankClubs(clubCandidates, viewer).flatMap(({item}) => {
       const club = demoClubs.find((c) => c.id === item.id);
@@ -388,6 +398,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   }
 
   function navigate(to: Screen) {
+    // Leaving the saved-video player restores normal For You ranking on the
+    // next ordinary Reels visit. A fresh Saved deep link sets its own target.
+    if (screen === 'Reels' && to !== 'Reels') setReelStartId(null);
     setScreen(to);
     if (to === 'Create') setCreateMode('Post');
     // Opening another section dismisses the Home feed settings panel.
@@ -1038,7 +1051,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               </CreateRecoveryBoundary>
             ) : screen === 'Reels' ? (
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
-                <ReelsScreen items={reelPreviews} followingItems={followingReelPreviews}
+                <ReelsScreen items={viewingReelPreviews} followingItems={followingReelPreviews}
                   initialReelId={reelStartId} followedAuthors={followed}
                   savedReelIds={savedReelIds} onToggleSavedReel={(id) => toggle(setSavedReelIds, id)}
                   onToggleFollow={toggleFollow}

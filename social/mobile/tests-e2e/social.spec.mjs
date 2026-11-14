@@ -453,10 +453,11 @@ test('Reels For You and Following have separate visible creator sets and Saved s
   await expect(page.getByRole('button', { name: 'Watch saved Reel r2' })).toBeVisible();
   await page.getByRole('button', { name: 'Watch saved Reel r2' }).click();
   await expect(page.getByTestId('reels-viewport')).toBeVisible();
-  await expect.poll(() => page.locator('#social-reels-feed').evaluate(el => {
-    const second = document.getElementById('social-reel-panel-r2');
-    return second ? Math.abs(el.scrollTop - second.offsetTop) : 9999;
-  })).toBeLessThan(5);
+  // A saved-video deep link must show the intended item first without
+  // relying on a WebKit scrollTo before the first layout completes.
+  await expect(page.locator('#social-reel-panel-r2')).toHaveAttribute('data-testid', 'reel-slide-0');
+  await expect.poll(() => page.locator('#social-reels-feed').evaluate(el =>
+    Math.abs(el.scrollTop))).toBeLessThan(5);
   await page.getByRole('button', { name: 'Save Reel r2' }).click();
   await page.getByRole('tab', { name: 'Home' }).click();
   await page.getByRole('button', { name: 'Open profile' }).click();
