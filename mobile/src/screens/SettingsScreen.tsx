@@ -634,7 +634,7 @@ function AccountPage(): React.JSX.Element {
         { text: 'Sign out', style: 'destructive', onPress: () => {
           // This phone stops getting the account's notifications first, while
           // the session can still authorise removing it (PWA: signOut).
-          void disablePush(client, riderId).catch(() => undefined).then(() => logOut()).catch(() => Alert.alert('Signed out on this device', 'You’re signed out here, but Rider Comms couldn’t confirm it. If this phone still shows in Signed-in devices, sign it out from another device.'));
+          void disablePush(client, riderId).catch(() => undefined).then(() => logOut()).catch(() => Alert.alert('Signed out on this device', 'You’re signed out here. If this phone still shows in Signed-in devices on another phone, sign it out there.'));
         } },
       ]
     );
