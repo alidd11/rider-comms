@@ -11,6 +11,8 @@ export type VoteResult = { ok: true } | { ok: false; reason: 'not_found' };
 
 export const HAZARD_SEARCH_RADIUS_MILES = 40;
 const MAX_NEARBY_RESULTS = 500;
+/** Another report of the same type this close is the same hazard. */
+export const DUPLICATE_RADIUS_METERS = 150;
 
 interface HazardReportRow {
   id: string;
@@ -49,26 +51,87 @@ function rowToReport(row: HazardReportRow): HazardReport {
  * leaked to clients — only the aggregate confirmations/denials counts are.
  */
 export class HazardStore {
+  /**
+   * A new report, or, when an active report of the same type is already
+   * within DUPLICATE_RADIUS_METERS, that report: another rider's sighting
+   * counts as a confirmation and keeps it alive for a full lifetime from
+   * now, instead of putting a second pin on the same spot.
+   */
   async create(type: HazardType, lat: number, lon: number, reportedBy: string): Promise<HazardReport> {
     await ensureMigrated();
-    const now = Date.now();
-    const report: HazardReport = {
-      id: randomUUID(),
-      type,
-      lat,
-      lon,
-      reportedBy,
-      createdAt: now,
-      expiresAt: now + ttlMsForType(type),
-      confirmations: 0,
-      denials: 0,
-    };
-    await getPool().query(
-      `INSERT INTO hazard_reports (id, type, lat, lon, reported_by, created_at, expires_at, confirmations, denials)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0)`,
-      [report.id, report.type, report.lat, report.lon, report.reportedBy, report.createdAt, report.expiresAt]
-    );
-    return report;
+    return withTransaction(async (client) => {
+      const now = Date.now();
+      const expiresAt = now + ttlMsForType(type);
+      // One report of a type at a time, so two riders reporting the same
+      // spot at once can't both miss each other's report.
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`hazard_create:${type}`]);
+      const box = latLonBoundingBox({ lat, lon }, DUPLICATE_RADIUS_METERS / 1609.344, 8);
+      const duplicate = await client.query<HazardReportRow>(
+        `SELECT id, type, lat, lon, reported_by, created_at, expires_at, confirmations, denials
+         FROM hazard_reports
+         WHERE type = $1
+           AND expires_at > $2
+           AND denials - confirmations < $3
+           AND lat BETWEEN $4 AND $5
+           ${box.longitudeClause}
+           AND 2 * 6371008.8 * ASIN(LEAST(1, SQRT(
+             POWER(SIN(RADIANS(lat - $6) / 2), 2)
+             + COS(RADIANS($6)) * COS(RADIANS(lat))
+               * POWER(SIN(RADIANS(lon - $7) / 2), 2)
+           ))) <= ${DUPLICATE_RADIUS_METERS}
+         ORDER BY created_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [type, now, HIDE_NET_DENIAL_THRESHOLD, box.minLat, box.maxLat, lat, lon, ...box.longitudeParams],
+      );
+      const existing = duplicate.rows[0];
+      if (existing) {
+        let confirmationDelta = 0;
+        let denialDelta = 0;
+        if (existing.reported_by !== reportedBy) {
+          const previous = await client.query<{ vote: 'confirm' | 'deny' }>(
+            'SELECT vote FROM hazard_report_votes WHERE report_id = $1 AND rider_id = $2',
+            [existing.id, reportedBy],
+          );
+          const previousVote = previous.rows[0]?.vote;
+          await client.query(
+            `INSERT INTO hazard_report_votes (report_id, rider_id, vote)
+             VALUES ($1, $2, 'confirm')
+             ON CONFLICT (report_id, rider_id) DO UPDATE SET vote = 'confirm'`,
+            [existing.id, reportedBy],
+          );
+          confirmationDelta = previousVote === 'confirm' ? 0 : 1;
+          denialDelta = previousVote === 'deny' ? -1 : 0;
+        }
+        const updated = await client.query<HazardReportRow>(
+          `UPDATE hazard_reports
+           SET confirmations = confirmations + $2,
+               denials = denials + $3,
+               expires_at = GREATEST(expires_at, $4)
+           WHERE id = $1
+           RETURNING id, type, lat, lon, reported_by, created_at, expires_at, confirmations, denials`,
+          [existing.id, confirmationDelta, denialDelta, expiresAt],
+        );
+        return rowToReport(updated.rows[0]!);
+      }
+      const report: HazardReport = {
+        id: randomUUID(),
+        type,
+        lat,
+        lon,
+        reportedBy,
+        createdAt: now,
+        expiresAt,
+        confirmations: 0,
+        denials: 0,
+      };
+      await client.query(
+        `INSERT INTO hazard_reports (id, type, lat, lon, reported_by, created_at, expires_at, confirmations, denials)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0)`,
+        [report.id, report.type, report.lat, report.lon, report.reportedBy, report.createdAt, report.expiresAt],
+      );
+      return report;
+    });
   }
 
   /** Return active reports within 40 miles. Expiry is cleaned with one

@@ -233,12 +233,15 @@
     chips?.forEach((chip) => { chip.disabled = true; });
     try {
       const hazard = await apiFetch('POST', '/hazards', { type, lat: reportPosition.lat, lon: reportPosition.lon });
+      // The server merges a report of the same hazard close by into the
+      // existing one, counting this rider's sighting as a confirmation.
+      const alreadyReported = nearbyHazards.some((entry) => entry.id === hazard.id);
       pendingHazardReportPosition = null;
       nearbyHazards = [hazard, ...nearbyHazards.filter((entry) => entry.id !== hazard.id)];
       renderHazardMarkers();
       closeSheet();
       selectHazard(hazard.id);
-      showToast(`${HAZARD_TYPES[type].label} reported.`);
+      showToast(alreadyReported ? `${HAZARD_TYPES[type].label} already reported here. Thanks for confirming it.` : `${HAZARD_TYPES[type].label} reported.`);
       await loadNearbyHazards(hazard.lat, hazard.lon);
       if (nearbyHazards.some((entry) => entry.id === hazard.id)) selectHazard(hazard.id);
     } catch (error) {

@@ -58,6 +58,40 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     assert.deepEqual(found.map((report) => report.reportedBy), ['near']);
   });
 
+  it('treats a second report of the same hazard nearby as a confirmation, not a new pin', async () => {
+    const store = new HazardStore();
+    const first = await store.create('accident', 40.0, -74.0, 'rider-1');
+    // About 80 m north: the same accident.
+    const second = await store.create('accident', 40.00072, -74.0, 'rider-2');
+    assert.equal(second.id, first.id);
+    assert.equal(second.confirmations, 1);
+    assert.ok(second.expiresAt >= first.expiresAt);
+    // The same rider reporting again, or rider-2 again, adds nothing.
+    assert.equal((await store.create('accident', 40.0, -74.0, 'rider-1')).confirmations, 1);
+    assert.equal((await store.create('accident', 40.0, -74.0, 'rider-2')).confirmations, 1);
+    const found = await store.nearby(40.0, -74.0, Date.now());
+    assert.equal(found.length, 1);
+  });
+
+  it('a nearby report that earlier denied the hazard turns its vote into a confirmation', async () => {
+    const store = new HazardStore();
+    const first = await store.create('police', 40.0, -74.0, 'rider-1');
+    await store.deny(first.id, 'rider-2');
+    const again = await store.create('police', 40.0, -74.0, 'rider-2');
+    assert.equal(again.id, first.id);
+    assert.equal(again.confirmations, 1);
+    assert.equal(again.denials, 0);
+  });
+
+  it('keeps separate pins for a different hazard type or a report beyond 150 m', async () => {
+    const store = new HazardStore();
+    const accident = await store.create('accident', 40.0, -74.0, 'rider-1');
+    const police = await store.create('police', 40.0, -74.0, 'rider-2');
+    // About 220 m north.
+    const further = await store.create('accident', 40.002, -74.0, 'rider-3');
+    assert.equal(new Set([accident.id, police.id, further.id]).size, 3);
+  });
+
   it('finds nearby reports across the antimeridian', async () => {
     const store = new HazardStore();
     const report = await store.create('accident', 0, -179.9, 'across-date-line');
