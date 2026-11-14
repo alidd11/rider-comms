@@ -47,6 +47,7 @@ export function authorizeSocialPrivatePlayback(
     return { allowed: false, reason: 'unauthenticated' };
   }
   if (typeof ctx.ownerId !== 'string' || ctx.ownerId.length === 0 ||
+      (!['public', 'followers', 'private'].includes(ctx.audience)) ||
       ctx.mediaState !== 'ready' || ctx.ownerState !== 'active' ||
       ctx.viewerState !== 'active' || ctx.viewerEmailVerified !== true ||
       ctx.viewerTermsCurrent !== true || ctx.ownerAgeEligible !== true ||
