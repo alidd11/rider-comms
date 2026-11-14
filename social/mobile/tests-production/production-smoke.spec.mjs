@@ -74,7 +74,10 @@ async function verifyScreen(page, testInfo, name) {
 test('production: every major route and empty state is visible, navigable and error-free', async ({ page }, testInfo) => {
   const uncaught = [];
   page.on('pageerror', e => uncaught.push(e.message));
-  await page.goto('/');
+  const response = await page.goto('/');
+  // Only the specific licensed editorial image CDN is allowed; never use a wildcard.
+  expect(response?.headers()['content-security-policy']).toContain('https://images.pexels.com');
+  expect(response?.headers()['content-security-policy']).not.toContain('img-src *');
   await expect(page.getByText('Your next story starts here')).toBeVisible();
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();
   await expect(page.getByTestId('brand-home-feature')).toBeVisible();
