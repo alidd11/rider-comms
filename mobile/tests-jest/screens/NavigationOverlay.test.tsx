@@ -36,7 +36,7 @@ function screen(night: boolean, notice: string | null) {
   );
 }
 
-const background = (node: { props: { style: unknown } }) => StyleSheet.flatten(node.props.style as never)?.backgroundColor;
+const background = (node: { props: Record<string, unknown> }) => StyleSheet.flatten(node.props.style as never)?.backgroundColor;
 
 test('navigation cards take the dark colours over the night map, whatever the phone theme', async () => {
   const view = await render(screen(true, 'GPS signal lost'));
