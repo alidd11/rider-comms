@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS social_media_delete_outbox (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   object_key text NOT NULL UNIQUE CHECK (
-    object_key ~ '^social/processed/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\\.(jpg|png|webp|mp4)$'
+    object_key ~ '^social/processed/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}[.](jpg|png|webp|mp4)$'
   ),
   attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
   next_attempt_at timestamptz NOT NULL DEFAULT now(),
