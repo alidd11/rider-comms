@@ -302,7 +302,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             {mode === 'Reel' ? 'New reel' : mode === 'Story' ? 'New story' : 'New post'}
           </Text>
         </View>
-        {!isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Flip camera"
+        {live && !isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Flip camera"
           disabled={!live || requesting}
           onPress={() => {
             const nextFacing = facing === 'environment' ? 'user' : 'environment';
@@ -337,7 +337,20 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         {countdown}
       </Text></View> : null}
 
-      {!isReel ? <View style={{ position: 'absolute', bottom: 14, left: 0, right: 0 }}>
+      {!isReel && !live ? <View style={{
+        position: 'absolute', bottom: 18, left: 0, right: 0,
+        alignItems: 'center', paddingHorizontal: 20,
+      }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
+          onPress={openLibrary} disabled={disabled}
+          style={{ minHeight: 52, minWidth: 190, paddingHorizontal: 20,
+            borderRadius: 26, backgroundColor: '#FFFFFF',
+            flexDirection: 'row', alignItems: 'center',
+            justifyContent: 'center', gap: 10, opacity: disabled ? 0.6 : 1 }}>
+          <Ionicons name="images-outline" size={22} color={BLACK}/>
+          <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>Open Gallery</Text>
+        </Pressable>
+      </View> : !isReel ? <View style={{ position: 'absolute', bottom: 14, left: 0, right: 0 }}>
         <View style={{ paddingHorizontal: 15, flexDirection: 'row',
           alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"

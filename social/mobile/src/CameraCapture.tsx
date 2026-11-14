@@ -181,15 +181,15 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             {mode === 'Reel' ? 'New reel' : mode === 'Story' ? 'New story' : 'New post'}
           </Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Flip camera"
-          disabled={!canUseCamera || recording} onPress={() => {
+        {canUseCamera ? <Pressable accessibilityRole="button" accessibilityLabel="Flip camera"
+          disabled={recording} onPress={() => {
             setFacing(current => current === 'back' ? 'front' : 'back');
             setFlash('off');
           }} style={{ backgroundColor: DIM, width: 43, height: 43, borderRadius: 22,
             justifyContent: 'center', alignItems: 'center',
             opacity: canUseCamera && !recording ? 1 : 0.4 }}>
           <Ionicons name="camera-reverse-outline" color={WHITE} size={27}/>
-        </Pressable>
+        </Pressable> : <View style={{ width: 43, height: 43 }}/>}
       </View>
 
       {canUseCamera ? <View style={{ position: 'absolute', right: 9, top: 90,
@@ -212,7 +212,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
       </Text></View> : null}
 
       <View style={{ position: 'absolute', bottom: 14, left: 0, right: 0, gap: 14 }}>
-        {isVideo ? <View style={{ alignSelf: 'center', flexDirection: 'row',
+        {isVideo && canUseCamera ? <View style={{ alignSelf: 'center', flexDirection: 'row',
           gap: 12, paddingVertical: 7, paddingHorizontal: 14, backgroundColor: DIM, borderRadius: 21 }}>
           {([15, 60] as const).map(limit => <Pressable key={limit} accessibilityRole="button"
             accessibilityLabel={String(limit) + ' seconds'}
@@ -226,7 +226,16 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
             </Text>
           </Pressable>)}
         </View> : null}
-        <View style={{ paddingHorizontal: 15, flexDirection: 'row',
+        {!canUseCamera ? <Pressable accessibilityRole="button"
+          accessibilityLabel="Choose from library"
+          disabled={disabled || recording || busy} onPress={openLibrary}
+          style={{ alignSelf: 'center', minWidth: 190, minHeight: 52,
+            paddingHorizontal: 20, backgroundColor: WHITE, borderRadius: 26,
+            flexDirection: 'row', gap: 10, alignItems: 'center',
+            justifyContent: 'center', opacity: disabled || busy ? 0.6 : 1 }}>
+          <Ionicons name="images-outline" size={22} color={BLACK}/>
+          <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>Open Gallery</Text>
+        </Pressable> : <View style={{ paddingHorizontal: 15, flexDirection: 'row',
           alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
             onPress={openLibrary} disabled={disabled || recording || busy}
@@ -253,7 +262,7 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
               {recording ? 'Recording' : isVideo ? (webReel ? 'Gallery video' : 'Video') : 'Photo'}
             </Text>
           </View>
-        </View>
+        </View>}
       </View>
 
       {error ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss camera notice"
