@@ -59,9 +59,13 @@ recover production from one.
      TLS is configured on it; don't send the dump over an unencrypted
      connection.
 
-   Until both secrets exist, the nightly **Database backup** run passes with a
-   warning that no off-provider copy was taken. The daily Railway backup above
-   still runs.
+   Until both secrets exist, the nightly **Database backup** workflow **fails
+   visibly** rather than reporting success without an off-provider encrypted
+   copy. This is intentional: a green backup status must mean an encrypted
+   backup was actually created and uploaded. The Railway same-provider backup
+   remains separate. Do not disable the check to hide an unconfigured backup.
+   If external PostgreSQL TLS is unavailable, do not add an unencrypted
+   publicly exposed database proxy to make this workflow pass.
 3. **Match the Postgres version.** If production runs a Postgres major version
    newer than 16, add a repository variable `POSTGRES_MAJOR` set to that
    version. `pg_dump` cannot dump a newer server.
