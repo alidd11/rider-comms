@@ -24,6 +24,12 @@ recover production from one.
   `db-backups` bucket under `daily/`, and deletes uploads older than 30 days.
   The private key isn't stored anywhere in Railway or the repository; the
   owner keeps it. Logs show `backup_uploaded` and `backup_expired` events.
+  **14 November 2026 incident:** older cron runs intermittently failed when
+  `initdb` encountered a reused `/tmp/verify-pg` directory (confirmed on
+  9, 11 and 13 November). The updated cron allocates a unique scratch
+  cluster and unique staging directory per run and cleans up on every exit.
+  Verify two consecutive successful scheduled invocations and both upload
+  events; a green single run does not close this incident.
   This copy is independent of the Postgres volume and its snapshots, but it
   sits with the same provider. The GitHub workflow below is the off-provider
   copy.
