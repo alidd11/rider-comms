@@ -134,6 +134,52 @@ function HeaderLine({ heading, meta }: { heading: string; meta?: string }) {
   );
 }
 
+function HomeEmpty({ onCreate, onReels, onMessages }: {
+  onCreate: () => void; onReels: () => void; onMessages: () => void;
+}) {
+  return <View testID="home-empty-onboarding" style={{
+    marginHorizontal: 16, marginTop: 12, marginBottom: 10, padding: 20,
+    borderRadius: 22, backgroundColor: '#12171D', gap: 17,
+    borderWidth: 1, borderColor: '#232C33',
+  }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+      <View style={{ width: 49, height: 49, borderRadius: 16,
+        alignItems: 'center', justifyContent: 'center', backgroundColor: C.accentDark }}>
+        <Ionicons name="images-outline" color={C.accent} size={25} />
+      </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        <Text style={{ color: C.ink, fontSize: 20, fontWeight: '900',
+          lineHeight: 25, letterSpacing: -0.5 }}>Your next story starts here</Text>
+        <Text style={[s.small, { fontSize: 12 }]}>Capture a moment. Make it yours.</Text>
+      </View>
+    </View>
+    <Text style={[s.muted, { fontSize: 13, lineHeight: 20 }]}>
+      Shared posts are being prepared. You can create and save a draft on this device in the meantime.
+    </Text>
+    <Pressable accessibilityRole="button" accessibilityLabel="Open studio"
+      onPress={onCreate} style={[s.cta, { minHeight: 50, flexDirection: 'row', gap: 9 }]}>
+      <Ionicons name="camera-outline" size={19} color={C.bg} />
+      <Text style={s.ctaText}>Open studio</Text>
+    </Pressable>
+    <View style={{ flexDirection: 'row', gap: 10 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Browse Reels from Home"
+        onPress={onReels} style={{ flex: 1, minHeight: 46, flexDirection: 'row',
+          justifyContent: 'center', alignItems: 'center', gap: 7,
+          borderWidth: 1, borderColor: C.border, borderRadius: 13 }}>
+        <Ionicons name="play-circle-outline" size={18} color={C.ink} />
+        <Text style={[s.small, { color: C.ink, fontWeight: '800' }]}>Reels</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open messages from Home"
+        onPress={onMessages} style={{ flex: 1, minHeight: 46, flexDirection: 'row',
+          justifyContent: 'center', alignItems: 'center', gap: 7,
+          borderWidth: 1, borderColor: C.border, borderRadius: 13 }}>
+        <Ionicons name="chatbubble-ellipses-outline" size={18} color={C.ink} />
+        <Text style={[s.small, { color: C.ink, fontWeight: '800' }]}>Messages</Text>
+      </Pressable>
+    </View>
+  </View>;
+}
+
 function PreviewEmpty({ icon, heading, body, actionLabel, onAction, featured = false }: {
   icon: Icon; heading: string; body: string;
   actionLabel?: string; onAction?: () => void; featured?: boolean;
@@ -670,10 +716,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         <Text style={s.small}>Reels has its own For You and Following video feeds.</Text>
       </View> : null}
       {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
-        : <PreviewEmpty featured icon="images-outline" heading="Your next story starts here"
-            body="The community feed will show real photos and updates once publishing is ready. You can prepare a draft now."
-            actionLabel="Open studio"
-            onAction={() => { setCreateMode('Post'); navigate('Create'); }}/>} 
+        : <HomeEmpty
+            onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
+            onReels={() => navigate('Reels')}
+            onMessages={() => navigate('Messages')}/>} 
     </View>;
   }
 

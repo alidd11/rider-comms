@@ -40,8 +40,8 @@ export function ProfileSummary({
       <Text style={[s.sectionTitle,{fontSize:19}]}>{handleWithAt(accountProfile?.handle || username)}</Text>
       <View style={[s.row,{gap:5,backgroundColor:C.panel,borderRadius:999,
         paddingHorizontal:11,paddingVertical:7}]}>
-        <Ionicons name="lock-closed-outline" color={C.muted} size={14}/>
-        <Text style={[s.small,{fontSize:11,fontWeight:'700'}]}>Private preview</Text>
+        <Ionicons name="eye-outline" color={C.muted} size={14}/>
+        <Text style={[s.small,{fontSize:11,fontWeight:'700'}]}>Profile preview</Text>
       </View>
     </View>
     <View style={{paddingHorizontal:2,gap:16}}>
