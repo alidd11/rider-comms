@@ -634,7 +634,7 @@ function AccountPage(): React.JSX.Element {
         { text: 'Sign out', style: 'destructive', onPress: () => {
           // This phone stops getting the account's notifications first, while
           // the session can still authorise removing it (PWA: signOut).
-          void disablePush(client, riderId).catch(() => undefined).then(() => logOut()).catch(() => Alert.alert('Signed out on this device', 'You’re signed out here, but the session couldn’t be ended everywhere. End it from Signed-in devices on another phone.'));
+          void disablePush(client, riderId).catch(() => undefined).then(() => logOut()).catch(() => Alert.alert('Signed out on this device', 'You’re signed out here, but Rider Comms couldn’t confirm it. If this phone still shows in Signed-in devices, sign it out from another device.'));
         } },
       ]
     );
@@ -870,7 +870,7 @@ function DevicesPage(): React.JSX.Element {
       const result = await client.getSessions();
       setSessions(result.sessions);
     } catch {
-      setSessionsError('Couldn’t load signed-in devices.');
+      setSessionsError('Couldn’t load signed-in devices. Check your connection and try again.');
     } finally {
       setSessionsLoading(false);
     }
@@ -883,7 +883,7 @@ function DevicesPage(): React.JSX.Element {
       await client.revokeSession(id);
       setSessions((current) => current.filter((session) => session.id !== id));
     } catch {
-      Alert.alert('Couldn’t revoke session', 'Check your connection and try again.');
+      Alert.alert('Couldn’t sign out that device', 'Check your connection and try again.');
     }
   }
 
@@ -994,8 +994,8 @@ function HelpPage(): React.JSX.Element {
       </SettingsSection>
       <PageSection title="Riding safely">
         <View style={styles.safetyRow}><Ionicons name="speedometer-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Set up while stationary</Text><Text style={styles.safetyCopy}>Complete profile, route and group controls before moving.</Text></View></View>
-        <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Nearby visibility and private-ride sharing can be stopped independently.</Text></View></View>
-        <View style={styles.safetyRow}><Ionicons name="warning-outline" size={21} color={colors.warning} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Not an emergency service</Text><Text style={styles.safetyCopy}>Use the appropriate emergency service when urgent help is needed.</Text></View></View>
+        <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Stop sharing on Nearby or in a group ride at any time.</Text></View></View>
+        <View style={styles.safetyRow}><Ionicons name="warning-outline" size={21} color={colors.warning} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Not an emergency service</Text><Text style={styles.safetyCopy}>Call the appropriate emergency service if you need urgent help.</Text></View></View>
       </PageSection>
       <SettingsSection title="Legal">
         <SettingsRow icon="lock-closed-outline" title="Privacy Policy" onPress={() => open(LEGAL_LINKS.privacy)} />

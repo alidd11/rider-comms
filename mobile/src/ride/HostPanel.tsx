@@ -63,7 +63,7 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
       await startRide({ rideId, code, isHost: false }, false);
     } catch (err) {
       // The code stays in the field so the rider can fix one character.
-      if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a minute before trying again.');
+      if (err instanceof ApiError && err.status === 429) setError('Too many attempts. Wait a moment and try again.');
       else if (err instanceof ApiError && err.status === 404) setError("That code doesn’t match an active ride. Check it with your host.");
       else if (err instanceof ApiError && err.status === 409) setError('This ride is full (20 riders max). Ask the host to start another.');
       else if (err instanceof ApiError && err.status === 403) setError(rideRefusalMessage(err));

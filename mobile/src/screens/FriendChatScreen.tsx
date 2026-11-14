@@ -286,7 +286,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       navigationProvider
     );
     if (!url) {
-      Alert.alert('Location unavailable', 'This location can’t be opened because its coordinates are invalid.');
+      Alert.alert('Location unavailable', 'That shared location can’t be opened.');
       return;
     }
 
@@ -317,7 +317,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
 
   const reportRider = React.useCallback((reason: 'harassment' | 'unsafe' | 'spam' | 'sexual' | 'other') => {
     void client.reportRider(riderId, reason, 'Reported from the direct-message screen')
-      .then(() => Alert.alert('Report received', 'Thank you. The report has been recorded for review.'))
+      .then(() => Alert.alert('Report received', 'Thank you. Our team reviews reports within 24 hours and acts on anything that breaks the Community Guidelines.'))
       .catch(() => Alert.alert('Couldn’t send report', 'Try again when you have a connection.'));
   }, [client, riderId]);
 

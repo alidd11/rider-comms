@@ -131,7 +131,7 @@
   const RIDE_ERROR_MESSAGES = {
     invalid_or_expired: 'That code doesn’t match an active ride. Check it with your host.',
     ride_full: 'This ride is full (20 riders max). Ask the host to start another.',
-    rate_limited: 'Too many attempts. Wait a minute before trying again.',
+    rate_limited: 'Too many attempts. Wait a moment and try again.',
     email_verification_required: 'Verify your email first: open the link we sent you (Settings → Account and login → Email).',
     terms_acceptance_required: 'Accept the latest Terms in Settings before riding with others.',
     // No signal is a different problem from a bad code (start and join share these).
@@ -160,7 +160,8 @@
       await loadRideRoster();
     } catch (error) {
       const reason = error instanceof ApiError ? error.body?.error : undefined;
-      showToast(RIDE_ERROR_MESSAGES[reason] || 'Couldn’t create a ride. Try again.', 'error');
+      showToast(RIDE_ERROR_MESSAGES[reason]
+        || (error instanceof ApiError && error.status >= 500 ? 'Couldn’t start the ride. Check your connection and try again.' : 'Couldn’t start the ride.'), 'error');
     } finally {
       button.disabled = false;
       button.innerHTML = `${icon('plus')}<span>Start a ride</span>`;
