@@ -94,6 +94,9 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
   const activeItems = feedMode === 'forYou' ? items : followingItems;
   const [activeIndex, setActiveIndex] = useState(() =>
     Math.max(0, items.findIndex(reel => reel.id === initialReelId)));
+  // WebKit can emit scroll=0 before a saved video has been restored.
+  // Ignore that initial event until we align the requested video.
+  const initialScrollPending = useRef(Boolean(initialReelId));
   const [likes, setLikes] = useState<Set<string>>(() => new Set());
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState<string | null>(null);
@@ -106,10 +109,12 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
     // WebKit can resize the available viewport after a PWA resume, orientation
     // change or keyboard dismissal. Pixel scroll offsets from the old page
     // height otherwise leave the reader between Reels or on the wrong item.
-    if (lastPageHeight.current !== height || safeIndex !== activeIndex) {
+    if (lastPageHeight.current !== height || safeIndex !== activeIndex ||
+        initialScrollPending.current) {
       lastPageHeight.current = height;
       if (safeIndex !== activeIndex) setActiveIndex(safeIndex);
       scroller.current?.scrollTo({ y: safeIndex * height, animated: false });
+      initialScrollPending.current = false;
     }
   }, [activeIndex, height, activeItems.length, feedMode]);
 
@@ -126,6 +131,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
     if (feedMode === next) return;
     setFeedMode(next);
     setActiveIndex(0);
+    initialScrollPending.current = false;
     lastPageHeight.current = 0;
     setNotice(null);
   };
@@ -133,8 +139,8 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
     minHeight: 44, flexDirection: 'row', gap: 18, alignItems: 'center',
     justifyContent: 'center',
   }}>
-    {([{mode:'following',label:'Following reels',text:'Following'},
-       {mode:'forYou',label:'For You reels',text:'For You'}] as const).map(tab =>
+    {([{mode:'following',label:'Following videos',text:'Following'},
+       {mode:'forYou',label:'For You videos',text:'For You'}] as const).map(tab =>
       <Pressable key={tab.mode} accessibilityRole="tab" accessibilityLabel={tab.label}
         accessibilityState={{ selected: feedMode === tab.mode }}
         onPress={() => changeFeed(tab.mode)} style={{
@@ -157,7 +163,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
   };
 
   const trackSwipe = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (!height) return;
+    if (!height || initialScrollPending.current) return;
     const next = Math.min(activeItems.length - 1, Math.max(0, Math.round(event.nativeEvent.contentOffset.y / height)));
     if (next !== activeIndex) {
       setActiveIndex(next);

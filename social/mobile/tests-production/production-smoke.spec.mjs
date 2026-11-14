@@ -126,9 +126,9 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('reels-empty-state')).toBeVisible();
   await expect(page.getByTestId('reels-empty-studio-art')).toBeVisible();
   await expect(page.getByText('No Reels yet')).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'For You reels' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Following reels' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Following reels' }).click();
+  await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Following videos' }).click();
   await expect(page.getByText('No followed Reels yet')).toBeVisible();
   await page.getByRole('button', { name: 'Explore For You Reels' }).click();
   await expect(page.getByText('No Reels yet')).toBeVisible();
