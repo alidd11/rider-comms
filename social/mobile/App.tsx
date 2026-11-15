@@ -14,6 +14,10 @@ import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from '.
 import { loadLocalDemo, saveLocalDemo, clearLocalDemo } from './src/demoStorage';
 import { clearAccountTextDraft } from './src/textDraftStorage';
 import { CreateComposer } from './src/CreateComposer';
+import { LiveFeed, OwnPosts, useLiveReels } from './src/LiveFeed';
+import { publishDraft } from './src/publishPost';
+import { prepareMediaForUpload } from './src/prepareMedia';
+import { canPublish, useSocialAccess } from './src/socialAccess';
 import { ShopScreen } from './src/ShopScreen';
 import { ReelsScreen } from './src/ReelsScreen';
 import { StoriesViewer } from './src/StoriesViewer';
@@ -137,8 +141,8 @@ function HeaderLine({ heading, meta }: { heading: string; meta?: string }) {
   );
 }
 
-function HomeEmpty({ onCreate, onReels, onMessages }: {
-  onCreate: () => void; onReels: () => void; onMessages: () => void;
+function HomeEmpty({ onCreate, onReels, onMessages, live = false }: {
+  onCreate: () => void; onReels: () => void; onMessages: () => void; live?: boolean;
 }) {
   return <View testID="home-empty-onboarding" style={{
     marginHorizontal: 16, marginTop: 12, marginBottom: 10, padding: 20,
@@ -157,7 +161,9 @@ function HomeEmpty({ onCreate, onReels, onMessages }: {
       </View>
     </View>
     <Text style={[s.muted, { fontSize: 13, lineHeight: 20 }]}>
-      Shared posts are being prepared. You can create and save a draft on this device in the meantime.
+      {live
+        ? 'Nobody in the Social test has posted yet. Share a photo or a Reel and you’ll be the first.'
+        : 'Shared posts are being prepared. You can create and save a draft on this device in the meantime.'}
     </Text>
     <Pressable accessibilityRole="button" accessibilityLabel="Open studio"
       onPress={onCreate} style={[s.cta, { minHeight: 50, flexDirection: 'row', gap: 9 }]}>
@@ -286,6 +292,12 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<ProfileContentTab>('Posts');
   const [reelStartId, setReelStartId] = useState<string | null>(null);
+  const access = useSocialAccess();
+  // Real posts once the server has media storage; the screenshot build keeps its fixtures.
+  const liveSocial = !socialFixturesEnabled && access.mediaUpload;
+  const [feedRefresh, setFeedRefresh] = useState(0);
+  const publishedNotice = useRef<string | null>(null);
+  const liveReels = useLiveReels(client, liveSocial, feedRefresh);
   const [connectionSheet, setConnectionSheet] = useState<ConnectionKind | null>(null);
   const [profileDraft, setProfileDraft] = useState<SocialProfileDraft>(DEFAULT_PROFILE);
   const [garageEditor, setGarageEditor] = useState(false);
@@ -411,12 +423,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   // viewing session. A pixel scroll on the first WebKit layout is unreliable
   // and can clamp to zero before the virtualised content has sized itself.
   const viewingReelPreviews = useMemo(() => {
-    if (!reelStartId) return reelPreviews;
-    const selected = reelPreviews.find(reel => reel.id === reelStartId);
+    const all = [...liveReels.forYou, ...reelPreviews];
+    if (!reelStartId) return all;
+    const selected = all.find(reel => reel.id === reelStartId);
     return selected
-      ? [selected, ...reelPreviews.filter(reel => reel.id !== reelStartId)]
-      : reelPreviews;
-  }, [reelPreviews, reelStartId]);
+      ? [selected, ...all.filter(reel => reel.id !== reelStartId)]
+      : all;
+  }, [liveReels.forYou, reelPreviews, reelStartId]);
   const recommendedClubs = useMemo(() =>
     rankClubs(clubCandidates, viewer).flatMap(({item}) => {
       const club = demoClubs.find((c) => c.id === item.id);
@@ -715,8 +728,18 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         </View>
         <Text style={s.small}>Reels has its own For You and Following video feeds.</Text>
       </View> : null}
-      {!socialFixturesEnabled ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
-      {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
+      {/* With real posts, riders' posts come first and the editorial card follows them. */}
+      {!socialFixturesEnabled && !liveSocial ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
+      {liveSocial ? <LiveFeed client={client} riderId={identity.riderId} refreshKey={feedRefresh}
+          onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
+          empty={<HomeEmpty live
+            onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
+            onReels={() => navigate('Reels')}
+            onMessages={() => navigate('Messages')}/>}/>
+        : null}
+      {liveSocial ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
+      {liveSocial ? null
+        : visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : <HomeEmpty
             onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
             onReels={() => navigate('Reels')}
@@ -868,7 +891,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           followingCount={[...followed].filter(id => Boolean(demoCreators[id])).length}
           onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}
           onSettings={() => { setNotice(null); setSettingsOpen(true); }}/>
-        {profileTab === 'Posts' ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
+        {profileTab === 'Posts' && liveSocial ? <OwnPosts client={client} riderId={identity.riderId} refreshKey={feedRefresh}
+          onNotice={banner} onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }}
+          onCreate={() => { navigate('Create'); setCreateMode('Post'); }}/> : null}
+        {profileTab === 'Posts' && !liveSocial ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
           <Ionicons name="images-outline" size={33} color={C.accent}/>
           <Text style={s.cardHeading}>Your posts will appear here</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Create first post" style={s.cta}
@@ -1058,11 +1084,22 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               </ScrollView>
             ) : screen === 'Create' ? (
               <CreateRecoveryBoundary key={createMode} onClose={() => navigate('Home')}>
-                <CreateComposer initialMode={createMode} riderId={identity.riderId} onClose={() => navigate('Home')} />
+                <CreateComposer initialMode={createMode} riderId={identity.riderId}
+                  onClose={() => {
+                    navigate('Home');
+                    // Shown once the composer has closed: navigating clears notices.
+                    if (publishedNotice.current) banner(publishedNotice.current);
+                    publishedNotice.current = null;
+                  }}
+                  onPublish={liveSocial && canPublish(access) ? async (draft, progress) => {
+                    await publishDraft(client, draft, prepareMediaForUpload, progress);
+                    setFeedRefresh(n => n + 1);
+                    publishedNotice.current = draft.mode === 'Reel' ? 'Your Reel is live.' : 'Your post is live.';
+                  } : undefined} />
               </CreateRecoveryBoundary>
             ) : screen === 'Reels' ? (
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
-                <ReelsScreen items={viewingReelPreviews} followingItems={followingReelPreviews}
+                <ReelsScreen items={viewingReelPreviews} followingItems={[...liveReels.following, ...followingReelPreviews]}
                   initialReelId={reelStartId} followedAuthors={followed}
                   savedReelIds={savedReelIds} onToggleSavedReel={(id) => toggle(setSavedReelIds, id)}
                   onToggleFollow={toggleFollow}

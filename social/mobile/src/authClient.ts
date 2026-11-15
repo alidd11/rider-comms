@@ -37,6 +37,20 @@ export function isSocialPilotBootstrap(value: unknown): value is SocialPilotBoot
   // A missing or non-boolean flag fails closed: the reply is rejected.
   return SOCIAL_CAPABILITY_KEYS.every(key => typeof capabilities[key] === 'boolean');
 }
+export const SOCIAL_UPLOAD_TIMEOUT_MS = 5 * 60_000;
+export type SocialPostKind = 'photo' | 'reel';
+export type SocialFeedScope = 'for-you' | 'following' | 'reels';
+export const SOCIAL_REPORT_REASONS = ['harassment', 'unsafe', 'spam', 'sexual', 'other'] as const;
+export type SocialReportReason = typeof SOCIAL_REPORT_REASONS[number];
+export interface SocialUploadedMedia { id: string; kind: 'image' | 'video'; width: number; height: number; durationMs: number | null }
+export interface SocialPostMedia extends SocialUploadedMedia { url: string; posterUrl: string | null }
+export interface SocialPost {
+  id: string; authorId: string; kind: SocialPostKind; caption: string; createdAt: number;
+  media: SocialPostMedia[];
+  /** Hidden after reports; only its author still sees it. */
+  hidden: boolean;
+}
+export interface SocialFeedPage { posts: SocialPost[]; nextCursor: string | null }
 export interface LoginReply {
   riderId: string;
   token: string;
@@ -118,6 +132,19 @@ export function accountErrorMessage(error: unknown): string {
     objectionable_content: 'That message can’t be sent.',
     invalid_message: 'Enter a message between 1 and 1,000 characters.',
     full_account_required: 'Sign in with a Rider Comms account to use Social.',
+    email_verification_required: 'Verify your email to post.',
+    terms_acceptance_required: 'Accept the latest Terms to post.',
+    invalid_media_type: 'That file type can’t be posted. Use a photo or a video.',
+    invalid_media_size: 'That file is too big to post.',
+    invalid_media: 'That file couldn’t be read. Try another photo or video.',
+    media_too_long: 'Reels can be up to 60 seconds long.',
+    media_busy: 'Lots of videos are being processed. Try again in a minute.',
+    media_processing_failed: 'That video couldn’t be processed. Try again.',
+    media_storage_unavailable: 'Posting isn’t working right now. Try again soon.',
+    social_media_not_configured: 'Posting isn’t switched on yet.',
+    invalid_media_for_post: 'A post is up to 6 photos, or one video as a Reel.',
+    caption_too_long: 'That caption is too long.',
+    rate_limited: 'You’ve posted a lot in a short time. Try again later.',
   };
   if (error.status === 429) return 'Too many attempts. Try again in a few minutes.';
   if (error.code === 'invalid_credentials') return messages.invalid_credentials;
@@ -163,21 +190,24 @@ export class RiderAccountClient {
     this.user = null;
     try { await this.storage.clear(); } finally { this.onExpired?.(); }
   }
-  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown, required = false): Promise<T> {
+  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown, required = false,
+    raw?: { body: Blob; contentType: string; timeoutMs: number }): Promise<T> {
     if (required && !this.token) throw new AccountApiError(401, 'not_signed_in');
     const headers: Record<string, string> = { Accept: 'application/json' };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (raw) headers['Content-Type'] = raw.contentType;
+    else if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (required) headers.Authorization = 'Bearer ' + this.token;
     // A network stall on iPhone Home Screen or a blocked response stream
     // must resolve to a recoverable connection notice, never a frozen spinner.
     // Redirects remain disabled so Authorization cannot leak to a new origin.
     const controller = new AbortController();
-    const deadline = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    const deadline = setTimeout(() => controller.abort(), raw?.timeoutMs ?? this.requestTimeoutMs);
     try {
       let response: Response;
       try {
         response = await this.transport(this.origin + path, {
-          method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+          method, headers,
+          ...(raw ? { body: raw.body } : body !== undefined ? { body: JSON.stringify(body) } : {}),
           credentials: 'omit', cache: 'no-store', redirect: 'error',
           signal: controller.signal,
         });
@@ -298,6 +328,37 @@ export class RiderAccountClient {
     const result = await this.request<unknown>('GET', '/social/bootstrap', undefined, true);
     if (!isSocialPilotBootstrap(result)) throw new AccountApiError(502, 'invalid_social_bootstrap');
     return result;
+  }
+  /** A stored file's address. Links are signed for this rider and expire. */
+  socialMediaUrl(path: string): string {
+    return path.startsWith('/social/media/') ? this.origin + path : '';
+  }
+  /** Sends one photo or video; the server re-encodes it and strips metadata. */
+  async uploadSocialMedia(file: Blob, contentType: string): Promise<SocialUploadedMedia> {
+    const reply = await this.request<{ media: SocialUploadedMedia }>('POST', '/social/media', undefined, true,
+      { body: file, contentType, timeoutMs: SOCIAL_UPLOAD_TIMEOUT_MS });
+    return reply.media;
+  }
+  async createSocialPost(kind: SocialPostKind, caption: string, mediaIds: string[]): Promise<SocialPost> {
+    const reply = await this.request<{ post: SocialPost }>('POST', '/social/posts', { kind, caption, mediaIds }, true);
+    return reply.post;
+  }
+  async socialFeed(scope: SocialFeedScope, cursor?: string | null): Promise<SocialFeedPage> {
+    return this.request('GET', '/social/feed?scope=' + scope + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''), undefined, true);
+  }
+  async riderSocialPosts(riderId: string, cursor?: string | null): Promise<SocialFeedPage> {
+    return this.request('GET', '/social/riders/' + encodeURIComponent(riderId) + '/posts' +
+      (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''), undefined, true);
+  }
+  async deleteSocialPost(postId: string): Promise<void> {
+    await this.request('DELETE', '/social/posts/' + encodeURIComponent(postId), undefined, true);
+  }
+  async reportSocialPost(postId: string, reason: SocialReportReason, details = ''): Promise<void> {
+    await this.request('POST', '/social/posts/' + encodeURIComponent(postId) + '/report', { reason, details }, true);
+  }
+  /** The shared Rider Comms block: it applies in both apps. */
+  async blockRider(riderId: string): Promise<void> {
+    await this.request('POST', '/blocks', { riderId }, true);
   }
   async friends(): Promise<{ friends: SharedFriend[]; nextCursor?: string | null }> {
     const riderId = this.user?.riderId;

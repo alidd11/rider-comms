@@ -19,10 +19,12 @@ const securityHeaders = {
     "default-src 'self'",
     "script-src 'self' " + inlineScriptHashes.join(' '),
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data: https://images.unsplash.com https://images.pexels.com",
+    // Rider Social photos and Reels come from the API through short-lived signed links.
+    "img-src 'self' blob: data: https://images.unsplash.com https://images.pexels.com https://backend-production-7fa0.up.railway.app",
     "font-src 'self' data:",
-    "connect-src 'self' https://backend-production-7fa0.up.railway.app",
-    "media-src 'self' blob: data:",
+    // blob:/data: let the app read a photo or video the rider picked before uploading it.
+    "connect-src 'self' blob: data: https://backend-production-7fa0.up.railway.app",
+    "media-src 'self' blob: data: https://backend-production-7fa0.up.railway.app",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
