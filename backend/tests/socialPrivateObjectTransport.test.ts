@@ -199,6 +199,24 @@ describe('Private Social object store (server only)', () => {
     assert.throws(() => signSocialObjectRequest(config, 'GET', KEY, JPEG), /invalid_storage_delete/);
   });
 
+  it('validates a single byte range before contacting private storage', async () => {
+    const config = readSocialS3Config(ENV)!;
+    const requestedRanges: Array<string | null> = [];
+    const store = new SocialPrivateObjectTransport(config, async (_url, init) => {
+      requestedRanges.push(new Headers(init?.headers).get('range'));
+      return new Response('ok');
+    });
+    for (const range of ['bytes=0-1,3-4', 'bytes=5-4', 'bytes=0-9999999999999999',
+      'bytes=0-1\r\nX-Test: value', 'bytes=0-1\n', 'items=0-5']) {
+      await assert.rejects(() => store.getProcessed(KEY, range), /invalid_social_media_range/);
+    }
+    const validRanges = ['bytes=0-', 'bytes=0-0', 'bytes=-500', 'bytes=01-02'];
+    for (const range of validRanges) {
+      assert.equal((await store.getProcessed(KEY, range)).status, 200);
+    }
+    assert.deepEqual(requestedRanges, validRanges);
+  });
+
   it('maps a missing file, a storage error and a network failure without leaking details', async () => {
     const config = readSocialS3Config(ENV)!;
     const status = (code: number) => new SocialPrivateObjectTransport(config, async () => new Response('details', { status: code }));

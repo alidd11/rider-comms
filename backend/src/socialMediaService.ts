@@ -83,7 +83,4 @@ export function verifyMediaSignature(
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-export function parseByteRange(value: string | undefined): string | null {
-  if (!value) return null;
-  return /^bytes=(\d{1,15})-(\d{0,15})$/.test(value) || /^bytes=-(\d{1,15})$/.test(value) ? value : null;
-}
+export { parseByteRange } from './socialPrivateObjectTransport.ts';
