@@ -21,6 +21,15 @@ const MIME_EXTENSIONS: Readonly<Record<string, string>> = Object.freeze({
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4',
 });
 
+export function parseByteRange(value: string | undefined): string | null {
+  if (!value) return null;
+  const range = /^bytes=(?:(\d{1,15})-(\d{0,15})|-(\d{1,15}))$/.exec(value);
+  if (!range || range[0] !== value) return null;
+  const [, start, end] = range;
+  if (end && Number(end) < Number(start)) return null;
+  return value;
+}
+
 export function createProcessedObjectKey(extension: string, id = randomUUID()): string {
   const key = 'social/processed/' + id + '.' + extension;
   if (!OBJECT_KEY.test(key)) throw new Error('invalid_processed_media_key');
@@ -149,20 +158,12 @@ export class SocialPrivateObjectTransport {
 
   /**
    * Streams a stored file back for the signed media route. `range` is a
-   * validated single "bytes=a-b" range or undefined; the response is passed
+   * validated single byte range or undefined; the response is passed
    * through as is (200 or 206) and never sent to the app with S3 details.
    */
   async getProcessed(key: string, range?: string): Promise<Response> {
-    // Defence in depth: never forward arbitrary caller-supplied Range headers to S3.
-    // Only a single bounded decimal byte range is supported by the media proxy.
-    if (range !== undefined && !/^bytes=(?:0|[1-9][0-9]{0,15})-(?:(?:0|[1-9][0-9]{0,15}))?$/.test(range)) {
+    if (range !== undefined && !parseByteRange(range)) {
       throw new Error('invalid_social_media_range');
-    }
-    if (range) {
-      const match = /^bytes=([0-9]+)-([0-9]*)$/.exec(range)!;
-      if (match[2] && BigInt(match[2]) < BigInt(match[1])) {
-        throw new Error('invalid_social_media_range');
-      }
     }
     const req = signSocialObjectRequest(this.config, 'GET', key);
     let response: Response;
