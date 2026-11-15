@@ -149,3 +149,28 @@ test('says so when the feed can’t load, and retries', async ({ page }) => {
   await page.getByRole('button', { name: 'Try loading posts again' }).click();
   await expect(page.getByText('Nobody in the Social test has posted yet.', { exact: false })).toBeVisible();
 });
+
+test('does not keep refreshing signed links for an unavailable photo', async ({ page }) => {
+  const initial = post('unavailable', other, 'A photo that cannot load');
+  const state = { posts: [initial], calls: [], uploads: [], created: [], reports: [] };
+  let refreshes = 0;
+  await mockApi(page, state);
+  await page.route(backend + '/social/posts/unavailable', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    refreshes += 1;
+    const media = initial.media.map(item => ({ ...item, url: item.url + '&revision=' + refreshes }));
+    return route.fulfill({ status: 200, headers: cors, json: { post: { ...initial, media } } });
+  });
+  await page.route(backend + '/social/media/unavailable-m/file**', async (route) => {
+    return route.fulfill({ status: 503, headers: cors });
+  });
+
+  const refreshedImage = page.waitForResponse(response => response.url().includes('/unavailable-m/file') &&
+    new URL(response.url()).searchParams.get('revision') === '1');
+  await page.goto('/');
+  expect((await refreshedImage).status()).toBe(503);
+  await expect(page.getByTestId('live-post-unavailable')).toBeVisible();
+  await expect(page.waitForRequest(request => request.url() === backend + '/social/posts/unavailable' &&
+    request.method() === 'GET', { timeout: 750 })).rejects.toThrow(/Timeout/);
+  expect(refreshes).toBe(1);
+});
