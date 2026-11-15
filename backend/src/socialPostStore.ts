@@ -84,10 +84,18 @@ export function encodeSocialCursor(cursor: Cursor): string {
 }
 
 export function decodeSocialCursor(value: string): Cursor {
-  const text = Buffer.from(value, 'base64url').toString('utf8');
-  const match = /^(\d{1,16}):([0-9a-f-]{36})$/.exec(text);
+  // Reject oversized or noncanonical encodings before decoding untrusted input.
+  // Buffer.from(base64url) otherwise accepts malformed characters and padding.
+  if (typeof value !== 'string' || value.length > 80 ||
+      !/^[A-Za-z0-9_-]+$/.test(value)) throw new InvalidSocialCursorError();
+  const decoded = Buffer.from(value, 'base64url');
+  if (decoded.toString('base64url') !== value) throw new InvalidSocialCursorError();
+  const text = decoded.toString('utf8');
+  const match = /^(0|[1-9]\d{0,15}):([0-9a-f-]{36})$/.exec(text);
   if (!match || !UUID.test(match[2])) throw new InvalidSocialCursorError();
-  return { createdAt: Number(match[1]), id: match[2] };
+  const createdAt = Number(match[1]);
+  if (!Number.isSafeInteger(createdAt)) throw new InvalidSocialCursorError();
+  return { createdAt, id: match[2] };
 }
 
 type Row = Record<string, unknown>;
