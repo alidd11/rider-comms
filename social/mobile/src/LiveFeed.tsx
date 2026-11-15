@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { accountErrorMessage, SOCIAL_REPORT_REASONS } from './authClient';
@@ -81,7 +81,7 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
     }
   }
 
-  return <View testID={'live-post-' + post.id} style={{ marginBottom: 18 }}>
+  return <View testID={'live-post-' + post.id} style={{ marginBottom: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border }}>
     <View style={[s.rowBetween, { paddingHorizontal: 14, paddingVertical: 9 }]}>
       <View style={[s.row, { flex: 1 }]}>
         <IdentityAvatar name={author.name} avatarId={profile?.avatarId} size={38}/>
@@ -216,21 +216,12 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
 }
 
 /** Home's real feed: For you (everyone in the test) and Following (friends). */
-export function LiveFeed({ client, riderId, refreshKey, empty, onOpenReel, onNotice }: {
-  client: FeedClient; riderId: string; refreshKey: number; empty: React.ReactNode;
+export function LiveFeed({ client, riderId, scope, refreshKey, empty, onOpenReel, onNotice }: {
+  client: FeedClient; riderId: string; scope: 'for-you' | 'following'; refreshKey: number; empty: React.ReactNode;
   onOpenReel: (postId: string) => void; onNotice: (message: string) => void;
 }) {
-  const [scope, setScope] = useState<'for-you' | 'following'>('for-you');
   const feed = useLiveFeed(client, scope, refreshKey);
-  const tabs = useMemo(() => [['for-you', 'For you'], ['following', 'Following']] as const, []);
   return <View testID="live-feed">
-    <View accessibilityRole="tablist" style={[s.row, { paddingHorizontal: 16, paddingVertical: 8, gap: 22 }]}>
-      {tabs.map(([value, label]) => <Pressable key={value} accessibilityRole="tab" accessibilityLabel={label}
-        accessibilityState={{ selected: scope === value }} onPress={() => setScope(value)} style={{ minHeight: 40, justifyContent: 'center' }}>
-        <Text style={{ color: scope === value ? C.ink : C.muted, fontWeight: '800', fontSize: 15 }}>{label}</Text>
-        <View style={{ height: 2, marginTop: 4, borderRadius: 1, backgroundColor: scope === value ? C.accent : 'transparent' }}/>
-      </Pressable>)}
-    </View>
     {feed.state === 'loading' ? <ActivityIndicator accessibilityLabel="Loading posts" color={C.accent} style={{ margin: 30 }}/> : null}
     {feed.state === 'error' ? <View style={[s.card, s.pad, { marginHorizontal: 16 }]}>
       <Text style={s.body}>{feed.error}</Text>

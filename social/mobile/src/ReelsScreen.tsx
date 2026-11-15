@@ -217,12 +217,14 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
         accessibilityState={{ selected: feedMode === tab.mode }}
         onPress={() => changeFeed(tab.mode)} style={{
           minHeight: 44, justifyContent: 'center', paddingHorizontal: 2,
-          borderBottomWidth: 2, borderBottomColor: feedMode === tab.mode ? '#FFFFFF' : 'transparent',
+          alignItems: 'center',
         }}>
         <Text style={[{ fontSize: 16, fontWeight: feedMode === tab.mode ? '900' : '700',
-          color: feedMode === tab.mode ? '#FFFFFF' : '#B8C1C7' }, reelTextShadow]}>
+          color: feedMode === tab.mode ? '#FFFFFF' : '#E1E5E7' }, reelTextShadow]}>
           {tab.text}
         </Text>
+        <View style={{ position: 'absolute', bottom: 0, height: 2, width: 20, borderRadius: 1,
+          backgroundColor: feedMode === tab.mode ? '#FFFFFF' : 'transparent' }}/>
       </Pressable>)}
   </View>;
   const moveTo = (index: number) => {
@@ -334,7 +336,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                 style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}>
                 {reel.videoUrl && index === activeIndex ? <ActiveReelVideo key={reel.videoUrl} uri={reel.videoUrl} poster={reel.imageUrl} hasAudio={reel.hasAudio !== false}/> : null}
                 <View testID={'reel-caption-' + reel.id}
-                  style={{ position: 'absolute', left: 16, bottom: 26, right: 80, gap: 9 }}>
+                  style={{ position: 'absolute', left: 16, bottom: 18, right: 72, gap: 6 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
                     <View style={{
                       width: 36, height: 36, borderRadius: 18, backgroundColor: reel.theme,
@@ -385,7 +387,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                       setNotice('Couldn’t open the source footage.')); }}
                     style={{ minHeight: 44, flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                     <Ionicons name="open-outline" size={18} color="#FFFFFF"/>
-                    <Text style={[{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }, reelTextShadow]}>
+                    <Text style={[{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }, reelTextShadow]}>
                       {reel.clipCredit ?? 'View source footage'}
                     </Text>
                   </Pressable> : null}
