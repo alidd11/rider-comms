@@ -4,11 +4,15 @@
  * processor that strips GPS/EXIF, probes and transcodes media must exist before
  * any object is stored or served.
  */
+// Uploads are what a phone produces; what we store is always our own
+// re-encoded JPEG or MP4 (socialMediaProcessor.ts).
 export const SOCIAL_MEDIA_TYPES = Object.freeze({
-  'image/jpeg': { kind: 'image', extension: 'jpg', maxBytes: 12 * 1024 * 1024 },
-  'image/png': { kind: 'image', extension: 'png', maxBytes: 12 * 1024 * 1024 },
-  'image/webp': { kind: 'image', extension: 'webp', maxBytes: 12 * 1024 * 1024 },
-  'video/mp4': { kind: 'video', extension: 'mp4', maxBytes: 80 * 1024 * 1024 },
+  'image/jpeg': { kind: 'image', extension: 'jpg', maxBytes: 20 * 1024 * 1024 },
+  'image/png': { kind: 'image', extension: 'png', maxBytes: 20 * 1024 * 1024 },
+  'image/webp': { kind: 'image', extension: 'webp', maxBytes: 20 * 1024 * 1024 },
+  'video/mp4': { kind: 'video', extension: 'mp4', maxBytes: 200 * 1024 * 1024 },
+  'video/quicktime': { kind: 'video', extension: 'mp4', maxBytes: 200 * 1024 * 1024 },
+  'video/webm': { kind: 'video', extension: 'mp4', maxBytes: 200 * 1024 * 1024 },
 } as const);
 
 export type SocialMediaMime = keyof typeof SOCIAL_MEDIA_TYPES;
@@ -52,14 +56,15 @@ export function matchesSocialMediaSignature(mime: SocialMediaMime, header: Uint8
       String.fromCharCode(...header.slice(0, 4)) === 'RIFF' &&
       String.fromCharCode(...header.slice(8, 12)) === 'WEBP';
   }
-  if (mime === 'video/mp4') {
-    // ftyp is the initial ISO Base Media File Format box. Only process these
-    // as MP4 after a trusted ffprobe/decoder checks all following boxes.
-    return header.length >= 12 &&
-      String.fromCharCode(...header.slice(4, 8)) === 'ftyp' &&
-      ['isom', 'iso2', 'mp41', 'mp42', 'avc1'].includes(
-        String.fromCharCode(...header.slice(8, 12)),
-      );
+  if (mime === 'video/mp4' || mime === 'video/quicktime') {
+    // ftyp opens an ISO Base Media / QuickTime file. Phones use many brands
+    // (isom, mp42, qt, M4V, 3gp…); the processor decodes the whole file with
+    // the MOV demuxer only, so the brand itself is not trusted for anything.
+    return header.length >= 12 && String.fromCharCode(...header.slice(4, 8)) === 'ftyp';
+  }
+  if (mime === 'video/webm') {
+    return header.length >= 4 && header[0] === 0x1a && header[1] === 0x45 &&
+      header[2] === 0xdf && header[3] === 0xa3;
   }
   return false;
 }

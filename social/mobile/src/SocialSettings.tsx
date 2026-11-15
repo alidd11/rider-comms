@@ -67,7 +67,7 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
     try {
       await onClearDrafts();
       setConfirmClear(false);
-      setNotice('Device-only drafts cleared.');
+      setNotice('Drafts cleared.');
     } catch {
       setNotice('Drafts weren’t cleared. Try again.');
     } finally {
@@ -96,8 +96,7 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
     <View style={{ gap: 7 }}>
       <Text style={s.cardHeading}>Privacy on this device</Text>
       <Text style={[s.small, { lineHeight: 19 }]}>
-        Your Social profile edits, garage notes and unpublished text drafts stay on this device.
-        They aren’t public posts or synced to Rider Comms.
+        Text drafts you haven’t posted stay on this device and aren’t shared.
       </Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Clear local Social drafts"
         onPress={() => { setConfirmClear(true); setNotice(''); }} style={{
@@ -110,8 +109,8 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
       {confirmClear ? <View testID="confirm-clear-social-drafts" style={{
         borderLeftWidth: 2, borderLeftColor: '#D5A0A7', paddingLeft: 12, gap: 12 }}>
         <Text style={[s.body, { lineHeight: 21 }]}>
-          Delete your local Social profile edits, garage notes and text drafts from this device?
-          Your Rider Comms account, friends and messages won’t be changed.
+          Delete your text drafts from this device? Your posts, account, friends and messages
+          won’t be changed.
         </Text>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Keep local drafts"

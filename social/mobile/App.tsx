@@ -1,6 +1,6 @@
 import '@expo/metro-runtime';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, ScrollView, StatusBar, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Image, Platform, ScrollView, StatusBar, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, s } from './src/styles';
@@ -9,11 +9,13 @@ import type { Content, Viewer, Topic, RankReason } from './src/recommendations';
 import type { SocialPost } from './src/domain';
 import { demoClubs as fixtureClubs, demoEvents as fixtureEvents, demoListings as fixtureListings, demoPosts as fixturePosts, demoStories as fixtureStories, followingIds as fixtureFollowingIds } from './src/sampleData';
 import { socialFixturesEnabled } from './src/testFixtureMode';
-import { DEFAULT_PROFILE, EMPTY_GARAGE_DRAFT, addGarageEntry, createGarageEntry, removeGarageEntry, updateGarageVisibility, validateProfile } from './src/garage';
-import type { GarageDraft, GarageEntry, GarageKind, SocialProfileDraft } from './src/garage';
-import { loadLocalDemo, saveLocalDemo, clearLocalDemo } from './src/demoStorage';
+import { clearLocalDemo } from './src/demoStorage';
 import { clearAccountTextDraft } from './src/textDraftStorage';
 import { CreateComposer } from './src/CreateComposer';
+import { LiveFeed, OwnPosts, useLiveReels } from './src/LiveFeed';
+import { publishDraft } from './src/publishPost';
+import { prepareMediaForUpload } from './src/prepareMedia';
+import { canPublish, useSocialAccess } from './src/socialAccess';
 import { ShopScreen } from './src/ShopScreen';
 import { ReelsScreen } from './src/ReelsScreen';
 import { StoriesViewer } from './src/StoriesViewer';
@@ -26,12 +28,14 @@ import { ProfileSummary } from './src/ProfileSummary';
 import { RiderBrandPage, RiderBrandHome } from './src/RiderBrandPage';
 import { RIDER_BRAND_ID, brandStories, brandReels } from './src/brandEditorial';
 import { ProfileEditor } from './src/ProfileEditor';
+import type { ProfileFields } from './src/profileFields';
+import { DEFAULT_AVATAR_ID } from '../../shared/src/avatars.ts';
 import { SocialSettings } from './src/SocialSettings';
-import { profileForRider } from './src/profileDisplay';
 import type { ProfileContentTab } from './src/ProfileSummary';
 import { ProfileConnectionsSheet } from './src/ProfileConnectionsSheet';
 import { SocialAuthGate, useSocialAccount } from './src/SocialAuthGate';
 import { SharedMessagesScreen } from './src/SharedMessagesScreen';
+import { AccountApiError, accountErrorMessage } from './src/authClient';
 import type { SharedFriend, SharedConversation, RiderProfile } from './src/authClient';
 import type { ConnectionKind } from './src/ProfileConnectionsSheet';
 
@@ -137,8 +141,8 @@ function HeaderLine({ heading, meta }: { heading: string; meta?: string }) {
   );
 }
 
-function HomeEmpty({ onCreate, onReels, onMessages }: {
-  onCreate: () => void; onReels: () => void; onMessages: () => void;
+function HomeEmpty({ onCreate, onReels, onMessages, live = false }: {
+  onCreate: () => void; onReels: () => void; onMessages: () => void; live?: boolean;
 }) {
   return <View testID="home-empty-onboarding" style={{
     marginHorizontal: 16, marginTop: 12, marginBottom: 10, padding: 20,
@@ -152,12 +156,14 @@ function HomeEmpty({ onCreate, onReels, onMessages }: {
       </View>
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={{ color: C.ink, fontSize: 20, fontWeight: '900',
-          lineHeight: 25, letterSpacing: -0.5 }}>Your next story starts here</Text>
-        <Text style={[s.small, { fontSize: 12 }]}>Capture a moment. Make it yours.</Text>
+          lineHeight: 25, letterSpacing: -0.5 }}>Share your first ride</Text>
+        <Text style={[s.small, { fontSize: 12 }]}>Photos and Reels from riders you know.</Text>
       </View>
     </View>
     <Text style={[s.muted, { fontSize: 13, lineHeight: 20 }]}>
-      Shared posts are being prepared. You can create and save a draft on this device in the meantime.
+      {live
+        ? 'Nobody in the Social test has posted yet. Share a photo or a Reel and you’ll be the first.'
+        : 'Posting isn’t open yet. You can start a post now and keep it as a draft on this device.'}
     </Text>
     <Pressable accessibilityRole="button" accessibilityLabel="Open studio"
       onPress={onCreate} style={[s.cta, { minHeight: 50, flexDirection: 'row', gap: 9 }]}>
@@ -279,18 +285,17 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [going, setGoing] = useState<Set<string>>(() => new Set());
   const [selectedClub, setSelectedClub] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
-  const [profile, setProfile] = useState<SocialProfileDraft>(DEFAULT_PROFILE);
-  const [garage, setGarage] = useState<GarageEntry[]>([]);
-  const [localReady, setLocalReady] = useState(false);
   const [profileEditor, setProfileEditor] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<ProfileContentTab>('Posts');
   const [reelStartId, setReelStartId] = useState<string | null>(null);
+  const access = useSocialAccess();
+  // Real posts once the server has media storage; the screenshot build keeps its fixtures.
+  const liveSocial = !socialFixturesEnabled && access.mediaUpload;
+  const [feedRefresh, setFeedRefresh] = useState(0);
+  const publishedNotice = useRef<string | null>(null);
+  const liveReels = useLiveReels(client, liveSocial, feedRefresh);
   const [connectionSheet, setConnectionSheet] = useState<ConnectionKind | null>(null);
-  const [profileDraft, setProfileDraft] = useState<SocialProfileDraft>(DEFAULT_PROFILE);
-  const [garageEditor, setGarageEditor] = useState(false);
-  const [garageDraft, setGarageDraft] = useState<GarageDraft>({ ...EMPTY_GARAGE_DRAFT });
-  const [pendingGarageDelete, setPendingGarageDelete] = useState<string | null>(null);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [marketFilter, setMarketFilter] = useState('All');
   const [search, setSearch] = useState('');
@@ -307,11 +312,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const sharedRefreshInFlight = useRef(false);
   const [sharedError, setSharedError] = useState<string | null>(null);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
-  const [localDraftOwner, setLocalDraftOwner] = useState<string | null>(null);
-  const pendingLocalSaveNotice = useRef<string | null>(null);
+  // The rider's real post count, once their posts have loaded.
+  const [ownPostCount, setOwnPostCount] = useState<number | null>(null);
 
-  // Rider Comms controls the real name, handle and avatar identity. Local
-  // Social edits never replace authoritative account profile values.
+  // The name, bio and avatar are the rider's Rider Comms profile, shared by both apps.
   useEffect(() => {
     let mounted = true;
     void client.ownProfile().then(result => {
@@ -321,33 +325,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     });
     return () => { mounted = false; };
   }, [client, identity.riderId]);
-
-  // Preview-only, per-device data. Shared Rider Comms accounts and DMs are untouched.
-  useEffect(() => {
-    let mounted = true;
-    void loadLocalDemo(identity.riderId).then((saved) => {
-      if (!mounted) return;
-      setProfile(profileForRider(saved.profile, identity.username, socialFixturesEnabled));
-      setGarage(saved.garage);
-      setLocalDraftOwner(identity.riderId);
-      setLocalReady(true);
-    });
-    return () => { mounted = false; };
-  }, [identity.riderId]);
-
-  useEffect(() => {
-    if (!localReady || localDraftOwner !== identity.riderId) return;
-    const successNotice = pendingLocalSaveNotice.current;
-    pendingLocalSaveNotice.current = null;
-    void saveLocalDemo(identity.riderId, { profile, garage }).then(() => {
-      // Never claim a private draft was saved before device storage confirms it.
-      if (successNotice) setNotice(successNotice);
-    }).catch(() => {
-      // Private browser mode, storage quotas or unavailable storage can make
-      // a local-only edit disappear on reload. Don't conceal that failure.
-      setNotice('Could not save on this device. Changes may be lost when you close the app.');
-    });
-  }, [identity.riderId, localReady, localDraftOwner, profile, garage]);
 
   const viewer = useMemo<Viewer>(() => ({
     ...noViewer, userId: identity.riderId, ageFloor: 16, followedAuthors: followed,
@@ -411,12 +388,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   // viewing session. A pixel scroll on the first WebKit layout is unreliable
   // and can clamp to zero before the virtualised content has sized itself.
   const viewingReelPreviews = useMemo(() => {
-    if (!reelStartId) return reelPreviews;
-    const selected = reelPreviews.find(reel => reel.id === reelStartId);
+    const all = [...liveReels.forYou, ...reelPreviews];
+    if (!reelStartId) return all;
+    const selected = all.find(reel => reel.id === reelStartId);
     return selected
-      ? [selected, ...reelPreviews.filter(reel => reel.id !== reelStartId)]
-      : reelPreviews;
-  }, [reelPreviews, reelStartId]);
+      ? [selected, ...all.filter(reel => reel.id !== reelStartId)]
+      : all;
+  }, [liveReels.forYou, reelPreviews, reelStartId]);
   const recommendedClubs = useMemo(() =>
     rankClubs(clubCandidates, viewer).flatMap(({item}) => {
       const club = demoClubs.find((c) => c.id === item.id);
@@ -468,8 +446,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     setProfileEditor(false);
     setSettingsOpen(false);
     setConnectionSheet(null);
-    setGarageEditor(false);
-    setPendingGarageDelete(null);
   }
 
   function toggleFollow(authorId: string) { toggle(setFollowed, authorId); }
@@ -540,32 +516,18 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     setNotice(message);
   }
 
-  function openProfileEditor() {
-    setProfileDraft({ ...profile });
-    setProfileEditor(true);
-  }
-
-  function saveProfile() {
-    const result = validateProfile(profileDraft);
-    if (!result.ok) { banner(result.error); return; }
-    pendingLocalSaveNotice.current = 'Social profile preview saved on this device only.';
-    setProfile(result.value);
+  async function saveProfile(changes: Partial<ProfileFields>): Promise<void> {
+    if (Object.keys(changes).length) {
+      try {
+        setOwnProfile(await client.updateOwnProfile(changes));
+      } catch (failure) {
+        throw new Error(failure instanceof AccountApiError && failure.code === 'objectionable_content'
+          ? 'That name or bio isn’t allowed. Try something else.'
+          : accountErrorMessage(failure));
+      }
+      banner('Profile saved.');
+    }
     setProfileEditor(false);
-  }
-
-  function openGarageEditor() {
-    setGarageDraft({ ...EMPTY_GARAGE_DRAFT });
-    setGarageEditor(true);
-  }
-
-  function saveGarage() {
-    const parsed = createGarageEntry(garageDraft, 'preview-' + String(Date.now()), new Date().getFullYear());
-    if (!parsed.ok) { banner(parsed.error); return; }
-    const updated = addGarageEntry(garage, parsed.value);
-    if (!updated.ok) { banner(updated.error); return; }
-    pendingLocalSaveNotice.current = 'Vehicle added to your private/local preview garage.';
-    setGarage(updated.value);
-    setGarageEditor(false);
   }
 
   function renderPost(post: SocialPost, reason: RankReason) {
@@ -610,9 +572,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       </View>
       <View style={s.feedCaption}>
         <Text style={[s.body,{fontWeight:'800'}]}>{post.heading}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={'View garage for ' + post.handle}
+        <Pressable accessibilityRole="button" accessibilityLabel={'View profile for ' + post.handle}
           onPress={() => openCreator(post.authorId)}>
-          <Text style={[s.small, { color: C.accent }]}>View build & garage</Text>
+          <Text style={[s.small, { color: C.accent }]}>View profile</Text>
         </Pressable>
         <Text style={s.muted} numberOfLines={expandedCaptionId === post.id ? undefined : 1}>{post.body}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={expandedCaptionId===post.id?'Show less caption':'Read full caption'}
@@ -646,8 +608,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         </View>
         <Text style={s.body}>{creator.about}</Text>
         <View style={s.rowBetween}>
-          <Text style={s.cardHeading}>Garage</Text>
-          <Text style={s.small}>Public preview</Text>
+          <Text style={s.cardHeading}>Rides</Text>
         </View>
         <Text style={s.cardHeading}>{creator.vehicle}</Text>
         <View style={s.row}>
@@ -715,8 +676,18 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         </View>
         <Text style={s.small}>Reels has its own For You and Following video feeds.</Text>
       </View> : null}
-      {!socialFixturesEnabled ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
-      {visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
+      {/* With real posts, riders' posts come first and the editorial card follows them. */}
+      {!socialFixturesEnabled && !liveSocial ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
+      {liveSocial ? <LiveFeed client={client} riderId={identity.riderId} refreshKey={feedRefresh}
+          onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
+          empty={<HomeEmpty live
+            onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
+            onReels={() => navigate('Reels')}
+            onMessages={() => navigate('Messages')}/>}/>
+        : null}
+      {liveSocial ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
+      {liveSocial ? null
+        : visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : <HomeEmpty
             onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
             onReels={() => navigate('Reels')}
@@ -747,7 +718,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             </Pressable>
           </View>
         </View>
-        <PreviewEmpty icon="chatbox-outline" heading="Event chat & RSVP" body="Guest lists, approval, capacity, notifications and event discussions will become real once safe backend services are integrated." />
+        <PreviewEmpty icon="chatbox-outline" heading="Event chat and RSVPs" body="Guest lists and event chat are coming later." />
       </>
     );
 
@@ -763,7 +734,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           <Text style={s.small}>{club.privacy === 'Approval' ? 'Request to join' : 'Open to all'} · sample club</Text>
           <Pressable accessibilityRole="button" style={s.cta} onPress={() => toggle(setJoined, club.id)}><Text style={s.ctaText}>{joined.has(club.id) ? 'Leave demo club' : 'Join demo club'}</Text></Pressable>
         </View>
-        <PreviewEmpty icon="chatbubbles-outline" heading="Club feed and channels" body="Real club posts, permissions, subscriptions and discussions will appear here after the backend is integrated. Private club content remains protected." />
+        <PreviewEmpty icon="chatbubbles-outline" heading="Club posts and chat" body="Club posts and chat are coming later." />
       </>
     );
     return (
@@ -771,7 +742,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         <View style={{ gap: 5, paddingBottom: 1 }}>
           <Text style={[s.title, { fontSize: 28, letterSpacing: -0.75 }]}>Clubs & events</Text>
           <Text style={[s.muted, { fontSize: 14, lineHeight: 21 }]}>
-            Discover riding communities and meets when they become available.
+            Riding clubs and meets are coming to Rider Social.
           </Text>
         </View>
         {recommendedClubs.map((item) => (
@@ -791,8 +762,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             </View>
           </View>
         ))}
-        {!recommendedClubs.length ? <PreviewEmpty icon="people-outline" heading="No clubs yet"
-          body="Clubs will appear here when the community is ready."/> : null}
+        {!recommendedClubs.length ? <PreviewEmpty icon="people-outline" heading="Clubs are coming soon"
+          body="You’ll be able to join riding clubs and find meets here."/> : null}
         <HeaderLine heading="Upcoming events" />
         {!recommendedEvents.length ? <View testID="clubs-empty-events"
           style={{ flexDirection: 'row', gap: 13, alignItems: 'center',
@@ -804,7 +775,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           <View style={{ flex: 1, gap: 5 }}>
             <Text style={[s.cardHeading, { fontSize: 15 }]}>No upcoming events.</Text>
             <Text style={[s.muted, { fontSize: 12, lineHeight: 18 }]}>
-              Scheduled meets from clubs will show here when they're ready.
+              Meets from clubs will show here.
             </Text>
           </View>
         </View> : null}
@@ -841,12 +812,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     // The same rider's pending saves are serialised by demoStorage.
     await clearLocalDemo(identity.riderId);
     await clearAccountTextDraft(identity.riderId);
-    const empty = profileForRider(DEFAULT_PROFILE, identity.username, socialFixturesEnabled);
-    setProfile(empty);
-    setProfileDraft(empty);
-    setGarage([]);
-    setGarageDraft({ ...EMPTY_GARAGE_DRAFT });
-    setPendingGarageDelete(null);
   }
 
   function renderProfile() {
@@ -856,19 +821,26 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       onClearDrafts={clearDeviceDrafts}
       onSignOut={logout}
       onDeleteAccount={deleteAccount}/>;
-    if (profileEditor) return <ProfileEditor draft={profileDraft}
-      onName={(displayName) => setProfileDraft(current => ({ ...current, displayName }))}
-      onBio={(bio) => setProfileDraft(current => ({ ...current, bio }))}
+    if (profileEditor) return <ProfileEditor
+      initial={{
+        displayName: ownProfile?.displayName || identity.username,
+        bio: ownProfile?.bio ?? '',
+        avatarId: ownProfile?.avatarId || DEFAULT_AVATAR_ID,
+      }}
       onCancel={() => setProfileEditor(false)}
       onSave={saveProfile}/>;
     return (
       <View style={{ gap: 16 }}>
-        <ProfileSummary profile={profile} accountProfile={ownProfile} tab={profileTab} username={identity.username}
+        <ProfileSummary accountProfile={ownProfile} tab={profileTab} username={identity.username}
+          postCount={liveSocial ? ownPostCount : 0}
           friendCount={sharedFriends.length}
-          followingCount={[...followed].filter(id => Boolean(demoCreators[id])).length}
-          onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={openProfileEditor}
+          followingCount={socialFixturesEnabled ? [...followed].filter(id => Boolean(demoCreators[id])).length : undefined}
+          onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={() => setProfileEditor(true)}
           onSettings={() => { setNotice(null); setSettingsOpen(true); }}/>
-        {profileTab === 'Posts' ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
+        {profileTab === 'Posts' && liveSocial ? <OwnPosts client={client} riderId={identity.riderId} refreshKey={feedRefresh}
+          onCount={setOwnPostCount} onNotice={banner} onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }}
+          onCreate={() => { navigate('Create'); setCreateMode('Post'); }}/> : null}
+        {profileTab === 'Posts' && !liveSocial ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
           <Ionicons name="images-outline" size={33} color={C.accent}/>
           <Text style={s.cardHeading}>Your posts will appear here</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Create first post" style={s.cta}
@@ -876,7 +848,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Text style={s.ctaText}>Create post</Text>
           </Pressable>
         </View> : null}
-        {profileTab === 'Reels' ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
+        {profileTab === 'Reels' && liveSocial ? <OwnPosts client={client} riderId={identity.riderId} refreshKey={feedRefresh}
+          only="reel" onNotice={banner} onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }}
+          onCreate={() => { navigate('Create'); setCreateMode('Reel'); }}/> : null}
+        {profileTab === 'Reels' && !liveSocial ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
           <Ionicons name="play-circle-outline" size={33} color={C.accent}/>
           <Text style={s.cardHeading}>Your Reels will appear here</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Create first Reel" style={s.cta}
@@ -887,8 +862,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         {profileTab === 'Saved' ? <View testID="profile-saved-reels" style={{ gap: 13, paddingVertical: 12 }}>
           <Text style={[s.sectionTitle, { fontSize: 20 }]}>Saved Reels</Text>
           <Text style={[s.small, { lineHeight: 19 }]}>
-            Private to this session. Saved videos disappear when you close the app;
-            account syncing is not available yet.
+            Only you can see these. They’re kept until you close the app.
           </Text>
           {savedReelPreviews.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {savedReelPreviews.map(reel => <Pressable key={reel.id}
@@ -920,73 +894,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Ionicons name="chevron-forward" size={22} color={C.accent}/>
           </Pressable>}
         </View> : null}
-        {profileTab === 'Garage' ? <>
-        <View style={s.rowBetween}>
-          <HeaderLine heading="Personal garage" meta={String(garage.length) + ' / 12'} />
-          <Pressable accessibilityRole="button" accessibilityLabel="Add vehicle to garage" style={s.ghost} onPress={openGarageEditor}>
-            <View style={s.row}><Ionicons name="add" size={16} color={C.accent}/><Text style={s.ghostText}>Add</Text></View>
-          </Pressable>
-        </View>
-        <Text style={s.small}>Cars · Motorcycles · Bicycles · Private by default</Text>
-        {garageEditor ? (
-          <View style={[s.card, s.pad]}>
-            <Text style={s.cardHeading}>Add to your garage</Text>
-            <Text style={s.small}>Vehicle type</Text>
-            <View style={[s.row, { flexWrap: 'wrap' }]}>
-              {(['Car', 'Motorcycle', 'Bicycle'] as GarageKind[]).map((kind) =>
-                <Pill key={kind} label={kind} selected={garageDraft.kind === kind} onPress={() => setGarageDraft((p) => ({ ...p, kind }))}/>)}
-            </View>
-            <TextInput accessibilityLabel="Vehicle make" style={s.input} maxLength={50} value={garageDraft.make} onChangeText={(make) => setGarageDraft((p) => ({ ...p, make }))} placeholder="Make · e.g. Honda" placeholderTextColor={C.muted}/>
-            <TextInput accessibilityLabel="Vehicle model" style={s.input} maxLength={60} value={garageDraft.model} onChangeText={(model) => setGarageDraft((p) => ({ ...p, model }))} placeholder="Model · e.g. PCX" placeholderTextColor={C.muted}/>
-            <TextInput accessibilityLabel="Vehicle year" style={s.input} maxLength={4} keyboardType="numeric" value={garageDraft.year} onChangeText={(year) => setGarageDraft((p) => ({ ...p, year }))} placeholder="Year (optional)" placeholderTextColor={C.muted}/>
-            <TextInput accessibilityLabel="Vehicle notes" multiline style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]} maxLength={240} value={garageDraft.notes} onChangeText={(notes) => setGarageDraft((p) => ({ ...p, notes }))} placeholder="Modifications or build notes (optional)" placeholderTextColor={C.muted}/>
-            <Text style={s.small}>Saved privately on this device. Public sharing isn’t available yet.</Text>
-            <View style={s.twoCol}>
-              <Pressable accessibilityRole="button" style={[s.ghost, s.split]} onPress={() => setGarageEditor(false)}><Text style={s.ghostText}>Cancel</Text></Pressable>
-              <Pressable accessibilityRole="button" style={[s.cta, s.split]} onPress={saveGarage}><Text style={s.ctaText}>Save vehicle</Text></Pressable>
-            </View>
-          </View>
-        ) : null}
-        {garage.length ? garage.map((entry) => (
-          <View key={entry.id} style={[s.card, s.pad]}>
-            <View style={s.rowBetween}>
-              <View style={s.row}>
-                <View style={[s.avatar, { width: 48, height: 48 }]}>
-                  <Ionicons name={entry.kind === 'Car' ? 'car-sport' : entry.kind === 'Bicycle' ? 'bicycle' : 'speedometer'} size={25} color={C.accent}/>
-                </View>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={s.cardHeading}>{entry.make} {entry.model}</Text>
-                  <Text style={s.small}>{entry.kind}{entry.year ? ' · ' + String(entry.year) : ''}</Text>
-                </View>
-              </View>
-              <View style={s.darkBadge}><Text style={s.badgeText}>{entry.visibility.toUpperCase()}</Text></View>
-            </View>
-            {entry.notes ? <Text style={s.muted}>{entry.notes}</Text> : null}
-            <View style={s.rowBetween}>
-              {socialFixturesEnabled ? <Pressable accessibilityRole="button"
-                accessibilityLabel={'Toggle privacy for ' + entry.make + ' ' + entry.model}
-                style={s.ghost}
-                onPress={() => setGarage((items) => updateGarageVisibility(items, entry.id,
-                  entry.visibility === 'private' ? 'public' : 'private'))}>
-                <Text style={s.ghostText}>{entry.visibility === 'private' ? 'Make public (demo)' : 'Make private (demo)'}</Text>
-              </Pressable> : <Text style={s.small}>On this device only</Text>}
-              <Pressable accessibilityRole="button" accessibilityLabel={'Remove ' + entry.make + ' ' + entry.model} onPress={() => setPendingGarageDelete(entry.id)}>
-                <Text style={[s.small, { color: '#F3A1A1' }]}>Remove</Text>
-              </Pressable>
-            </View>
-            {pendingGarageDelete === entry.id ? (
-              <View style={[s.card, s.pad, { backgroundColor: C.bg }]}>
-                <Text style={s.body}>Remove this vehicle from this device?</Text>
-                <View style={s.twoCol}>
-                  <Pressable accessibilityRole="button" style={[s.ghost, s.split]} onPress={() => setPendingGarageDelete(null)}><Text style={s.ghostText}>Keep vehicle</Text></Pressable>
-                  <Pressable accessibilityRole="button" style={[s.cta, s.split]} onPress={() => { setGarage((items) => removeGarageEntry(items, entry.id)); setPendingGarageDelete(null); }}><Text style={s.ctaText}>Confirm remove</Text></Pressable>
-                </View>
-              </View>
-            ) : null}
-          </View>
-        )) : <PreviewEmpty icon="car-sport-outline" heading="Your garage starts here" body="Add a car, motorcycle or bicycle to preview how your builds will appear. All entries are private by default." />}
-        <Text style={s.small}>Garage entries remain on this device.</Text>
-        </> : null}
         <View style={{ gap: 10, paddingVertical: 13 }}>
           {!identity.emailVerified ? <Pressable accessibilityRole="button"
             accessibilityLabel="Resend verification email"
@@ -1058,11 +965,22 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               </ScrollView>
             ) : screen === 'Create' ? (
               <CreateRecoveryBoundary key={createMode} onClose={() => navigate('Home')}>
-                <CreateComposer initialMode={createMode} riderId={identity.riderId} onClose={() => navigate('Home')} />
+                <CreateComposer initialMode={createMode} riderId={identity.riderId}
+                  onClose={() => {
+                    navigate('Home');
+                    // Shown once the composer has closed: navigating clears notices.
+                    if (publishedNotice.current) banner(publishedNotice.current);
+                    publishedNotice.current = null;
+                  }}
+                  onPublish={liveSocial && canPublish(access) ? async (draft, progress) => {
+                    await publishDraft(client, draft, prepareMediaForUpload, progress);
+                    setFeedRefresh(n => n + 1);
+                    publishedNotice.current = draft.mode === 'Reel' ? 'Your Reel is live.' : 'Your post is live.';
+                  } : undefined} />
               </CreateRecoveryBoundary>
             ) : screen === 'Reels' ? (
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
-                <ReelsScreen items={viewingReelPreviews} followingItems={followingReelPreviews}
+                <ReelsScreen items={viewingReelPreviews} followingItems={[...liveReels.following, ...followingReelPreviews]}
                   initialReelId={reelStartId} followedAuthors={followed}
                   savedReelIds={savedReelIds} onToggleSavedReel={(id) => toggle(setSavedReelIds, id)}
                   onToggleFollow={toggleFollow}

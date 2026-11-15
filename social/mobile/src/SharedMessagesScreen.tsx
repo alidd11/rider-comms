@@ -54,11 +54,12 @@ export function SharedMessagesScreen({
   const friend = (riderId: string): SharedFriend | undefined =>
     friends.find(item => item.riderId === riderId) ||
     conversations.find(item => item.friend.riderId === riderId)?.friend;
-  const display = (riderId: string): { displayName: string; handle: string } => {
+  const display = (riderId: string): { displayName: string; handle: string; avatarId?: string } => {
     const profile = profiles[riderId], known = friend(riderId);
     return {
       displayName: profile?.displayName || known?.displayName || 'Rider',
       handle: profile?.handle || known?.handle || '',
+      avatarId: profile?.avatarId || known?.avatarId,
     };
   };
 
@@ -154,7 +155,7 @@ export function SharedMessagesScreen({
             justifyContent: 'center', alignItems: 'center' }}>
           <Ionicons name="chevron-back" color={C.ink} size={25}/>
         </Pressable>
-        <IdentityAvatar name={rider.displayName} size={38}/>
+        <IdentityAvatar name={rider.displayName} avatarId={rider.avatarId} size={38}/>
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={{ color: C.ink, fontWeight: '800', fontSize: 15 }}>{rider.displayName}</Text>
           {rider.handle ? <Text style={s.small}>{handleWithAt(rider.handle)}</Text> : null}
@@ -259,7 +260,7 @@ export function SharedMessagesScreen({
           style={{ flexDirection: 'row', alignItems: 'center', gap: 13,
             paddingVertical: 13, minHeight: 76, borderBottomWidth: 1,
             borderColor: '#1F252C' }}>
-          <IdentityAvatar name={rider.displayName} size={48}/>
+          <IdentityAvatar name={rider.displayName} avatarId={rider.avatarId} size={48}/>
           <View style={{ flex: 1, gap: 5 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ color: C.ink, fontSize: 15, fontWeight: '800' }}>{rider.displayName}</Text>
@@ -281,13 +282,13 @@ export function SharedMessagesScreen({
           Message someone you’re already friends with on Rider Comms.
         </Text>
         {otherFriends.map(person => {
-          const name = display(person.riderId).displayName;
+          const { displayName: name, avatarId } = display(person.riderId);
           return <Pressable key={person.riderId} accessibilityRole="button"
             accessibilityLabel={'Start conversation with ' + name}
             onPress={() => setActive(person.riderId)}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 12,
               minHeight: 58, paddingVertical: 8, borderBottomWidth: 1, borderColor: C.border }}>
-            <IdentityAvatar name={name} size={42}/>
+            <IdentityAvatar name={name} avatarId={avatarId} size={42}/>
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={{ color: C.ink, fontWeight: '700', fontSize: 15 }}>{name}</Text>
               {person.handle ? <Text style={s.small}>{handleWithAt(person.handle)}</Text> : null}

@@ -16,14 +16,22 @@ const testRiderId = 'rider_abcd1234';
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization,content-type',
-  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
 };
 
 test.beforeEach(async ({ page }) => {
+  // The rider's shared Rider Comms profile, kept for the test like the server would.
+  let profile = { riderId: testRiderId, displayName: 'production-smoke', handle: 'production-smoke',
+    avatarId: 'ember', bio: '' };
   await page.route(backend + '/**', async route => {
     const pathname = new URL(route.request().url()).pathname;
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ status: 204, headers: cors });
+      return;
+    }
+    if (pathname === '/riders/' + testRiderId + '/profile') {
+      if (route.request().method() === 'PUT') profile = { ...profile, ...route.request().postDataJSON() };
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(profile) });
       return;
     }
     const isMe = pathname === '/auth/me';
@@ -82,7 +90,7 @@ test('production: every major route and empty state is visible, navigable and er
   // Only the specific licensed editorial image CDN is allowed; never use a wildcard.
   expect(response?.headers()['content-security-policy']).toContain('https://images.pexels.com');
   expect(response?.headers()['content-security-policy']).not.toContain('img-src *');
-  await expect(page.getByText('Your next story starts here')).toBeVisible();
+  await expect(page.getByText('Share your first ride')).toBeVisible();
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();
   await expect(page.getByTestId('brand-home-feature')).toBeVisible();
   await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
@@ -99,7 +107,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('camera-first-studio')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Post format' })).toBeVisible();
   await page.getByRole('button', { name: 'Close Create' }).click();
-  await expect(page.getByText('Your next story starts here')).toBeVisible();
+  await expect(page.getByText('Share your first ride')).toBeVisible();
 
   // For You / Following now belong exclusively to Reels, not this Home feed.
   await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
@@ -126,11 +134,11 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByRole('button', { name: 'Enable camera' })).toHaveCount(0);
   await verifyScreen(page, testInfo, 'create-reel');
   await page.getByRole('button', { name: 'Close Create' }).click();
-  await expect(page.getByText('Your next story starts here')).toBeVisible();
+  await expect(page.getByText('Share your first ride')).toBeVisible();
 
   await page.getByRole('tab', { name: 'Reels' }).click();
   await expect(page.getByTestId('reels-viewport')).toBeVisible();
-  await expect(page.getByText('Editorial footage preview · Not a published Reel').first()).toBeVisible();
+  await expect(page.getByText('Featured by Rider Comms').first()).toBeVisible();
   await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await page.getByRole('tab', { name: 'Following videos' }).click();
@@ -144,7 +152,7 @@ test('production: every major route and empty state is visible, navigable and er
   await page.getByRole('button', { name: 'Close Create' }).click();
 
   await page.getByRole('tab', { name: 'Clubs' }).click();
-  await expect(page.getByText('No clubs yet')).toBeVisible();
+  await expect(page.getByText('Clubs are coming soon')).toBeVisible();
   await expect(page.getByText('No upcoming events.')).toBeVisible();
   await expect(page.getByTestId('clubs-empty-events')).toBeVisible();
   await verifyScreen(page, testInfo, 'clubs-empty');
@@ -152,7 +160,7 @@ test('production: every major route and empty state is visible, navigable and er
   await page.getByRole('tab', { name: 'Shop' }).click();
   await expect(page.getByTestId('shop-discovery')).toBeVisible();
   await expect(page.getByTestId('shop-launch-state')).toBeVisible();
-  await expect(page.getByText('The marketplace is getting ready')).toBeVisible();
+  await expect(page.getByText('Shop is coming soon')).toBeVisible();
   const exploreClubs = page.getByRole('button', { name: 'Explore clubs from Shop' });
   await expect(exploreClubs).toBeEnabled();
   // The empty Shop must have an immediately accessible real CTA above the
@@ -188,7 +196,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByText('Profile preview')).toHaveCount(0);
   await expect(page.getByText('Your posts will appear here')).toBeVisible();
   await verifyScreen(page, testInfo, 'profile-posts');
-  await page.getByRole('button', { name: 'Edit social profile' }).click();
+  await page.getByRole('button', { name: 'Edit profile' }).click();
   await expect(page.getByTestId('profile-editor')).toBeVisible();
   await expect(page.getByTestId('social-profile-summary')).toHaveCount(0);
   await expect(page.locator('#social-bottom-tabs')).toHaveCount(0);
@@ -216,9 +224,7 @@ test('production: every major route and empty state is visible, navigable and er
   // Immersive Reels intentionally hides the global header; Home restores it.
   await page.getByRole('tab', { name: 'Home', exact: true }).click();
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await expect(page.getByText('Your garage starts here')).toBeVisible();
-  await verifyScreen(page, testInfo, 'profile-garage');
+  await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open settings and privacy' }).click();
   await expect(page.getByTestId('social-settings')).toBeVisible();
   await expect(page.getByText('Settings & privacy', { exact: true })).toBeVisible();
@@ -271,40 +277,28 @@ test('production: signed-out sign-in, signup and recovery remain accessible', as
   expect(uncaught).toEqual([]);
 });
 
-test('production: real rider_ account IDs persist and clear profile and garage drafts', async ({ page }) => {
+test('production: profile edits go to the rider\'s Rider Comms account', async ({ page }) => {
   const uncaught = [];
   page.on('pageerror', e => uncaught.push(e.message));
   await page.goto('/');
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await page.getByRole('button', { name: 'Edit social profile' }).click();
-  await page.getByRole('textbox', { name: 'Social bio' })
-    .fill('Production identity persistence check');
+  await page.getByRole('button', { name: 'Edit profile' }).click();
+  await page.getByRole('textbox', { name: 'Bio' }).fill('Production identity persistence check');
+  const saved = page.waitForRequest(request => request.method() === 'PUT' &&
+    new URL(request.url()).pathname === '/riders/' + testRiderId + '/profile');
   await page.getByRole('button', { name: 'Save profile' }).click();
-  await expect(page.getByText('Production identity persistence check')).toBeVisible();
+  expect((await saved).postDataJSON()).toEqual({ bio: 'Production identity persistence check' });
+  await expect(page.getByTestId('profile-bio')).toHaveText('Production identity persistence check');
 
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
-  await page.getByRole('textbox', { name: 'Vehicle make' }).fill('Honda');
-  await page.getByRole('textbox', { name: 'Vehicle model' }).fill('PCX');
-  await page.getByRole('button', { name: 'Save vehicle' }).click();
-  await expect(page.getByText('Honda PCX')).toBeVisible();
-
-  await page.reload();
-  await page.getByRole('button', { name: 'Open profile' }).click();
-  await expect(page.getByText('Production identity persistence check')).toBeVisible();
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await expect(page.getByText('Honda PCX')).toBeVisible();
-
+  // Clearing device drafts leaves the account profile alone.
   await page.getByRole('button', { name: 'Open settings and privacy' }).click();
   await page.getByRole('button', { name: 'Clear local Social drafts' }).click();
   await page.getByRole('button', { name: 'Confirm clear local drafts' }).click();
-  await expect(page.getByText('Device-only drafts cleared.')).toBeVisible();
+  await expect(page.getByText('Drafts cleared.')).toBeVisible();
 
   await page.reload();
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await expect(page.getByText('Production identity persistence check')).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await expect(page.getByText('Your garage starts here')).toBeVisible();
+  await expect(page.getByTestId('profile-bio')).toHaveText('Production identity persistence check');
   await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
   expect(uncaught).toEqual([]);
 });
@@ -398,7 +392,7 @@ test('production: first-party Rider Comms editorial page, Stories and Reels show
   await page.getByRole('tab', { name: 'Rider Comms Stories' }).click();
   await page.getByRole('button', { name: 'View Rider Comms stories' }).click();
   await expect(page.getByTestId('story-viewport')).toBeVisible();
-  await expect(page.getByText('Editorial preview · Motorcycles')).toBeVisible();
+  await expect(page.getByText('Rider Comms · Motorcycles')).toBeVisible();
   await page.getByRole('button', { name: 'Close story' }).click();
   await page.getByRole('button', { name: 'View Rider Comms Reels' }).click();
   await expect(page.getByTestId('reels-viewport')).toBeVisible();

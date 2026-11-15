@@ -929,4 +929,80 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE ride_locations ADD COLUMN IF NOT EXISTS battery_low BOOLEAN NOT NULL DEFAULT FALSE;
     `,
   },
+  {
+    // Rider Social posts: photos and Reels. Media is processed on the
+    // server (metadata stripped, re-encoded) before it is stored privately;
+    // the app only ever gets short-lived signed links. Deleting a post or an
+    // account queues its stored files for deletion in the same transaction.
+    name: '0055_social_posts',
+    sql: `
+      CREATE TABLE IF NOT EXISTS social_media (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_id TEXT NOT NULL,
+        post_id UUID,
+        kind TEXT NOT NULL CHECK (kind IN ('image', 'video')),
+        object_key TEXT NOT NULL UNIQUE,
+        poster_key TEXT UNIQUE,
+        width INTEGER NOT NULL CHECK (width > 0),
+        height INTEGER NOT NULL CHECK (height > 0),
+        duration_ms INTEGER CHECK (duration_ms IS NULL OR duration_ms > 0),
+        bytes INTEGER NOT NULL CHECK (bytes > 0),
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS social_media_post_idx ON social_media (post_id);
+      CREATE INDEX IF NOT EXISTS social_media_unattached_idx ON social_media (created_at) WHERE post_id IS NULL;
+      CREATE TABLE IF NOT EXISTS social_posts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        author_id TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('photo', 'reel')),
+        caption TEXT NOT NULL DEFAULT '',
+        created_at BIGINT NOT NULL,
+        hidden_at BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS social_posts_recent_idx ON social_posts (created_at DESC, id DESC) WHERE hidden_at IS NULL;
+      CREATE INDEX IF NOT EXISTS social_posts_author_idx ON social_posts (author_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS social_post_media (
+        post_id UUID NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+        position SMALLINT NOT NULL CHECK (position >= 0),
+        media_id UUID NOT NULL UNIQUE REFERENCES social_media(id) ON DELETE CASCADE,
+        PRIMARY KEY (post_id, position)
+      );
+      CREATE TABLE IF NOT EXISTS social_post_reports (
+        post_id UUID NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+        reporter_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        PRIMARY KEY (post_id, reporter_id)
+      );
+      CREATE INDEX IF NOT EXISTS social_post_reports_reporter_idx ON social_post_reports (reporter_id);
+      CREATE TABLE IF NOT EXISTS social_media_delete_outbox (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        object_key TEXT NOT NULL UNIQUE CHECK (
+          object_key ~ '^social/processed/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}[.](jpg|png|webp|mp4)$'
+        ),
+        attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+        next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        lease_until TIMESTAMPTZ,
+        lease_token UUID,
+        completed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS social_media_delete_pending_idx
+        ON social_media_delete_outbox (next_attempt_at, id) WHERE completed_at IS NULL;
+      ALTER TABLE social_rate_events DROP CONSTRAINT IF EXISTS social_rate_events_action_check;
+      ALTER TABLE social_rate_events ADD CONSTRAINT social_rate_events_action_check
+        CHECK (action IN ('friend_request', 'direct_message', 'safety_report', 'social_upload', 'social_post'));
+      -- A moderator's decision on a hidden post goes in the same audit log.
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove'));
+    `,
+  },
+  {
+    // A short public bio on the shared profile, edited in either app.
+    name: '0056_rider_profile_bio',
+    sql: `
+      ALTER TABLE rider_profiles ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ];

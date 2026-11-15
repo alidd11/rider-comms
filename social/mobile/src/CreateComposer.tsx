@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,7 +10,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, s } from './styles';
 import { cropRect } from './imageEdit';
 import { accountTextDraftKey, LEGACY_UNSCOPED_TEXT_DRAFT } from './createDraftKey';
-import { loadAccountTextDraft, saveAccountTextDraft } from './textDraftStorage';
+import { clearAccountTextDraft, loadAccountTextDraft, saveAccountTextDraft } from './textDraftStorage';
+import { accountErrorMessage } from './authClient';
+import { PublishError, publishableKind } from './publishPost';
 import type { AspectPreset } from './imageEdit';
 import { MAX_CAPTION, MAX_TITLE, moveMedia, parseTextDraft, validateDraft, validateMedia } from './upload';
 import type { Audience, ComposerDraft, ComposerMedia, ComposerMode } from './upload';
@@ -70,7 +72,14 @@ function Tool({ icon, label, onPress, disabled = false }: {
   </Pressable>;
 }
 
-export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { initialMode?: ComposerMode; onClose: () => void; riderId: string }) {
+/** Sends the draft to Rider Social; reports progress in words. */
+export type PublishHandler = (draft: ComposerDraft, progress: (message: string) => void) => Promise<void>;
+
+export function CreateComposer({ initialMode = 'Post', onClose, riderId, onPublish }: {
+  initialMode?: ComposerMode; onClose: () => void; riderId: string;
+  /** Present when the server allows posting; otherwise Post stays unavailable. */
+  onPublish?: PublishHandler;
+}) {
   const draftKey = accountTextDraftKey(riderId);
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<ComposerMode>(initialMode);
@@ -277,6 +286,27 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
         setStatus('Photo editing failed. Your original image is unchanged.');
     } finally {
       if (mounted.current && operationId === editSequence.current) setProcessing(false);
+    }
+  }
+
+  const [publishing, setPublishing] = useState(false);
+  const publishTarget = onPublish ? publishableKind({ mode, media }) : null;
+
+  async function publish() {
+    if (!onPublish || publishing) return;
+    const result = validateDraft({ mode, title, caption, audience: 'public', category, media });
+    if (!result.ok) { setStatus(result.error); return; }
+    if (paidContent) { setStatus('Paid promotions can’t be posted during the test.'); return; }
+    setPublishing(true);
+    try {
+      await onPublish(result.value, setStatus);
+      await clearAccountTextDraft(riderId).catch(() => undefined);
+      if (mounted.current) onClose();
+    } catch (error) {
+      if (!mounted.current) return;
+      setStatus(error instanceof PublishError ? error.message : accountErrorMessage(error));
+    } finally {
+      if (mounted.current) setPublishing(false);
     }
   }
 
@@ -522,7 +552,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
             </View>
           </View>
 
-          <View style={{ height: 1, backgroundColor: border }}/>
+          {onPublish ? null : <><View style={{ height: 1, backgroundColor: border }}/>
           <View style={{ gap: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
               <Ionicons name="earth-outline" size={21} color={white}/>
@@ -544,6 +574,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
             </Pressable>)}
           </View>
 
+          </>}
           <View style={{ height: 1, backgroundColor: border }}/>
           <Pressable accessibilityRole="checkbox"
             accessibilityLabel="Contains paid promotion" accessibilityState={{ checked: paidContent }}
@@ -563,13 +594,15 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
 
           <View style={{ padding: 13, backgroundColor: surface, borderRadius: 13, gap: 5 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="lock-closed-outline" color={white} size={19}/>
+              <Ionicons name={onPublish ? 'people-outline' : 'lock-closed-outline'} color={white} size={19}/>
               <Text style={{ color: white, fontWeight: '800', fontSize: 13 }}>
-                Not published
+                {onPublish ? 'Everyone in the Rider Social test' : 'Not published'}
               </Text>
             </View>
             <Text style={{ color: secondary, fontSize: 12, lineHeight: 17 }}>
-              Your media stays on this device. Uploading and publishing are not available until accounts, safety checks and storage are connected.
+              {onPublish
+                ? 'Riders testing Social can see this post. Location and camera details are removed from your photos and videos, and you can delete the post from your profile at any time.'
+                : 'Posting isn’t open yet. Your photos and videos stay on this device.'}
             </Text>
           </View>
         </ScrollView>
@@ -585,14 +618,26 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId }: { ini
             <Ionicons name="archive-outline" color={white} size={20}/>
             <Text style={{ color: white, fontWeight: '800', fontSize: 14 }}>Drafts</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Post unavailable"
+          {publishTarget && 'kind' in publishTarget ? <Pressable accessibilityRole="button"
+            accessibilityLabel={publishing ? 'Posting' : mode === 'Reel' ? 'Share Reel' : 'Share post'}
+            disabled={publishing} accessibilityState={{ disabled: publishing, busy: publishing }}
+            onPress={() => void publish()}
+            style={{ flex: 1.1, borderRadius: 26, backgroundColor: publishing ? '#2F8F78' : C.accent,
+              alignItems: 'center', justifyContent: 'center',
+              minHeight: 51, flexDirection: 'row', gap: 8 }}>
+            {publishing ? <ActivityIndicator color={heroBg}/> : <Ionicons name="arrow-up-circle" color={heroBg} size={21}/>}
+            <Text style={{ color: heroBg, fontWeight: '800', fontSize: 14 }}>{publishing ? 'Posting…' : 'Share'}</Text>
+          </Pressable> : <Pressable accessibilityRole="button"
+            accessibilityLabel={publishTarget ? publishTarget.error : 'Post unavailable'}
             disabled accessibilityState={{ disabled: true }}
             style={{ flex: 1.1, borderRadius: 26, backgroundColor: '#43494C',
               alignItems: 'center', justifyContent: 'center',
               minHeight: 51, flexDirection: 'row', gap: 8 }}>
             <Ionicons name="arrow-up-circle" color="#ADB4B7" size={21}/>
-            <Text style={{ color: '#D3D7D9', fontWeight: '800', fontSize: 14 }}>Post unavailable</Text>
-          </Pressable>
+            <Text style={{ color: '#D3D7D9', fontWeight: '800', fontSize: 14 }}>
+              {publishTarget ? (mode === 'Story' ? 'Stories coming soon' : 'Can’t post this') : 'Post unavailable'}
+            </Text>
+          </Pressable>}
         </View>
       </> : null}
     </>}

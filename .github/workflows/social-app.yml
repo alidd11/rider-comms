@@ -4,11 +4,17 @@ on:
   pull_request:
     paths:
       - 'social/**'
+      # Social draws avatars and profile limits from these shared files.
+      - 'shared/src/avatars.ts'
+      - 'shared/src/social.ts'
       - '.github/workflows/social-app.yml'
   push:
     branches: [main]
     paths:
       - 'social/**'
+      # Social draws avatars and profile limits from these shared files.
+      - 'shared/src/avatars.ts'
+      - 'shared/src/social.ts'
       - '.github/workflows/social-app.yml'
 
 permissions:

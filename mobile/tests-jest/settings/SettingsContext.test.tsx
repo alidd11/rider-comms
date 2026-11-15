@@ -32,6 +32,7 @@ function fakeProfile(overrides: Partial<RiderProfile> = {}): RiderProfile {
     instagramVisibility: 'friends',
     tiktokUsername: '',
     tiktokVisibility: 'friends',
+    bio: '',
     updatedAt: 0,
     ...overrides,
   };

@@ -55,7 +55,7 @@ export default tseslint.config(
   },
   {
     // CommonJS config and Expo config plugins.
-    files: ['mobile/**/*.{js,cjs}'],
+    files: ['mobile/**/*.{js,cjs}', 'social/mobile/*.cjs'],
     languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },

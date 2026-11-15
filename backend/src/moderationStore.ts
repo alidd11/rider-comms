@@ -19,7 +19,7 @@ export const REPORT_STATUSES = ['open', 'dismissed', 'actioned'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export const REPORT_RESOLUTIONS = ['dismiss', 'suspend'] as const;
 export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
-export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email';
+export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove';
 export const MAX_MODERATION_NOTE_LENGTH = 1000;
 
 export interface QueuedSafetyReport extends SafetyReport {

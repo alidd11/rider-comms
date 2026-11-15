@@ -46,7 +46,7 @@ export function CommentsSheet({
       }}>
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={{ color: C.ink, fontSize: 17, fontWeight: '900' }}>Comments</Text>
-          <Text style={{ color: C.muted, fontSize: 11 }} numberOfLines={1}>{title} · Local preview</Text>
+          <Text style={{ color: C.muted, fontSize: 11 }} numberOfLines={1}>{title} · Only you can see your comments</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Close comments"
           onPress={onClose} style={{ minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}>

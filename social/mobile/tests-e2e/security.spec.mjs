@@ -22,7 +22,9 @@ test('Social beta sends a strict static content policy and privacy headers', asy
   expect(policy).toContain("default-src 'self'");
   expect(policy).toContain("object-src 'none'");
   expect(policy).toContain("frame-ancestors 'none'");
-  expect(policy).toContain("connect-src 'self' https://backend-production-7fa0.up.railway.app");
+  expect(policy).toContain("connect-src 'self' blob: data: https://backend-production-7fa0.up.railway.app");
+  // Posted photos and Reels come from the API.
+  expect(policy).toContain("media-src 'self' blob: data: https://backend-production-7fa0.up.railway.app");
   expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/);
   expect(policy).not.toContain("'unsafe-eval'");
   // Every trusted inline script in the exported PWA must be authorised by

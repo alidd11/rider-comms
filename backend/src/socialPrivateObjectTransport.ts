@@ -73,15 +73,15 @@ export interface SignedSocialObjectRequest {
 /** Signed single-chunk requests use actual payload SHA-256 (not UNSIGNED-PAYLOAD). */
 export function signSocialObjectRequest(
   config: SocialS3Config,
-  method: 'PUT' | 'DELETE',
+  method: 'PUT' | 'DELETE' | 'GET',
   key: string,
   data: Uint8Array = new Uint8Array(),
   contentType?: string,
   now = new Date(),
 ): SignedSocialObjectRequest {
   if (!OBJECT_KEY.test(key)) throw new Error('invalid_processed_media_key');
-  if (method !== 'PUT' && method !== 'DELETE') throw new Error('invalid_storage_method');
-  if (method === 'DELETE' && (data.byteLength !== 0 || contentType)) {
+  if (method !== 'PUT' && method !== 'DELETE' && method !== 'GET') throw new Error('invalid_storage_method');
+  if (method !== 'PUT' && (data.byteLength !== 0 || contentType)) {
     throw new Error('invalid_storage_delete');
   }
   if (method === 'PUT' &&
@@ -145,6 +145,27 @@ export class SocialPrivateObjectTransport {
   async putProcessed(key: string, processedBytes: Uint8Array, mime: string): Promise<void> {
     const req = signSocialObjectRequest(this.config, 'PUT', key, processedBytes, mime);
     await this.execute(req, 'PUT', Buffer.from(processedBytes));
+  }
+
+  /**
+   * Streams a stored file back for the signed media route. `range` is a
+   * validated single "bytes=a-b" range or undefined; the response is passed
+   * through as is (200 or 206) and never sent to the app with S3 details.
+   */
+  async getProcessed(key: string, range?: string): Promise<Response> {
+    const req = signSocialObjectRequest(this.config, 'GET', key);
+    let response: Response;
+    try {
+      response = await this.fetcher(req.url, {
+        method: 'GET', headers: { ...req.headers, ...(range ? { Range: range } : {}) },
+        redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      throw new Error('social_media_storage_unavailable');
+    }
+    if (response.status === 200 || response.status === 206 || response.status === 416) return response;
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error(response.status === 404 ? 'social_media_not_found' : 'social_media_storage_unavailable');
   }
 
   async deleteProcessed(key: string): Promise<void> {

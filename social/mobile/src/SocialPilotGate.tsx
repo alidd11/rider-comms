@@ -6,6 +6,8 @@ import type { AccountIdentity, RiderAccountClient } from './authClient';
 import { clearLocalDemo } from './demoStorage';
 import { clearAccountTextDraft } from './textDraftStorage';
 import { SocialSettings } from './SocialSettings';
+import { SocialAccessContext } from './socialAccess';
+import type { SocialAccess } from './socialAccess';
 
 type Phase = 'checking' | 'allowed' | 'denied' | 'unavailable';
 const ink = '#F4F7FB', muted = '#91A4B5', accent = '#5CE4C1', bg = '#080D13';
@@ -17,14 +19,14 @@ export function SocialPilotGate({ identity, client, onSignOut, onDeleteAccount, 
 }) {
   const insets = useSafeAreaInsets();
   const riderId = identity.riderId;
-  const [access, setAccess] = useState<{ riderId: string; phase: Phase } | null>(null);
+  const [access, setAccess] = useState<{ riderId: string; phase: Phase; capabilities?: SocialAccess } | null>(null);
   const [retry, setRetry] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
     let live = true;
     setAccess({ riderId, phase: 'checking' });
-    void client.socialBootstrap().then(() => {
-      if (live) setAccess({ riderId, phase: 'allowed' });
+    void client.socialBootstrap().then((bootstrap) => {
+      if (live) setAccess({ riderId, phase: 'allowed', capabilities: bootstrap.capabilities });
     }).catch(error => {
       if (!live) return;
       const denied = error instanceof AccountApiError &&
@@ -35,7 +37,9 @@ export function SocialPilotGate({ identity, client, onSignOut, onDeleteAccount, 
   }, [client, riderId, retry]);
   // An account switch cannot reuse even one frame of the previous rider's access.
   const phase: Phase = access?.riderId === riderId ? access.phase : 'checking';
-  if (phase === 'allowed') return <>{children}</>;
+  if (phase === 'allowed' && access?.capabilities) {
+    return <SocialAccessContext.Provider value={access.capabilities}>{children}</SocialAccessContext.Provider>;
+  }
   return <View testID="social-pilot-gate" style={{ flex: 1, backgroundColor: bg }}>
     <ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }}
       contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 23,

@@ -33,7 +33,7 @@ export type UnitSystem = 'mi' | 'km';
 const DEFAULTS: Omit<RiderProfile, 'riderId' | 'updatedAt'> = {
   zoneTier: 'free', avatarId: DEFAULT_AVATAR_ID, displayName: 'Rider', handle: '@rider', unitSystem: 'mi',
   notifyNearby: false, notifyInvites: true, notifyChat: true, shareLocation: false,
-  instagramUsername: '', instagramVisibility: 'friends', tiktokUsername: '', tiktokVisibility: 'friends',
+  instagramUsername: '', instagramVisibility: 'friends', tiktokUsername: '', tiktokVisibility: 'friends', bio: '',
 };
 type ProfileState = typeof DEFAULTS;
 interface SettingsContextValue extends ProfileState {

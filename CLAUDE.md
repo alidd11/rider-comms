@@ -39,3 +39,31 @@ every PR push and again on `main` after each merge. Lessons from earlier PRs:
 
 The repository is public, so GitHub doesn't bill these minutes; the reason
 is turnaround: a red native run costs the better part of an hour.
+
+## Rider Social (`social/`)
+
+A separate Expo app (`social/mobile`, its own `package.json` and lockfile,
+not a root workspace) on the same Rider Comms accounts. Its backend is
+`backend/src/socialPostStore.ts`, `socialMediaProcessor.ts`,
+`socialMediaService.ts` and `routes/socialPosts.ts`; see
+`backend/SOCIAL_PILOT.md`. It deploys as its own Railway web service.
+
+- **Checks** (the `Social app checks` workflow runs them on `social/**`):
+  from `social/mobile`, `npm ci`, `npm run typecheck`, `npm test`, then
+  `EXPO_PUBLIC_SOCIAL_TEST_FIXTURES=true npm run build:web` and
+  `npx playwright test`, then the production build
+  (`EXPO_PUBLIC_SOCIAL_TEST_FIXTURES=false`) and
+  `npx playwright test --config=playwright.production.config.mjs`. Locally,
+  point both configs at `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome`
+  (its Playwright pins a different browser build); WebKit runs only in CI.
+- **The server decides what Social can do.** `/social/bootstrap` reports
+  each capability; the app never assumes one, and the capabilities turn on
+  only when private media storage is configured.
+- **Media never reaches storage as uploaded.** Every photo and video is
+  re-encoded on the server (sharp, ffmpeg-static), which strips location
+  data; files are served only through per-viewer signed links that re-check
+  the post's visibility. Keep it that way.
+- **Moderation decisions need a note** and go in `moderation_actions`, like
+  the rest of the staff dashboard.
+- **Ride safety still applies:** nothing in Social is reachable from the
+  Rider Comms map while the rider is moving.

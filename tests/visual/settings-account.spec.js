@@ -584,3 +584,32 @@ test('PWA terms prompt scrolls on short landscape screens', async ({ page }) => 
   await signOut.scrollIntoViewIfNeeded();
   await expect(signOut).toBeInViewport({ ratio: 1 });
 });
+
+test('PWA menu links to Rider Social only for riders the server lets in', async ({ page, context }) => {
+  let allowed = false;
+  await mockAuthenticatedApi(page, 'stationary', async ({ url }) => {
+    if (url.pathname !== '/social/bootstrap') return null;
+    return allowed
+      ? { body: { entitlement: 'beta', policyVersion: 'social-open-beta-v1', capabilities: {} } }
+      : { status: 403, body: { error: 'social_beta_not_enabled' } };
+  });
+  await page.goto('/');
+  await openTab(page, 'map');
+  await page.locator('#mapAvatarButton').click();
+  await expect(page.locator('[data-menu-nav="routes"]')).toBeVisible();
+  await expect(page.locator('#appMenuSocial')).toBeHidden();
+  await page.locator('#closeAppMenu').click();
+
+  // A refusal isn't remembered, so access granted later shows up.
+  allowed = true;
+  await page.locator('#mapAvatarButton').click();
+  const social = page.locator('#appMenuSocial');
+  await expect(social).toBeVisible();
+  await expect(social).toContainText('Rider Social');
+  const popup = context.waitForEvent('page');
+  await social.click();
+  const opened = await popup;
+  expect(opened.url()).toMatch(/^https:\/\/social-web-preview-preview\.up\.railway\.app\/?$/);
+  await opened.close();
+  await expect(page.locator('#appMenu')).toBeHidden();
+});

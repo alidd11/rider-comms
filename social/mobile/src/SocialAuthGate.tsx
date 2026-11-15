@@ -412,7 +412,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
             <Text style={{ textAlign: 'center', color: accent }}>Back to sign in</Text>
           </Pressable>}
           <Text style={{ textAlign: 'center', color: muted, fontSize: 11, lineHeight: 17 }}>
-            One Rider Comms account. Your Social profile, posts and garage remain separate.
+            Sign in with your Rider Comms account. Your name, avatar and friends come with you.
           </Text>
         </>}
       </View>

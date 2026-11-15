@@ -59,7 +59,7 @@ export function StoriesViewer({
             <View style={{ gap: 2 }}>
               <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>{story.name}</Text>
               <Text style={{ color: '#DFE8EE', fontSize: 11 }}>
-                {story.id.startsWith('brand-story-') ? 'Editorial preview' : 'Sample story'} · {story.category}
+                {story.id.startsWith('brand-story-') ? 'Rider Comms' : 'Sample story'} · {story.category}
               </Text>
             </View>
           </View>
@@ -87,7 +87,7 @@ export function StoriesViewer({
           {story.category}
         </Text>
         <Text style={{ color: '#DEE8EB', fontSize: 12, marginTop: 4 }}>
-          Editorial preview · Replies are not enabled
+          Replies are off for this story
         </Text>
       </View>
     </ImageBackground>

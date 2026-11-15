@@ -97,7 +97,7 @@ async function verifyPassword(password: string, stored: string, algorithm: strin
 }
 
 export class AuthStore {
-  private riderByTokenDigest = new Map<string, { riderId: string; expiresAt: number }>();
+  private riderByTokenDigest = new Map<string, { riderId: string; expiresAt: number; sessionId: string }>();
   private issuedRiderIds = new Set<string>();
 
   /**
@@ -163,6 +163,34 @@ export class AuthStore {
     await getPool().query('DELETE FROM account_sessions WHERE token_hash = $1', [tokenHash]);
     await getPool().query('DELETE FROM push_subscriptions WHERE session_token_hash = $1', [tokenHash]);
   }
+  /** The session behind a bearer token, so a link can be tied to it. */
+  async sessionIdForToken(token: string): Promise<string | undefined> {
+    if (!token) return undefined;
+    const tokenHash = this.digest(token);
+    const cached = this.riderByTokenDigest.get(tokenHash);
+    if (cached && cached.expiresAt > Date.now()) return cached.sessionId;
+    if (!process.env.DATABASE_URL) return undefined;
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ id: string }>(
+      'SELECT id FROM account_sessions WHERE token_hash = $1 AND expires_at > now()',
+      [tokenHash],
+    );
+    return rows[0]?.id;
+  }
+  /** Whether that session is still signed in for this rider. */
+  async isSessionActive(riderId: string, sessionId: string): Promise<boolean> {
+    if (!riderId || !sessionId) return false;
+    for (const session of this.riderByTokenDigest.values()) {
+      if (session.sessionId === sessionId) return session.riderId === riderId && session.expiresAt > Date.now();
+    }
+    if (!process.env.DATABASE_URL) return false;
+    await ensureMigrated();
+    const { rowCount } = await getPool().query(
+      'SELECT 1 FROM account_sessions WHERE id = $1 AND user_id = $2 AND expires_at > now()',
+      [sessionId, riderId],
+    );
+    return Boolean(rowCount);
+  }
   /** Removes process-local test/session state after durable deletion commits. */
   forgetRider(riderId: string): void {
     this.issuedRiderIds.delete(riderId);
@@ -173,7 +201,7 @@ export class AuthStore {
   createTestSession(riderId: string): GuestSession {
     const token = randomBytes(32).toString('base64url');
     this.issuedRiderIds.add(riderId);
-    this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY });
+    this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY, sessionId: randomUUID() });
     return { riderId, token };
   }
   private async issueAccountSession(riderId: string, deviceName?: unknown): Promise<GuestSession> {

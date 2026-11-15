@@ -2,50 +2,51 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './styles';
-import type { SocialProfileDraft } from './garage';
 import type { ConnectionKind } from './ProfileConnectionsSheet';
 import type { RiderProfile } from './authClient';
 import { handleWithAt } from './identityDisplay';
 import { IdentityAvatar } from './IdentityAvatar';
 
-export type ProfileContentTab = 'Posts' | 'Reels' | 'Saved' | 'Garage';
+export type ProfileContentTab = 'Posts' | 'Reels' | 'Saved';
 
 /**
- * Own profile only. Auth identity comes from Rider Comms; name/bio are
- * private Social device drafts until the backend profile exists.
- * Never invent a follower count or expose rider location/ride activity.
+ * The rider's own profile: their Rider Comms name, handle, avatar and bio.
+ * Counts are real; never invent a follower count or show ride activity.
  */
 export function ProfileSummary({
-  profile, accountProfile, username, tab, friendCount, followingCount,
+  accountProfile, username, tab, postCount, friendCount, followingCount,
   onTab, onConnections, onEdit, onSettings,
 }: {
-  profile: SocialProfileDraft;
   accountProfile: RiderProfile | null;
   username: string;
+  /** Null while the rider's posts are loading. */
+  postCount: number | null;
   friendCount: number;
   tab: ProfileContentTab;
-  followingCount: number;
+  /** Demo follows exist only in the screenshot build. */
+  followingCount?: number;
   onTab: (next: ProfileContentTab) => void;
   onConnections: (kind: ConnectionKind) => void;
   onEdit: () => void;
   onSettings: () => void;
 }) {
   const handle = handleWithAt(accountProfile?.handle || username);
-  const name = profile.displayName.trim();
+  const name = (accountProfile?.displayName ?? '').trim();
+  const bio = (accountProfile?.bio ?? '').trim();
   const showDisplayName = Boolean(name) &&
     name.toLowerCase() !== handle.replace(/^@/, '').toLowerCase();
   const stats = [
-    { name: 'View posts', value: '0', label: 'Posts', action: () => onTab('Posts') },
-    { name: 'View following', value: String(followingCount), label: 'Following',
-      action: () => onConnections('Following') },
-    { name: 'View friends', value: String(friendCount), label: 'Friends',
+    { name: 'View posts', value: postCount === null ? '–' : String(postCount), label: postCount === 1 ? 'Post' : 'Posts',
+      action: () => onTab('Posts') },
+    ...(followingCount === undefined ? [] : [{ name: 'View following', value: String(followingCount),
+      label: 'Following', action: () => onConnections('Following') }]),
+    { name: 'View friends', value: String(friendCount), label: friendCount === 1 ? 'Friend' : 'Friends',
       action: () => onConnections('Friends') },
   ];
   const tabs: { name: ProfileContentTab; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
     { name: 'Posts', icon: 'grid-outline' },
     { name: 'Reels', icon: 'play-outline' },
     { name: 'Saved', icon: 'bookmark-outline' },
-    { name: 'Garage', icon: 'car-sport-outline' },
   ];
 
   return <View testID="social-profile-summary" style={{ gap: 0 }}>
@@ -65,7 +66,7 @@ export function ProfileSummary({
       <View style={{ width: 85, height: 85, borderRadius: 43,
         borderWidth: 2, borderColor: '#376E61', padding: 3,
         alignItems: 'center', justifyContent: 'center' }}>
-        <IdentityAvatar name={accountProfile?.displayName || username} size={75} />
+        <IdentityAvatar name={accountProfile?.displayName || username} avatarId={accountProfile?.avatarId} size={75} />
       </View>
       <View style={{ flex: 1, flexDirection: 'row', gap: 3,
         justifyContent: 'space-around', alignItems: 'center' }}>
@@ -81,14 +82,14 @@ export function ProfileSummary({
       </View>
     </View>
 
-    {showDisplayName || profile.bio ? <View style={{ gap: 4, marginBottom: 16 }}>
+    {showDisplayName || bio ? <View style={{ gap: 4, marginBottom: 16 }}>
       {showDisplayName ? <Text testID="profile-display-name"
         style={{ color: C.ink, fontSize: 15, fontWeight: '800' }}>{name}</Text> : null}
-      {profile.bio ? <Text style={{ color: '#D6DADE', fontSize: 13,
-        lineHeight: 19 }}>{profile.bio}</Text> : null}
+      {bio ? <Text testID="profile-bio" style={{ color: '#D6DADE', fontSize: 13,
+        lineHeight: 19 }}>{bio}</Text> : null}
     </View> : null}
 
-    <Pressable accessibilityRole="button" accessibilityLabel="Edit social profile"
+    <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
       onPress={onEdit} style={{ width: '100%', height: 45,
         borderRadius: 12, backgroundColor: '#222830',
         justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>

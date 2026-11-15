@@ -145,7 +145,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
   const emptyTitle = section === 'saved' ? 'No saved items yet' :
     section === 'basket' ? 'Your basket is empty' :
     section === 'orders' ? 'No orders yet' :
-    noLiveInventory ? 'The marketplace is getting ready' :
+    noLiveInventory ? 'Shop is coming soon' :
     hasDiscoveryFilters ? 'No matching listings' : 'No listings available';
 
   const emptyDescription = section === 'saved'
@@ -155,7 +155,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       : section === 'orders'
         ? 'Orders and checkout will appear after verified businesses and payments are enabled.'
         : noLiveInventory
-          ? 'We’re preparing a marketplace for approved businesses. Products, rentals and checkout are not live yet.'
+          ? 'You’ll be able to buy and rent gear from approved businesses here.'
           : hasDiscoveryFilters
             ? 'Try a different search, category or vehicle type.'
             : 'There are no listings in this collection yet.';
@@ -261,10 +261,10 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
         <Ionicons name="storefront-outline" size={29} color={C.accent}/>
       </View>
       <Text style={{color:C.accent,fontWeight:'800',fontSize:11,letterSpacing:1.2}}>
-        MARKETPLACE PREVIEW
+        COMING SOON
       </Text>
       <Text style={{color:C.ink,fontWeight:'900',fontSize:24,lineHeight:30,
-        letterSpacing:-0.75}}>The marketplace is getting ready</Text>
+        letterSpacing:-0.75}}>Shop is coming soon</Text>
       <Text style={{color:C.muted,fontSize:14,lineHeight:21}}>
         {emptyDescription}
       </Text>

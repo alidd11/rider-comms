@@ -1,6 +1,12 @@
 import type { ZoneTier } from './types.ts';
 
 export type UnitSystem = 'mi' | 'km';
+
+/** The longest profile bio, in characters. */
+export const MAX_PROFILE_BIO_LENGTH = 160;
+
+/** Rider Social, the photo and Reels app on the same accounts (PWA: RIDER_SOCIAL_URL in 18-map-init-events.js). */
+export const RIDER_SOCIAL_URL = 'https://social-web-preview-preview.up.railway.app';
 export type SocialVisibility = 'public' | 'friends' | 'private';
 
 /**
@@ -25,6 +31,8 @@ export interface RiderProfile {
   instagramVisibility: SocialVisibility;
   tiktokUsername: string;
   tiktokVisibility: SocialVisibility;
+  /** A short public bio, shown on the rider's profile in Rider Comms and Rider Social. */
+  bio: string;
   updatedAt: number;
 }
 

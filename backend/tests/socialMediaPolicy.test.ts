@@ -21,7 +21,7 @@ describe('Social media intake contract', () => {
 
   it('refuses fake, executable, SVG, GIF and mismatched media declarations', () => {
     for (const mime of [undefined, null, 7, '', 'image/svg+xml', 'image/gif',
-      'text/html', 'application/x-msdownload', 'video/webm',
+      'text/html', 'application/x-msdownload', 'video/x-msvideo',
       'IMAGE/JPEG', 'image/jpeg; charset=utf-8', '__proto__']) {
       assert.deepEqual(validateSocialMediaIntent(mime, 100),
         { ok: false, error: 'invalid_media_type' });
@@ -42,19 +42,25 @@ describe('Social media intake contract', () => {
       ['image/png', Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10])],
       ['image/webp', Uint8Array.from([...utf8('RIFF'), 0, 0, 0, 0, ...utf8('WEBP')])],
       ['video/mp4', Uint8Array.from([0, 0, 0, 24, ...utf8('ftyp'), ...utf8('isom')])],
+      ['video/webm', Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0, 0, 0])],
     ];
+    // MP4 and QuickTime share the ISO box structure; both go to the MOV demuxer.
+    const sameFamily = (a: string, b: string) =>
+      [a, b].every((mime) => mime === 'video/mp4' || mime === 'video/quicktime');
     for (const [mime, bytes] of valid) {
       assert.equal(matchesSocialMediaSignature(mime, bytes), true, mime);
       assert.equal(matchesSocialMediaSignature(mime, bytes.slice(0, 2)), false, mime);
       for (const other of Object.keys(SOCIAL_MEDIA_TYPES) as Array<keyof typeof SOCIAL_MEDIA_TYPES>) {
-        if (other !== mime) assert.equal(matchesSocialMediaSignature(other, bytes), false,
+        if (other !== mime && !sameFamily(mime, other)) assert.equal(matchesSocialMediaSignature(other, bytes), false,
           `${mime} must not pass as ${other}`);
       }
     }
     assert.equal(matchesSocialMediaSignature('video/mp4',
-      Uint8Array.from([0, 0, 0, 24, ...utf8('ftyp'), ...utf8('evil')])), false);
-    assert.equal(matchesSocialMediaSignature('video/mp4',
-      Uint8Array.from([0, 0, 0, 24, ...utf8('ftyp'), ...utf8('mp42')])), true);
+      Uint8Array.from([0, 0, 0, 24, ...utf8('moov'), ...utf8('isom')])), false);
+    assert.equal(matchesSocialMediaSignature('video/quicktime',
+      Uint8Array.from([0, 0, 0, 20, ...utf8('ftyp'), ...utf8('qt  ')])), true);
+    assert.equal(matchesSocialMediaSignature('video/webm',
+      Uint8Array.from([0x1a, 0x45, 0xdf])), false);
     assert.equal(matchesSocialMediaSignature('image/png',
       Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 0])), false);
     assert.equal(matchesSocialMediaSignature('image/webp',

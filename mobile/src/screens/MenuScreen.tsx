@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Linking, View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,6 +10,8 @@ import { PLAN_INFO } from '../settings/plans';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { useRide } from '../ride/RideContext';
 import { useFriends } from '../friends/FriendsContext';
+import { useAuth } from '../auth/AuthContext';
+import { RIDER_SOCIAL_URL } from '@rider-comms/shared';
 import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Menu'>;
@@ -46,6 +48,14 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
   const { activeRide } = useRide();
   const { incomingRequests, unreadMessageCount } = useFriends();
   const friendsCount = incomingRequests.length + unreadMessageCount;
+  const { client } = useAuth();
+  // Rider Social is listed only for riders the server lets in.
+  const [socialAllowed, setSocialAllowed] = React.useState(false);
+  React.useEffect(() => {
+    let live = true;
+    client.getSocialBootstrap().then(() => { if (live) setSocialAllowed(true); }, () => undefined);
+    return () => { live = false; };
+  }, [client]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
@@ -83,6 +93,7 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
         <MenuRow icon="bicycle-outline" label="Ride" detail={activeRide ? 'Live' : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Map', params: { segment: 'host', at: Date.now() } })} />
         <MenuRow icon="people-outline" label="Friends" detail={friendsCount > 0 ? `${friendsCount > 99 ? '99+' : friendsCount} new` : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Friends' })} />
         <MenuRow icon="flag-outline" label="Routes" onPress={() => navigation.replace('Routes')} />
+        {socialAllowed ? <MenuRow icon="camera-outline" label="Rider Social" detail="Beta" onPress={() => void Linking.openURL(RIDER_SOCIAL_URL)} /> : null}
         <MenuRow icon="card-outline" label="Your plan" detail={PLAN_INFO[zoneTier].name} onPress={() => navigation.replace('Billing')} />
         <MenuRow icon="settings-outline" label="Settings" onPress={() => navigation.replace('Settings')} />
         <MenuRow icon="help-circle-outline" label="Help & Support" onPress={() => navigation.replace('SettingsPage', { page: 'help' })} />

@@ -263,3 +263,34 @@ test('pilot bootstrap requires an exact contract, keeps a 403 session signed in'
     err instanceof AccountApiError && err.code === 'invalid_social_bootstrap');
   assert.notEqual(env.stored, null);
 });
+test('a post can be fetched again for fresh media links', async () => {
+  const env = environment(randomUUID());
+  env.queue.push(response(200, identity()));
+  await env.client.restore();
+  const post = { id: randomUUID(), authorId: 'rider_x', kind: 'photo', caption: '', createdAt: 1, hidden: false, media: [] };
+  env.queue.push(response(200, { post }));
+  assert.deepEqual(await env.client.socialPost(post.id), post);
+  assert.deepEqual([env.calls.at(-1)!.method, env.calls.at(-1)!.pathname], ['GET', '/social/posts/' + post.id]);
+});
+test('profile edits are saved to the signed-in rider\'s shared Rider Comms profile', async () => {
+  const env = environment(randomUUID());
+  const user = identity();
+  env.queue.push(response(200, user));
+  await env.client.restore();
+  const saved = { riderId: user.riderId, displayName: 'Sam', handle: 'sam', avatarId: 'ridge', bio: 'Sunday rides.' };
+  env.queue.push(response(200, saved));
+  assert.deepEqual(await env.client.updateOwnProfile({ bio: 'Sunday rides.', avatarId: 'ridge' }), saved);
+  const call = env.calls.at(-1)!;
+  assert.deepEqual([call.method, call.pathname, call.authenticated], ['PUT', '/riders/' + user.riderId + '/profile', true]);
+  assert.deepEqual(call.body, { bio: 'Sunday rides.', avatarId: 'ridge' });
+
+  env.queue.push(response(400, { error: 'objectionable_content' }));
+  await assert.rejects(env.client.updateOwnProfile({ bio: 'x' }),
+    (error: unknown) => error instanceof AccountApiError && error.code === 'objectionable_content');
+});
+test('a signed-out client never sends a profile edit', async () => {
+  const env = environment();
+  await assert.rejects(env.client.updateOwnProfile({ bio: 'x' }),
+    (error: unknown) => error instanceof AccountApiError && error.status === 401);
+  assert.equal(env.calls.length, 0);
+});

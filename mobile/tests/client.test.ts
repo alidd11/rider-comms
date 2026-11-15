@@ -483,6 +483,7 @@ describe('RiderCommsClient places and friends', () => {
     }));
     await client.searchNearbyPlaces(['gas_station'], { lat: 51.5, lon: -0.1 });
     await client.searchPlaces('motorcycle parking', { lat: 51.5, lon: -0.1 });
+    await client.getSocialBootstrap();
     await client.suggestPlaces('ace', { lat: 51.5, lon: -0.1 }, 'session-0123456789');
     await client.placeDetails('abc_1', 'session-0123456789');
     await client.searchAlongRoute('petrol station', [{ lat: 51.5, lon: -0.1 }, { lat: 51.6, lon: -0.2 }]);
@@ -493,6 +494,7 @@ describe('RiderCommsClient places and friends', () => {
     assert.deepEqual(calls, [
       { url: 'http://example.test/places/nearby', method: 'POST', body: { includedTypes: ['gas_station'], near: { lat: 51.5, lon: -0.1 } } },
       { url: 'http://example.test/places/search', method: 'POST', body: { query: 'motorcycle parking', near: { lat: 51.5, lon: -0.1 } } },
+      { url: 'http://example.test/social/bootstrap', method: 'GET', body: undefined },
       { url: 'http://example.test/places/autocomplete', method: 'POST', body: { input: 'ace', near: { lat: 51.5, lon: -0.1 }, sessionToken: 'session-0123456789' } },
       { url: 'http://example.test/places/details', method: 'POST', body: { placeId: 'abc_1', sessionToken: 'session-0123456789' } },
       { url: 'http://example.test/places/along-route', method: 'POST', body: { query: 'petrol station', path: [{ lat: 51.5, lon: -0.1 }, { lat: 51.6, lon: -0.2 }] } },
