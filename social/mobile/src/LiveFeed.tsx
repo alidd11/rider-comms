@@ -60,12 +60,11 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
   const [width, setWidth] = useState(0);
   const author = authorLabel(profile);
   const first = post.media[0];
-  // Ask for fresh links once per set of links, never in a loop.
-  const staleReported = useRef<string | null>(null);
-  const mediaFailed = () => {
-    const linkSet = post.media.map(item => item.url).join(' ');
-    if (staleReported.current === linkSet) return;
-    staleReported.current = linkSet;
+  // A fresh URL can still fail. Retry each item once until it loads.
+  const retriedMedia = useRef(new Set<string>());
+  const mediaFailed = (mediaId: string) => {
+    if (retriedMedia.current.has(mediaId)) return;
+    retriedMedia.current.add(mediaId);
     onStaleMedia?.(post.id);
   };
   const aspect = first ? mediaAspect(first.width, first.height) : 1;
@@ -105,13 +104,15 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
     {post.kind === 'reel' && first ? <Pressable accessibilityRole="button" accessibilityLabel={'Watch Reel by ' + (author.handle || author.name)}
       onPress={() => onOpenReel?.(post.id)}
       style={{ width: '100%', aspectRatio: 0.8, backgroundColor: '#000' }}>
-      {first.posterUrl ? <Image source={{ uri: client.socialMediaUrl(first.posterUrl) }} resizeMode="cover" onError={mediaFailed}
+      {first.posterUrl ? <Image source={{ uri: client.socialMediaUrl(first.posterUrl) }} resizeMode="cover"
+        onError={() => mediaFailed(first.id)} onLoad={() => { retriedMedia.current.delete(first.id); }}
         accessibilityLabel={'Reel cover: ' + (post.caption || 'video')} style={{ flex: 1 }}/> : null}
       <View style={{ position: 'absolute', top: 12, right: 12 }}><Ionicons name="play-circle" size={34} color="#fff"/></View>
     </Pressable> : <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ width: '100%', aspectRatio: aspect, backgroundColor: '#000' }}>
       <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={(event) => width && setPage(Math.round(event.nativeEvent.contentOffset.x / width))}>
-        {post.media.map((item, index) => <Image key={item.id} source={{ uri: client.socialMediaUrl(item.url) }} resizeMode="cover" onError={mediaFailed}
+        {post.media.map((item, index) => <Image key={item.id} source={{ uri: client.socialMediaUrl(item.url) }} resizeMode="cover"
+          onError={() => mediaFailed(item.id)} onLoad={() => { retriedMedia.current.delete(item.id); }}
           accessibilityLabel={`Photo ${index + 1} of ${post.media.length}` + (post.caption ? ': ' + post.caption.slice(0, 80) : '')}
           style={{ width: width || 1, height: '100%' }}/>)}
       </ScrollView>
