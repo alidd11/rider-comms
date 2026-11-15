@@ -207,14 +207,14 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
     lastPageHeight.current = 0;
     setNotice(null);
   };
-  const feedTabs = <View testID="reels-feed-tabs" style={{
+  const feedTabs = <View testID="reels-feed-tabs" accessibilityRole="tablist" accessibilityLabel="Reels feeds" style={{
     minHeight: 44, flexDirection: 'row', gap: 18, alignItems: 'center',
     justifyContent: 'center',
   }}>
     {([{mode:'following',label:'Following videos',text:'Following'},
        {mode:'forYou',label:'For You videos',text:'For You'}] as const).map(tab =>
       <Pressable key={tab.mode} accessibilityRole="tab" accessibilityLabel={tab.label}
-        accessibilityState={{ selected: feedMode === tab.mode }}
+        aria-selected={feedMode === tab.mode}
         onPress={() => changeFeed(tab.mode)} style={{
           minHeight: 44, justifyContent: 'center', paddingHorizontal: 2,
           borderBottomWidth: 2, borderBottomColor: feedMode === tab.mode ? '#FFFFFF' : 'transparent',
@@ -330,7 +330,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
               testID={'reel-slide-' + index} style={{
                 height, width: '100%', backgroundColor: reel.theme, position: 'relative', overflow: 'hidden',
               }}>
-              <ImageBackground source={{ uri: reel.imageUrl }} resizeMode="cover" accessibilityLabel={reel.title}
+              <ImageBackground source={{ uri: reel.imageUrl }} resizeMode="cover"
                 style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}>
                 {reel.videoUrl && index === activeIndex ? <ActiveReelVideo key={reel.videoUrl} uri={reel.videoUrl} poster={reel.imageUrl} hasAudio={reel.hasAudio !== false}/> : null}
                 <View testID={'reel-caption-' + reel.id}

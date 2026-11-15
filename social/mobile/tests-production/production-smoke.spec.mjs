@@ -136,7 +136,13 @@ test('production: every major route and empty state is visible, navigable and er
   await page.getByRole('button', { name: 'Close Create' }).click();
   await expect(page.getByText('Share your first ride')).toBeVisible();
 
-  await page.getByRole('tab', { name: 'Reels' }).click();
+  const mainNavigation = page.getByRole('tablist', { name: 'Main navigation' });
+  await expect(mainNavigation.getByRole('tab', { name: 'Home' })).toHaveAttribute('aria-selected', 'true');
+  const reelsTab = mainNavigation.getByRole('tab', { name: 'Reels' });
+  await reelsTab.click();
+  await expect(reelsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tablist', { name: 'Reels feeds' }).getByRole('tab', { name: 'For You videos' }))
+    .toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('reels-viewport')).toBeVisible();
   await expect(page.getByText('Ahmet Mert / Pexels')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
