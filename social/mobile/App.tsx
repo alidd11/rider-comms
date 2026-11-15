@@ -928,10 +928,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       <View style={s.root}>
         {!story && screen !== 'Reels' && screen !== 'Create' &&
           !(screen === 'Profile' && profileEditor) ? <View style={s.header}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
-            <Text style={s.brandTitle}>{screen === 'Shop' ? 'Shop' :
-              <>Social<Text style={{ color: C.accent }}>.</Text></>}</Text>
-          </Pressable>
+          {screen === 'Home' ? <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
+            <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
+          </Pressable> : <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
           <View style={s.headerTools}>
             {screen === 'Home' && !selectedCreator ?
               <IconButton name="options-outline" label="Feed preferences"
