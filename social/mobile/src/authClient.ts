@@ -14,23 +14,28 @@ export interface AccountIdentity {
   termsAccepted: boolean;
   termsVersion: string;
 }
+export const SOCIAL_CAPABILITY_KEYS = ['mediaUpload', 'privatePosting', 'publicPosting',
+  'liveStreaming', 'marketplaceCheckout', 'creatorPayouts'] as const;
+export type SocialCapability = typeof SOCIAL_CAPABILITY_KEYS[number];
+/** What the server lets this account do in Social. Invite-list ("pilot") and
+ * open testing ("beta") are both entitlements; every capability is an explicit
+ * server decision, never assumed by the app. */
 export interface SocialPilotBootstrap {
-  entitlement: 'pilot';
-  policyVersion: 'social-pilot-v1';
-  capabilities: {
-    mediaUpload: false; privatePosting: false; publicPosting: false;
-    liveStreaming: false; marketplaceCheckout: false; creatorPayouts: false;
-  };
+  entitlement: 'pilot' | 'beta';
+  policyVersion: 'social-pilot-v1' | 'social-open-beta-v1';
+  capabilities: Record<SocialCapability, boolean>;
 }
 export function isSocialPilotBootstrap(value: unknown): value is SocialPilotBootstrap {
   if (!value || Array.isArray(value) || typeof value !== 'object') return false;
   const body = value as Record<string, unknown>;
-  if (body.entitlement !== 'pilot' || body.policyVersion !== 'social-pilot-v1') return false;
+  const pilot = body.entitlement === 'pilot' && body.policyVersion === 'social-pilot-v1';
+  const beta = body.entitlement === 'beta' && body.policyVersion === 'social-open-beta-v1';
+  if (!pilot && !beta) return false;
   const flags = body.capabilities;
   if (!flags || Array.isArray(flags) || typeof flags !== 'object') return false;
   const capabilities = flags as Record<string, unknown>;
-  return ['mediaUpload', 'privatePosting', 'publicPosting', 'liveStreaming',
-    'marketplaceCheckout', 'creatorPayouts'].every(key => capabilities[key] === false);
+  // A missing or non-boolean flag fails closed: the reply is rejected.
+  return SOCIAL_CAPABILITY_KEYS.every(key => typeof capabilities[key] === 'boolean');
 }
 export interface LoginReply {
   riderId: string;

@@ -239,9 +239,13 @@ test('pilot bootstrap requires an exact contract, keeps a 403 session signed in'
   mediaUpload: false, privatePosting: false, publicPosting: false,
   liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } };
   assert.equal(isSocialPilotBootstrap(valid), true);
+  // Open testing replies "beta", and a server may turn capabilities on.
+  assert.equal(isSocialPilotBootstrap({ ...valid, entitlement: 'beta', policyVersion: 'social-open-beta-v1' }), true);
+  assert.equal(isSocialPilotBootstrap({ ...valid, capabilities: { ...valid.capabilities, mediaUpload: true } }), true);
   for (const bad of [null, [], { ...valid, entitlement: 'public' },
-    { ...valid, policyVersion: 'wrong' }, { ...valid, capabilities: null },
-    { ...valid, capabilities: [] }, { ...valid, capabilities: { ...valid.capabilities, publicPosting: true } },
+    { ...valid, policyVersion: 'wrong' }, { ...valid, entitlement: 'beta' },
+    { ...valid, capabilities: null },
+    { ...valid, capabilities: [] }, { ...valid, capabilities: { ...valid.capabilities, publicPosting: 'yes' } },
     { ...valid, capabilities: { ...valid.capabilities, creatorPayouts: undefined } }])
     assert.equal(isSocialPilotBootstrap(bad), false);
   const env = environment(randomUUID());

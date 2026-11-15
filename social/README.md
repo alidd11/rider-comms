@@ -31,17 +31,13 @@ The independent GitHub Actions workflow at `.github/workflows/social-app.yml` us
 
 The prototype uses Expo SDK 58 and React Native to target iOS, Android and web. It is deliberately a separate npm package for now, **not a root workspace**, so Claude's existing root lockfile, workspace graph, CI and releases remain undisturbed. Pin dependencies in this package before commercial releases.
 
-## Agent ownership / integration boundary
+## Ownership
 
-- Only modify `social/**` for this workstream until explicitly coordinated.
-- Do not import Rider Comms' backend implementation or change shared migrations to make the prototype run.
-- Treat private ride, location, presence, navigation and live voice information as **never available to the social app by default**.
-- Authentication now uses existing Rider Comms API routes. Shared friends and conversation summaries are read-only. Actual messaging, Social followers, posts, age assurance and transactions still need versioned backend contracts, permission checks and cross-client tests.
-- Check open PRs and exact-head CI before integration; do not change Claude's branches.
-- No use of real businesses, usernames, actual user posts or copyrighted media as demo inventory without permission.
+Rider Social was started by another agent and handed over on 15 November 2026. It is now maintained alongside the rest of Rider Comms, under the same rules as the main app (see the root `CLAUDE.md`):
 
-See [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for agreed product direction and release boundaries.
-
+- Private ride, location, presence, navigation and live voice information are never available to Social by default.
+- Every Social capability (uploads, posting, playback) is decided by the backend through `GET /social/bootstrap`; the app never assumes one.
+- Check exact-head CI before merging.
 
 ## Preview interaction milestone
 
