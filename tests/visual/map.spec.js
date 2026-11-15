@@ -169,7 +169,7 @@ test('PWA recent place history is scoped to the signed-in rider', async ({ page 
   await expect(page.locator('#searchScreenResults')).not.toContainText('My recent place');
 });
 
-test('PWA map drawer slides up to recent places and holds Home, Work and Petrol', async ({ page }) => {
+test('PWA map drawer opens Group Ride and keeps saved-place and petrol shortcuts', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.addInitScript(({ riderId }) => {
     localStorage.setItem(`riderComms.recentSearches:${riderId}`, JSON.stringify([
@@ -241,6 +241,16 @@ test('PWA map drawer slides up to recent places and holds Home, Work and Petrol'
   await page.locator('#mapSearchSlot').click();
   await expect(page.locator('#searchScreen')).toBeVisible();
   await page.locator('#searchScreenBack').click();
+
+  const groupRide = page.getByRole('button', { name: 'Group Ride', exact: true });
+  await expect(groupRide).toBeVisible();
+  const groupBounds = await groupRide.boundingBox();
+  const homeBounds = await page.locator('[data-saved-place="home"]').boundingBox();
+  expect(groupBounds.x).toBeLessThan(homeBounds.x);
+  await groupRide.click();
+  await expect(page.locator('[data-screen="ride"]')).toHaveClass(/active/);
+  await page.goBack();
+  await expect(page.locator('[data-screen="map"]')).toHaveClass(/active/);
 
   // Home the first time: search says it is choosing Home, without the
   // category chips, and the chosen place is saved.

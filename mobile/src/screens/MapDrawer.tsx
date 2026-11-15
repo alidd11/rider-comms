@@ -3,6 +3,7 @@ import { AccessibilityInfo, Alert, Animated, Easing, PanResponder, Pressable, Sc
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import type { PlaceResult } from '../api/places';
 import { useAuth } from '../auth/AuthContext';
@@ -35,6 +36,7 @@ export interface MapDrawerProps {
   onSelectPlace: (place: PlaceResult) => void;
   /** A saved Home or Work: start the route there, like other map apps. */
   onRouteToPlace: (place: PlaceResult) => void;
+  onGroupRide: () => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The drawer's resting height, so the map's controls can sit above it. */
@@ -45,12 +47,11 @@ export interface MapDrawerProps {
 
 /**
  * The Where to drawer at the bottom of the map (PWA: #mapDrawer). At rest:
- * search and one-tap places: Home, Work and nearby petrol. Slide it up, or
- * tap its handle, for recent places. Ride, Friends and Routes are in the
- * menu behind the rider's avatar.
+ * search, Group Ride, Home, Work and nearby petrol. Slide it up or tap
+ * its handle for recent places.
  */
 export function MapDrawer({
-  near, onRequestLocation, onSelectPlace, onRouteToPlace, open, onOpenChange, onPeekHeight, bottomInset, style,
+  near, onRequestLocation, onSelectPlace, onRouteToPlace, onGroupRide, open, onOpenChange, onPeekHeight, bottomInset, style,
 }: MapDrawerProps): React.JSX.Element {
   const { riderId } = useAuth();
   const { unitSystem } = useSettings();
@@ -84,7 +85,9 @@ export function MapDrawer({
   // room for more below them. The open area's height comes from the screen,
   // so it is known before a slide starts; its visible height follows the
   // finger, then settles.
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width } = useWindowDimensions();
+  const compact = width <= 440;
+  const badgeSize = compact ? 26 : 30;
   const insets = useSafeAreaInsets();
   const [peekHeight, setPeekHeight] = React.useState(0);
   const fullHeight = Math.max(MIN_OPEN_HEIGHT, Math.round(windowHeight - insets.top - OPEN_TOP_CLEARANCE - peekHeight));
@@ -188,8 +191,15 @@ export function MapDrawer({
 
       <PlaceSearchBar ref={searchRef} near={near} onRequestLocation={onRequestLocation} onSelect={onSelectPlace} onSave={saveSavedPlace} />
 
-      {/* Three equal buttons that always fit, even on a 320pt phone. */}
       <View style={styles.shortcuts}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Group Ride"
+          onPress={onGroupRide} testID="drawer-group-ride"
+          style={({ pressed }) => [styles.shortcut, compact && styles.shortcutCompact, pressed && styles.pressed]}>
+          <View style={[styles.rideBadge, { width: badgeSize, height: badgeSize }]}>
+            <Ionicons name="people-outline" size={18} color="#fff" />
+          </View>
+          <Text style={[styles.shortcutText, compact && styles.shortcutTextCompact]}>Group Ride</Text>
+        </Pressable>
         {SAVED_PLACE_SLOTS.map((slot) => {
           const label = SAVED_PLACE_LABELS[slot];
           const place = savedPlaces[slot];
@@ -206,13 +216,13 @@ export function MapDrawer({
               onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') editSavedPlace(slot); }}
               onPress={() => openSavedPlace(slot)}
               onLongPress={() => editSavedPlace(slot)}
-              style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.shortcut, compact && styles.shortcutCompact, pressed && styles.pressed]}
               testID={`drawer-${slot}`}
             >
-              <PlaceBadge kind={slot} size={30} />
+              <PlaceBadge kind={slot} size={badgeSize} />
               <View style={styles.shortcutCopy}>
-                <Text style={styles.shortcutText} numberOfLines={1}>{label}</Text>
-                {detail ? <Text style={styles.shortcutDetail} numberOfLines={1}>{detail}</Text> : null}
+                <Text style={[styles.shortcutText, compact && styles.shortcutTextCompact]} numberOfLines={1}>{label}</Text>
+                {detail ? <Text style={[styles.shortcutDetail, compact && styles.shortcutTextCompact]} numberOfLines={1}>{detail}</Text> : null}
               </View>
             </Pressable>
           );
@@ -221,13 +231,13 @@ export function MapDrawer({
           accessibilityRole="button"
           accessibilityLabel="Petrol stations nearby"
           onPress={() => searchRef.current?.open({ category: 'Petrol' })}
-          style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.shortcut, compact && styles.shortcutCompact, pressed && styles.pressed]}
           testID="drawer-petrol"
         >
-          <PlaceBadge kind="fuel" size={30} />
+          <PlaceBadge kind="fuel" size={badgeSize} />
           <View style={styles.shortcutCopy}>
-            <Text style={styles.shortcutText} numberOfLines={1}>Petrol</Text>
-            <Text style={styles.shortcutDetail} numberOfLines={1}>Nearby</Text>
+            <Text style={[styles.shortcutText, compact && styles.shortcutTextCompact]} numberOfLines={1}>Petrol</Text>
+            <Text style={[styles.shortcutDetail, compact && styles.shortcutTextCompact]} numberOfLines={1}>Nearby</Text>
           </View>
         </Pressable>
       </View>
@@ -303,6 +313,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  shortcutCompact: { flexDirection: 'column', minHeight: 68, gap: 4, paddingHorizontal: 2 },
+  shortcutTextCompact: { fontSize: 12, lineHeight: 15, textAlign: 'center' },
+  rideBadge: { borderRadius: 10, backgroundColor: '#5755a8', alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.7 },
   shortcutCopy: { flexShrink: 1, minWidth: 0 },
   shortcutText: { ...type.body, fontSize: 16, lineHeight: 19, fontWeight: '700', color: colors.textPrimary },

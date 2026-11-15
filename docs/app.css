@@ -2736,7 +2736,7 @@ html.map-drawer-open #ridePill{display:none}
 
 /* Home, Work and Petrol share the drawer width equally, so all three fit
    on a 320px phone instead of scrolling "Petrol" off the edge. */
-.map-drawer-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-left:0;margin-right:0;padding:0;overflow:visible}
+.map-drawer-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-left:0;margin-right:0;padding:0;overflow:visible}
 .map-drawer-shortcuts button{min-width:0;justify-content:center;gap:7px;padding:0 6px}
 
 /* The road the next turn leads onto: the banner's second-largest line,
@@ -2821,6 +2821,12 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
 :root{--place-home:#2f7fd3;--place-work:#8a5cd6;--place-fuel:#1f9d63;--place-parking:#3b5bdb;--place-food:#d9480f;--place-coffee:#8d5a3b;--place-moto:#c2410c;--place-ev:#0e7c86}
 .place-badge{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;background:var(--accent)}
 .place-badge svg{width:18px;height:18px}
+.place-badge-ride{background:#5755a8}
+@media(max-width:440px){
+  .map-drawer-shortcuts button{flex-direction:column;padding:6px 2px;min-height:68px}
+  .map-drawer-shortcuts button .place-badge{width:26px;height:26px}
+  .map-drawer-shortcuts button .shortcut-text{text-align:center;font-size:.75rem}
+}
 .place-badge-home{background:var(--place-home)}
 .place-badge-work{background:var(--place-work)}
 .place-badge-fuel{background:var(--place-fuel)}
