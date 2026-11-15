@@ -181,7 +181,18 @@ export async function stageUpload(body: AsyncIterable<Buffer | string>, maxBytes
   const dir = await mkdtemp(join(tmpdir(), 'social-upload-'));
   const path = join(dir, 'input');
   const cleanup = () => rm(dir, { recursive: true, force: true });
-  const file = await open(path, 'wx', 0o600);
+  let file;
+  try {
+    file = await open(path, 'wx', 0o600);
+  } catch (error) {
+    await cleanup();
+    throw error;
+  }
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    await file.close();
+    await cleanup();
+    throw new RangeError('invalid_upload_limit');
+  }
   let bytes = 0;
   const headerParts: Buffer[] = [];
   let headerBytes = 0;
@@ -194,7 +205,14 @@ export async function stageUpload(body: AsyncIterable<Buffer | string>, maxBytes
         headerParts.push(buffer.subarray(0, 16 - headerBytes));
         headerBytes += Math.min(buffer.length, 16 - headerBytes);
       }
-      await file.write(buffer);
+      // FileHandle.write may write fewer bytes than requested; never accept a
+      // truncated upload as a successfully staged media object.
+      let offset = 0;
+      while (offset < buffer.length) {
+        const { bytesWritten } = await file.write(buffer, offset, buffer.length - offset);
+        if (bytesWritten <= 0) throw new Error('social_upload_write_failed');
+        offset += bytesWritten;
+      }
     }
   } catch (error) {
     await file.close();

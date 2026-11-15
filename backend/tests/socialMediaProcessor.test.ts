@@ -146,6 +146,24 @@ describe('Rider Social upload staging', () => {
     await assert.rejects(readFile(staged.path));
   });
 
+  it('rejects invalid upload size limits without leaving a staged file', async () => {
+    for (const limit of [0, -1, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      await assert.rejects(stageUpload(chunks('abc'), limit), /invalid_upload_limit/);
+    }
+  });
+
+  it('preserves every byte across multiple large chunks', async () => {
+    const first = Buffer.alloc(128 * 1024, 0xa5);
+    const second = Buffer.alloc(129 * 1024, 0x5a);
+    const staged = await stageUpload(chunks(first, second), first.length + second.length);
+    try {
+      assert.equal(staged.bytes, first.length + second.length);
+      assert.deepEqual(await readFile(staged.path), Buffer.concat([first, second]));
+    } finally {
+      await staged.cleanup();
+    }
+  });
+
   it('stops as soon as the upload passes its limit, leaving nothing behind', async () => {
     await assert.rejects(stageUpload(chunks('12345', '67890'), 8), UploadTooLargeError);
   });
