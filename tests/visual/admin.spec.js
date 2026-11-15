@@ -64,6 +64,11 @@ async function mockModerationApi(page, { admin = true, suspended = false } = {})
     actions: [],
     posts: [],
     riderQueries: [],
+    socialPosts: [{
+      post: { id: '11111111-1111-4111-8111-111111111111', authorId: 'rider_badactor', kind: 'photo', caption: '<b>Selling</b> cheap parts', createdAt: Date.now() - 60_000, hidden: false,
+        media: [{ id: 'm1', kind: 'image', width: 10, height: 10, durationMs: null, url: '/social/media/m1/file?v=admin&exp=1&sig=x', posterUrl: null }] },
+      reports: 3, reasons: ['spam'],
+    }],
   };
   await page.route(`${API}/**`, async (route) => {
     const request = route.request();
@@ -94,8 +99,19 @@ async function mockModerationApi(page, { admin = true, suspended = false } = {})
       return json(200, { reports: state.reports.filter((report) => report.status === status) });
     }
     if (url.pathname === '/moderation/actions') return json(200, { actions: state.actions });
+    if (url.pathname === '/moderation/social-posts' && request.method() === 'GET') return json(200, { posts: state.socialPosts });
+    if (url.pathname.startsWith('/social/media/')) {
+      // A 1×1 PNG for the post's photo.
+      return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC', 'base64') });
+    }
     const body = request.postDataJSON();
     state.posts.push({ path: url.pathname, body });
+    const decide = url.pathname.match(/^\/moderation\/social-posts\/([^/]+)\/(restore|remove)$/);
+    if (decide) {
+      state.socialPosts = state.socialPosts.filter((entry) => entry.post.id !== decide[1]);
+      state.actions.unshift({ id: `a${state.actions.length}`, moderatorId: ADMIN_ID, targetRiderId: 'rider_badactor', reportId: null, action: `social_post_${decide[2]}`, note: `Rider Social post ${decide[1]}: ${body.note}`, createdAt: Date.now() });
+      return json(200, { ok: true });
+    }
     const resolve = url.pathname.match(/^\/moderation\/reports\/([^/]+)\/resolve$/);
     if (resolve) {
       const report = state.reports.find((candidate) => candidate.id === decodeURIComponent(resolve[1]));
@@ -134,6 +150,27 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html');
     await expect(page.locator('.empty-title')).toHaveText('This account is not staff');
     await expect(page.locator('#nav')).toBeHidden();
+  });
+
+  test('reviews a hidden Rider Social post: its photo, a required note, and the audit log', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    await page.getByRole('button', { name: 'Social posts' }).click();
+    const card = page.locator('article[data-post-id]');
+    await expect(card).toContainText('3 reports');
+    await expect(card).toContainText('@rex · rider_badactor');
+    await expect(card.locator('.report-details')).toHaveText('<b>Selling</b> cheap parts');
+    await expect(card.getByRole('img', { name: 'Photo 1 of 1' })).toBeVisible();
+    await card.getByRole('button', { name: 'Remove post' }).click();
+    await expect(card.locator('.error-text')).toContainText('Write a note first');
+    await card.locator('textarea').fill('Scam listing.');
+    page.once('dialog', (dialog) => dialog.accept());
+    await card.getByRole('button', { name: 'Remove post' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No hidden posts');
+    expect(state.posts.at(-1)).toEqual({ path: '/moderation/social-posts/11111111-1111-4111-8111-111111111111/remove', body: { note: 'Scam listing.' } });
+    await page.getByRole('button', { name: 'Audit log' }).click();
+    await expect(page.locator('.list-row .person-name')).toHaveText('Removed a Social post: Rex');
   });
 
   test('shows the open queue safely and dismisses a report with a required note', async ({ page }) => {

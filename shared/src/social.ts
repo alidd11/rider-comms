@@ -1,6 +1,9 @@
 import type { ZoneTier } from './types.ts';
 
 export type UnitSystem = 'mi' | 'km';
+
+/** Rider Social, the photo and Reels app on the same accounts (PWA: RIDER_SOCIAL_URL in 18-map-init-events.js). */
+export const RIDER_SOCIAL_URL = 'https://social-web-preview-preview.up.railway.app';
 export type SocialVisibility = 'public' | 'friends' | 'private';
 
 /**

@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 import { containsSevereText } from '../contentFilter.ts';
-import { REPORT_REASONS } from '../moderationStore.ts';
+import { MAX_MODERATION_NOTE_LENGTH, REPORT_REASONS } from '../moderationStore.ts';
 import type { ReportReason } from '../moderationStore.ts';
 import { consumeSocialWrite, readJsonBody, sendEmpty, sendJson } from '../serverHttp.ts';
 import { matchesSocialMediaSignature, validateSocialMediaIntent } from '../socialMediaPolicy.ts';
@@ -241,7 +241,13 @@ export async function handleSocialModerationRoutes(ctx: SocialPostContext): Prom
     });
   }
   if (req.method === 'POST' && s.length === 4 && isSocialId(s[2]) && (s[3] === 'restore' || s[3] === 'remove')) {
-    return (await socialPostStore.moderate(s[2], s[3])) ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'not_found' });
+    // Like every other moderation decision, it needs a note for the audit log.
+    const body = await readJsonBody(req);
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+      return sendJson(res, 400, { error: `note must be 1 to ${MAX_MODERATION_NOTE_LENGTH} characters` });
+    }
+    return (await socialPostStore.moderate(s[2], s[3], actorId, note)) ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'not_found' });
   }
   return sendJson(res, 404, { error: 'not_found' });
 }

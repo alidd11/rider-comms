@@ -21,7 +21,7 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post' };
 
   const pageEl = document.getElementById('page');
   const navEl = document.getElementById('nav');
@@ -711,6 +711,8 @@
       }
       if (button.dataset.action === 'suspend'
         && !window.confirm('Suspend this rider? They are signed out everywhere and cannot sign in until unsuspended.')) return;
+      if (button.dataset.action === 'remove'
+        && !window.confirm('Remove this post for everyone? Its photos or video are deleted. This can’t be undone.')) return;
       for (const other of card.querySelectorAll('button')) other.disabled = true;
       errorEl.textContent = '';
       try {
@@ -782,8 +784,41 @@
     ]);
   }
 
+  /**
+   * A Rider Social post hidden after reports. The photos and video come
+   * through the same short-lived signed links the app uses; restoring or
+   * removing it needs a note and is written to the audit log.
+   */
+  function socialPostCard(entry) {
+    const { post } = entry;
+    const { name, sub } = riderLabel(post.authorId);
+    const media = el('div', { class: 'social-media' }, post.media.map((item, index) => item.kind === 'video'
+      ? el('video', { src: `${API_BASE_URL}${item.url}`, poster: item.posterUrl ? `${API_BASE_URL}${item.posterUrl}` : null, controls: true, preload: 'metadata', 'aria-label': 'Reel' })
+      : el('img', { src: `${API_BASE_URL}${item.url}`, alt: `Photo ${index + 1} of ${post.media.length}`, loading: 'lazy' })));
+    const card = el('article', { class: 'card report', dataset: { postId: post.id } }, [
+      el('div', { class: 'report-head' }, [
+        el('div', { class: 'badges' }, [
+          badge(`${entry.reports} reports`, 'warning'),
+          ...entry.reasons.map((reason) => badge(REASON_LABELS[reason] || reason, null, true)),
+          badge(post.kind === 'reel' ? 'Reel' : 'Photo post', null, true),
+        ]),
+        el('span', { class: 'report-time' }, [timeEl(post.createdAt)]),
+      ]),
+      el('div', { class: 'report-people' }, [el('div', {}, [el('div', { class: 'role', text: 'Posted by' }), person(name, sub, post.authorId)])]),
+      media,
+      el('p', { class: post.caption ? 'report-details' : 'report-details empty', text: post.caption || 'No caption.' }),
+    ]);
+    const note = el('textarea', { class: 'note', maxlength: MAX_NOTE_LENGTH, 'aria-label': `Note for post ${post.id}`, placeholder: 'Note for the audit log (required)' });
+    const restore = el('button', { type: 'button', class: 'button', dataset: { action: 'restore' }, text: 'Restore post' });
+    const remove = el('button', { type: 'button', class: 'button button-danger', dataset: { action: 'remove' }, text: 'Remove post' });
+    wireAction(card, restore, note, (text) => api('POST', `/moderation/social-posts/${encodeURIComponent(post.id)}/restore`, { note: text }));
+    wireAction(card, remove, note, (text) => api('POST', `/moderation/social-posts/${encodeURIComponent(post.id)}/remove`, { note: text }));
+    card.append(note, el('div', { class: 'actions' }, [restore, remove]), el('p', { class: 'error-text', role: 'alert' }));
+    return card;
+  }
+
   async function renderModeration() {
-    const tabs = segmented([['open', 'Open'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned'], ['actions', 'Audit log']], moderationView, (next) => {
+    const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned'], ['actions', 'Audit log']], moderationView, (next) => {
       moderationView = next;
       void render();
     }, 'Moderation queues');
@@ -794,6 +829,19 @@
       pageEl.replaceChildren(header, el('div', { class: 'card reports' }, actions.length
         ? [el('ul', { class: 'list' }, actions.map(actionCard))]
         : [emptyState('inbox', 'No decisions yet', 'Dismissals, suspensions and unsuspensions will be listed here.')]));
+      return;
+    }
+    if (moderationView === 'social') {
+      let posts = [];
+      try {
+        ({ posts } = await api('GET', '/moderation/social-posts?limit=100'));
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+      }
+      await loadNames(posts.map((entry) => entry.post.authorId));
+      pageEl.replaceChildren(header, el('div', { class: 'reports' }, posts.length
+        ? posts.map(socialPostCard)
+        : [el('div', { class: 'card' }, [emptyState('inbox', 'No hidden posts', 'Posts reported by three riders are hidden here until you restore or remove them.')])]));
       return;
     }
     const { reports } = await api('GET', `/moderation/reports?status=${moderationView}&limit=100`);

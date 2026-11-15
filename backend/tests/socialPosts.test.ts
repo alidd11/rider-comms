@@ -74,6 +74,7 @@ async function resetSocial(): Promise<void> {
   await clearSharedTestState();
   await getPool().query(`DELETE FROM social_post_reports; DELETE FROM social_post_media; DELETE FROM social_posts;
     DELETE FROM social_media; DELETE FROM social_media_delete_outbox; DELETE FROM safety_reports;
+    DELETE FROM moderation_actions WHERE moderator_id LIKE 'social_%';
     DELETE FROM users WHERE id LIKE 'social_%'`);
 }
 
@@ -280,11 +281,16 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     const list = await (await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts')).json() as { posts: Array<{ post: { id: string; media: Array<{ url: string }> }; reports: number; reasons: string[] }> };
     assert.deepEqual(list.posts.map((entry) => [entry.post.id, entry.reports, entry.reasons]), [[post.id, REPORTS_TO_HIDE, ['sexual']]]);
     assert.equal((await fetch(ctx.baseUrl() + list.posts[0]!.post.media[0]!.url)).status, 200, 'staff can open the hidden file');
-    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`, {})).status, 200);
+    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`, {})).status, 400, 'a note is required');
+    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`, { note: 'x'.repeat(1001) })).status, 400);
+    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`, { note: 'Fine: a bike, not spam' })).status, 200);
     assert.deepEqual((await feed(ctx, 'social_c')).posts.map((p) => p.id), [post.id]);
-    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/remove`, {})).status, 200);
+    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/remove`, { note: 'Removed on review' })).status, 200);
     assert.deepEqual((await feed(ctx, 'social_a')).posts, []);
-    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/remove`, {})).status, 404);
+    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/remove`, { note: 'again' })).status, 404);
+    const log = await getPool().query(`SELECT action, note, target_rider_id FROM moderation_actions WHERE moderator_id = 'social_mod' ORDER BY created_at`);
+    assert.deepEqual(log.rows.map((row) => [row.action, row.target_rider_id]), [['social_post_restore', 'social_a'], ['social_post_remove', 'social_a']]);
+    assert.match(String(log.rows[1]?.note), new RegExp(`^Rider Social post ${post.id}: Removed on review$`));
     assert.equal((await postJson(ctx, 'social_mod', '/moderation/social-posts/x/frobnicate', {})).status, 404);
   });
 
@@ -298,7 +304,7 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     await new AccountDeletionStore().deleteRider('social_a');
     assert.equal((await getPool().query('SELECT 1 FROM social_posts')).rows.length, 0);
     assert.equal((await getPool().query('SELECT 1 FROM social_media_delete_outbox')).rows.length, 3);
-    assert.equal(await store.moderate('00000000-0000-4000-8000-000000000000', 'restore'), false);
+    assert.equal(await store.moderate('00000000-0000-4000-8000-000000000000', 'restore', 'social_mod', 'n'), false);
   });
 });
 

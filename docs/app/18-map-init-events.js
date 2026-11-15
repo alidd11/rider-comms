@@ -176,6 +176,19 @@
   // The menu behind the rider's avatar on the map: profile, Routes,
   // plan, Settings and help. Routes and Settings aren't tabs any more.
   let appMenuTrigger = null;
+
+  // Rider Social, the photo and Reels app on the same accounts. Shown in the
+  // menu only to riders the server lets in (native: MenuScreen).
+  const RIDER_SOCIAL_URL = 'https://social-web-preview-preview.up.railway.app';
+  let socialAccessCheck = null;
+  function showSocialEntryIfAllowed() {
+    socialAccessCheck ??= apiFetch('GET', '/social/bootstrap').then(() => true, () => {
+      socialAccessCheck = null;
+      return false;
+    });
+    void socialAccessCheck.then((allowed) => { $('#appMenuSocial').hidden = !allowed; });
+  }
+
   function openAppMenu() {
     if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
@@ -183,6 +196,7 @@
     }
     appMenuTrigger = document.activeElement;
     renderProfile();
+    showSocialEntryIfAllowed();
     pushOverlayGuard();
     $('#appMenu').hidden = false;
     $('#app')?.setAttribute('inert', '');
@@ -208,6 +222,10 @@
       closeAppMenu({ restoreFocus: false });
       navigate(button.dataset.menuNav);
     }));
+    $('#appMenuSocial').addEventListener('click', () => {
+      closeAppMenu({ restoreFocus: false });
+      window.open(RIDER_SOCIAL_URL, '_blank', 'noopener');
+    });
     $$('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       openSheet(button.dataset.menuSheet);

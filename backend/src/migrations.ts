@@ -992,6 +992,10 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE social_rate_events DROP CONSTRAINT IF EXISTS social_rate_events_action_check;
       ALTER TABLE social_rate_events ADD CONSTRAINT social_rate_events_action_check
         CHECK (action IN ('friend_request', 'direct_message', 'safety_report', 'social_upload', 'social_post'));
+      -- A moderator's decision on a hidden post goes in the same audit log.
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove'));
     `,
   },
 ];

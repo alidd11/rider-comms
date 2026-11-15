@@ -551,6 +551,9 @@ a { color: inherit; }
 }
 .report-details.empty { color: var(--muted-fg); font-style: italic; }
 .report-meta { margin: 10px 0 0; font-size: 12px; color: var(--muted-fg); }
+/* A hidden Rider Social post's photos or Reel, for review. */
+.social-media { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 10px; }
+.social-media img, .social-media video { flex: none; height: 220px; max-width: 100%; border-radius: 8px; background: #000; object-fit: contain; }
 .note {
   display: block;
   width: 100%;

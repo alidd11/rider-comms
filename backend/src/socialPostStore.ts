@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { enqueueSocialMediaDelete } from './socialMediaDeletionOutbox.ts';
 import type { Queryable } from './socialMediaDeletionOutbox.ts';
@@ -265,20 +266,29 @@ export class SocialPostStore {
     });
   }
 
-  /** A moderator's decision on a hidden post: show it again, or remove it. */
-  async moderate(postId: string, action: 'restore' | 'remove'): Promise<boolean> {
+  /**
+   * A moderator's decision on a hidden post: show it again, or remove it
+   * (its files are queued for deletion). Recorded in the moderation audit
+   * log against the post's author, with the moderator's note.
+   */
+  async moderate(postId: string, action: 'restore' | 'remove', moderatorId: string, note: string, now = Date.now()): Promise<boolean> {
     await ensureMigrated();
     return withTransaction(async (client) => {
-      const post = await client.query('SELECT id FROM social_posts WHERE id = $1 FOR UPDATE', [postId]);
+      const post = await client.query('SELECT author_id FROM social_posts WHERE id = $1 FOR UPDATE', [postId]);
       if (!post.rows[0]) return false;
       if (action === 'restore') {
         await client.query('UPDATE social_posts SET hidden_at = NULL WHERE id = $1', [postId]);
         await client.query('DELETE FROM social_post_reports WHERE post_id = $1', [postId]);
-        return true;
+      } else {
+        const media = await client.query('DELETE FROM social_media WHERE post_id = $1 RETURNING object_key, poster_key', [postId]);
+        await enqueueMediaRows(client, media.rows);
+        await client.query('DELETE FROM social_posts WHERE id = $1', [postId]);
       }
-      const media = await client.query('DELETE FROM social_media WHERE post_id = $1 RETURNING object_key, poster_key', [postId]);
-      await enqueueMediaRows(client, media.rows);
-      await client.query('DELETE FROM social_posts WHERE id = $1', [postId]);
+      await client.query(
+        `INSERT INTO moderation_actions (id, moderator_id, target_rider_id, report_id, action, note, created_at)
+         VALUES ($1, $2, $3, NULL, $4, $5, $6)`,
+        [randomUUID(), moderatorId, String(post.rows[0].author_id), `social_post_${action}`, `Rider Social post ${postId}: ${note}`, now],
+      );
       return true;
     });
   }

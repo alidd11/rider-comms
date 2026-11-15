@@ -139,6 +139,10 @@ export class RiderCommsClient {
   searchPlaces(query: string, near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
     return this.request('POST', '/places/search', { query, near: { lat: near.lat, lon: near.lon } });
   }
+  /** Whether this rider may use Rider Social; rejects (403) when not. */
+  getSocialBootstrap(): Promise<{ entitlement: string }> {
+    return this.request('GET', '/social/bootstrap');
+  }
   searchNearbyPlaces(includedTypes: readonly string[], near: RouteCoordinate): Promise<{ places: PlaceSummary[] }> {
     return this.request('POST', '/places/nearby', { includedTypes, near: { lat: near.lat, lon: near.lon } });
   }
