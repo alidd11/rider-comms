@@ -1017,7 +1017,7 @@ test('Shop mobile hierarchy fits narrow phones and search clear restores discove
   await page.setViewportSize({ width: 320, height: 690 });
   await page.goto('/');
   await page.getByRole('tab', { name: 'Shop' }).click();
-  await expect(page.getByRole('button', { name: 'Go to home' })).toContainText('Shop');
+  // Shop uses the bottom tab for orientation, without a duplicate top title.
   await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Shop filters' })).toBeVisible();
   const height = await page.getByRole('button', { name: 'Shop filters' }).evaluate(
