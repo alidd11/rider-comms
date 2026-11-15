@@ -8,7 +8,7 @@ const invalid = (value: string) =>
 
 describe('Social feed cursor input validation', () => {
   it('round-trips valid timestamps including zero and current milliseconds', () => {
-    for (const createdAt of [0, 1, 1_763_230_000_000, 9_999_999_999_999_999]) {
+    for (const createdAt of [0, 1, 1_763_230_000_000, Number.MAX_SAFE_INTEGER]) {
       const encoded = encodeSocialCursor({ createdAt, id });
       assert.deepEqual(decodeSocialCursor(encoded), { createdAt, id });
     }
