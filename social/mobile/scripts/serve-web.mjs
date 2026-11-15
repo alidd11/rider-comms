@@ -24,7 +24,7 @@ const securityHeaders = {
     "font-src 'self' data:",
     // blob:/data: let the app read a photo or video the rider picked before uploading it.
     "connect-src 'self' blob: data: https://backend-production-7fa0.up.railway.app",
-    "media-src 'self' blob: data: https://backend-production-7fa0.up.railway.app",
+    "media-src 'self' blob: data: https://backend-production-7fa0.up.railway.app https://videos.pexels.com",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

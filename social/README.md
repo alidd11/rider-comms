@@ -166,9 +166,8 @@ dedicated editor, concise profile, accessible tabs, and return navigation.
 
 A static, intentionally labelled `Rider Comms` editorial showcase now appears
 from Home. It includes four curated, credited Pexels photo previews, a three-
-slide Story, and two Reels **storyboards** that link to real source footage on
-Pexels; it is **not** an authenticated Social user profile, original video
-hosting, a registered merchant, or a published multi-user feed. For editorial
+slide Story, and two credited Reels that play Pexels footage in the swipe viewer.
+The showcase is independent of authenticated rider profiles and published posts. For editorial
 previews, follow/like/comment/save controls are intentionally suppressed and no
 invented engagement or safety assurances are displayed. All normal user upload
 and monetisation capability flags remain off.

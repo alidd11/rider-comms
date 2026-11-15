@@ -34,10 +34,12 @@ export const brandStories = brandPosts.slice(0,3).map((post,index)=>({
 export const brandReels = [
   {id:'brand-mountain-reel',title:'Roads worth remembering',category:'MOTORCYCLES' as const,
     imageUrl:brandPosts[0].imageUrl,theme:'#263D47',
+    hasAudio:false, videoUrl:'https://videos.pexels.com/video-files/37451401/15861941_540_960_60fps.mp4',
     sourceUrl:'https://www.pexels.com/video/scenic-mountain-road-motorcycle-journey-37451401/',
     credit:'Ahmet Mert / Pexels'},
   {id:'brand-cycling-reel',title:'The journey, not the destination',category:'CYCLING' as const,
     imageUrl:brandPosts[2].imageUrl,theme:'#2C423D',
+    hasAudio:false, videoUrl:'https://videos.pexels.com/video-files/37445718/15859458_540_960_30fps.mp4',
     sourceUrl:'https://www.pexels.com/video/scenic-mountain-road-cycling-adventure-37445718/',
     credit:'Yussuf Muradov / Pexels'},
 ] as const;

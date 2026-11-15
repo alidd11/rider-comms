@@ -52,7 +52,8 @@ async function mockApi(page, state) {
     } });
     if (pathname === '/social/feed') {
       const scope = searchParams.get('scope');
-      const posts = scope === 'reels' ? [] : state.posts.filter((item) => scope !== 'following' || item.authorId === me);
+      const posts = state.posts.filter(item => scope === 'reels' ? item.kind === 'reel' :
+        scope !== 'following' || item.authorId === me);
       return json(200, { posts, nextCursor: null });
     }
     if (pathname === `/social/riders/${me}/posts`) return json(200, { posts: state.posts.filter((item) => item.authorId === me), nextCursor: null });
@@ -173,4 +174,24 @@ test('does not keep refreshing signed links for an unavailable photo', async ({ 
   await expect(page.waitForRequest(request => request.url() === backend + '/social/posts/unavailable' &&
     request.method() === 'GET', { timeout: 750 })).rejects.toThrow(/Timeout/);
   expect(refreshes).toBe(1);
+});
+
+test('shows published Reels while uploading is disabled', async ({ page }) => {
+  const published = post('published-reel', other, 'A published ride', { kind: 'reel' });
+  published.media[0].kind = 'video';
+  const state = { posts: [published], calls: [], uploads: [], created: [], reports: [] };
+  await mockApi(page, state);
+  await page.route(backend + '/social/bootstrap', route => route.fulfill({
+    status: 200, headers: cors, json: {
+      entitlement: 'beta', policyVersion: 'social-open-beta-v1', capabilities: {
+        mediaUpload: false, privatePosting: false, publicPosting: false,
+        liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false,
+      },
+    },
+  }));
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await expect(page.getByTestId('reel-caption-published-reel')).toBeVisible();
+  await expect(page.locator('video')).toHaveAttribute('src', /\/social\/media\/published-reel-m\/file/);
+  expect(state.uploads).toEqual([]);
 });

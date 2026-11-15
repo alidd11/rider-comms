@@ -1,6 +1,6 @@
 import '@expo/metro-runtime';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, ScrollView, StatusBar, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Image, Platform, ScrollView, StatusBar, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C, s } from './src/styles';
@@ -294,7 +294,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const liveSocial = !socialFixturesEnabled && access.mediaUpload;
   const [feedRefresh, setFeedRefresh] = useState(0);
   const publishedNotice = useRef<string | null>(null);
-  const liveReels = useLiveReels(client, liveSocial, feedRefresh);
+  // Existing Reels remain readable when new uploads are paused.
+  const liveReels = useLiveReels(client, !socialFixturesEnabled && (liveSocial || screen === 'Reels'), feedRefresh);
   const [connectionSheet, setConnectionSheet] = useState<ConnectionKind | null>(null);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [marketFilter, setMarketFilter] = useState('All');
@@ -362,7 +363,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     id: reel.id, authorId: RIDER_BRAND_ID, handle: '@ridercomms',
     title: reel.title, imageUrl: reel.imageUrl, theme: reel.theme,
     category: reel.category, editorialPreview: true,
-    clipSourceUrl: reel.sourceUrl,
+    videoUrl: reel.videoUrl, hasAudio: reel.hasAudio, clipSourceUrl: reel.sourceUrl, clipCredit: reel.credit,
   })))], [recommendedReels]);
   // Following is a separate, access-filtered video timeline, not the For You
   // order with cosmetic labels. Server-side follows/visibility must replace
@@ -979,13 +980,15 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               </CreateRecoveryBoundary>
             ) : screen === 'Reels' ? (
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
-                <ReelsScreen items={viewingReelPreviews} followingItems={[...liveReels.following, ...followingReelPreviews]}
+                {liveReels.loading && !reelStartId ?
+                  <ActivityIndicator accessibilityLabel="Loading Reels" color={C.accent}
+                    style={{ flex: 1 }}/> : <ReelsScreen items={viewingReelPreviews} followingItems={[...liveReels.following, ...followingReelPreviews]}
                   initialReelId={reelStartId} followedAuthors={followed}
                   savedReelIds={savedReelIds} onToggleSavedReel={(id) => toggle(setSavedReelIds, id)}
                   onToggleFollow={toggleFollow}
                   onOpenComments={(id, title) => openComments('reel:' + id, title)}
                   onOpenCreator={openCreator}
-                  onCreateReel={() => { navigate('Create'); setCreateMode('Reel'); }} />
+                  onCreateReel={() => { navigate('Create'); setCreateMode('Reel'); }} />}
               </View>
             ) : (
               <View testID="fixed-messages-screen" style={[s.content,{flex:1,minHeight:0}]}>
