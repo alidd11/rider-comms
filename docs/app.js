@@ -6314,6 +6314,11 @@
       showToast(`${SAVED_PLACE_LABELS[slot]} removed.`);
       closeSearchScreen();
     });
+    $('#drawerGroupRide').addEventListener('click', () => {
+      if (syncMovementSafetyBanner()) return;
+      setMapDrawerOpen(false);
+      navigate('ride');
+    });
     $('#drawerPetrol').addEventListener('click', () => {
       setMapDrawerOpen(false);
       openSearchScreen();

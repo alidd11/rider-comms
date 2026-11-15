@@ -994,6 +994,7 @@ export function MapScreen(): React.JSX.Element {
             selectPlace(place);
             void openDirections({ lat: place.lat, lon: place.lon, label: place.name });
           }}
+          onGroupRide={() => navigation.navigate('Map', { segment: 'host', at: Date.now() })}
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
           onPeekHeight={setDrawerPeek}

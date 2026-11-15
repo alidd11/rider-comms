@@ -36,6 +36,7 @@ function Harness(overrides: Partial<MapDrawerProps>): React.JSX.Element {
         onRequestLocation={async () => undefined}
         onSelectPlace={jest.fn()}
         onRouteToPlace={jest.fn()}
+        onGroupRide={jest.fn()}
         open={open}
         onOpenChange={setOpen}
         onPeekHeight={jest.fn()}
@@ -50,8 +51,11 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-it('rests with Where to? and the Home, Work and Petrol shortcuts', async () => {
-  await render(<Harness />);
+it('opens Group Ride and keeps the Home, Work and Petrol shortcuts', async () => {
+  const onGroupRide = jest.fn();
+  await render(<Harness onGroupRide={onGroupRide} />);
+  fireEvent.press(screen.getByLabelText('Group Ride'));
+  expect(onGroupRide).toHaveBeenCalledTimes(1);
 
   expect(screen.getByLabelText('Where to?')).toBeTruthy();
   expect(screen.getByLabelText('Set Home')).toBeTruthy();
