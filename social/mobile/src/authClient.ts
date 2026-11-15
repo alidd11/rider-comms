@@ -50,7 +50,12 @@ export interface SocialPost {
   /** Hidden after reports; only its author still sees it. */
   hidden: boolean;
 }
-export interface SocialFeedPage { posts: SocialPost[]; nextCursor: string | null }
+export interface SocialFeedPage {
+  posts: SocialPost[];
+  nextCursor: string | null;
+  /** How many posts the rider has; only on the first page of one rider's posts. */
+  total?: number;
+}
 export interface LoginReply {
   riderId: string;
   token: string;
@@ -73,7 +78,10 @@ export interface RiderProfile {
   displayName: string;
   handle: string;
   avatarId?: string;
+  bio?: string;
 }
+/** The parts of the shared Rider Comms profile Social can edit. */
+export type OwnProfileChanges = Partial<Pick<RiderProfile, 'displayName' | 'bio' | 'avatarId'>>;
 export interface DirectMessage {
   id: string;
   fromRiderId: string;
@@ -190,7 +198,7 @@ export class RiderAccountClient {
     this.user = null;
     try { await this.storage.clear(); } finally { this.onExpired?.(); }
   }
-  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown, required = false,
+  private async request<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown, required = false,
     raw?: { body: Blob; contentType: string; timeoutMs: number }): Promise<T> {
     if (required && !this.token) throw new AccountApiError(401, 'not_signed_in');
     const headers: Record<string, string> = { Accept: 'application/json' };
@@ -378,6 +386,12 @@ export class RiderAccountClient {
     const riderId = this.user?.riderId;
     if (!riderId) throw new AccountApiError(401, 'not_signed_in');
     return this.request('GET', '/riders/' + encodeURIComponent(riderId) + '/profile', undefined, true);
+  }
+  /** Saves to the shared account, so the change shows in Rider Comms too. */
+  async updateOwnProfile(changes: OwnProfileChanges): Promise<RiderProfile> {
+    const riderId = this.user?.riderId;
+    if (!riderId) throw new AccountApiError(401, 'not_signed_in');
+    return this.request('PUT', '/riders/' + encodeURIComponent(riderId) + '/profile', changes, true);
   }
   async riderProfile(riderId: string): Promise<RiderProfile> {
     if (!riderId.trim()) throw new AccountApiError(400, 'invalid_rider_id');

@@ -602,7 +602,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId, onPubli
             <Text style={{ color: secondary, fontSize: 12, lineHeight: 17 }}>
               {onPublish
                 ? 'Riders testing Social can see this post. Location and camera details are removed from your photos and videos, and you can delete the post from your profile at any time.'
-                : 'Your media stays on this device. Uploading and publishing are not available until accounts, safety checks and storage are connected.'}
+                : 'Posting isn’t open yet. Your photos and videos stay on this device.'}
             </Text>
           </View>
         </ScrollView>

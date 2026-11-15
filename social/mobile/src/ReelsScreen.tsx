@@ -174,9 +174,9 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
   };
 
   const explain = (action: ReelAction) => {
-    if (action === 'sound') setNotice('This sample is a photo. Sound controls become available for real videos.');
-    if (action === 'share') setNotice('Sharing is not connected in the development preview.');
-    if (action === 'options') setNotice('Reel reporting and preferences require the moderation service.');
+    if (action === 'sound') setNotice('This one is a photo, so there’s no sound.');
+    if (action === 'share') setNotice('Sharing isn’t available yet.');
+    if (action === 'options') setNotice('There are no options for this Reel.');
   };
 
   if (!activeItems.length) {
@@ -220,8 +220,8 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
       <Text style={{ color: '#ABB6BE', fontSize: 14, textAlign: 'center',
         lineHeight: 21, maxWidth: 310 }}>
         {feedMode === 'following'
-          ? 'Reels from creators you follow will appear here when they are shared. Nothing is published yet.'
-          : 'Choose a video to preview it in your Reel studio. Nothing is published yet.'}
+          ? 'Reels from riders you follow will appear here.'
+          : 'Reels riders share will appear here.'}
       </Text>
       <Pressable accessibilityRole="button"
         accessibilityLabel={feedMode === 'following' ? 'Explore For You Reels' : 'Create Reel'}
@@ -302,12 +302,12 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                       <Text style={[{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }, reelTextShadow]}>{expanded.has(reel.id) ? 'Less' : 'More'}</Text>
                     </Pressable>
                   ) : null}
-                  {!reel.editorialPreview ? <Pressable accessibilityRole="button" accessibilityLabel={'View garage for ' + reel.handle}
+                  {!reel.editorialPreview ? <Pressable accessibilityRole="button" accessibilityLabel={'View profile for ' + reel.handle}
                     onPress={() => onOpenCreator(reel.authorId)}>
-                    <Text style={[{ color: '#D7FFF3', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View garage & build</Text>
+                    <Text style={[{ color: '#D7FFF3', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View profile</Text>
                   </Pressable> : null}
                   {!reel.videoUrl ? <Text style={[{ color: '#E8ECEF', fontSize: 11 }, reelTextShadow]}>
-                    {reel.editorialPreview ? 'Editorial footage preview · Not a published Reel' : 'Sample photo'}
+                    {reel.editorialPreview ? 'Featured by Rider Comms' : 'Sample photo'}
                   </Text> : null}
                   {reel.editorialPreview && reel.clipSourceUrl ? <Pressable
                     accessibilityRole="button" accessibilityLabel={'Watch source footage ' + reel.id}

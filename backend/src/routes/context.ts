@@ -159,6 +159,7 @@ export async function publicProfile(profileStore: ProfileStore, friendStore: Fri
     displayName: profile.displayName,
     handle: profile.handle,
     avatarId: profile.avatarId,
+    bio: profile.bio,
     instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '',
     tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '',
   };

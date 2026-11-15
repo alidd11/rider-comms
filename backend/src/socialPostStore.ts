@@ -53,6 +53,8 @@ export interface SocialPost {
 export interface SocialFeedPage {
   posts: SocialPost[];
   nextCursor: string | null;
+  /** How many posts the rider has; only on the first page of one rider's posts. */
+  total?: number;
 }
 
 export interface ServableMedia {
@@ -247,12 +249,19 @@ export class SocialPostStore {
     );
     const rows = result.rows.slice(0, limit);
     const last = rows.at(-1);
-    return {
+    const page: SocialFeedPage = {
       posts: rows.map((row) => toPost(row, viewerId)),
       nextCursor: result.rows.length > limit && last
         ? encodeSocialCursor({ createdAt: Number(last.created_at), id: String(last.id) })
         : null,
     };
+    if (scope === 'author' && !options.cursor) {
+      page.total = page.nextCursor === null ? rows.length : Number((await getPool().query(
+        `SELECT count(*)::int AS n FROM social_posts p WHERE ${where.join(' AND ')}`,
+        values.slice(0, -1),
+      )).rows[0].n);
+    }
+    return page;
   }
 
   /** The author deletes a post: its files are queued for deletion. */

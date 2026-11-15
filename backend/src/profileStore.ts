@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import { containsObjectionableText } from './contentFilter.ts';
+import { MAX_PROFILE_BIO_LENGTH } from '@rider-comms/shared';
 import type { ProfileUpdate, RiderProfile, UnitSystem, ZoneTier } from '@rider-comms/shared';
 import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { appendSocialEventForRiders } from './socialEventStore.ts';
@@ -26,12 +27,12 @@ function isNonEmptyString(value: unknown): value is string {
 const ALLOWED_UPDATE_FIELDS = new Set([
   'displayName', 'handle', 'avatarId', 'unitSystem',
   'notifyNearby', 'notifyInvites', 'notifyChat', 'shareLocation',
-  'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility',
+  'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility', 'bio',
 ]);
 
 const FRIEND_VISIBLE_PROFILE_FIELDS = new Set<keyof ProfileUpdate>([
   'displayName', 'handle', 'avatarId',
-  'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility',
+  'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility', 'bio',
 ]);
 
 type ProfileQueryClient = Pick<Pool, 'query'>;
@@ -67,12 +68,15 @@ export function validateProfileUpdate(body: Record<string, unknown>): string | n
   for (const key of ['instagramUsername', 'tiktokUsername'] as const) {
     if (key in body && (typeof body[key] !== 'string' || !/^[a-z0-9._]{0,30}$/i.test(body[key] as string))) return `${key} must contain at most 30 letters, numbers, dots, or underscores`;
   }
+  if ('bio' in body && (typeof body.bio !== 'string' || body.bio.trim().length > MAX_PROFILE_BIO_LENGTH)) {
+    return `bio must be at most ${MAX_PROFILE_BIO_LENGTH} characters`;
+  }
   for (const key of ['instagramVisibility', 'tiktokVisibility'] as const) {
     if (key in body && !SOCIAL_VISIBILITIES.includes(body[key] as string)) return `${key} must be public, friends, or private`;
   }
   // Names, handles and social usernames are shown to riders who aren't
   // friends (Nearby, ride rosters, requests), so profanity is filtered too.
-  for (const key of ['displayName', 'handle', 'instagramUsername', 'tiktokUsername'] as const) {
+  for (const key of ['displayName', 'handle', 'instagramUsername', 'tiktokUsername', 'bio'] as const) {
     if (containsObjectionableText(body[key])) return OBJECTIONABLE_CONTENT;
   }
   if ('unitSystem' in body && !UNIT_SYSTEMS.includes(body.unitSystem as UnitSystem)) {
@@ -102,6 +106,7 @@ interface RiderProfileRow {
   instagram_visibility: string;
   tiktok_username: string;
   tiktok_visibility: string;
+  bio?: string | null;
   updated_at: string | number;
 }
 
@@ -129,6 +134,7 @@ function rowToProfile(row: RiderProfileRow): RiderProfile {
     instagramVisibility: row.instagram_visibility as RiderProfile['instagramVisibility'],
     tiktokUsername: row.tiktok_username,
     tiktokVisibility: row.tiktok_visibility as RiderProfile['tiktokVisibility'],
+    bio: row.bio ?? '',
     updatedAt: Number(row.updated_at),
   };
 }
@@ -156,6 +162,7 @@ export class ProfileStore {
       instagramVisibility: 'friends',
       tiktokUsername: '',
       tiktokVisibility: 'friends',
+      bio: '',
       updatedAt: Date.now(),
     };
   }
@@ -165,8 +172,8 @@ export class ProfileStore {
       `INSERT INTO rider_profiles (
          rider_id, display_name, handle, avatar_id, zone_tier, unit_system,
          notify_nearby, notify_invites, notify_chat, share_location,
-         instagram_username, instagram_visibility, tiktok_username, tiktok_visibility, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         instagram_username, instagram_visibility, tiktok_username, tiktok_visibility, updated_at, bio
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        -- zone_tier is written only by BillingStore, from verified purchases.
        ON CONFLICT (rider_id) DO UPDATE SET
          display_name = EXCLUDED.display_name,
@@ -181,6 +188,7 @@ export class ProfileStore {
          instagram_visibility = EXCLUDED.instagram_visibility,
          tiktok_username = EXCLUDED.tiktok_username,
          tiktok_visibility = EXCLUDED.tiktok_visibility,
+         bio = EXCLUDED.bio,
          updated_at = EXCLUDED.updated_at`,
       [
         profile.riderId,
@@ -198,6 +206,7 @@ export class ProfileStore {
         profile.tiktokUsername,
         profile.tiktokVisibility,
         profile.updatedAt,
+        profile.bio,
       ]
     );
   }

@@ -7,15 +7,22 @@ import { URL } from 'node:url';
 // This fixture is an entirely synthetic session, never a real Rider Comms credential.
 // It prevents the screenshot suite from sending any account requests to production.
 test.beforeEach(async ({ page }) => {
+  // The rider's shared Rider Comms profile, kept for the test like the server would.
+  let profile = { riderId: 'rider_abcd1234', displayName: 'fixture-rider', handle: 'fixture-rider',
+    avatarId: 'ember', bio: '' };
   await page.route('https://backend-production-7fa0.up.railway.app/**', async route => {
     const pathname = new URL(route.request().url()).pathname;
     const method = route.request().method();
     const headers = {
       'access-control-allow-origin': '*',
       'access-control-allow-headers': 'authorization,content-type',
-      'access-control-allow-methods': 'GET,POST,OPTIONS',
+      'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
     };
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (pathname === '/riders/rider_abcd1234/profile') {
+      if (method === 'PUT') profile = { ...profile, ...route.request().postDataJSON() };
+      return route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(profile) });
+    }
     const pilot = pathname === '/social/bootstrap';
     const body = pilot ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
   mediaUpload: false, privatePosting: false, publicPosting: false,
@@ -125,14 +132,13 @@ test('clubs, marketplace and profile have independent usable screens', async ({ 
   await page.getByRole('button', { name: 'Open profile' }).click();
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
   await expect(page.getByRole('button', { name: 'View friends' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await expect(page.getByText('Personal garage')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toHaveCount(0);
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-profile.png' });
 });
 
 
-test('Shop, comments, profile and garage text fields have no blue filled boxes', async ({ page }, testInfo) => {
+test('Shop, comments and profile text fields have no blue filled boxes', async ({ page }, testInfo) => {
   await page.goto('/');
   async function assertUnboxed(label) {
     const field = page.getByRole('textbox', { name: label });
@@ -154,60 +160,81 @@ test('Shop, comments, profile and garage text fields have no blue filled boxes',
   await page.getByRole('button', { name: 'Close comments' }).click();
 
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await page.getByRole('button', { name: 'Edit social profile' }).click();
+  await page.getByRole('button', { name: 'Edit profile' }).click();
   await expect(page.getByTestId('profile-editor')).toBeVisible();
   await expect(page.getByTestId('social-profile-summary')).toHaveCount(0);
   await expect(page.locator('#social-bottom-tabs')).toHaveCount(0);
-  await assertUnboxed('Social display name');
-  await assertUnboxed('Social bio');
+  await assertUnboxed('Display name');
+  await assertUnboxed('Bio');
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByTestId('profile-editor')).toHaveCount(0);
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
-  await assertUnboxed('Vehicle make');
-  await assertUnboxed('Vehicle model');
-  await assertUnboxed('Vehicle year');
-  await assertUnboxed('Vehicle notes');
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-unboxed-fields.png' });
 });
 
-test('social profile and private garage edits survive reload without publishing', async ({ page }, testInfo) => {
+test('profile edits save to the shared Rider Comms profile and survive reload', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Open profile' }).click();
   await expect(page.getByText('Your posts will appear here')).toBeVisible();
-  await page.getByRole('button', { name: 'Edit social profile' }).click();
-  await page.getByRole('textbox', { name: 'Social display name' }).fill('Weekend Rider');
-  await page.getByRole('textbox', { name: 'Social bio' }).fill('Cars, motorcycles and Sunday rides.');
+  await page.getByRole('button', { name: 'Edit profile' }).click();
+  await expect(page.getByText('Your name, bio and avatar are the same in Rider Comms.')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Display name' }).fill('Weekend Rider');
+  await page.getByRole('textbox', { name: 'Bio' }).fill('Cars, motorcycles and Sunday rides.');
+  await page.getByRole('radio', { name: 'Ridge avatar' }).click();
+  const saved = page.waitForRequest(request => request.method() === 'PUT' &&
+    new URL(request.url()).pathname === '/riders/rider_abcd1234/profile');
   await page.getByRole('button', { name: 'Save profile' }).click();
+  expect((await saved).postDataJSON()).toEqual({
+    displayName: 'Weekend Rider', bio: 'Cars, motorcycles and Sunday rides.', avatarId: 'ridge',
+  });
+  await expect(page.getByText('Profile saved.')).toBeVisible();
   await expect(page.getByTestId('profile-editor')).toHaveCount(0);
   await expect(page.getByTestId('profile-display-name')).toHaveText('Weekend Rider');
-  await expect(page.getByText('Cars, motorcycles and Sunday rides.')).toBeVisible();
+  await expect(page.getByTestId('profile-bio')).toHaveText('Cars, motorcycles and Sunday rides.');
 
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await expect(page.getByText('Your garage starts here')).toBeVisible();
-  await page.getByRole('button', { name: 'Add vehicle to garage' }).click();
-  await page.getByRole('textbox', { name: 'Vehicle make' }).fill('Honda');
-  await page.getByRole('textbox', { name: 'Vehicle model' }).fill('PCX');
-  await page.getByRole('textbox', { name: 'Vehicle year' }).fill('2024');
-  await page.getByRole('button', { name: 'Save vehicle' }).click();
-  await expect(page.getByText('Honda PCX')).toBeVisible();
-  await expect(page.getByText('PRIVATE', { exact: true })).toBeVisible();
+  // Saving again without changes sends nothing.
+  let puts = 0;
+  page.on('request', request => { if (request.method() === 'PUT') puts += 1; });
+  await page.getByRole('button', { name: 'Edit profile' }).click();
+  await expect(page.getByRole('radio', { name: 'Ridge avatar' })).toBeChecked();
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByTestId('profile-editor')).toHaveCount(0);
+  expect(puts).toBe(0);
 
   await page.reload();
   await page.getByRole('button', { name: 'Open profile' }).click();
-  await expect(page.getByText('Cars, motorcycles and Sunday rides.')).toBeVisible();
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await expect(page.getByText('Honda PCX')).toBeVisible();
-  await page.getByRole('button', { name: 'Toggle privacy for Honda PCX' }).click();
-  await expect(page.getByText('PUBLIC', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Remove Honda PCX' }).click();
-  await page.getByRole('button', { name: 'Confirm remove' }).click();
-  await expect(page.getByText('Your garage starts here')).toBeVisible();
-
+  await expect(page.getByTestId('profile-bio')).toHaveText('Cars, motorcycles and Sunday rides.');
   await mkdir('test-results/screenshots', { recursive: true });
-  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-garage.png' });
+  await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-profile-saved.png' });
+});
+
+test('a profile that can’t be saved keeps the editor open and says why', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Edit profile' }).click();
+  await page.getByRole('textbox', { name: 'Display name' }).fill('   ');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('Enter a name.')).toBeVisible();
+
+  await page.route('https://backend-production-7fa0.up.railway.app/riders/rider_abcd1234/profile', route =>
+    route.request().method() === 'PUT'
+      ? route.fulfill({ status: 400, contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ error: 'objectionable_content' }) })
+      : route.fallback());
+  await page.getByRole('textbox', { name: 'Display name' }).fill('Weekend Rider');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('That name or bio isn’t allowed. Try something else.')).toBeVisible();
+  await expect(page.getByTestId('profile-editor')).toBeVisible();
+  await expect(page.getByText('Profile saved.')).toHaveCount(0);
+
+  await page.route('https://backend-production-7fa0.up.railway.app/riders/rider_abcd1234/profile', route =>
+    route.request().method() === 'PUT' ? route.abort('failed') : route.fallback());
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('Can’t connect right now. Check your connection and try again.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save profile' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByTestId('profile-display-name')).toHaveCount(0);
 });
 
 test('event detail includes only demo interest, not real RSVP', async ({ page }) => {
@@ -697,8 +724,8 @@ test('Home photo carousel, double-tap like, and creator garage link work', async
   const imageButton = page.getByTestId('post-media-p1').getByRole('button', { name: 'Double tap to like photo 1 of 2' });
   await imageButton.dblclick();
   await expect(page.getByRole('button', { name: 'Unlike post' }).first()).toBeVisible();
-  await page.getByRole('button', { name: 'View garage for @alex' }).click();
-  await expect(page.getByText('Public preview')).toBeVisible();
+  await page.getByRole('button', { name: 'View profile for @alex' }).click();
+  await expect(page.getByText('Rides', { exact: true })).toBeVisible();
   const title = await page.getByText('Alex Morgan', { exact: true }).boundingBox();
   const header = await page.getByRole('button', { name: 'Go to home' }).boundingBox();
   expect(title?.y ?? -1).toBeGreaterThanOrEqual((header?.y ?? 0) + (header?.height ?? 0) - 2);
@@ -1092,28 +1119,6 @@ test('Shop saved and basket are not hidden by discovery filters', async ({ page 
   await expect(page.getByTestId('shop-card-l1')).toBeVisible();
 });
 
-test('a blocked local-storage write never reports an unsaved profile as saved', async ({ page }) => {
-  await page.addInitScript(() => {
-    const originalSetItem = window.Storage.prototype.setItem;
-    window.Storage.prototype.setItem = function (key, value) {
-      if (this === window.localStorage && String(key).includes('@rider-comms/social-demo/v2/'))
-        throw new Error('simulated storage quota failure');
-      return originalSetItem.call(this, key, value);
-    };
-  });
-  const uncaught = [];
-  page.on('pageerror', error => uncaught.push(error.message));
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Open profile' }).click();
-  await page.getByRole('button', { name: 'Edit social profile' }).click();
-  await page.getByRole('textbox', { name: 'Social bio' }).fill('Storage-failure test');
-  await page.getByRole('button', { name: 'Save profile' }).click();
-  await expect(page.getByText('Could not save on this device. Changes may be lost when you close the app.')).toBeVisible();
-  await expect(page.getByText('Social profile preview saved on this device only.')).toHaveCount(0);
-  await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
-  expect(uncaught).toEqual([]);
-});
-
 test('Social profile has tabs, follower/friend panels and separately managed demo follows', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
@@ -1122,8 +1127,9 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByRole('tab', { name: 'Posts profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Reels profile tab' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Saved profile tab' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toBeVisible();
-  for (const name of ['Posts', 'Reels', 'Saved', 'Garage']) {
+  await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'View posts' })).toContainText('0Posts');
+  for (const name of ['Posts', 'Reels', 'Saved']) {
     const tab = page.getByRole('tab', { name: name + ' profile tab' });
     await expect(tab).toHaveAttribute('aria-label', name + ' profile tab');
     const rect = await tab.boundingBox();
@@ -1132,7 +1138,6 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   }
   await expect(page.getByText('@fixture-rider', { exact: true })).toBeVisible();
   await expect(page.getByText('Your posts will appear here')).toBeVisible();
-  await expect(page.getByText('Personal garage')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'View followers' })).toHaveCount(0);
   await page.getByRole('button', { name: 'View friends' }).click();
   await expect(page.getByText('No friends found')).toBeVisible();
@@ -1147,8 +1152,6 @@ test('Social profile has tabs, follower/friend panels and separately managed dem
   await expect(page.getByText('Your Reels will appear here')).toBeVisible();
   await page.getByRole('tab', { name: 'Saved profile tab' }).click();
   await expect(page.getByText('No saved Reels yet')).toBeVisible();
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await expect(page.getByText('Personal garage')).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-social-profile-updated.png' });
 });
@@ -1167,8 +1170,6 @@ test('Create and Shop use immersive dedicated headers without losing profile nav
   await expect(page.getByText('EARLY PREVIEW')).toHaveCount(0);
   await page.getByRole('button', { name: 'Open profile' }).click();
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await expect(page.getByText('Personal garage')).toBeVisible();
 });
 
 test('visual inventory captures each Social screen at mobile and desktop sizes', async ({ page }, testInfo) => {
@@ -1202,8 +1203,6 @@ test('visual inventory captures each Social screen at mobile and desktop sizes',
   await capture('profile-reels');
   await page.getByRole('tab', { name: 'Saved profile tab' }).click();
   await capture('profile-saved');
-  await page.getByRole('tab', { name: 'Garage profile tab' }).click();
-  await capture('profile-garage');
 
   await page.getByRole('button', { name: 'Open messages' }).click();
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();

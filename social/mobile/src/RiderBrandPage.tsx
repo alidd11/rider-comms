@@ -18,14 +18,14 @@ export function RiderBrandHome({ onOpen }: {onOpen:()=>void}) {
         <Text style={{color:C.accent,fontWeight:'900',fontSize:10}}>RC</Text>
       </View>
       <Text style={{flex:1,color:C.ink,fontSize:14,fontWeight:'800'}}>Rider Comms</Text>
-      <Text style={[s.small,{fontSize:11}]}>Editorial preview</Text>
+      <Text style={[s.small,{fontSize:11}]}>Featured</Text>
       <Ionicons name="chevron-forward" size={17} color={C.muted}/>
     </View>
     <Image source={{uri:first.imageUrl}} resizeMode="cover" accessibilityLabel={first.alt}
       style={{width:'100%',height:245,backgroundColor:first.tone}}/>
     <View style={{padding:13,gap:5}}>
       <Text style={{color:C.ink,fontWeight:'900',fontSize:16}}>{first.title}</Text>
-      <Text style={[s.small,{lineHeight:17}]}>Photos, Stories and Reel concepts</Text>
+      <Text style={[s.small,{lineHeight:17}]}>Photos, Stories and Reels</Text>
     </View>
   </Pressable>;
 }
@@ -48,8 +48,7 @@ export function RiderBrandPage({onBack,onStory,onReel}:{
         backgroundColor:detail.tone}}/>
     <Text style={{color:C.ink,fontSize:19,fontWeight:'900'}}>{detail.title}</Text>
     <Text style={[s.body,{lineHeight:21}]}>{detail.caption}</Text>
-    <Text style={[s.small,{lineHeight:17}]}>Editorial preview · {detail.credit}.
-      Licensed image, not a published rider post.</Text>
+    <Text style={[s.small,{lineHeight:17}]}>Photo: {detail.credit}</Text>
   </View>;
   const tabs:{name:Tab;icon:React.ComponentProps<typeof Ionicons>['name']}[]=[
     {name:'Posts',icon:'grid-outline'},{name:'Reels',icon:'play-outline'},
@@ -63,7 +62,7 @@ export function RiderBrandPage({onBack,onStory,onReel}:{
       </View>
       <View style={{flex:1,gap:5}}>
         <Text style={{color:C.ink,fontSize:23,fontWeight:'900',letterSpacing:-0.5}}>Rider Comms</Text>
-        <Text style={[s.small,{fontSize:12}]}>@ridercomms · Editorial preview</Text>
+        <Text style={[s.small,{fontSize:12}]}>@ridercomms</Text>
       </View>
     </View>
     <Text style={[s.body,{lineHeight:21}]}>For the ride. Cars, motorcycles and cycling in one place.</Text>

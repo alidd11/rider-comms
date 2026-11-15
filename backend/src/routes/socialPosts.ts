@@ -28,7 +28,11 @@ function withLinks(service: SocialMediaService, viewer: MediaLinkViewer, post: S
 }
 
 function pageWithLinks(service: SocialMediaService, viewer: MediaLinkViewer, page: SocialFeedPage) {
-  return { posts: page.posts.map((post) => withLinks(service, viewer, post)), nextCursor: page.nextCursor };
+  return {
+    posts: page.posts.map((post) => withLinks(service, viewer, post)),
+    nextCursor: page.nextCursor,
+    ...(page.total === undefined ? {} : { total: page.total }),
+  };
 }
 
 const VIDEO_CONTAINERS: Partial<Record<SocialMediaMime, VideoContainer>> = {

@@ -998,4 +998,11 @@ export const MIGRATIONS: Migration[] = [
         CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove'));
     `,
   },
+  {
+    // A short public bio on the shared profile, edited in either app.
+    name: '0056_rider_profile_bio',
+    sql: `
+      ALTER TABLE rider_profiles ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ];

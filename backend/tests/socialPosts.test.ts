@@ -191,8 +191,14 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     const next = await feed(ctx, 'social_a', `scope=for-you&limit=2&cursor=${page.nextCursor}`);
     assert.deepEqual(next.posts.map((p) => p.id), [first.id]);
     assert.equal(next.nextCursor, null);
-    const byRider = await authenticatedFetch(ctx, 'social_a', '/social/riders/social_c/posts');
-    assert.deepEqual((await byRider.json() as { posts: Array<{ id: string }> }).posts.map((p) => p.id), [reel.post.id, second.id]);
+    const byRider = await (await authenticatedFetch(ctx, 'social_a', '/social/riders/social_c/posts')).json() as { posts: Array<{ id: string }>; total: number };
+    assert.deepEqual(byRider.posts.map((p) => p.id), [reel.post.id, second.id]);
+    assert.equal(byRider.total, 2, 'the first page of a rider\'s posts carries their post count');
+    const firstOfTwo = await (await authenticatedFetch(ctx, 'social_a', '/social/riders/social_c/posts?limit=1')).json() as { nextCursor: string; total: number };
+    assert.equal(firstOfTwo.total, 2, 'counted in the database when there is more than one page');
+    const secondOfTwo = await (await authenticatedFetch(ctx, 'social_a', `/social/riders/social_c/posts?limit=1&cursor=${firstOfTwo.nextCursor}`)).json() as { total?: number };
+    assert.equal(secondOfTwo.total, undefined, 'later pages leave the count out');
+    assert.equal(((await feed(ctx, 'social_a')) as { total?: number }).total, undefined, 'feeds carry no count');
     for (const query of ['scope=author', 'scope=everything', 'limit=0', 'limit=31', 'cursor=bad', `cursor=${Buffer.from('1:not-a-uuid').toString('base64url')}`]) {
       assert.equal((await authenticatedFetch(ctx, 'social_a', `/social/feed?${query}`)).status, 400, query);
     }

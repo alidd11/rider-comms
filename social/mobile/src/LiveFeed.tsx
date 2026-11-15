@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { accountErrorMessage, SOCIAL_REPORT_REASONS } from './authClient';
 import type { RiderAccountClient, RiderProfile, SocialFeedScope, SocialPost, SocialReportReason } from './authClient';
 import { C, s } from './styles';
+import { IdentityAvatar } from './IdentityAvatar';
 
 type FeedClient = Pick<RiderAccountClient, 'socialFeed' | 'riderSocialPosts' | 'riderProfiles' | 'deleteSocialPost' |
   'reportSocialPost' | 'blockRider' | 'socialMediaUrl' | 'socialPost'>;
@@ -84,7 +85,7 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
   return <View testID={'live-post-' + post.id} style={{ marginBottom: 18 }}>
     <View style={[s.rowBetween, { paddingHorizontal: 14, paddingVertical: 9 }]}>
       <View style={[s.row, { flex: 1 }]}>
-        <View style={s.avatar}><Text style={{ color: C.ink, fontWeight: '800' }}>{author.name.slice(0, 1).toUpperCase()}</Text></View>
+        <IdentityAvatar name={author.name} avatarId={profile?.avatarId} size={38}/>
         <View style={{ flex: 1 }}>
           <Text style={[s.body, { fontWeight: '800' }]} numberOfLines={1}>{author.name}</Text>
           <Text style={s.small} numberOfLines={1}>{[author.handle, postAge(post.createdAt)].filter(Boolean).join(' · ')}</Text>
@@ -166,6 +167,7 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [profiles, setProfiles] = useState<Record<string, RiderProfile>>({});
   const [cursor, setCursor] = useState<string | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
   const request = useRef(0);
@@ -185,6 +187,7 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
       setProfiles(current => ({ ...current, ...names }));
       setPosts(current => after ? [...current, ...page.posts.filter(post => !current.some(old => old.id === post.id))] : page.posts);
       setCursor(page.nextCursor);
+      if (!after) setTotal(typeof page.total === 'number' ? page.total : null);
       setState('ready');
     } catch (failure) {
       if (id !== request.current) return;
@@ -205,9 +208,10 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
 
   const remove = useCallback((postId: string, authorId?: string) => {
     setPosts(current => current.filter(post => post.id !== postId && (!authorId || post.authorId !== authorId)));
+    if (!authorId) setTotal(count => count === null ? null : Math.max(0, count - 1));
   }, []);
 
-  return { posts, profiles, state, error, hasMore: Boolean(cursor), reload: () => void load(null), loadMore: () => void load(cursor), remove, refreshPost };
+  return { posts, profiles, total, state, error, hasMore: Boolean(cursor), reload: () => void load(null), loadMore: () => void load(cursor), remove, refreshPost };
 }
 
 /** Home's real feed: For you (everyone in the test) and Following (friends). */
@@ -291,11 +295,16 @@ export function useLiveReels(client: FeedClient, enabled: boolean, refreshKey = 
 }
 
 /** The rider's own posts on their profile, where they can also delete them. */
-export function OwnPosts({ client, riderId, refreshKey, onNotice, onOpenReel, onCreate }: {
-  client: FeedClient; riderId: string; refreshKey: number;
+/** The rider's own posts on their profile, or only their Reels. */
+export function OwnPosts({ client, riderId, refreshKey, only, onCount, onNotice, onOpenReel, onCreate }: {
+  client: FeedClient; riderId: string; refreshKey: number; only?: 'reel';
+  /** Told the rider's post count once it's known, and again after a delete. */
+  onCount?: (count: number) => void;
   onNotice: (message: string) => void; onOpenReel: (postId: string) => void; onCreate: () => void;
 }) {
   const feed = useLiveFeed(client, { riderId }, refreshKey);
+  useEffect(() => { if (feed.total !== null) onCount?.(feed.total); }, [feed.total, onCount]);
+  const shown = only ? feed.posts.filter(post => post.kind === only) : feed.posts;
   if (feed.state === 'loading') return <ActivityIndicator accessibilityLabel="Loading your posts" color={C.accent} style={{ margin: 30 }}/>;
   if (feed.state === 'error') return <View style={[s.card, s.pad]}>
     <Text style={s.body}>{feed.error}</Text>
@@ -303,15 +312,15 @@ export function OwnPosts({ client, riderId, refreshKey, onNotice, onOpenReel, on
       <Text style={s.ghostText}>Try again</Text>
     </Pressable>
   </View>;
-  if (!feed.posts.length) return <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
-    <Ionicons name="images-outline" size={33} color={C.accent}/>
-    <Text style={s.cardHeading}>Your posts will appear here</Text>
-    <Pressable accessibilityRole="button" accessibilityLabel="Create first post" style={s.cta} onPress={onCreate}>
-      <Text style={s.ctaText}>Create post</Text>
+  if (!shown.length && !feed.hasMore) return <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
+    <Ionicons name={only ? 'play-circle-outline' : 'images-outline'} size={33} color={C.accent}/>
+    <Text style={s.cardHeading}>{only ? 'Your Reels will appear here' : 'Your posts will appear here'}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={only ? 'Create first Reel' : 'Create first post'} style={s.cta} onPress={onCreate}>
+      <Text style={s.ctaText}>{only ? 'Create Reel' : 'Create post'}</Text>
     </Pressable>
   </View>;
-  return <View testID="own-posts" style={{ marginHorizontal: -16 }}>
-    {feed.posts.map(post => <LivePostCard key={post.id} post={post} profile={feed.profiles[post.authorId]} mine
+  return <View testID={only ? 'own-reels' : 'own-posts'} style={{ marginHorizontal: -16 }}>
+    {shown.map(post => <LivePostCard key={post.id} post={post} profile={feed.profiles[post.authorId]} mine
       client={client} onOpenReel={onOpenReel} onNotice={onNotice} onStaleMedia={feed.refreshPost} onRemoved={(postId) => feed.remove(postId)}/>)}
     {feed.hasMore ? <Pressable accessibilityRole="button" accessibilityLabel="Load more of your posts"
       style={[s.ghost, { marginHorizontal: 16 }]} onPress={feed.loadMore}>
