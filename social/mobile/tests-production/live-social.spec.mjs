@@ -203,3 +203,20 @@ test('shows published Reels while uploading is disabled', async ({ page }) => {
   await expect(page.locator('video')).toHaveAttribute('src', /\/social\/media\/published-reel-m\/file/);
   expect(state.uploads).toEqual([]);
 });
+
+
+test('a saved rider Reel appears in the profile and opens the right video', async ({ page }) => {
+  const published = post('saved-rider-reel', other, 'A rider Reel to keep', { kind: 'reel' });
+  published.media[0].kind = 'video';
+  const state = { posts: [published], calls: [], uploads: [], created: [], reports: [] };
+  await mockApi(page, state);
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Reels' }).click();
+  await page.getByRole('button', { name: 'Save Reel saved-rider-reel' }).click();
+  await page.getByRole('tab', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await page.getByRole('button', { name: 'Watch saved Reel saved-rider-reel' }).click();
+  await expect(page.getByTestId('reel-caption-saved-rider-reel')).toBeVisible();
+  await expect(page.locator('video')).toHaveAttribute('src', /saved-rider-reel-m/);
+});

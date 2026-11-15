@@ -383,21 +383,27 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           category: (reel.id === 'r1' ? 'CARS' : reel.id === 'r2' ? 'MOTORCYCLES' : 'CYCLING') as ReelPreview['category'],
         }];
       }), [viewer]);
-  const savedReelPreviews = useMemo(
-    () => reelPreviews.filter(reel => savedReelIds.has(reel.id)),
-    [reelPreviews, savedReelIds],
-  );
+  const savedReelPreviews = useMemo(() => {
+    const available = new Map(
+      [...reelPreviews, ...liveReels.following, ...liveReels.forYou].map(reel => [reel.id, reel]),
+    );
+    return [...savedReelIds].reverse().flatMap(id => {
+      const reel = available.get(id);
+      return reel ? [reel] : [];
+    });
+  }, [liveReels.following, liveReels.forYou, reelPreviews, savedReelIds]);
   // Deep-linking from Saved puts the selected eligible Reel first for that
   // viewing session. A pixel scroll on the first WebKit layout is unreliable
   // and can clamp to zero before the virtualised content has sized itself.
   const viewingReelPreviews = useMemo(() => {
     const all = [...liveReels.forYou, ...reelPreviews];
     if (!reelStartId) return all;
-    const selected = all.find(reel => reel.id === reelStartId);
+    const selected = all.find(reel => reel.id === reelStartId) ??
+      liveReels.following.find(reel => reel.id === reelStartId);
     return selected
       ? [selected, ...all.filter(reel => reel.id !== reelStartId)]
       : all;
-  }, [liveReels.forYou, reelPreviews, reelStartId]);
+  }, [liveReels.following, liveReels.forYou, reelPreviews, reelStartId]);
   const recommendedClubs = useMemo(() =>
     rankClubs(clubCandidates, viewer).flatMap(({item}) => {
       const club = demoClubs.find((c) => c.id === item.id);
