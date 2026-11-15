@@ -93,7 +93,11 @@ test('production: every major route and empty state is visible, navigable and er
   expect(response?.headers()['content-security-policy']).toContain('https://images.pexels.com');
   expect(response?.headers()['content-security-policy']).not.toContain('img-src *');
   await expect(page.getByText('Share your first ride')).toBeVisible();
+  await expect(page.getByTestId('home-starter-feed').getByText('Editorial')).toHaveCount(2);
+  const photo = page.getByLabel('Classic motorcycle near a coastal road at sunset');
+  await expect(photo).toBeInViewport();
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();
+  await expect(page.getByTestId('home-empty-onboarding')).not.toBeInViewport();
   await expect(page.getByTestId('brand-home-feature')).toBeVisible();
   await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Browse Reels from Home' })).toBeVisible();
