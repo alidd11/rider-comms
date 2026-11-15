@@ -126,6 +126,22 @@ describe('Rider Social video processing', () => {
     assert.equal(results.filter((code) => code === 'invalid_media').length, VIDEO_QUEUE_LIMIT + 1);
   });
 
+  it('limits ffmpeg probes as well as transcodes to the worker queue', async () => {
+    const marker = join(dir, 'probe-count.log');
+    const probeOk = 'echo "  Duration: 00:00:01.00, start: 0" >&2; echo "  Stream #0:0: Video: h264" >&2';
+    const slowProbe = await fakeFfmpeg('slow-probe', `case "$*" in *libx264*) exit 1;; esac
+echo probe >> "${marker}"
+sleep 0.4
+${probeOk}
+exit 1`);
+    const jobs = Array.from({ length: VIDEO_QUEUE_LIMIT + 2 }, () =>
+      processSocialVideo(join(dir, 'landscape.mov'), 'mov', { ffmpegPath: slowProbe })
+        .then(() => 'ok', (error: SocialMediaProcessingError) => error.code));
+    const results = await Promise.all(jobs);
+    assert.equal(results.filter((code) => code === 'media_busy').length, 1);
+    assert.equal((await readFile(marker, 'utf8')).trim().split('\n').length, VIDEO_QUEUE_LIMIT + 1);
+  });
+
   it('reads the duration ffmpeg prints', () => {
     assert.equal(parseFfmpegDuration('  Duration: 00:01:02.50, start: 0.0'), 62.5);
     assert.equal(parseFfmpegDuration('  Duration: 01:00:00.00'), 3600);
