@@ -1,3 +1,4 @@
+import { deleteRiderSocialContent } from './socialPostStore.ts';
 import type { Pool, PoolClient } from 'pg';
 import { ensureMigrated, getPool } from './db.ts';
 
@@ -61,6 +62,7 @@ export class AccountDeletionStore {
       await client.query('DELETE FROM push_subscriptions WHERE rider_id = $1', [riderId]);
       await client.query('DELETE FROM social_events WHERE rider_id = $1 OR actor_id = $1', [riderId]);
       await client.query('DELETE FROM social_rate_events WHERE actor_id = $1', [riderId]);
+      await deleteRiderSocialContent(client, riderId);
       await client.query('DELETE FROM rider_profiles WHERE rider_id = $1', [riderId]);
       // The store subscription itself carries on until the rider cancels it
       // in App Store or Google Play settings (the delete screen says so); the

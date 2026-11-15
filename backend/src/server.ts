@@ -30,7 +30,7 @@ import { SocialRateLimitStore } from './socialRateLimitStore.ts';
 import { RateLimitStore } from './rateLimitStore.ts';
 import { SocialActivityStore } from './socialActivityStore.ts';
 import { SocialEventStore } from './socialEventStore.ts';
-import { checkDatabaseReady, closeDatabase, ensureMigrated } from './db.ts';
+import { checkDatabaseReady, closeDatabase, ensureMigrated, getPool } from './db.ts';
 import { NOT_HANDLED } from './routes/context.ts';
 import type { RouteContext, RouteDeps } from './routes/context.ts';
 import { handlePublicRoutes } from './routes/public.ts';
@@ -41,7 +41,12 @@ import { handleProfileRoutes } from './routes/profiles.ts';
 import { handleRideRoutes } from './routes/rides.ts';
 import { handleRiderRoutes } from './routes/riders.ts';
 import { handleSocialRoutes } from './routes/social.ts';
-import { isReservedSocialAppPath, isSocialOpenBetaEnabled, parseSocialPilotRiderIds, SOCIAL_PILOT_CAPABILITIES } from './socialPilot.ts';
+import { isReservedSocialAppPath, isSocialOpenBetaEnabled, parseSocialPilotRiderIds, socialCapabilities } from './socialPilot.ts';
+import { socialMediaServiceFromEnv } from './socialMediaService.ts';
+import type { SocialMediaService } from './socialMediaService.ts';
+import { SocialPostStore } from './socialPostStore.ts';
+import { processSocialMediaDeletes } from './socialMediaDeletionOutbox.ts';
+import { handleSocialMediaRoute, handleSocialModerationRoutes, handleSocialPostRoutes } from './routes/socialPosts.ts';
 import { handlePushRoutes } from './routes/push.ts';
 import { PushNotifier } from './pushNotifier.ts';
 import { PushStore } from './pushStore.ts';
@@ -73,6 +78,7 @@ const AUTH_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_RATE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_STATE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const SOCIAL_MEDIA_SWEEP_INTERVAL_MS = 5 * 60_000;
 const RETENTION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const BILLING_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -101,6 +107,9 @@ export interface ApiServerOptions {
   socialPilotRiderIds?: readonly string[];
   /** Explicit open Social testing beta; still requires a valid Rider Comms session. */
   socialOpenBetaEnabled?: boolean;
+  socialPostStore?: SocialPostStore;
+  /** Defaults to SOCIAL_MEDIA_S3_* from the environment; null disables uploads. */
+  socialMedia?: SocialMediaService | null;
   readinessCheck?: () => Promise<void>;
   pushStore?: PushStore;
   /** Tests pass a recorder; by default notifications are really sent. */
@@ -151,8 +160,10 @@ function requiresVerifiedEmail(method: string | undefined, pathname: string): bo
     '/hideouts',
     '/hazards',
     '/scenic-routes',
+    '/social/media',
+    '/social/posts',
   ].includes(pathname)) return true;
-  return /^\/hazards\/[^/]+\/(confirm|deny)$/.test(pathname);
+  return /^\/hazards\/[^/]+\/(confirm|deny)$/.test(pathname) || /^\/social\/posts\/[^/]+\/report$/.test(pathname);
 }
 
 async function requireVerifiedEmail(
@@ -206,6 +217,8 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   );
   const socialOpenBetaEnabled = options.socialOpenBetaEnabled ??
     isSocialOpenBetaEnabled(process.env.SOCIAL_OPEN_BETA_ENABLED);
+  const socialPostStore = options.socialPostStore ?? new SocialPostStore();
+  const socialMedia = options.socialMedia === undefined ? socialMediaServiceFromEnv() : options.socialMedia;
   const pushStore = options.pushStore ?? new PushStore();
   const pushNotifier = options.pushNotifier ?? new PushNotifier({
     store: pushStore,
@@ -277,7 +290,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     moderationStore, adminStatsStore, hazardStore, scenicRouteStore, billingStore, accountDeletionStore, rateLimitStore,
     socialRateLimitStore, socialActivityStore, socialEventStore, readinessCheck, directionsProvider,
     placesProvider, placesAlongRouteProvider, placeSuggestionsProvider, placeDetailsProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
-    visibleRideLocationsFor,
+    visibleRideLocationsFor, socialPostStore, socialMedia,
   };
   const app = http.createServer(async (req, res) => {
     const startedAt = Date.now();
@@ -298,6 +311,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if (req.method === 'OPTIONS') return sendEmpty(res, 204);
       if ((await handlePublicRoutes({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
       if ((await handleBillingNotificationRoutes({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
+      if ((await handleSocialMediaRoute({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
       const actorId = await authRider(req, res, authStore);
       if (!actorId) return;
       const ctx: RouteContext = { ...deps, req, res, url, address, actorId, s: url.pathname.split('/').filter(Boolean) };
@@ -310,7 +324,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
           return sendJson(res, 200, {
             entitlement: socialOpenBetaEnabled ? 'beta' : 'pilot',
             policyVersion: socialOpenBetaEnabled ? 'social-open-beta-v1' : 'social-pilot-v1',
-            capabilities: SOCIAL_PILOT_CAPABILITIES,
+            capabilities: socialCapabilities(socialMedia !== null),
           });
         }
       }
@@ -326,8 +340,10 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if ((await handleRideRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleRiderRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleSocialRoutes(ctx)) !== NOT_HANDLED) return;
+      if ((await handleSocialPostRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleNavigationRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleHazardRoutes(ctx)) !== NOT_HANDLED) return;
+      if ((await handleSocialModerationRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleModerationRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleAdminRoutes(ctx)) !== NOT_HANDLED) return;
       if ((await handleScenicRouteRoutes(ctx)) !== NOT_HANDLED) return;
@@ -372,6 +388,8 @@ async function startProductionServer(): Promise<void> {
   const productionSocialEventStore = new SocialEventStore();
   const productionRetentionStore = new RetentionStore();
   const productionAdminStatsStore = new AdminStatsStore();
+  const productionSocialPostStore = new SocialPostStore();
+  const productionSocialMedia = socialMediaServiceFromEnv();
   configureErrorAlerts(new ErrorAlerter({
     recipients: () => productionAuthStore.listAlertRecipients(),
     send: (to, subject, text) => sendOperationalEmail(to, subject, text),
@@ -396,6 +414,15 @@ async function startProductionServer(): Promise<void> {
     const counts = await productionBillingStore.sweep();
     if (counts.checked > 0) logInfo('billing_sweep_completed', counts);
   };
+  logInfo('social_media_configured', { enabled: productionSocialMedia !== null });
+  // Rider Social: delete stored files queued by deleted posts and accounts,
+  // and uploads that were never posted.
+  const sweepSocialMedia = async () => {
+    if (!productionSocialMedia) return;
+    const orphans = await productionSocialPostStore.sweepUnattachedMedia();
+    const deletes = await processSocialMediaDeletes(getPool(), productionSocialMedia.storage, 25);
+    if (orphans || deletes.succeeded || deletes.deferred) logInfo('social_media_swept', { orphans, ...deletes });
+  };
   // Daily active-rider snapshot for the staff dashboard (aggregate count only).
   const recordActiveRiders = () => productionAdminStatsStore.recordActiveRiders();
   for (const job of [cleanAuthRecords, cleanRateLimits, cleanSocialRates, cleanSocialState, sweepRetention]) await job();
@@ -412,8 +439,12 @@ async function startProductionServer(): Promise<void> {
     socialRateLimitStore: productionSocialRateLimitStore,
     socialActivityStore: productionSocialActivityStore,
     socialEventStore: productionSocialEventStore,
+    socialPostStore: productionSocialPostStore,
+    socialMedia: productionSocialMedia,
   });
-  app.requestTimeout = 15_000;
+  // Long enough for a Rider Social video upload on a phone connection; the
+  // headers still have to arrive within headersTimeout.
+  app.requestTimeout = 300_000;
   app.headersTimeout = 10_000;
   app.keepAliveTimeout = 5_000;
   app.maxRequestsPerSocket = 1_000;
@@ -434,6 +465,7 @@ async function startProductionServer(): Promise<void> {
     scheduleMaintenance(BILLING_SWEEP_INTERVAL_MS, 'billing_sweep_failed', sweepBilling),
     scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'active_riders_snapshot_failed', recordActiveRiders),
     scheduleMaintenance(SITE_CHECK_INTERVAL_MS, 'site_check_failed', () => siteMonitor.check()),
+    scheduleMaintenance(SOCIAL_MEDIA_SWEEP_INTERVAL_MS, 'social_media_sweep_failed', sweepSocialMedia),
   ];
 
   const shutdown = createShutdown({

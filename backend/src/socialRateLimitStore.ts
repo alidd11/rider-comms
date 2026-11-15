@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool, withTransaction } from './db.ts';
 
-export type SocialRateAction = 'friend_request' | 'direct_message' | 'safety_report';
+export type SocialRateAction = 'friend_request' | 'direct_message' | 'safety_report' | 'social_upload' | 'social_post';
 
 export interface SocialRatePolicy {
   maxEvents: number;
@@ -18,6 +18,10 @@ export const SOCIAL_RATE_POLICIES: Readonly<Record<SocialRateAction, SocialRateP
   // Reports feed a human moderation queue, so abusive duplication has a much
   // lower ceiling than ordinary social traffic.
   safety_report: { maxEvents: 5, windowMs: 60 * 60_000 },
+  // Rider Social: every upload is processed on the server, so uploads are
+  // the tighter limit; six photos per post leaves room for a few posts.
+  social_upload: { maxEvents: 40, windowMs: 60 * 60_000 },
+  social_post: { maxEvents: 15, windowMs: 60 * 60_000 },
 };
 
 export interface SocialRateLimitResult {

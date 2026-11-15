@@ -22,6 +22,8 @@ import type { ScenicRouteStore } from '../scenicRouteStore.ts';
 import type { SocialActivityStore } from '../socialActivityStore.ts';
 import type { SocialEventStore } from '../socialEventStore.ts';
 import type { SocialRateLimitStore } from '../socialRateLimitStore.ts';
+import type { SocialMediaService } from '../socialMediaService.ts';
+import type { SocialPostStore } from '../socialPostStore.ts';
 
 /**
  * Route modules share this context. Each handler returns NOT_HANDLED when no
@@ -100,6 +102,9 @@ export interface RouteDeps {
   revokeRideVoiceParticipants: (rideId: string, riderIds: Iterable<string>) => Promise<void>;
   revokeProximityVoiceParticipants: (riderA: string, riderB: string) => Promise<void>;
   visibleRideLocationsFor: (actorId: string, locations: RideMemberLocation[]) => Promise<RideMemberLocation[]>;
+  socialPostStore: SocialPostStore;
+  /** Null when Social media storage isn't configured: Social stays read-only. */
+  socialMedia: SocialMediaService | null;
 }
 
 /** Context for routes that run before authentication. */

@@ -65,3 +65,27 @@ The owner has explicitly authorised **open testing for authenticated Rider Comms
 A private Railway S3-compatible bucket named `social-private-media` is provisioned in the existing Rider Comms backend project's production environment. Five `SOCIAL_MEDIA_S3_*` variables (`ENDPOINT`, `BUCKET`, `REGION`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`) reference bucket credentials **only on the backend service**. They were set with deployment skipped because the current backend does not yet consume them.
 
 Do not copy secret values to the Social static Expo bundle, GitHub or logs. This connection alone does not provide upload signing, media validation, scanning, transcoding, privacy-safe playback or deletion. Keep `mediaUpload` and publishing capabilities disabled until the secure implementation passes tests.
+
+## Posting: photos and Reels (15 November 2026)
+
+With the five `SOCIAL_MEDIA_S3_*` variables set, `/social/bootstrap` reports `mediaUpload` and `publicPosting` as **true**. Every other capability (private audiences, live streaming, checkout, payouts) stays false. Without storage, Social stays read-only and the routes below answer `503 social_media_not_configured`.
+
+- `POST /social/media`: the raw file with its `Content-Type` and `Content-Length`. Accepts JPEG, PNG and WebP up to 20 MB, and MP4, QuickTime and WebM up to 200 MB and 60 s.
+  - The body streams to a private temp file and the type is checked against the file's first bytes.
+  - Photos are re-encoded as JPEG (at most 2048 px) by `sharp`. Videos are re-encoded as H.264/AAC MP4 (at most 1280 px), with a poster frame, by `ffmpeg-static`, one at a time and with a short queue (`503 media_busy`).
+  - Re-encoding removes GPS, camera and other metadata. ffmpeg may only open local files, with the one demuxer the declared type allows.
+  - Only the processed files are stored. Needs a verified email and current Terms. Limited to 40 uploads an hour.
+- `POST /social/posts` `{kind: 'photo'|'reel', caption, mediaIds}`: 1–6 photos or one video. Each upload can be used once and only by the rider who uploaded it. Captions are checked by the severe-content filter. Limited to 15 posts an hour.
+- `GET /social/feed?scope=for-you|following|reels`, `GET /social/riders/:id/posts`, `GET /social/posts/:id`, `DELETE /social/posts/:id` (author only).
+  - Feeds leave out blocked riders (both ways), posts the viewer reported, hidden posts (except to their author) and suspended riders.
+  - "Following" means Rider Comms friends.
+- `POST /social/posts/:id/report` `{reason, details?}`:
+  - The reporter stops seeing the post at once.
+  - Three distinct reports hide it for everyone until a moderator decides.
+  - Each report also goes into the existing safety report queue.
+- `GET /moderation/social-posts`, `POST /moderation/social-posts/:id/(restore|remove)`: admins only.
+- Media is served by `GET /social/media/:id/(file|poster)?v&exp&sig`, before sign-in, because `<img>` and `<video>` can't send a token.
+  - The HMAC link names one viewer and one file and lasts one to two hours.
+  - Every request re-checks that the viewer may still see the post. It supports byte ranges.
+  - The link key is derived from the storage secret unless `SOCIAL_MEDIA_URL_SECRET` (32+ characters) is set.
+- Deleting a post, an account or an unused upload (after 6 hours) queues the stored files in `social_media_delete_outbox`. A maintenance job empties the queue every 5 minutes.

@@ -47,7 +47,7 @@ describe('Rider Social beta admission policy', () => {
 describe('Social beta HTTP admission', () => {
   let ctx: TestServer;
   before(async () => {
-    ctx = startTestServer({ socialPilotRiderIds: ['rider_pilot123'] });
+    ctx = startTestServer({ socialPilotRiderIds: ['rider_pilot123'], socialMedia: null });
     await ctx.ready;
   });
   after(() => ctx.close());
@@ -86,8 +86,9 @@ describe('Social beta HTTP admission', () => {
   });
 
   it('does not accidentally activate unavailable upload/post routes for the pilot', async () => {
-    assert.equal((await authenticatedFetch(ctx, 'rider_pilot123', '/social/posts/mine')).status, 404);
-    assert.equal((await authenticatedFetch(ctx, 'rider_pilot123', '/social/media/uploads', { method: 'POST' })).status, 404);
+    // Without private media storage, posting and uploads answer "not configured".
+    assert.equal((await authenticatedFetch(ctx, 'rider_pilot123', '/social/posts/mine')).status, 503);
+    assert.equal((await authenticatedFetch(ctx, 'rider_pilot123', '/social/media/uploads', { method: 'POST' })).status, 503);
     assert.equal((await authenticatedFetch(ctx, 'rider_pilot123', '/social/bootstrap', { method: 'POST' })).status, 404);
     assert.equal((await authenticatedFetch(ctx, 'rider_pilot123', '/health')).status, 200);
   });
@@ -113,7 +114,7 @@ describe('Social admission defaults', () => {
 describe('Social open beta HTTP admission', () => {
   let ctx: TestServer;
   before(async () => {
-    ctx = startTestServer({ socialPilotRiderIds: [], socialOpenBetaEnabled: true });
+    ctx = startTestServer({ socialPilotRiderIds: [], socialOpenBetaEnabled: true, socialMedia: null });
     await ctx.ready;
   });
   after(() => ctx.close());
@@ -139,8 +140,9 @@ describe('Social open beta HTTP admission', () => {
 
   it('keeps unfinished Social routes unavailable while leaving ordinary account routes intact', async () => {
     const riderId = 'rider_beta123';
-    assert.equal((await authenticatedFetch(ctx, riderId, '/social/posts/mine')).status, 404);
-    assert.equal((await authenticatedFetch(ctx, riderId, '/social/media/uploads', { method: 'POST' })).status, 404);
+    // Without private media storage, posting and uploads answer "not configured".
+    assert.equal((await authenticatedFetch(ctx, riderId, '/social/posts/mine')).status, 503);
+    assert.equal((await authenticatedFetch(ctx, riderId, '/social/media/uploads', { method: 'POST' })).status, 503);
     assert.equal((await authenticatedFetch(ctx, riderId, '/social/bootstrap', { method: 'POST' })).status, 404);
     assert.equal((await authenticatedFetch(ctx, riderId, '/auth/me')).status, 200);
   });

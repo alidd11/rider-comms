@@ -178,4 +178,35 @@ describe('Private Social object store (server only)', () => {
     // Instantiating the default transport must not trigger any network requests.
     assert.ok(new SocialPrivateObjectTransport(config));
   });
+
+  it('reads a stored file back with a signed GET, passing a byte range through', async () => {
+    const config = readSocialS3Config(ENV)!;
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const store = new SocialPrivateObjectTransport(config, async (url, init) => {
+      calls.push({ url, init });
+      return new Response('abc', { status: 206, headers: { 'content-range': 'bytes 0-2/10' } });
+    });
+    const response = await store.getProcessed(KEY, 'bytes=0-2');
+    assert.equal(response.status, 206);
+    assert.equal(await response.text(), 'abc');
+    const headers = calls[0]?.init.headers as Record<string, string>;
+    assert.equal(calls[0]?.init.method, 'GET');
+    assert.equal(calls[0]?.init.redirect, 'error');
+    assert.equal(headers.Range, 'bytes=0-2');
+    assert.match(headers.Authorization, /SignedHeaders=host;x-amz-content-sha256;x-amz-date/);
+    await store.getProcessed(KEY);
+    assert.equal((calls[1]?.init.headers as Record<string, string>).Range, undefined);
+    assert.throws(() => signSocialObjectRequest(config, 'GET', KEY, JPEG), /invalid_storage_delete/);
+  });
+
+  it('maps a missing file, a storage error and a network failure without leaking details', async () => {
+    const config = readSocialS3Config(ENV)!;
+    const status = (code: number) => new SocialPrivateObjectTransport(config, async () => new Response('details', { status: code }));
+    assert.equal((await status(416).getProcessed(KEY, 'bytes=99-')).status, 416);
+    assert.equal((await status(200).getProcessed(KEY)).status, 200);
+    await assert.rejects(() => status(404).getProcessed(KEY), /social_media_not_found/);
+    await assert.rejects(() => status(403).getProcessed(KEY), /social_media_storage_unavailable/);
+    const down = new SocialPrivateObjectTransport(config, async () => { throw new Error('secret network detail'); });
+    await assert.rejects(() => down.getProcessed(KEY), (err: Error) => err.message === 'social_media_storage_unavailable');
+  });
 });

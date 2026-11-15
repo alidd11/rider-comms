@@ -35,3 +35,12 @@ export const SOCIAL_PILOT_CAPABILITIES = Object.freeze({
   marketplaceCheckout: false,
   creatorPayouts: false,
 });
+
+/**
+ * What an entitled rider may do. Uploads and posting to the beta's shared
+ * feed turn on only when private media storage is configured; private
+ * audiences, live streaming and anything involving money stay off.
+ */
+export function socialCapabilities(mediaStorageConfigured: boolean): Record<keyof typeof SOCIAL_PILOT_CAPABILITIES, boolean> {
+  return { ...SOCIAL_PILOT_CAPABILITIES, mediaUpload: mediaStorageConfigured, publicPosting: mediaStorageConfigured };
+}
