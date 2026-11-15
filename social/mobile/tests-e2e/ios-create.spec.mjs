@@ -16,14 +16,18 @@ test.beforeEach(async ({ page }) => {
       return;
     }
     const me = path === '/auth/me';
+    const pilot = path === '/social/bootstrap';
     const connections = path === '/conversations' || path.endsWith('/friends');
-    const body = me
+    const body = pilot ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
+  mediaUpload: false, privatePosting: false, publicPosting: false,
+  liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } }
+      : me
       ? { riderId: 'rider_abcd1234', username: 'webkit-fixture',
           emailVerified: true, termsAccepted: true, termsVersion: 'terms-fixture' }
       : connections ? { conversations: [], friends: [], nextCursor: null }
         : { error: 'not_found' };
     await route.fulfill({
-      status: me || connections ? 200 : 404,
+      status: me || pilot || connections ? 200 : 404,
       contentType: 'application/json', headers, body: JSON.stringify(body),
     });
   });

@@ -14,6 +14,24 @@ export interface AccountIdentity {
   termsAccepted: boolean;
   termsVersion: string;
 }
+export interface SocialPilotBootstrap {
+  entitlement: 'pilot';
+  policyVersion: 'social-pilot-v1';
+  capabilities: {
+    mediaUpload: false; privatePosting: false; publicPosting: false;
+    liveStreaming: false; marketplaceCheckout: false; creatorPayouts: false;
+  };
+}
+export function isSocialPilotBootstrap(value: unknown): value is SocialPilotBootstrap {
+  if (!value || Array.isArray(value) || typeof value !== 'object') return false;
+  const body = value as Record<string, unknown>;
+  if (body.entitlement !== 'pilot' || body.policyVersion !== 'social-pilot-v1') return false;
+  const flags = body.capabilities;
+  if (!flags || Array.isArray(flags) || typeof flags !== 'object') return false;
+  const capabilities = flags as Record<string, unknown>;
+  return ['mediaUpload', 'privatePosting', 'publicPosting', 'liveStreaming',
+    'marketplaceCheckout', 'creatorPayouts'].every(key => capabilities[key] === false);
+}
 export interface LoginReply {
   riderId: string;
   token: string;
@@ -270,6 +288,11 @@ export class RiderAccountClient {
     if (!this.token || !this.user) throw new AccountApiError(401, 'not_signed_in');
     await this.request<void>('DELETE', '/auth/me', undefined, true);
     await this.clear();
+  }
+  async socialBootstrap(): Promise<SocialPilotBootstrap> {
+    const result = await this.request<unknown>('GET', '/social/bootstrap', undefined, true);
+    if (!isSocialPilotBootstrap(result)) throw new AccountApiError(502, 'invalid_social_bootstrap');
+    return result;
   }
   async friends(): Promise<{ friends: SharedFriend[]; nextCursor?: string | null }> {
     const riderId = this.user?.riderId;
