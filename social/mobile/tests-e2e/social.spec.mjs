@@ -224,6 +224,9 @@ test('event detail includes only demo interest, not real RSVP', async ({ page })
 
 test('iPhone and desktop render true edge-to-edge background with safe content insets', async ({ page }) => {
   await page.goto('/');
+  // Measure only once the app has rendered: an absent heading is true before
+  // it has, and measuring then failed intermittently under parallel load.
+  await expect(page.locator('#social-bottom-tabs')).toBeVisible();
   await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
   const geometry = await page.evaluate(() => {
     const viewport = document.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '';
