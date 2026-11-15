@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ImageBackground, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, ImageBackground, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,9 +95,21 @@ function NativeReelVideo({ uri, hasAudio, onRetry }: PlaybackProps) {
   const { status } = useEvent(player, 'statusChange', { status: player.status });
   const { muted } = useEvent(player, 'mutedChange', { muted: player.muted });
   const [firstFrame, setFirstFrame] = useState(false);
+  const wantsPlayback = useRef(true);
   useEffect(() => {
-    player.play();
-    return () => player.pause();
+    const updatePlayback = (state: string | null) => {
+      if ((state === 'active' || state === null) && wantsPlayback.current && player.status !== 'error') {
+        player.play();
+      } else {
+        player.pause();
+      }
+    };
+    updatePlayback(AppState.currentState ?? null);
+    const subscription = AppState.addEventListener('change', updatePlayback);
+    return () => {
+      subscription.remove();
+      player.pause();
+    };
   }, [player]);
   const failed = status === 'error';
   return <>
@@ -107,8 +119,9 @@ function NativeReelVideo({ uri, hasAudio, onRetry }: PlaybackProps) {
     <ReelPlaybackControls isPlaying={isPlaying} failed={failed}
       loading={!firstFrame && status !== 'readyToPlay'} muted={muted} hasAudio={hasAudio}
       onToggle={() => {
-        if (failed) onRetry();
-        else if (isPlaying) player.pause();
+        if (failed) { onRetry(); return; }
+        wantsPlayback.current = !isPlaying;
+        if (isPlaying) player.pause();
         else player.play();
       }}
       onMute={() => { player.muted = !player.muted; }}/>
@@ -121,16 +134,37 @@ function WebReelVideo({ uri, poster, hasAudio, onRetry }: PlaybackProps) {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [muted, setMuted] = useState(true);
+  const wantsPlayback = useRef(true);
+  useEffect(() => {
+    const element = video.current;
+    if (!element) return;
+    const updatePlayback = () => {
+      if (document.visibilityState === 'hidden') element.pause();
+      else if (wantsPlayback.current && !element.error && element.paused) {
+        void element.play().catch(() => setPlaying(false));
+      }
+    };
+    document.addEventListener('visibilitychange', updatePlayback);
+    return () => {
+      document.removeEventListener('visibilitychange', updatePlayback);
+      element.pause();
+    };
+  }, []);
   const togglePlayback = () => {
     if (failed) { onRetry(); return; }
     const element = video.current;
     if (!element) return;
+    wantsPlayback.current = element.paused;
     if (element.paused) void element.play().catch(() => setPlaying(false));
     else element.pause();
   };
   return <>
     <video ref={video} src={uri} poster={poster || undefined} autoPlay muted={muted} loop playsInline
-      onCanPlay={() => setReady(true)} onPlaying={() => { setReady(true); setPlaying(true); }}
+      onCanPlay={() => setReady(true)} onPlaying={event => {
+        setReady(true);
+        if (document.visibilityState === 'hidden') event.currentTarget.pause();
+        else setPlaying(true);
+      }}
       onPause={() => setPlaying(false)} onError={() => { setFailed(true); setPlaying(false); }}
       style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', visibility: failed ? 'hidden' : 'visible' }}/>
     <ReelPlaybackControls isPlaying={isPlaying} failed={failed} loading={!ready} muted={muted}

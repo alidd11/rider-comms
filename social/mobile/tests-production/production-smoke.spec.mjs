@@ -1,4 +1,4 @@
-/* global window, navigator */
+/* global window, navigator, document, Event */
 import { test, expect } from '@playwright/test';
 import { URL } from 'node:url';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -408,8 +408,19 @@ test('production: first-party Rider Comms editorial page, Stories and Reels show
   await expect(video).toHaveCount(1);
   await expect(video).toBeVisible();
   await expect.poll(() => video.evaluate(element => element.currentTime)).toBeGreaterThan(0);
+  const visibility = async (state) => page.evaluate(value => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, state);
+  await visibility('hidden');
+  await expect.poll(() => video.evaluate(element => element.paused)).toBe(true);
+  await visibility('visible');
+  await expect.poll(() => video.evaluate(element => element.paused)).toBe(false);
   await page.getByRole('button', { name: 'Pause Reel', exact: true }).click();
   await expect.poll(() => video.evaluate(element => element.paused)).toBe(true);
+  await visibility('hidden');
+  await visibility('visible');
+  await expect(page.getByRole('button', { name: 'Play Reel', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Play Reel', exact: true }).click();
   await expect.poll(() => video.evaluate(element => element.paused)).toBe(false);
   await expect(page.getByRole('button', { name: 'Unmute Reel' })).toHaveCount(0);
