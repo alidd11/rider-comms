@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ImageBackground, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ImageBackground, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,8 @@ export type ReelPreview = {
   title: string;
   imageUrl: string;
   videoUrl?: string;
+  editorialPreview?: boolean;
+  clipSourceUrl?: string;
   theme: string;
   category: 'CARS' | 'MOTORCYCLES' | 'CYCLING';
 };
@@ -276,7 +278,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                       onPress={() => onOpenCreator(reel.authorId)}>
                       <Text style={[{ color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, reelTextShadow]}>{reel.handle}</Text>
                     </Pressable>
-                    <Pressable accessibilityRole="button"
+                    {!reel.editorialPreview ? <Pressable accessibilityRole="button"
                       accessibilityLabel={(followedAuthors.has(reel.authorId) ? 'Unfollow ' : 'Follow ') + reel.handle}
                       onPress={() => onToggleFollow(reel.authorId)}
                       style={{
@@ -287,7 +289,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                       <Text style={[{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }, reelTextShadow]}>
                         {followedAuthors.has(reel.authorId) ? 'Following' : 'Follow'}
                       </Text>
-                    </Pressable>
+                    </Pressable> : null}
                   </View>
                   <Text numberOfLines={expanded.has(reel.id) ? undefined : 2}
                     style={[{ color: '#FFFFFF', fontSize: 14, fontWeight: '700', lineHeight: 20 }, reelTextShadow]}>
@@ -300,13 +302,25 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                       <Text style={[{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }, reelTextShadow]}>{expanded.has(reel.id) ? 'Less' : 'More'}</Text>
                     </Pressable>
                   ) : null}
-                  <Pressable accessibilityRole="button" accessibilityLabel={'View garage for ' + reel.handle}
+                  {!reel.editorialPreview ? <Pressable accessibilityRole="button" accessibilityLabel={'View garage for ' + reel.handle}
                     onPress={() => onOpenCreator(reel.authorId)}>
                     <Text style={[{ color: '#D7FFF3', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View garage & build</Text>
-                  </Pressable>
-                  {!reel.videoUrl ? <Text style={[{ color: '#E8ECEF', fontSize: 11 }, reelTextShadow]}>Sample photo</Text> : null}
+                  </Pressable> : null}
+                  {!reel.videoUrl ? <Text style={[{ color: '#E8ECEF', fontSize: 11 }, reelTextShadow]}>
+                    {reel.editorialPreview ? 'Editorial footage preview · Not a published Reel' : 'Sample photo'}
+                  </Text> : null}
+                  {reel.editorialPreview && reel.clipSourceUrl ? <Pressable
+                    accessibilityRole="button" accessibilityLabel={'Watch source footage ' + reel.id}
+                    onPress={() => { void Linking.openURL(reel.clipSourceUrl!).catch(() =>
+                      setNotice('Couldn’t open the sample footage.')); }}
+                    style={{ minHeight: 44, flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                    <Ionicons name="open-outline" size={18} color="#FFFFFF"/>
+                    <Text style={[{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }, reelTextShadow]}>
+                      Watch source footage
+                    </Text>
+                  </Pressable> : null}
                 </View>
-                <View style={{ position: 'absolute', right: 9, bottom: 23, gap: 13, alignItems: 'center' }}>
+                {!reel.editorialPreview ? <View style={{ position: 'absolute', right: 9, bottom: 23, gap: 13, alignItems: 'center' }}>
                   <ReelActionButton label={'Like Reel ' + reel.id} icon={likes.has(reel.id) ? 'heart' : 'heart-outline'}
                     active={likes.has(reel.id)} onPress={() => toggle(setLikes, reel.id)} />
                   <ReelActionButton label={'Comment on Reel ' + reel.id} icon="chatbubble-outline"
@@ -317,7 +331,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                     active={savedReelIds.has(reel.id)} onPress={() => onToggleSavedReel(reel.id)} />
                   <ReelActionButton label={'Reel options ' + reel.id} icon="ellipsis-horizontal"
                     onPress={() => explain('options')} />
-                </View>
+                </View> : null}
               </ImageBackground>
             </View>
           ))}

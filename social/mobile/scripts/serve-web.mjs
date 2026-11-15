@@ -19,7 +19,7 @@ const securityHeaders = {
     "default-src 'self'",
     "script-src 'self' " + inlineScriptHashes.join(' '),
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data: https://images.unsplash.com",
+    "img-src 'self' blob: data: https://images.unsplash.com https://images.pexels.com",
     "font-src 'self' data:",
     "connect-src 'self' https://backend-production-7fa0.up.railway.app",
     "media-src 'self' blob: data:",

@@ -164,3 +164,28 @@ accessible from the top action bar.
 
 Production screenshot smoke tests and fixture interaction tests verify the
 dedicated editor, concise profile, accessible tabs, and return navigation.
+
+
+## First-party editorial content foundation — 14 November 2026
+
+A static, intentionally labelled `Rider Comms` editorial showcase now appears
+from Home. It includes four curated, credited Pexels photo previews, a three-
+slide Story, and two Reels **storyboards** that link to real source footage on
+Pexels; it is **not** an authenticated Social user profile, original video
+hosting, a registered merchant, or a published multi-user feed. For editorial
+previews, follow/like/comment/save controls are intentionally suppressed and no
+invented engagement or safety assurances are displayed. All normal user upload
+and monetisation capability flags remain off.
+
+Source photos, photographers and direct licensing links are in
+`social/mobile/src/brandEditorial.ts`. Pexels permits commercial use in apps,
+but its license prohibits implying that pictured people/brands endorse
+Rider Comms; real user images, personal routes, events or locations are not
+claimed. Owner-generated original photo/motion-previews are supplied in a
+separate downloadable editorial asset pack until secure media hosting is ready.
+
+The **open authenticated beta** decision supersedes the obsolete single-user
+pilot release contract; never deploy draft PR #472 or change admission to a
+management-only allowlist. The static editorial showcase does not satisfy
+production media-processing, moderation, multi-user publishing or age/privacy
+release gates.

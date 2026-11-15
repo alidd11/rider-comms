@@ -78,9 +78,13 @@ async function verifyScreen(page, testInfo, name) {
 test('production: every major route and empty state is visible, navigable and error-free', async ({ page }, testInfo) => {
   const uncaught = [];
   page.on('pageerror', e => uncaught.push(e.message));
-  await page.goto('/');
+  const response = await page.goto('/');
+  // Only the specific licensed editorial image CDN is allowed; never use a wildcard.
+  expect(response?.headers()['content-security-policy']).toContain('https://images.pexels.com');
+  expect(response?.headers()['content-security-policy']).not.toContain('img-src *');
   await expect(page.getByText('Your next story starts here')).toBeVisible();
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();
+  await expect(page.getByTestId('brand-home-feature')).toBeVisible();
   await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Browse Reels from Home' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Go to inbox from Home' })).toBeVisible();
@@ -125,18 +129,16 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByText('Your next story starts here')).toBeVisible();
 
   await page.getByRole('tab', { name: 'Reels' }).click();
-  await expect(page.getByTestId('reels-empty-state')).toBeVisible();
-  await expect(page.getByTestId('reels-empty-studio-art')).toBeVisible();
-  await expect(page.getByText('No Reels yet')).toBeVisible();
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
+  await expect(page.getByText('Editorial footage preview · Not a published Reel').first()).toBeVisible();
   await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await page.getByRole('tab', { name: 'Following videos' }).click();
   await expect(page.getByText('No followed Reels yet')).toBeVisible();
   await verifyScreen(page, testInfo, 'following-empty');
   await page.getByRole('button', { name: 'Explore For You Reels' }).click();
-  await expect(page.getByText('No Reels yet')).toBeVisible();
-  await expect(page.getByText(/Nothing is published yet/)).toBeVisible();
-  await verifyScreen(page, testInfo, 'reels-empty');
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
+  await verifyScreen(page, testInfo, 'reels-editorial');
   await page.getByRole('button', { name: 'Create Reel' }).click();
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeVisible();
   await page.getByRole('button', { name: 'Close Create' }).click();
@@ -210,7 +212,7 @@ test('production: every major route and empty state is visible, navigable and er
     .toBeLessThanOrEqual((tabBarBounds?.y ?? 0) + 2);
   await verifyScreen(page, testInfo, 'profile-saved');
   await exploreSaved.click();
-  await expect(page.getByTestId('reels-empty-state')).toBeVisible();
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
   // Immersive Reels intentionally hides the global header; Home restores it.
   await page.getByRole('tab', { name: 'Home', exact: true }).click();
   await page.getByRole('button', { name: 'Open profile' }).click();
@@ -382,4 +384,25 @@ test('production: empty Home offers real navigation without implying posts are l
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
   await page.getByRole('tab', { name: 'Home' }).click();
   await expect(page.getByTestId('home-empty-onboarding')).toBeVisible();
+});
+
+
+test('production: first-party Rider Comms editorial page, Stories and Reels show no fictional engagement', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open Rider Comms editorial page' }).click();
+  await expect(page.getByTestId('rider-comms-brand-page')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Rider Comms Posts' })).toBeVisible();
+  await page.getByRole('button', { name: 'View editorial photo For the road ahead' }).click();
+  await expect(page.getByTestId('brand-post-detail')).toBeVisible();
+  await page.getByRole('button', { name: 'Back to Rider Comms page' }).click();
+  await page.getByRole('tab', { name: 'Rider Comms Stories' }).click();
+  await page.getByRole('button', { name: 'View Rider Comms stories' }).click();
+  await expect(page.getByTestId('story-viewport')).toBeVisible();
+  await expect(page.getByText('Editorial preview · Motorcycles')).toBeVisible();
+  await page.getByRole('button', { name: 'Close story' }).click();
+  await page.getByRole('button', { name: 'View Rider Comms Reels' }).click();
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Watch source footage brand-mountain-reel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Like Reel brand-mountain-reel' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Follow @ridercomms' })).toHaveCount(0);
 });

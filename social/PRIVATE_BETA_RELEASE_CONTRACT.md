@@ -1,3 +1,10 @@
+> **Update 14 November 2026:** Rider Social's owner explicitly authorised testing
+> by **any authenticated Rider Comms account**, not a one-person invitation
+> allowlist. The original restricted-pilot milestones below are historical
+> design options, not current deployment requirements. PR #472 must not be
+> merged. All media, moderation, privacy, legal and payment safeguards below
+> remain required before public user-generated content is enabled.
+
 # Rider Social — restricted live-test release contract
 
 **13 November 2026 | Owner: Social UI | Backend: Rider Comms agent**
