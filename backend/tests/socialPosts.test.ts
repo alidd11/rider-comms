@@ -252,13 +252,16 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     const ok = await get(link);
     assert.equal(ok.status, 200);
     assert.equal(ok.headers.get('content-type'), 'image/jpeg');
-    const maxAge = Number(/^private, max-age=(\d+)$/.exec(ok.headers.get('cache-control') ?? '')?.[1]);
-    assert.ok(maxAge > 0 && maxAge <= 30 * 60, 'kept no longer than the link lasts');
+    assert.equal(ok.headers.get('cache-control'), 'private, no-store');
+    assert.equal(ok.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal(ok.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(await ok.text(), 'processed-photo');
     const partial = await get(link, { headers: { Range: 'bytes=0-8' } });
     assert.equal(partial.status, 206);
     assert.equal(partial.headers.get('content-range'), 'bytes 0-8/15');
     assert.equal(await partial.text(), 'processed');
+    assert.equal((await get(link, { headers: { Range: 'bytes=oops' } })).status, 416);
+    assert.equal((await get(link, { headers: { Range: 'bytes=0-1,3-4' } })).status, 416);
     const head = await get(link, { method: 'HEAD' });
     assert.equal(head.status, 200);
     assert.equal(await head.text(), '');
