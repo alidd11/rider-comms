@@ -7,26 +7,20 @@ type Tab = 'Posts' | 'Reels' | 'Stories';
 type EditorialPost = (typeof brandPosts)[number];
 
 export function RiderBrandHome({ onOpen }: {onOpen:()=>void}) {
-  const first=brandPosts[0];
   return <Pressable testID="brand-home-feature" accessibilityRole="button"
     accessibilityLabel="Open Rider Comms editorial page" onPress={onOpen}
-    style={{marginHorizontal:15,marginTop:11,marginBottom:10,borderRadius:16,
-      overflow:'hidden',backgroundColor:C.panel}}>
-    <View style={{flexDirection:'row',gap:9,alignItems:'center',paddingHorizontal:13,paddingVertical:11}}>
-      <View style={{width:30,height:30,borderRadius:15,backgroundColor:C.accentDark,
-        justifyContent:'center',alignItems:'center'}}>
-        <Text style={{color:C.accent,fontWeight:'900',fontSize:10}}>RC</Text>
-      </View>
-      <Text style={{flex:1,color:C.ink,fontSize:14,fontWeight:'800'}}>Rider Comms</Text>
-      <Text style={[s.small,{fontSize:11}]}>Featured</Text>
-      <Ionicons name="chevron-forward" size={17} color={C.muted}/>
+    style={{ marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 12,
+      minHeight: 62, borderRadius: 14, backgroundColor: C.panel,
+      flexDirection: 'row', gap: 11, alignItems: 'center' }}>
+    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.accentDark,
+      justifyContent: 'center', alignItems: 'center' }}>
+      <Text style={{ color: C.accent, fontWeight: '900', fontSize: 11 }}>RC</Text>
     </View>
-    <Image source={{uri:first.imageUrl}} resizeMode="cover" accessibilityLabel={first.alt}
-      style={{width:'100%',height:245,backgroundColor:first.tone}}/>
-    <View style={{padding:13,gap:5}}>
-      <Text style={{color:C.ink,fontWeight:'900',fontSize:16}}>{first.title}</Text>
-      <Text style={[s.small,{lineHeight:17}]}>Photos, Stories and Reels</Text>
+    <View style={{ flex: 1, gap: 2 }}>
+      <Text style={{ color: C.ink, fontSize: 14, fontWeight: '800' }}>Rider Comms</Text>
+      <Text style={s.small}>Photos, Stories and Reels</Text>
     </View>
+    <Ionicons name="chevron-forward" size={17} color={C.muted}/>
   </Pressable>;
 }
 
