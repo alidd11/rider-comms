@@ -234,13 +234,13 @@ function PreviewEmpty({ icon, heading, body, actionLabel, onAction, featured = f
 function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next: Screen) => void }) {
   const insets = useSafeAreaInsets();
   return (
-    <View nativeID="social-bottom-tabs" style={[
+    <View nativeID="social-bottom-tabs" accessibilityRole="tablist" accessibilityLabel="Main navigation" style={[
       s.tabBar,
       { paddingBottom: Platform.OS === 'web' ? 12 : Math.max(12, insets.bottom) }
     ]}>
       {primaryTabs.map((tab) => (
         <Pressable key={tab.name} accessibilityRole="tab"
-          accessibilityState={{ selected: tab.name === screen }}
+          aria-selected={tab.name === screen}
           accessibilityLabel={tab.name} style={s.tab} onPress={() => onNavigate(tab.name)}>
           {tab.name === 'Create' ? <View testID="social-create-tab-symbol" style={{
             width: 49, height: 33, borderRadius: 11, backgroundColor: C.ink,

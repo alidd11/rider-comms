@@ -71,10 +71,10 @@ export function RiderBrandPage({onBack,onStory,onReel}:{
         <Text style={s.ghostText}>Reels</Text>
       </Pressable>
     </View>
-    <View style={{flexDirection:'row',borderBottomWidth:1,borderColor:C.border}}>
+    <View accessibilityRole="tablist" accessibilityLabel="Rider Comms content" style={{flexDirection:'row',borderBottomWidth:1,borderColor:C.border}}>
       {tabs.map(item=><Pressable key={item.name} accessibilityRole="tab"
         accessibilityLabel={'Rider Comms '+item.name}
-        accessibilityState={{selected:tab===item.name}} onPress={()=>setTab(item.name)}
+        aria-selected={tab===item.name} onPress={()=>setTab(item.name)}
         style={{flex:1,height:51,alignItems:'center',justifyContent:'center',
           borderBottomWidth:2,borderBottomColor:tab===item.name?C.ink:'transparent'}}>
         <Ionicons name={item.icon} size={24} color={tab===item.name?C.ink:C.muted}/>

@@ -96,11 +96,11 @@ export function ProfileSummary({
       <Text style={{ fontSize: 13, fontWeight: '800', color: C.ink }}>Edit profile</Text>
     </Pressable>
 
-    <View style={{ flexDirection: 'row', borderTopWidth: 1,
+    <View accessibilityRole="tablist" accessibilityLabel="Profile content" style={{ flexDirection: 'row', borderTopWidth: 1,
       borderBottomWidth: 1, borderColor: C.border }}>
       {tabs.map(item => <Pressable key={item.name} accessibilityRole="tab"
         accessibilityLabel={item.name + ' profile tab'}
-        accessibilityState={{ selected: tab === item.name }}
+        aria-selected={tab === item.name}
         onPress={() => onTab(item.name)}
         style={{ flex: 1, minHeight: 57, alignItems: 'center',
           justifyContent: 'center', borderBottomWidth: 2,
