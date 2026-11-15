@@ -1,5 +1,7 @@
 # Rider Comms project status
 
+> **For the current state (15 November 2026), start with `HANDOVER.md`.** This file is an older snapshot.
+
 > Snapshot: 3 October 2026. This file is a handover/status snapshot, not a substitute for live GitHub state. Before changing code, re-check current `main`, open PRs, their exact HEAD SHAs/checks, and file overlap.
 
 ## Executive status
