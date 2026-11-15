@@ -612,4 +612,10 @@ test('PWA menu links to Rider Social only for riders the server lets in', async 
   expect(opened.url()).toMatch(/^https:\/\/social-web-preview-preview\.up\.railway\.app\/?$/);
   await opened.close();
   await expect(page.locator('#appMenu')).toBeHidden();
+
+  allowed = false;
+  const accessCheck = page.waitForResponse((response) => new URL(response.url()).pathname === '/social/bootstrap');
+  await page.locator('#mapAvatarButton').click();
+  expect((await accessCheck).status()).toBe(403);
+  await expect(social).toBeHidden();
 });
