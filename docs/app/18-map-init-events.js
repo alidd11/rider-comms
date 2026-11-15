@@ -180,13 +180,21 @@
   // Rider Social, the photo and Reels app on the same accounts. Shown in the
   // menu only to riders the server lets in (native: MenuScreen).
   const RIDER_SOCIAL_URL = 'https://social-web-preview-preview.up.railway.app';
-  let socialAccessCheck = null;
-  function showSocialEntryIfAllowed() {
-    socialAccessCheck ??= apiFetch('GET', '/social/bootstrap').then(() => true, () => {
-      socialAccessCheck = null;
-      return false;
-    });
-    void socialAccessCheck.then((allowed) => { $('#appMenuSocial').hidden = !allowed; });
+  let socialAccessCheck = 0;
+  async function showSocialEntryIfAllowed() {
+    const check = ++socialAccessCheck;
+    const token = session?.token;
+    const entry = $('#appMenuSocial');
+    entry.hidden = true;
+    if (!token) return;
+    try {
+      await apiFetch('GET', '/social/bootstrap');
+      if (check === socialAccessCheck && session?.token === token && !$('#appMenu').hidden) {
+        entry.hidden = false;
+      }
+    } catch {
+      // Leave the entry hidden until the next successful access check.
+    }
   }
 
   function openAppMenu() {
@@ -196,7 +204,7 @@
     }
     appMenuTrigger = document.activeElement;
     renderProfile();
-    showSocialEntryIfAllowed();
+    void showSocialEntryIfAllowed();
     pushOverlayGuard();
     $('#appMenu').hidden = false;
     $('#app')?.setAttribute('inert', '');
