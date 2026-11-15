@@ -13,6 +13,7 @@ import { clearLocalDemo } from './src/demoStorage';
 import { clearAccountTextDraft } from './src/textDraftStorage';
 import { CreateComposer } from './src/CreateComposer';
 import { LiveFeed, OwnPosts, useLiveReels } from './src/LiveFeed';
+import { IdentityAvatar } from './src/IdentityAvatar';
 import { publishDraft } from './src/publishPost';
 import { prepareMediaForUpload } from './src/prepareMedia';
 import { canPublish, useSocialAccess } from './src/socialAccess';
@@ -262,6 +263,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [screen, setScreen] = useState<Screen>('Home');
   const pageScrollEnabled = screen === 'Home' || screen === 'Clubs' || screen === 'Shop' || screen === 'Profile';
   const [feedPreferencesOpen, setFeedPreferencesOpen] = useState(false);
+  const [homeScope, setHomeScope] = useState<'for-you' | 'following'>('for-you');
   const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
   const [expandedCaptionId, setExpandedCaptionId] = useState<string | null>(null);
   const [createMode, setCreateMode] = useState<'Post' | 'Story' | 'Reel'>('Post');
@@ -635,8 +637,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         contentContainerStyle={s.storyRail}>
         <Pressable accessibilityRole="button" accessibilityLabel="Create story"
           style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
-          <View style={[s.storyCircle,{borderColor:C.border}]}>
-            <Ionicons name="add" color={C.accent} size={23}/>
+          <View style={[s.storyCircle, { borderColor: 'transparent' }]}>
+            <IdentityAvatar name={ownProfile?.displayName || identity.username} avatarId={ownProfile?.avatarId} size={54}/>
+            <View style={{ position: 'absolute', right: 0, bottom: 0, width: 21, height: 21,
+              borderRadius: 11, borderWidth: 2, borderColor: C.bg, backgroundColor: C.ink,
+              alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="add" color={C.bg} size={14}/>
+            </View>
           </View>
           <Text style={s.storyLabel}>Your story</Text>
         </Pressable>
@@ -648,9 +655,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           <Text style={s.storyLabel}>{story.name}</Text>
         </Pressable>)}
       </ScrollView>
-      {socialFixturesEnabled ? <Text style={[s.small,{
-        paddingHorizontal:16,paddingTop:7,paddingBottom:5,fontSize:11
-      }]}>Sample feed</Text> : null}
+
       {feedPreferencesOpen ? <View testID="home-feed-preferences"
         style={[s.card,s.pad,{marginHorizontal:16,marginTop:9,marginBottom:12,gap:13}]}>
         <View style={s.rowBetween}>
@@ -661,6 +666,14 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Ionicons name="close" color={C.muted} size={21}/>
           </Pressable>
         </View>
+        {liveSocial ? <View accessibilityRole="tablist" accessibilityLabel="Home feed" style={s.row}>
+          {([['for-you', 'Home'], ['following', 'Following']] as const).map(([value, label]) =>
+            <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: homeScope === value }}
+              onPress={() => { setHomeScope(value); setFeedPreferencesOpen(false); }}
+              style={[s.ghost, { flex: 1, minHeight: 44, backgroundColor: homeScope === value ? C.accentDark : 'transparent' }]}>
+              <Text style={s.ghostText}>{label}</Text>
+            </Pressable>)}
+        </View> : null}
         <View style={s.rowBetween}>
           <Text style={[s.body,{flex:1}]}>Personalised recommendations</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Toggle personalised recommendations"
@@ -675,11 +688,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           {topics.map(({topic,label})=><Pill key={topic} label={label}
             selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}
         </View>
-        <Text style={s.small}>Reels has its own For You and Following video feeds.</Text>
       </View> : null}
       {/* With real posts, riders' posts come first and the editorial card follows them. */}
       {!socialFixturesEnabled && !liveSocial ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
-      {liveSocial ? <LiveFeed client={client} riderId={identity.riderId} refreshKey={feedRefresh}
+      {liveSocial ? <LiveFeed client={client} riderId={identity.riderId} scope={homeScope} refreshKey={feedRefresh}
           onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
           empty={<HomeEmpty live
             onCreate={() => { setCreateMode('Post'); navigate('Create'); }}

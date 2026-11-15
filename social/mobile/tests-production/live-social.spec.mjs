@@ -98,6 +98,13 @@ test('shows the real feed, reports a post, shares a photo and deletes it', async
   await expect(card.getByText(/@sam_rides · 5 min/)).toBeVisible();
   await expect(card.getByText('Sunday run to the coast')).toBeVisible();
   await expect(card.getByRole('img').first()).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Following', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await page.getByRole('tablist', { name: 'Home feed' }).getByRole('tab', { name: 'Following' }).click();
+  await expect(page.getByText('Posts from your Rider Comms friends will show here.')).toBeVisible();
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await page.getByRole('tablist', { name: 'Home feed' }).getByRole('tab', { name: 'Home' }).click();
+  await expect(card).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: `test-results/screenshots/${testInfo.project.name}-live-feed.png` });
 
