@@ -267,9 +267,12 @@ export function reelPreviewFromPost(post: SocialPost, profile: RiderProfile | un
   };
 }
 
+type LiveReel = ReturnType<typeof reelPreviewFromPost>;
+const emptyReels: { forYou: LiveReel[]; following: LiveReel[] } = { forYou: [], following: [] };
+
 /** Real Reels for the Reels tab: everyone's, and friends'. */
 export function useLiveReels(client: FeedClient, enabled: boolean, refreshKey = 0) {
-  const [reels, setReels] = useState<{ forYou: ReturnType<typeof reelPreviewFromPost>[]; following: ReturnType<typeof reelPreviewFromPost>[] }>({ forYou: [], following: [] });
+  const [reels, setReels] = useState<typeof emptyReels | null>(null);
   // Video links expire, so the Reels are fetched again before they do.
   const [linkRound, setLinkRound] = useState(0);
   useEffect(() => {
@@ -289,10 +292,12 @@ export function useLiveReels(client: FeedClient, enabled: boolean, refreshKey = 
         forYou: everyone.posts.map(post => reelPreviewFromPost(post, names[post.authorId], client)),
         following: followingReels.map(post => reelPreviewFromPost(post, names[post.authorId], client)),
       });
-    }, () => undefined);
+    }, () => {
+      if (live) setReels(current => current ?? emptyReels);
+    });
     return () => { live = false; };
   }, [client, enabled, refreshKey, linkRound]);
-  return reels;
+  return { ...(reels ?? emptyReels), loading: enabled && reels === null };
 }
 
 /** The rider's own posts on their profile, where they can also delete them. */

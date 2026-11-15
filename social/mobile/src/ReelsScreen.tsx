@@ -58,7 +58,35 @@ function ReelActionButton({
   </Pressable>;
 }
 
-function ReelVideo({ uri, hasAudio, onRetry }: { uri: string; hasAudio: boolean; onRetry: () => void }) {
+type PlaybackProps = { uri: string; poster: string; hasAudio: boolean; onRetry: () => void };
+
+function ReelPlaybackControls({ isPlaying, failed, loading, muted, hasAudio, onToggle, onMute }: {
+  isPlaying: boolean; failed: boolean; loading: boolean; muted: boolean; hasAudio: boolean;
+  onToggle: () => void; onMute: () => void;
+}) {
+  return <>
+    <Pressable accessibilityRole="button"
+      accessibilityLabel={failed ? 'Retry Reel playback' : isPlaying ? 'Pause Reel' : 'Play Reel'}
+      onPress={onToggle} style={{
+        position: 'absolute', top: '25%', left: 50, right: 50, bottom: '28%',
+        alignItems: 'center', justifyContent: 'center', gap: 8,
+      }}>
+      {failed ? <>
+        <Ionicons name="refresh-circle" color="#FFFFFF" size={48} style={reelTextShadow}/>
+        <Text style={[{ color: '#FFFFFF', fontWeight: '800' }, reelTextShadow]}>Can’t play this Reel. Tap to retry.</Text>
+      </> : loading ? <ActivityIndicator accessibilityLabel="Loading Reel" color="#FFFFFF"/>
+        : !isPlaying ? <Ionicons name="play-circle" color="#FFFFFF" size={52} style={reelTextShadow}/> : null}
+    </Pressable>
+    {hasAudio && !failed ? <Pressable accessibilityRole="button" accessibilityLabel={muted ? 'Unmute Reel' : 'Mute Reel'}
+      onPress={onMute}
+      style={{ position: 'absolute', right: 12, top: '21%', width: 44, height: 44,
+        borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#00000080' }}>
+      <Ionicons name={muted ? 'volume-mute-outline' : 'volume-high-outline'} color="#FFFFFF" size={22}/>
+    </Pressable> : null}
+  </>;
+}
+
+function NativeReelVideo({ uri, hasAudio, onRetry }: PlaybackProps) {
   const player = useVideoPlayer(uri, instance => {
     instance.loop = true;
     instance.muted = true;
@@ -71,42 +99,59 @@ function ReelVideo({ uri, hasAudio, onRetry }: { uri: string; hasAudio: boolean;
     player.play();
     return () => player.pause();
   }, [player]);
-
   const failed = status === 'error';
-  const loading = !firstFrame && !failed && status !== 'readyToPlay';
-  const togglePlayback = () => {
-    if (failed) onRetry();
-    else if (isPlaying) player.pause();
-    else player.play();
-  };
-  return <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
+  return <>
     <VideoView player={player} style={{ flex: 1, opacity: firstFrame && !failed ? 1 : 0 }}
-      contentFit="cover" nativeControls={false} playsInline surfaceType="textureView"
+      contentFit="cover" nativeControls={false} surfaceType="textureView"
       onFirstFrameRender={() => setFirstFrame(true)}/>
-    <Pressable accessibilityRole="button"
-      accessibilityLabel={failed ? 'Retry Reel playback' : isPlaying ? 'Pause Reel' : 'Play Reel'}
-      onPress={togglePlayback} style={{
-        position: 'absolute', top: '25%', left: 50, right: 50, bottom: '28%',
-        alignItems: 'center', justifyContent: 'center', gap: 8,
-      }}>
-      {failed ? <>
-        <Ionicons name="refresh-circle" color="#FFFFFF" size={48} style={reelTextShadow}/>
-        <Text style={[{ color: '#FFFFFF', fontWeight: '800' }, reelTextShadow]}>Can’t play this Reel. Tap to retry.</Text>
-      </> : loading ? <ActivityIndicator accessibilityLabel="Loading Reel" color="#FFFFFF"/>
-        : !isPlaying ? <Ionicons name="play-circle" color="#FFFFFF" size={52} style={reelTextShadow}/> : null}
-    </Pressable>
-    {hasAudio && !failed ? <Pressable accessibilityRole="button" accessibilityLabel={muted ? 'Unmute Reel' : 'Mute Reel'}
-      onPress={() => { player.muted = !player.muted; }}
-      style={{ position: 'absolute', right: 12, top: '21%', width: 44, height: 44,
-        borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#00000080' }}>
-      <Ionicons name={muted ? 'volume-mute-outline' : 'volume-high-outline'} color="#FFFFFF" size={22}/>
-    </Pressable> : null}
-  </View>;
+    <ReelPlaybackControls isPlaying={isPlaying} failed={failed}
+      loading={!firstFrame && status !== 'readyToPlay'} muted={muted} hasAudio={hasAudio}
+      onToggle={() => {
+        if (failed) onRetry();
+        else if (isPlaying) player.pause();
+        else player.play();
+      }}
+      onMute={() => { player.muted = !player.muted; }}/>
+  </>;
 }
 
-function ActiveReelVideo({ uri, hasAudio }: { uri: string; hasAudio: boolean }) {
+function WebReelVideo({ uri, poster, hasAudio, onRetry }: PlaybackProps) {
+  const video = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setPlaying] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const togglePlayback = () => {
+    if (failed) { onRetry(); return; }
+    const element = video.current;
+    if (!element) return;
+    if (element.paused) void element.play().catch(() => setPlaying(false));
+    else element.pause();
+  };
+  return <>
+    <video ref={video} src={uri} poster={poster || undefined} autoPlay muted={muted} loop playsInline
+      onCanPlay={() => setReady(true)} onPlaying={() => { setReady(true); setPlaying(true); }}
+      onPause={() => setPlaying(false)} onError={() => { setFailed(true); setPlaying(false); }}
+      style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', visibility: failed ? 'hidden' : 'visible' }}/>
+    <ReelPlaybackControls isPlaying={isPlaying} failed={failed} loading={!ready} muted={muted}
+      hasAudio={hasAudio} onToggle={togglePlayback}
+      onMute={() => {
+        const element = video.current;
+        if (element) {
+          element.muted = !element.muted;
+          setMuted(element.muted);
+        }
+      }}/>
+  </>;
+}
+
+function ActiveReelVideo({ uri, poster, hasAudio }: Omit<PlaybackProps, 'onRetry'>) {
   const [attempt, setAttempt] = useState(0);
-  return <ReelVideo key={attempt} uri={uri} hasAudio={hasAudio} onRetry={() => setAttempt(previous => previous + 1)}/>;
+  const Player = Platform.OS === 'web' ? WebReelVideo : NativeReelVideo;
+  return <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
+    <Player key={attempt} uri={uri} poster={poster} hasAudio={hasAudio}
+      onRetry={() => setAttempt(previous => previous + 1)}/>
+  </View>;
 }
 
 export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds, onToggleSavedReel,
@@ -287,7 +332,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
               }}>
               <ImageBackground source={{ uri: reel.imageUrl }} resizeMode="cover" accessibilityLabel={reel.title}
                 style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}>
-                {reel.videoUrl && index === activeIndex ? <ActiveReelVideo key={reel.videoUrl} uri={reel.videoUrl} hasAudio={reel.hasAudio !== false}/> : null}
+                {reel.videoUrl && index === activeIndex ? <ActiveReelVideo key={reel.videoUrl} uri={reel.videoUrl} poster={reel.imageUrl} hasAudio={reel.hasAudio !== false}/> : null}
                 <View testID={'reel-caption-' + reel.id}
                   style={{ position: 'absolute', left: 16, bottom: 26, right: 80, gap: 9 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>

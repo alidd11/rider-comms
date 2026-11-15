@@ -138,7 +138,7 @@ test('production: every major route and empty state is visible, navigable and er
 
   await page.getByRole('tab', { name: 'Reels' }).click();
   await expect(page.getByTestId('reels-viewport')).toBeVisible();
-  await expect(page.getByText('Featured by Rider Comms').first()).toBeVisible();
+  await expect(page.getByText('Ahmet Mert / Pexels')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await page.getByRole('tab', { name: 'Following videos' }).click();
@@ -417,7 +417,7 @@ test('production: first-party Rider Comms editorial page, Stories and Reels show
   await expect(page.getByRole('button', { name: 'View source footage brand-mountain-reel' })).toBeVisible();
   const video = page.locator('video');
   await expect(video).toHaveCount(1);
-  await expect(video).toHaveCSS('opacity', '1');
+  await expect(video).toBeVisible();
   await expect.poll(() => video.evaluate(element => element.currentTime)).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Pause Reel', exact: true }).click();
   await expect.poll(() => video.evaluate(element => element.paused)).toBe(true);
