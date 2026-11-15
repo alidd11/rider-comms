@@ -11,12 +11,15 @@ const ENV = {
   SOCIAL_MEDIA_S3_SECRET_ACCESS_KEY: 'example-secret-test-only',
 };
 const MEDIA = '12345678-1234-4234-8234-123456789abc';
-const HOUR = 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 10, 15, 10, 20);
+
+const SESSION = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+const OTHER_SESSION = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
+const MINUTE = 60_000;
 
 function parts(path: string) {
   const url = new URL(path, 'https://api.test');
-  return { v: url.searchParams.get('v')!, exp: Number(url.searchParams.get('exp')), sig: url.searchParams.get('sig')!, path: url.pathname };
+  return { v: url.searchParams.get('v')!, s: url.searchParams.get('s')!, exp: Number(url.searchParams.get('exp')), sig: url.searchParams.get('sig')!, path: url.pathname };
 }
 
 describe('Rider Social media service', () => {
@@ -34,24 +37,30 @@ describe('Rider Social media service', () => {
     await assert.rejects(service.processVideo('/nonexistent', 'mov'), /invalid_media/);
   });
 
-  it('signs a link for one viewer and one file, expiring on the hour', () => {
+  it('signs a link for one rider session and one file, lasting 20 to 30 minutes', () => {
     const secret = Buffer.alloc(32, 7);
-    const link = parts(signedMediaPath(secret, 'rider_a', MEDIA, 'file', NOW));
+    const viewer = { riderId: 'rider_a', sessionId: SESSION };
+    const link = parts(signedMediaPath(secret, viewer, MEDIA, 'file', NOW));
     assert.equal(link.path, `/social/media/${MEDIA}/file`);
-    assert.equal(link.v, 'rider_a');
-    assert.equal(link.exp, Date.UTC(2026, 10, 15, 12, 0));
-    // The same link for the rest of the hour, so the phone can cache it.
-    assert.equal(signedMediaPath(secret, 'rider_a', MEDIA, 'file', NOW + 30 * 60_000), signedMediaPath(secret, 'rider_a', MEDIA, 'file', NOW));
-    assert.equal(verifyMediaSignature(secret, 'rider_a', MEDIA, 'file', link.exp, link.sig, NOW), true);
-    assert.equal(verifyMediaSignature(secret, 'rider_b', MEDIA, 'file', link.exp, link.sig, NOW), false);
-    assert.equal(verifyMediaSignature(secret, 'rider_a', MEDIA, 'poster', link.exp, link.sig, NOW), false);
-    assert.equal(verifyMediaSignature(secret, 'rider_a', MEDIA, 'file', link.exp + HOUR, link.sig, NOW), false);
-    assert.equal(verifyMediaSignature(Buffer.alloc(32, 8), 'rider_a', MEDIA, 'file', link.exp, link.sig, NOW), false);
-    assert.equal(verifyMediaSignature(secret, 'rider_a', MEDIA, 'file', link.exp, 'short', NOW), false);
+    assert.deepEqual([link.v, link.s], ['rider_a', SESSION]);
+    assert.equal(link.exp, Date.UTC(2026, 10, 15, 10, 50));
+    // The same link for the rest of its 10-minute step, so a refreshed feed reuses it.
+    assert.equal(signedMediaPath(secret, viewer, MEDIA, 'file', NOW + 9 * MINUTE), signedMediaPath(secret, viewer, MEDIA, 'file', NOW));
+    assert.notEqual(signedMediaPath(secret, viewer, MEDIA, 'file', NOW + 10 * MINUTE), signedMediaPath(secret, viewer, MEDIA, 'file', NOW));
+    const check = (who: { riderId: string; sessionId: string }, variant: 'file' | 'poster', exp: number, sig: string, now = NOW, key = secret) =>
+      verifyMediaSignature(key, who, MEDIA, variant, exp, sig, now);
+    assert.equal(check(viewer, 'file', link.exp, link.sig), true);
+    assert.equal(check({ riderId: 'rider_b', sessionId: SESSION }, 'file', link.exp, link.sig), false, 'another rider');
+    assert.equal(check({ riderId: 'rider_a', sessionId: OTHER_SESSION }, 'file', link.exp, link.sig), false, 'another session');
+    assert.equal(check({ riderId: 'rider_a', sessionId: 'not-a-session' }, 'file', link.exp, link.sig), false);
+    assert.equal(check(viewer, 'poster', link.exp, link.sig), false);
+    assert.equal(check(viewer, 'file', link.exp + 10 * MINUTE, link.sig), false);
+    assert.equal(check(viewer, 'file', link.exp, link.sig, NOW, Buffer.alloc(32, 8)), false);
+    assert.equal(check(viewer, 'file', link.exp, 'short'), false);
     // Expired, or claiming to last longer than any link we issue.
-    assert.equal(verifyMediaSignature(secret, 'rider_a', MEDIA, 'file', link.exp, link.sig, link.exp + 1), false);
-    assert.equal(verifyMediaSignature(secret, 'rider_a', MEDIA, 'file', NOW + 4 * HOUR, link.sig, NOW), false);
-    assert.equal(verifyMediaSignature(secret, 'rider_a', MEDIA, 'file', Number.NaN, link.sig, NOW), false);
+    assert.equal(check(viewer, 'file', link.exp, link.sig, link.exp + 1), false);
+    assert.equal(check(viewer, 'file', NOW + 31 * MINUTE, link.sig), false);
+    assert.equal(check(viewer, 'file', Number.NaN, link.sig), false);
   });
 
   it('accepts only a single byte range', () => {

@@ -16,6 +16,19 @@ describe('AuthStore test sessions', () => {
     assert.equal(await store.riderForToken(b.token), 'test-rider-b');
     assert.equal(await store.riderForToken(`${a.token}x`), undefined);
   });
+
+  it('names each test session, so a link tied to it can be checked and revoked', async () => {
+    const store = new AuthStore();
+    const a = store.createTestSession('test-rider-a');
+    const sessionId = await store.sessionIdForToken(a.token);
+    assert.match(sessionId ?? '', /^[0-9a-f-]{36}$/);
+    assert.equal(await store.sessionIdForToken(''), undefined);
+    assert.equal(await store.isSessionActive('test-rider-a', sessionId!), true);
+    assert.equal(await store.isSessionActive('test-rider-b', sessionId!), false, 'another rider');
+    assert.equal(await store.isSessionActive('test-rider-a', ''), false);
+    await store.revokeToken(a.token);
+    assert.equal(await store.isSessionActive('test-rider-a', sessionId!), false, 'signed out');
+  });
 });
 
 // The username/password account flow is backed by real Postgres (see
@@ -108,6 +121,22 @@ describe('AuthStore account signup/login (Postgres-backed)', { skip: !hasDatabas
       [result.riderId]
     );
     assert.equal(credentials[0]?.password_algorithm, 'scrypt-v2');
+  });
+
+  it('ties an account session to its stored ID until it signs out', async () => {
+    const { fn } = fakeSender();
+    const store = new AuthStore(fn);
+    const result = await store.signUp(uniqueUsername(), uniqueEmail(), 'correct-horse-battery');
+    assert.ok(!('error' in result));
+    if ('error' in result) return;
+    const sessionId = await store.sessionIdForToken(result.token);
+    const [listed] = await store.listSessions(result.riderId, result.token);
+    assert.equal(sessionId, listed?.id);
+    assert.equal(await store.sessionIdForToken('not-a-real-token'), undefined);
+    assert.equal(await store.isSessionActive(result.riderId, sessionId!), true);
+    assert.equal(await store.isSessionActive('rider_someoneelse', sessionId!), false);
+    await store.revokeToken(result.token);
+    assert.equal(await store.isSessionActive(result.riderId, sessionId!), false, 'signed out');
   });
 
   it('rejects a duplicate username, case-insensitively', async () => {

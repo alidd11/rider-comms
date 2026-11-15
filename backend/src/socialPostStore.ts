@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ensureMigrated, getPool, withTransaction } from './db.ts';
-import { enqueueSocialMediaDelete } from './socialMediaDeletionOutbox.ts';
+import { assertSocialObjectKey, enqueueSocialMediaDelete } from './socialMediaDeletionOutbox.ts';
 import type { Queryable } from './socialMediaDeletionOutbox.ts';
 
 /**
@@ -137,14 +137,41 @@ async function enqueueMediaRows(client: Queryable, rows: Row[]): Promise<void> {
 }
 
 export class SocialPostStore {
+  /**
+   * Queues an upload's storage keys for deletion an hour from now, before
+   * anything is written. addMedia releases them with the record, so a file
+   * whose record never lands (a storage or database failure, a crash) is
+   * still deleted.
+   */
+  async reserveMediaKeys(keys: readonly string[]): Promise<void> {
+    await ensureMigrated();
+    await withTransaction(async (client) => {
+      for (const key of keys) {
+        assertSocialObjectKey(key);
+        await client.query(
+          `INSERT INTO social_media_delete_outbox (object_key, next_attempt_at)
+           VALUES ($1, now() + interval '1 hour') ON CONFLICT (object_key) DO NOTHING`,
+          [key],
+        );
+      }
+    });
+  }
+
+  /** Records an upload whose files are stored, and releases their reserved keys. */
   async addMedia(ownerId: string, media: NewSocialMedia, now = Date.now()): Promise<string> {
     await ensureMigrated();
-    const result = await getPool().query(
-      `INSERT INTO social_media (owner_id, kind, object_key, poster_key, width, height, duration_ms, bytes, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [ownerId, media.kind, media.objectKey, media.posterKey, media.width, media.height, media.durationMs, media.bytes, now],
-    );
-    return String(result.rows[0].id);
+    return withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO social_media (owner_id, kind, object_key, poster_key, width, height, duration_ms, bytes, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        [ownerId, media.kind, media.objectKey, media.posterKey, media.width, media.height, media.durationMs, media.bytes, now],
+      );
+      await client.query(
+        'DELETE FROM social_media_delete_outbox WHERE object_key = ANY($1::text[]) AND completed_at IS NULL',
+        [[media.objectKey, ...(media.posterKey ? [media.posterKey] : [])]],
+      );
+      return String(result.rows[0].id);
+    });
   }
 
   async createPost(

@@ -105,6 +105,8 @@ export interface RouteDeps {
   socialPostStore: SocialPostStore;
   /** Null when Social media storage isn't configured: Social stays read-only. */
   socialMedia: SocialMediaService | null;
+  /** Uploads and new posts; off unless SOCIAL_POSTING_ENABLED=true, even with storage. */
+  socialPostingEnabled: boolean;
 }
 
 /** Context for routes that run before authentication. */

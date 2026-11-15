@@ -6,7 +6,10 @@ import type { RiderAccountClient, RiderProfile, SocialFeedScope, SocialPost, Soc
 import { C, s } from './styles';
 
 type FeedClient = Pick<RiderAccountClient, 'socialFeed' | 'riderSocialPosts' | 'riderProfiles' | 'deleteSocialPost' |
-  'reportSocialPost' | 'blockRider' | 'socialMediaUrl'>;
+  'reportSocialPost' | 'blockRider' | 'socialMediaUrl' | 'socialPost'>;
+
+/** Media links last at least 20 minutes; reload well before then. */
+export const MEDIA_LINK_REFRESH_MS = 15 * 60_000;
 
 const REASON_LABELS: Record<SocialReportReason, string> = {
   harassment: 'Bullying or harassment',
@@ -41,9 +44,11 @@ function authorLabel(profile: RiderProfile | undefined): { name: string; handle:
 
 type Panel = { postId: string; view: 'menu' | 'report' | 'confirm-delete' | 'confirm-block' };
 
-export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemoved, onNotice }: {
+export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemoved, onNotice, onStaleMedia }: {
   post: SocialPost; profile?: RiderProfile; mine: boolean; client: FeedClient;
   onOpenReel?: (postId: string) => void;
+  /** A photo didn't load, most likely because its link expired: fetch the post again. */
+  onStaleMedia?: (postId: string) => void;
   onRemoved: (postId: string, why: 'deleted' | 'reported' | 'blocked') => void;
   onNotice: (message: string) => void;
 }) {
@@ -54,6 +59,14 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
   const [width, setWidth] = useState(0);
   const author = authorLabel(profile);
   const first = post.media[0];
+  // Ask for fresh links once per set of links, never in a loop.
+  const staleReported = useRef<string | null>(null);
+  const mediaFailed = () => {
+    const linkSet = post.media.map(item => item.url).join(' ');
+    if (staleReported.current === linkSet) return;
+    staleReported.current = linkSet;
+    onStaleMedia?.(post.id);
+  };
   const aspect = first ? mediaAspect(first.width, first.height) : 1;
 
   async function run(action: () => Promise<void>, why: 'deleted' | 'reported' | 'blocked', done: string) {
@@ -91,13 +104,13 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
     {post.kind === 'reel' && first ? <Pressable accessibilityRole="button" accessibilityLabel={'Watch Reel by ' + (author.handle || author.name)}
       onPress={() => onOpenReel?.(post.id)}
       style={{ width: '100%', aspectRatio: 0.8, backgroundColor: '#000' }}>
-      {first.posterUrl ? <Image source={{ uri: client.socialMediaUrl(first.posterUrl) }} resizeMode="cover"
+      {first.posterUrl ? <Image source={{ uri: client.socialMediaUrl(first.posterUrl) }} resizeMode="cover" onError={mediaFailed}
         accessibilityLabel={'Reel cover: ' + (post.caption || 'video')} style={{ flex: 1 }}/> : null}
       <View style={{ position: 'absolute', top: 12, right: 12 }}><Ionicons name="play-circle" size={34} color="#fff"/></View>
     </Pressable> : <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ width: '100%', aspectRatio: aspect, backgroundColor: '#000' }}>
       <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={(event) => width && setPage(Math.round(event.nativeEvent.contentOffset.x / width))}>
-        {post.media.map((item, index) => <Image key={item.id} source={{ uri: client.socialMediaUrl(item.url) }} resizeMode="cover"
+        {post.media.map((item, index) => <Image key={item.id} source={{ uri: client.socialMediaUrl(item.url) }} resizeMode="cover" onError={mediaFailed}
           accessibilityLabel={`Photo ${index + 1} of ${post.media.length}` + (post.caption ? ': ' + post.caption.slice(0, 80) : '')}
           style={{ width: width || 1, height: '100%' }}/>)}
       </ScrollView>
@@ -182,11 +195,19 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
 
   useEffect(() => { void load(null); }, [load, refreshKey]);
 
+  // Swaps in a post with fresh media links; a post that's gone is dropped.
+  const refreshPost = useCallback((postId: string) => {
+    void client.socialPost(postId).then(
+      fresh => setPosts(current => current.map(post => post.id === postId ? fresh : post)),
+      () => setPosts(current => current.filter(post => post.id !== postId)),
+    );
+  }, [client]);
+
   const remove = useCallback((postId: string, authorId?: string) => {
     setPosts(current => current.filter(post => post.id !== postId && (!authorId || post.authorId !== authorId)));
   }, []);
 
-  return { posts, profiles, state, error, hasMore: Boolean(cursor), reload: () => void load(null), loadMore: () => void load(cursor), remove };
+  return { posts, profiles, state, error, hasMore: Boolean(cursor), reload: () => void load(null), loadMore: () => void load(cursor), remove, refreshPost };
 }
 
 /** Home's real feed: For you (everyone in the test) and Following (friends). */
@@ -216,7 +237,7 @@ export function LiveFeed({ client, riderId, refreshKey, empty, onOpenReel, onNot
       ? <Text style={[s.muted, { padding: 18, textAlign: 'center' }]}>Posts from your Rider Comms friends will show here.</Text>
       : empty) : null}
     {feed.posts.map(post => <LivePostCard key={post.id} post={post} profile={feed.profiles[post.authorId]}
-      mine={post.authorId === riderId} client={client} onOpenReel={onOpenReel} onNotice={onNotice}
+      mine={post.authorId === riderId} client={client} onOpenReel={onOpenReel} onNotice={onNotice} onStaleMedia={feed.refreshPost}
       onRemoved={(postId, why) => feed.remove(postId, why === 'blocked' ? post.authorId : undefined)}/>)}
     {feed.hasMore && feed.state === 'ready' ? <Pressable accessibilityRole="button" accessibilityLabel="Load more posts"
       style={[s.ghost, { marginHorizontal: 16, marginBottom: 20 }]} onPress={feed.loadMore}>
@@ -244,6 +265,13 @@ export function reelPreviewFromPost(post: SocialPost, profile: RiderProfile | un
 /** Real Reels for the Reels tab: everyone's, and friends'. */
 export function useLiveReels(client: FeedClient, enabled: boolean, refreshKey = 0) {
   const [reels, setReels] = useState<{ forYou: ReturnType<typeof reelPreviewFromPost>[]; following: ReturnType<typeof reelPreviewFromPost>[] }>({ forYou: [], following: [] });
+  // Video links expire, so the Reels are fetched again before they do.
+  const [linkRound, setLinkRound] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = setInterval(() => setLinkRound(round => round + 1), MEDIA_LINK_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [enabled]);
   useEffect(() => {
     if (!enabled) return;
     let live = true;
@@ -258,7 +286,7 @@ export function useLiveReels(client: FeedClient, enabled: boolean, refreshKey = 
       });
     }, () => undefined);
     return () => { live = false; };
-  }, [client, enabled, refreshKey]);
+  }, [client, enabled, refreshKey, linkRound]);
   return reels;
 }
 
@@ -284,7 +312,7 @@ export function OwnPosts({ client, riderId, refreshKey, onNotice, onOpenReel, on
   </View>;
   return <View testID="own-posts" style={{ marginHorizontal: -16 }}>
     {feed.posts.map(post => <LivePostCard key={post.id} post={post} profile={feed.profiles[post.authorId]} mine
-      client={client} onOpenReel={onOpenReel} onNotice={onNotice} onRemoved={(postId) => feed.remove(postId)}/>)}
+      client={client} onOpenReel={onOpenReel} onNotice={onNotice} onStaleMedia={feed.refreshPost} onRemoved={(postId) => feed.remove(postId)}/>)}
     {feed.hasMore ? <Pressable accessibilityRole="button" accessibilityLabel="Load more of your posts"
       style={[s.ghost, { marginHorizontal: 16 }]} onPress={feed.loadMore}>
       <Text style={s.ghostText}>More posts</Text>

@@ -2,33 +2,33 @@ import { Readable } from 'node:stream';
 import { containsSevereText } from '../contentFilter.ts';
 import { MAX_MODERATION_NOTE_LENGTH, REPORT_REASONS } from '../moderationStore.ts';
 import type { ReportReason } from '../moderationStore.ts';
-import { consumeSocialWrite, readJsonBody, sendEmpty, sendJson } from '../serverHttp.ts';
+import { bearerToken, consumeSocialWrite, readJsonBody, sendEmpty, sendJson } from '../serverHttp.ts';
 import { matchesSocialMediaSignature, validateSocialMediaIntent } from '../socialMediaPolicy.ts';
 import type { SocialMediaMime } from '../socialMediaPolicy.ts';
 import { SocialMediaProcessingError, stageUpload, UploadTooLargeError } from '../socialMediaProcessor.ts';
 import type { VideoContainer } from '../socialMediaProcessor.ts';
 import { parseByteRange, signedMediaPath, verifyMediaSignature } from '../socialMediaService.ts';
-import type { MediaVariant, SocialMediaService } from '../socialMediaService.ts';
+import type { MediaLinkViewer, MediaVariant, SocialMediaService } from '../socialMediaService.ts';
 import { createProcessedObjectKey } from '../socialPrivateObjectTransport.ts';
 import { InvalidSocialCursorError, isSocialId, MAX_POST_CAPTION } from '../socialPostStore.ts';
 import type { SocialFeedPage, SocialPost, SocialPostStore } from '../socialPostStore.ts';
 import { NOT_HANDLED } from './context.ts';
 import type { PublicRouteContext, RouteContext } from './context.ts';
 
-/** A post as the app gets it: each file with a short-lived signed link. */
-function withLinks(service: SocialMediaService, viewerId: string, post: SocialPost) {
+/** A post as the app gets it: each file with a short-lived link for this session. */
+function withLinks(service: SocialMediaService, viewer: MediaLinkViewer, post: SocialPost) {
   return {
     ...post,
     media: post.media.map((item) => ({
       ...item,
-      url: signedMediaPath(service.urlSecret, viewerId, item.id, 'file'),
-      posterUrl: item.kind === 'video' ? signedMediaPath(service.urlSecret, viewerId, item.id, 'poster') : null,
+      url: signedMediaPath(service.urlSecret, viewer, item.id, 'file'),
+      posterUrl: item.kind === 'video' ? signedMediaPath(service.urlSecret, viewer, item.id, 'poster') : null,
     })),
   };
 }
 
-function pageWithLinks(service: SocialMediaService, viewerId: string, page: SocialFeedPage) {
-  return { posts: page.posts.map((post) => withLinks(service, viewerId, post)), nextCursor: page.nextCursor };
+function pageWithLinks(service: SocialMediaService, viewer: MediaLinkViewer, page: SocialFeedPage) {
+  return { posts: page.posts.map((post) => withLinks(service, viewer, post)), nextCursor: page.nextCursor };
 }
 
 const VIDEO_CONTAINERS: Partial<Record<SocialMediaMime, VideoContainer>> = {
@@ -51,14 +51,18 @@ export async function handleSocialMediaRoute(
   if (!socialMedia || !isSocialId(mediaId) || (variant !== 'file' && variant !== 'poster')) {
     return sendJson(res, 404, { error: 'not_found' });
   }
-  const viewerId = url.searchParams.get('v') ?? '';
+  const viewer = { riderId: url.searchParams.get('v') ?? '', sessionId: url.searchParams.get('s') ?? '' };
   const expiresAt = Number(url.searchParams.get('exp'));
   const sig = url.searchParams.get('sig') ?? '';
-  if (!viewerId || !verifyMediaSignature(socialMedia.urlSecret, viewerId, mediaId, variant as MediaVariant, expiresAt, sig)) {
+  // The link names a rider and the session it was issued to; it works only
+  // while that session is still signed in, and only for what the rider may
+  // see right now (staff included: admin rights are checked each time).
+  if (!viewer.riderId || !verifyMediaSignature(socialMedia.urlSecret, viewer, mediaId, variant as MediaVariant, expiresAt, sig) ||
+    !(await ctx.authStore.isSessionActive(viewer.riderId, viewer.sessionId))) {
     return sendJson(res, 403, { error: 'invalid_media_link' });
   }
-  const media = await socialPostStore.servableMedia(viewerId, mediaId) ??
-    (await ctx.authStore.isAdmin(viewerId) ? await socialPostStore.mediaForStaff(mediaId) : null);
+  const media = await socialPostStore.servableMedia(viewer.riderId, mediaId) ??
+    (await ctx.authStore.isAdmin(viewer.riderId) ? await socialPostStore.mediaForStaff(mediaId) : null);
   const key = variant === 'poster' ? media?.posterKey : media?.objectKey;
   if (!media || !key) return sendJson(res, 404, { error: 'not_found' });
   const range = parseByteRange(typeof req.headers.range === 'string' ? req.headers.range : undefined);
@@ -72,8 +76,8 @@ export async function handleSocialMediaRoute(
   const isVideo = media.kind === 'video' && variant === 'file';
   const headers: Record<string, string> = {
     'Content-Type': isVideo ? 'video/mp4' : 'image/jpeg',
-    // The link itself expires; the phone may keep the bytes for an hour.
-    'Cache-Control': 'private, max-age=3600',
+    // Kept no longer than the link lasts.
+    'Cache-Control': `private, max-age=${Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))}`,
     'Accept-Ranges': 'bytes',
   };
   for (const name of ['content-length', 'content-range']) {
@@ -99,10 +103,17 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
   const { req, res, url, s, actorId, socialPostStore, socialMedia, socialRateLimitStore, moderationStore } = ctx;
   if (s[0] !== 'social') return NOT_HANDLED;
   const route = s.slice(1);
+  const viewer = async (): Promise<MediaLinkViewer> =>
+    ({ riderId: actorId, sessionId: (await ctx.authStore.sessionIdForToken(bearerToken(req))) ?? '' });
 
   if (!socialMedia) {
     const known = ['media', 'posts', 'feed', 'riders'].includes(route[0] ?? '');
     return known ? sendJson(res, 503, { error: 'social_media_not_configured' }) : NOT_HANDLED;
+  }
+
+  // Posting has its own switch, off unless SOCIAL_POSTING_ENABLED=true.
+  if (req.method === 'POST' && route.length === 1 && (route[0] === 'media' || route[0] === 'posts') && !ctx.socialPostingEnabled) {
+    return sendJson(res, 503, { error: 'social_posting_disabled' });
   }
 
   if (req.method === 'POST' && route.length === 1 && route[0] === 'media') {
@@ -126,6 +137,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
       if (intent.kind === 'image') {
         const { readFile } = await import('node:fs/promises');
         const image = await socialMedia.processImage(await readFile(staged.path));
+        await socialPostStore.reserveMediaKeys([fileKey]);
         await socialMedia.storage.putProcessed(fileKey, image.bytes, 'image/jpeg');
         const id = await socialPostStore.addMedia(actorId, {
           kind: 'image', objectKey: fileKey, posterKey: null, width: image.width, height: image.height, durationMs: null, bytes: image.bytes.length,
@@ -134,6 +146,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
       }
       const video = await socialMedia.processVideo(staged.path, VIDEO_CONTAINERS[intent.mime] ?? 'mov');
       const posterKey = createProcessedObjectKey('jpg');
+      await socialPostStore.reserveMediaKeys([fileKey, posterKey]);
       await socialMedia.storage.putProcessed(fileKey, video.bytes, 'video/mp4');
       await socialMedia.storage.putProcessed(posterKey, video.poster, 'image/jpeg');
       const id = await socialPostStore.addMedia(actorId, {
@@ -168,7 +181,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
     if (!(await consumeSocialWrite(res, socialRateLimitStore, actorId, 'social_post'))) return;
     const result = await socialPostStore.createPost(actorId, { kind, caption, mediaIds });
     if (!result.ok) return sendJson(res, result.error === 'media_not_found' ? 404 : 400, { error: result.error });
-    return sendJson(res, 201, { post: withLinks(socialMedia, actorId, result.post) });
+    return sendJson(res, 201, { post: withLinks(socialMedia, await viewer(), result.post) });
   }
 
   if (req.method === 'GET' && (
@@ -188,7 +201,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
         cursor: url.searchParams.get('cursor') ?? undefined,
         limit,
       });
-      return sendJson(res, 200, pageWithLinks(socialMedia, actorId, page));
+      return sendJson(res, 200, pageWithLinks(socialMedia, await viewer(), page));
     } catch (error) {
       if (error instanceof InvalidSocialCursorError) return sendJson(res, 400, { error: 'invalid_cursor' });
       throw error;
@@ -200,7 +213,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
     if (!isSocialId(postId)) return sendJson(res, 404, { error: 'not_found' });
     if (req.method === 'GET' && route.length === 2) {
       const post = await socialPostStore.getPost(actorId, postId);
-      return post ? sendJson(res, 200, { post: withLinks(socialMedia, actorId, post) }) : sendJson(res, 404, { error: 'not_found' });
+      return post ? sendJson(res, 200, { post: withLinks(socialMedia, await viewer(), post) }) : sendJson(res, 404, { error: 'not_found' });
     }
     if (req.method === 'DELETE' && route.length === 2) {
       return (await socialPostStore.deletePost(actorId, postId)) ? sendEmpty(res, 204) : sendJson(res, 404, { error: 'not_found' });
@@ -233,10 +246,11 @@ export async function handleSocialModerationRoutes(ctx: SocialPostContext): Prom
     const limit = Number(url.searchParams.get('limit') ?? 50);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 100' });
     const hidden = await socialPostStore.listHidden(limit);
+    const viewer = { riderId: actorId, sessionId: (await authStore.sessionIdForToken(bearerToken(req))) ?? '' };
     return sendJson(res, 200, {
       posts: hidden.map((entry) => ({
         ...entry,
-        post: ctx.socialMedia ? withLinks(ctx.socialMedia, actorId, entry.post) : entry.post,
+        post: ctx.socialMedia ? withLinks(ctx.socialMedia, viewer, entry.post) : entry.post,
       })),
     });
   }

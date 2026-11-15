@@ -263,3 +263,12 @@ test('pilot bootstrap requires an exact contract, keeps a 403 session signed in'
     err instanceof AccountApiError && err.code === 'invalid_social_bootstrap');
   assert.notEqual(env.stored, null);
 });
+test('a post can be fetched again for fresh media links', async () => {
+  const env = environment(randomUUID());
+  env.queue.push(response(200, identity()));
+  await env.client.restore();
+  const post = { id: randomUUID(), authorId: 'rider_x', kind: 'photo', caption: '', createdAt: 1, hidden: false, media: [] };
+  env.queue.push(response(200, { post }));
+  assert.deepEqual(await env.client.socialPost(post.id), post);
+  assert.deepEqual([env.calls.at(-1)!.method, env.calls.at(-1)!.pathname], ['GET', '/social/posts/' + post.id]);
+});

@@ -23,7 +23,22 @@ export interface SocialMediaService {
 
 export type MediaVariant = 'file' | 'poster';
 
-const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60_000;
+/** Links are issued in 10-minute steps, so a refreshed feed reuses the same URL. */
+const LINK_STEP_MS = 10 * MINUTE_MS;
+/** The longest a link lasts; with the step, a link lives 20 to 30 minutes. */
+export const MEDIA_LINK_LIFETIME_MS = 30 * MINUTE_MS;
+const SESSION_ID = /^[0-9a-f-]{32,36}$/;
+
+/** Who a link is for: the rider and the signed-in session that asked for it. */
+export interface MediaLinkViewer {
+  riderId: string;
+  sessionId: string;
+}
+
+export function isMediaSessionId(value: string): boolean {
+  return SESSION_ID.test(value);
+}
 
 export function socialMediaServiceFromEnv(env: Record<string, string | undefined> = process.env): SocialMediaService | null {
   const config = readSocialS3Config(env);
@@ -40,33 +55,34 @@ export function socialMediaServiceFromEnv(env: Record<string, string | undefined
   };
 }
 
-function signature(secret: Buffer, viewerId: string, mediaId: string, variant: MediaVariant, expiresAt: number): string {
-  return createHmac('sha256', secret).update(`${viewerId}\n${mediaId}\n${variant}\n${expiresAt}`).digest('base64url');
+function signature(secret: Buffer, viewer: MediaLinkViewer, mediaId: string, variant: MediaVariant, expiresAt: number): string {
+  return createHmac('sha256', secret)
+    .update(`${viewer.riderId}\n${viewer.sessionId}\n${mediaId}\n${variant}\n${expiresAt}`).digest('base64url');
 }
 
 /**
- * A link for one viewer to one stored file, valid for one to two hours. The
- * expiry is rounded to the hour so a refreshed feed reuses the same URL and
- * the phone's cache still works. The media route re-checks that the viewer
- * may still see the post on every request.
+ * A link to one file for one rider's session. It stops working when it
+ * expires or that session signs out; the server also re-checks, on every
+ * request, that the rider may still see the post.
  */
-export function signedMediaPath(secret: Buffer, viewerId: string, mediaId: string, variant: MediaVariant, now = Date.now()): string {
-  const expiresAt = Math.floor(now / HOUR_MS) * HOUR_MS + 2 * HOUR_MS;
-  const sig = signature(secret, viewerId, mediaId, variant, expiresAt);
-  return `/social/media/${mediaId}/${variant}?v=${encodeURIComponent(viewerId)}&exp=${expiresAt}&sig=${sig}`;
+export function signedMediaPath(secret: Buffer, viewer: MediaLinkViewer, mediaId: string, variant: MediaVariant, now = Date.now()): string {
+  const expiresAt = Math.floor(now / LINK_STEP_MS) * LINK_STEP_MS + MEDIA_LINK_LIFETIME_MS;
+  const sig = signature(secret, viewer, mediaId, variant, expiresAt);
+  return `/social/media/${mediaId}/${variant}?v=${encodeURIComponent(viewer.riderId)}` +
+    `&s=${encodeURIComponent(viewer.sessionId)}&exp=${expiresAt}&sig=${sig}`;
 }
 
 export function verifyMediaSignature(
-  secret: Buffer, viewerId: string, mediaId: string, variant: MediaVariant,
+  secret: Buffer, viewer: MediaLinkViewer, mediaId: string, variant: MediaVariant,
   expiresAt: number, sig: string, now = Date.now(),
 ): boolean {
-  if (!Number.isSafeInteger(expiresAt) || expiresAt < now || expiresAt > now + 3 * HOUR_MS) return false;
-  const expected = Buffer.from(signature(secret, viewerId, mediaId, variant, expiresAt));
+  if (!Number.isSafeInteger(expiresAt) || expiresAt < now || expiresAt > now + MEDIA_LINK_LIFETIME_MS) return false;
+  if (!isMediaSessionId(viewer.sessionId)) return false;
+  const expected = Buffer.from(signature(secret, viewer, mediaId, variant, expiresAt));
   const given = Buffer.from(sig);
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-/** A single "bytes=a-b" range a video player sends, or null if anything else. */
 export function parseByteRange(value: string | undefined): string | null {
   if (!value) return null;
   return /^bytes=(\d{1,15})-(\d{0,15})$/.test(value) || /^bytes=-(\d{1,15})$/.test(value) ? value : null;

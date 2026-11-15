@@ -614,6 +614,8 @@ test('bottom navigation stays flush on every non-composer main screen', async ({
 
 test('stale visualViewport dimensions cannot leave a large black strip below tabs', async ({ page }) => {
   await page.goto('/');
+  // Measure the tab bar only once the app has drawn it.
+  await expect(page.locator('#social-bottom-tabs')).toBeVisible();
   await page.evaluate(() => {
     document.documentElement.style.setProperty('--app-vh', String(window.innerHeight - 135) + 'px');
     window.dispatchEvent(new Event('resize'));
@@ -762,6 +764,7 @@ test('iPhone Dynamic Island inset keeps header below system controls', async ({ 
 
 test('PWA viewport recalculates on rotation and resume without moving bottom tabs', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('#social-bottom-tabs')).toBeVisible();
   for (const size of [
     { width: 390, height: 680 },
     { width: 680, height: 390 },

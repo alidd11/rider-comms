@@ -17,12 +17,12 @@ const MP4 = Buffer.from([0, 0, 0, 24, ...Buffer.from('ftypisom'), 0, 0, 2, 0, ..
 /** Storage in memory, processors that echo a recognisable result. */
 function fakeMedia() {
   const objects = new Map<string, { bytes: Buffer; mime: string }>();
-  const state = { failPut: false, failGet: false, imageError: null as SocialMediaProcessingError | null, videoError: null as SocialMediaProcessingError | null, videoContainers: [] as string[] };
+  const state = { failPut: false, failPutMime: null as string | null, failGet: false, imageError: null as SocialMediaProcessingError | null, videoError: null as SocialMediaProcessingError | null, videoContainers: [] as string[] };
   const service: SocialMediaService = {
     urlSecret: Buffer.alloc(32, 3),
     storage: {
       async putProcessed(key, bytes, mime) {
-        if (state.failPut) throw new Error('social_media_storage_unavailable');
+        if (state.failPut || state.failPutMime === mime) throw new Error('social_media_storage_unavailable');
         objects.set(key, { bytes: Buffer.from(bytes), mime });
       },
       async getProcessed(key, range) {
@@ -83,17 +83,17 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
   let media: ReturnType<typeof fakeMedia>;
   before(async () => {
     media = fakeMedia();
-    ctx = startTestServer({ socialOpenBetaEnabled: true, socialMedia: media.service });
+    ctx = startTestServer({ socialOpenBetaEnabled: true, socialMedia: media.service, socialPostingEnabled: true });
     await ctx.ready;
   });
   after(() => ctx.close());
   beforeEach(async () => {
     await resetSocial();
     media.objects.clear();
-    Object.assign(media.state, { failPut: false, failGet: false, imageError: null, videoError: null, videoContainers: [] });
+    Object.assign(media.state, { failPut: false, failPutMime: null, failGet: false, imageError: null, videoError: null, videoContainers: [] });
   });
 
-  it('switches uploads and posting on once storage is configured', async () => {
+  it('switches uploads and posting on once posting is enabled and storage is configured', async () => {
     const res = await authenticatedFetch(ctx, 'social_a', '/social/bootstrap');
     const body = await res.json() as { capabilities: Record<string, boolean> };
     assert.deepEqual(body.capabilities, {
@@ -113,7 +113,7 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     const created = await post.json() as { post: { caption: string; kind: string; authorId: string; media: Array<{ url: string; posterUrl: null }> } };
     assert.equal(created.post.caption, 'Box Hill at dawn');
     assert.equal(created.post.authorId, 'social_a');
-    assert.match(created.post.media[0]!.url, /^\/social\/media\/[0-9a-f-]{36}\/file\?v=social_a&exp=\d+&sig=/);
+    assert.match(created.post.media[0]!.url, /^\/social\/media\/[0-9a-f-]{36}\/file\?v=social_a&s=[0-9a-f-]{36}&exp=\d+&sig=/);
     assert.equal(created.post.media[0]!.posterUrl, null);
     // An upload can only be used once.
     const again = await postJson(ctx, 'social_a', '/social/posts', { kind: 'photo', caption: '', mediaIds: [uploaded.id] });
@@ -246,7 +246,8 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     const ok = await get(link);
     assert.equal(ok.status, 200);
     assert.equal(ok.headers.get('content-type'), 'image/jpeg');
-    assert.equal(ok.headers.get('cache-control'), 'private, max-age=3600');
+    const maxAge = Number(/^private, max-age=(\d+)$/.exec(ok.headers.get('cache-control') ?? '')?.[1]);
+    assert.ok(maxAge > 0 && maxAge <= 30 * 60, 'kept no longer than the link lasts');
     assert.equal(await ok.text(), 'processed-photo');
     const partial = await get(link, { headers: { Range: 'bytes=0-8' } });
     assert.equal(partial.status, 206);
@@ -257,6 +258,8 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal(await head.text(), '');
     // Someone else's copy of the link, a tampered one, a poster that doesn't exist.
     assert.equal((await get(link.replace('v=social_a', 'v=social_b'))).status, 403);
+    assert.equal((await get(link.replace(/s=[^&]+/, 's=bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'))).status, 403, 'another session');
+    assert.equal((await get(link.replace(/&s=[^&]+/, ''))).status, 403, 'no session');
     assert.equal((await get(link.replace(/sig=[^&]+/, 'sig=AAAA'))).status, 403);
     assert.equal((await get(link.replace('/file?', '/poster?'))).status, 403);
     assert.equal((await get('/social/media/not-a-uuid/file')).status, 404);
@@ -272,6 +275,32 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal((await get(link)).status, 404);
   });
 
+  it('stops a link working once the session it was issued to signs out', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    const { token } = ctx.authStore.createTestSession('social_b');
+    const read = await fetch(ctx.baseUrl() + `/social/posts/${post.id}`, { headers: { Authorization: `Bearer ${token}` } });
+    const link = (await read.json() as { post: { media: Array<{ url: string }> } }).post.media[0]!.url;
+    assert.equal((await fetch(ctx.baseUrl() + link)).status, 200);
+    await ctx.authStore.revokeToken(token);
+    assert.equal((await fetch(ctx.baseUrl() + link)).status, 403, 'signed out');
+  });
+
+  it('reserves an upload’s storage keys for deletion until its record is saved', async () => {
+    const pending = async () => (await getPool().query(
+      `SELECT object_key, next_attempt_at > now() + interval '50 minutes' AS later
+         FROM social_media_delete_outbox WHERE completed_at IS NULL ORDER BY object_key`)).rows;
+    assert.equal((await upload(ctx, 'social_a', JPEG, 'image/jpeg')).status, 201);
+    assert.deepEqual(await pending(), [], 'a saved upload releases its keys');
+    // The video is stored, then its poster fails: neither file may be left behind.
+    media.state.failPutMime = 'image/jpeg';
+    assert.equal((await upload(ctx, 'social_a', MP4, 'video/mp4')).status, 502);
+    const reserved = await pending();
+    assert.equal(reserved.length, 2);
+    assert.ok(reserved.every((row) => row.later === true), 'deleted after an hour, not straight away');
+    assert.ok(reserved.some((row) => media.objects.has(String(row.object_key))), 'the stored video is among them');
+    assert.equal((await getPool().query(`SELECT count(*)::int AS n FROM social_media WHERE kind = 'video'`)).rows[0].n, 0);
+  });
+
   it('lets moderators review hidden posts, see their files, and restore or remove them', async () => {
     const post = await photoPost(ctx, 'social_a');
     for (let i = 0; i < REPORTS_TO_HIDE; i += 1) await postJson(ctx, `social_r${i}`, `/social/posts/${post.id}/report`, { reason: 'sexual' });
@@ -280,7 +309,11 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal((await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts?limit=0')).status, 400);
     const list = await (await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts')).json() as { posts: Array<{ post: { id: string; media: Array<{ url: string }> }; reports: number; reasons: string[] }> };
     assert.deepEqual(list.posts.map((entry) => [entry.post.id, entry.reports, entry.reasons]), [[post.id, REPORTS_TO_HIDE, ['sexual']]]);
-    assert.equal((await fetch(ctx.baseUrl() + list.posts[0]!.post.media[0]!.url)).status, 200, 'staff can open the hidden file');
+    const staffLink = list.posts[0]!.post.media[0]!.url;
+    assert.equal((await fetch(ctx.baseUrl() + staffLink)).status, 200, 'staff can open the hidden file');
+    await getPool().query(`UPDATE users SET is_admin = false WHERE id = 'social_mod'`);
+    assert.equal((await fetch(ctx.baseUrl() + staffLink)).status, 404, 'not once their staff access is removed');
+    await getPool().query(`UPDATE users SET is_admin = true WHERE id = 'social_mod'`);
     assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`, {})).status, 400, 'a note is required');
     assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`, { note: 'x'.repeat(1001) })).status, 400);
     assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`, { note: 'Fine: a bike, not spam' })).status, 200);
@@ -323,5 +356,25 @@ describe('Rider Social without media storage', { skip: !hasDatabase && 'DATABASE
     assert.equal((await fetch(ctx.baseUrl() + '/social/media/12345678-1234-4234-8234-123456789abc/file')).status, 404);
     await getPool().query(`INSERT INTO users (id, username, password_hash, is_admin) VALUES ('social_mod2', 'social_mod2', 'x', true) ON CONFLICT DO NOTHING`);
     assert.equal((await authenticatedFetch(ctx, 'social_mod2', '/moderation/social-posts')).status, 200);
+  });
+});
+
+describe('Rider Social posting switch', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed Social post tests' }, () => {
+  let ctx: TestServer;
+  before(async () => {
+    ctx = startTestServer({ socialOpenBetaEnabled: true, socialMedia: fakeMedia().service });
+    await ctx.ready;
+  });
+  after(() => ctx.close());
+  beforeEach(resetSocial);
+
+  it('keeps uploads and posting off, even with storage, unless posting is switched on', async () => {
+    const boot = await (await authenticatedFetch(ctx, 'social_a', '/social/bootstrap')).json() as { capabilities: Record<string, boolean> };
+    assert.equal(boot.capabilities.mediaUpload, false);
+    assert.equal(boot.capabilities.publicPosting, false);
+    const refused = await upload(ctx, 'social_a', JPEG, 'image/jpeg');
+    assert.deepEqual([refused.status, await refused.json()], [503, { error: 'social_posting_disabled' }]);
+    assert.equal((await postJson(ctx, 'social_a', '/social/posts', { kind: 'photo', mediaIds: [] })).status, 503);
+    assert.equal((await authenticatedFetch(ctx, 'social_a', '/social/feed')).status, 200, 'feeds still read');
   });
 });

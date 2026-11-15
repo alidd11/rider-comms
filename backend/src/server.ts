@@ -41,7 +41,7 @@ import { handleProfileRoutes } from './routes/profiles.ts';
 import { handleRideRoutes } from './routes/rides.ts';
 import { handleRiderRoutes } from './routes/riders.ts';
 import { handleSocialRoutes } from './routes/social.ts';
-import { isReservedSocialAppPath, isSocialOpenBetaEnabled, parseSocialPilotRiderIds, socialCapabilities } from './socialPilot.ts';
+import { isReservedSocialAppPath, isSocialOpenBetaEnabled, isSocialPostingEnabled, parseSocialPilotRiderIds, socialCapabilities } from './socialPilot.ts';
 import { socialMediaServiceFromEnv } from './socialMediaService.ts';
 import type { SocialMediaService } from './socialMediaService.ts';
 import { SocialPostStore } from './socialPostStore.ts';
@@ -110,6 +110,8 @@ export interface ApiServerOptions {
   socialPostStore?: SocialPostStore;
   /** Defaults to SOCIAL_MEDIA_S3_* from the environment; null disables uploads. */
   socialMedia?: SocialMediaService | null;
+  /** Defaults to SOCIAL_POSTING_ENABLED=true; posting also needs media storage. */
+  socialPostingEnabled?: boolean;
   readinessCheck?: () => Promise<void>;
   pushStore?: PushStore;
   /** Tests pass a recorder; by default notifications are really sent. */
@@ -219,6 +221,9 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     isSocialOpenBetaEnabled(process.env.SOCIAL_OPEN_BETA_ENABLED);
   const socialPostStore = options.socialPostStore ?? new SocialPostStore();
   const socialMedia = options.socialMedia === undefined ? socialMediaServiceFromEnv() : options.socialMedia;
+  // Posting has its own switch, separate from the beta and from storage being set up.
+  const socialPostingEnabled = socialMedia !== null &&
+    (options.socialPostingEnabled ?? isSocialPostingEnabled(process.env.SOCIAL_POSTING_ENABLED));
   const pushStore = options.pushStore ?? new PushStore();
   const pushNotifier = options.pushNotifier ?? new PushNotifier({
     store: pushStore,
@@ -290,7 +295,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     moderationStore, adminStatsStore, hazardStore, scenicRouteStore, billingStore, accountDeletionStore, rateLimitStore,
     socialRateLimitStore, socialActivityStore, socialEventStore, readinessCheck, directionsProvider,
     placesProvider, placesAlongRouteProvider, placeSuggestionsProvider, placeDetailsProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
-    visibleRideLocationsFor, socialPostStore, socialMedia,
+    visibleRideLocationsFor, socialPostStore, socialMedia, socialPostingEnabled,
   };
   const app = http.createServer(async (req, res) => {
     const startedAt = Date.now();
@@ -324,7 +329,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
           return sendJson(res, 200, {
             entitlement: socialOpenBetaEnabled ? 'beta' : 'pilot',
             policyVersion: socialOpenBetaEnabled ? 'social-open-beta-v1' : 'social-pilot-v1',
-            capabilities: socialCapabilities(socialMedia !== null),
+            capabilities: socialCapabilities(socialPostingEnabled),
           });
         }
       }

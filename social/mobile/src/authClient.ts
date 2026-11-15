@@ -350,6 +350,11 @@ export class RiderAccountClient {
     return this.request('GET', '/social/riders/' + encodeURIComponent(riderId) + '/posts' +
       (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''), undefined, true);
   }
+  /** One post again, with fresh media links (they last 20 to 30 minutes). */
+  async socialPost(postId: string): Promise<SocialPost> {
+    const reply = await this.request<{ post: SocialPost }>('GET', '/social/posts/' + encodeURIComponent(postId), undefined, true);
+    return reply.post;
+  }
   async deleteSocialPost(postId: string): Promise<void> {
     await this.request('DELETE', '/social/posts/' + encodeURIComponent(postId), undefined, true);
   }

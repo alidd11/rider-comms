@@ -13,6 +13,14 @@ export function isSocialOpenBetaEnabled(value: string | undefined): boolean {
   return value === 'true';
 }
 
+/**
+ * Explicit opt-in for uploads and new posts, separate from the beta and from
+ * media storage being configured. Off unless set to exactly "true".
+ */
+export function isSocialPostingEnabled(value: string | undefined): boolean {
+  return value === 'true';
+}
+
 export function parseSocialPilotRiderIds(value: string | undefined): ReadonlySet<string> {
   if (!value?.trim()) return new Set();
   const ids = value.split(',').map(id => id.trim());
@@ -38,9 +46,10 @@ export const SOCIAL_PILOT_CAPABILITIES = Object.freeze({
 
 /**
  * What an entitled rider may do. Uploads and posting to the beta's shared
- * feed turn on only when private media storage is configured; private
- * audiences, live streaming and anything involving money stay off.
+ * feed turn on only when posting is switched on (which needs private media
+ * storage); private audiences, live streaming and anything involving money
+ * stay off.
  */
-export function socialCapabilities(mediaStorageConfigured: boolean): Record<keyof typeof SOCIAL_PILOT_CAPABILITIES, boolean> {
-  return { ...SOCIAL_PILOT_CAPABILITIES, mediaUpload: mediaStorageConfigured, publicPosting: mediaStorageConfigured };
+export function socialCapabilities(postingEnabled: boolean): Record<keyof typeof SOCIAL_PILOT_CAPABILITIES, boolean> {
+  return { ...SOCIAL_PILOT_CAPABILITIES, mediaUpload: postingEnabled, publicPosting: postingEnabled };
 }
