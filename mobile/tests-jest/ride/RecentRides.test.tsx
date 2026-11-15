@@ -12,7 +12,17 @@ jest.mock('../../src/settings/SettingsContext', () => ({ useSettings: () => ({ u
 
 const HOUR = 3_600_000;
 
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 beforeEach(async () => {
+  // Midday, so "an hour ago" is still today whenever the suite runs (it
+  // failed in CI just after midnight). Only the clock is faked.
+  jest.useFakeTimers({
+    now: new Date(2026, 10, 14, 12, 0),
+    doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask'],
+  });
   await AsyncStorage.clear();
   mockRiderId = 'me';
   mockUnit = 'mi';
