@@ -38,7 +38,8 @@ test.beforeEach(async ({ page }) => {
     const isPilot = pathname === '/social/bootstrap';
     const isFriends = pathname === '/riders/' + testRiderId + '/friends';
     const isConversations = pathname === '/conversations';
-    const status = isMe || isPilot || isFriends || isConversations ? 200 : 404;
+    const isFeed = pathname === '/social/feed';
+    const status = isMe || isPilot || isFriends || isConversations || isFeed ? 200 : 404;
     const body = isPilot ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
   mediaUpload: false, privatePosting: false, publicPosting: false,
   liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } }
@@ -47,7 +48,8 @@ test.beforeEach(async ({ page }) => {
           termsAccepted: true, termsVersion: 'terms-test-only' }
       : isFriends ? { friends: [], nextCursor: null }
         : isConversations ? { conversations: [], nextCursor: null }
-          : { error: 'not_found' };
+          : isFeed ? { posts: [], nextCursor: null }
+            : { error: 'not_found' };
     await route.fulfill({
       status, contentType: 'application/json', headers: cors,
       body: JSON.stringify(body),
@@ -158,43 +160,24 @@ test('production: every major route and empty state is visible, navigable and er
   await page.getByRole('button', { name: 'Close Create' }).click();
 
   await page.getByRole('tab', { name: 'Clubs' }).click();
-  await expect(page.getByText('Clubs are coming soon')).toBeVisible();
-  await expect(page.getByText('No upcoming events.')).toBeVisible();
-  await expect(page.getByTestId('clubs-empty-events')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clubs & events', exact: true })).toBeVisible();
+  await expect(page.getByText('Clubs and meets haven’t opened yet')).toBeVisible();
+  await expect(page.getByText('Upcoming events')).toHaveCount(0);
   await verifyScreen(page, testInfo, 'clubs-empty');
+  await page.getByRole('button', { name: 'Open messages from Clubs' }).click();
+  await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
 
   await page.getByRole('tab', { name: 'Shop' }).click();
-  await expect(page.getByTestId('shop-discovery')).toBeVisible();
   await expect(page.getByTestId('shop-launch-state')).toBeVisible();
-  await expect(page.getByText('Shop is coming soon')).toBeVisible();
-  const exploreClubs = page.getByRole('button', { name: 'Explore clubs from Shop' });
-  await expect(exploreClubs).toBeEnabled();
-  // The empty Shop must have an immediately accessible real CTA above the
-  // bottom tab bar, rather than burying it below unhelpful empty filters.
-  const ctaRect = await exploreClubs.boundingBox();
-  const bottomTabRect = await page.getByRole('tab', { name: 'Shop' }).boundingBox();
-  expect(ctaRect).not.toBeNull();
-  expect(bottomTabRect).not.toBeNull();
-  expect((ctaRect?.y ?? 9999) + (ctaRect?.height ?? 9999))
-    .toBeLessThanOrEqual((bottomTabRect?.y ?? 0) + 2);
-  await expect(page.getByRole('button', { name: 'Shop filters' })).toHaveCount(0);
-  // With no inventory, a search box cannot produce any results and is a dead control.
-  await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toHaveCount(0);
-  await verifyScreen(page, testInfo, 'shop-empty');
-  for (const section of ['Saved', 'Basket', 'Orders']) {
-    await page.getByRole('button', { name: 'Shop section ' + section }).click();
-    await expect(page.getByText(section === 'Orders' ? 'No orders yet' :
-      section === 'Saved' ? 'No saved items yet' : 'Your basket is empty')).toBeVisible();
-    await verifyScreen(page, testInfo, 'shop-' + section.toLowerCase());
+  await expect(page.getByRole('heading', { name: 'Shop', exact: true })).toBeVisible();
+  await expect(page.getByText('Listings aren’t open yet')).toBeVisible();
+  for (const section of ['Discover', 'Saved', 'Basket', 'Orders']) {
+    await expect(page.getByRole('button', { name: 'Shop section ' + section })).toHaveCount(0);
   }
-  await page.getByRole('button', { name: 'Shop section Discover' }).click();
-  await expect(page.getByTestId('shop-launch-state')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Reset marketplace search' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Explore clubs from Shop' }).click();
-  // React Native Web may omit aria-selected on tabs; verify the destination
-  // content is actually shown instead of checking a platform-specific detail.
-  await expect(page.getByText('Clubs & events')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveCount(0);
+  await verifyScreen(page, testInfo, 'shop-empty');
+  await page.getByRole('button', { name: 'Browse Reels from Shop' }).click();
+  await expect(page.getByTestId('reels-viewport')).toBeVisible();
   await page.getByRole('tab', { name: 'Shop' }).click();
 
   await page.getByRole('button', { name: 'Open profile' }).click();

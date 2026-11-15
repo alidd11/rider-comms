@@ -10,7 +10,7 @@ const categories = ['All', 'Accessories', 'Vehicles', 'Rentals'] as const;
 const interests = ['All', 'Cars', 'Motorcycles', 'Cycling'] as const;
 
 export function ShopScreen({ items, collectionItems, search, onSearch, category, onCategory,
-  saved, basket, onToggleSaved, onAddBasket, onExploreClubs }: {
+  saved, basket, onToggleSaved, onAddBasket, onBrowseReels }: {
   items: readonly Item[];
   collectionItems: readonly Item[];
   search: string;
@@ -23,7 +23,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
   basket: ReadonlySet<string>;
   onToggleSaved: (id: string) => void;
   onAddBasket: (id: string) => void;
-  onExploreClubs: () => void;
+  onBrowseReels: () => void;
 }) {
   const [section,setSection] = useState<Page>('discover');
   const [interest,setInterest] = useState<string>('All');
@@ -63,7 +63,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
   }
   function browse() { setSelected(null);setShop(null);setSection('discover');setMessage(null); }
   const hasDiscoveryFilters = Boolean(search.trim() || category !== 'All' || interest !== 'All' || shop);
-  const noLiveInventory = collectionItems.length === 0;
+
   function resetDiscovery() {
     onSearch('');
     onCategory('All');
@@ -137,6 +137,18 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
     </View>
   </View>;
 
+  if (collectionItems.length === 0) return <View testID="shop-discovery" style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+    <View testID="shop-launch-state" style={[s.card, s.pad, { gap: 12 }]}>
+      <Ionicons name="storefront-outline" color={C.accent} size={27}/>
+      <Text accessibilityRole="header" style={s.cardHeading}>Listings aren’t open yet</Text>
+      <Text style={s.muted}>When Shop opens, gear and rentals will come from approved businesses.</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Browse Reels from Shop"
+        onPress={onBrowseReels} style={s.ghost}>
+        <Text style={s.ghostText}>Browse Reels</Text>
+      </Pressable>
+    </View>
+  </View>;
+
   const sectionTitle = section === 'saved' ? 'Saved items' :
     section === 'basket' ? 'Your basket' :
     section === 'orders' ? 'Your orders' :
@@ -145,7 +157,6 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
   const emptyTitle = section === 'saved' ? 'No saved items yet' :
     section === 'basket' ? 'Your basket is empty' :
     section === 'orders' ? 'No orders yet' :
-    noLiveInventory ? 'Shop is coming soon' :
     hasDiscoveryFilters ? 'No matching listings' : 'No listings available';
 
   const emptyDescription = section === 'saved'
@@ -154,25 +165,23 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       ? 'Your preview basket will show products you choose. No payment is taken.'
       : section === 'orders'
         ? 'Orders and checkout will appear after verified businesses and payments are enabled.'
-        : noLiveInventory
-          ? 'You’ll be able to buy and rent gear from approved businesses here.'
-          : hasDiscoveryFilters
+        : hasDiscoveryFilters
             ? 'Try a different search, category or vehicle type.'
             : 'There are no listings in this collection yet.';
 
   const emptyIcon = section === 'saved' ? 'heart-outline' :
     section === 'basket' ? 'bag-handle-outline' :
     section === 'orders' ? 'receipt-outline' :
-    noLiveInventory ? 'storefront-outline' : 'search-outline';
+    'search-outline';
 
   return <View testID="shop-discovery" style={{
     width:'100%',maxWidth:850,alignSelf:'center',paddingBottom:28,
   }}>
     <View style={{paddingHorizontal:18,paddingTop:10,gap:14}}>
-      {!noLiveInventory?<Text style={{color:C.muted,fontSize:13,lineHeight:18}}>
+      <Text style={{color:C.muted,fontSize:13,lineHeight:18}}>
         Gear, vehicles & rentals
-      </Text>:null}
-      {!noLiveInventory ? <View style={{backgroundColor:C.panel,borderColor:C.border,borderWidth:1,borderRadius:16,
+      </Text>
+      <View style={{backgroundColor:C.panel,borderColor:C.border,borderWidth:1,borderRadius:16,
         flexDirection:'row',alignItems:'center',paddingLeft:15,minHeight:52,gap:11}}>
         <Ionicons name="search-outline" size={21} color={C.muted}/>
         <TextInput accessibilityLabel="Search marketplace" value={search}
@@ -183,8 +192,8 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
           onPress={()=>onSearch('')} style={{width:44,height:48,alignItems:'center',justifyContent:'center'}}>
           <Ionicons name="close-circle" size={22} color={C.muted}/>
         </Pressable>:null}
-      </View> : null}
-      {!noLiveInventory?<View style={{flexDirection:'row',alignItems:'center',gap:9}}>
+      </View>
+      <View style={{flexDirection:'row',alignItems:'center',gap:9}}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex:1}}
           contentContainerStyle={{gap:8,paddingVertical:1}}>
           {categories.map(x=>filterButton(x,category===x,
@@ -202,8 +211,8 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
           <Text style={{fontSize:13,fontWeight:'700',
             color:filtersOpen||interest!=='All'?C.accent:C.ink}}>Filter</Text>
         </Pressable>
-      </View>:null}
-      {filtersOpen&&!noLiveInventory?<View testID="shop-vehicle-filters" style={{
+      </View>
+      {filtersOpen?<View testID="shop-vehicle-filters" style={{
         backgroundColor:C.panel,borderColor:C.border,borderWidth:1,
         borderRadius:16,padding:14,gap:11}}>
         <Text style={{color:C.ink,fontSize:14,fontWeight:'700'}}>Vehicle type</Text>
@@ -221,7 +230,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
         <Ionicons name="shield-checkmark-outline" size={17} color={C.accent}/>
         <Text style={{fontSize:12,color:C.muted,lineHeight:18}}>
-          Verified businesses only · {noLiveInventory?'No live listings': 'Sample listings for testing'}
+          Verified businesses only · Sample listings for testing
         </Text>
       </View>
     </View>
@@ -252,36 +261,6 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
       <Text style={{color:C.muted,fontSize:13}}>Sample storefront · Approval not connected</Text>
     </View>:null}
 
-    {section==='discover' && noLiveInventory ? <View testID="shop-launch-state"
-      style={{marginHorizontal:16,marginTop:18,borderRadius:22,
-        backgroundColor:C.panel,
-        paddingHorizontal:22,paddingTop:31,paddingBottom:27,gap:13}}> 
-      <View style={{height:62,width:62,borderRadius:21,backgroundColor:C.accentDark,
-        alignItems:'center',justifyContent:'center'}}>
-        <Ionicons name="storefront-outline" size={29} color={C.accent}/>
-      </View>
-      <Text style={{color:C.accent,fontWeight:'800',fontSize:11,letterSpacing:1.2}}>
-        COMING SOON
-      </Text>
-      <Text style={{color:C.ink,fontWeight:'900',fontSize:24,lineHeight:30,
-        letterSpacing:-0.75}}>Shop is coming soon</Text>
-      <Text style={{color:C.muted,fontSize:14,lineHeight:21}}>
-        {emptyDescription}
-      </Text>
-      {hasDiscoveryFilters?<Pressable accessibilityRole="button" accessibilityLabel="Reset marketplace search"
-        onPress={resetDiscovery} style={{backgroundColor:C.accentDark,
-          borderWidth:1,borderColor:C.accent,borderRadius:13,minHeight:46,
-          alignItems:'center',justifyContent:'center',paddingHorizontal:18}}>
-        <Text style={{color:C.accent,fontWeight:'800',fontSize:14}}>Clear filters</Text>
-      </Pressable>:null}
-      <Pressable accessibilityRole="button" accessibilityLabel="Explore clubs from Shop"
-        onPress={onExploreClubs} style={{backgroundColor:C.accent,
-          borderRadius:14,minHeight:49,alignItems:'center',justifyContent:'center',
-          flexDirection:'row',gap:8,marginTop:2}}>
-        <Text style={{fontSize:15,fontWeight:'800',color:'#0B1D1C'}}>Explore clubs</Text>
-        <Ionicons name="arrow-forward" size={18} color="#0B1D1C"/>
-      </Pressable>
-    </View> : <>
       <View style={{paddingHorizontal:18,paddingTop:22,paddingBottom:13,
         flexDirection:'row',alignItems:'baseline',justifyContent:'space-between',gap:12}}>
         <Text style={{fontSize:21,color:C.ink,fontWeight:'800',
@@ -362,6 +341,5 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
         paddingHorizontal:18,paddingTop:14,fontSize:13,lineHeight:19}}>
         Preview basket only. Checkout is unavailable until the marketplace is connected.
       </Text>:null}
-    </>}
   </View>;
 }

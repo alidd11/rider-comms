@@ -197,6 +197,7 @@ test('shows published Reels while uploading is disabled', async ({ page }) => {
     },
   }));
   await page.goto('/');
+  await expect(page.getByTestId('live-post-published-reel')).toBeVisible();
   await page.getByRole('tab', { name: 'Reels' }).click();
   await expect(page.getByTestId('reel-caption-published-reel')).toBeVisible();
   await expect(page.locator('video')).toHaveAttribute('src', /\/social\/media\/published-reel-m\/file/);
