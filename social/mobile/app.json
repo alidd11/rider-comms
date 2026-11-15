@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Social — Development",
+    "slug": "rider-social-dev",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "rider-social-dev",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ridercomms.social.dev",
+      "infoPlist": {
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.ridercomms.social.dev"
+    },
+    "web": {
+      "name": "Social — Development",
+      "shortName": "Social Dev",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Social Preview to select photos and videos you choose.",
+          "cameraPermission": "Allow Social Preview to use the camera when you select Camera.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Social to access the camera for creating posts and Reels.",
+          "microphonePermission": "Allow Social to record sound when you choose to record a Reel.",
+          "recordAudioAndroid": true,
+          "barcodeScannerEnabled": false
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,70 @@
+name: Social app checks
+
+on:
+  pull_request:
+    paths:
+      - 'social/**'
+      - '.github/workflows/social-app.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'social/**'
+      - '.github/workflows/social-app.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: social-app-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Social app TypeScript / tests / web export
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: social/mobile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      # Dedicated lockfile; never mutate the root workspace or its lockfile.
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      # Only the CI screenshot export contains fictional media; Railway builds don't.
+      - run: npm run build:web
+        env:
+          EXPO_PUBLIC_SOCIAL_TEST_FIXTURES: 'true'
+      - run: test -f dist/index.html
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
+      # The preview deployed to Railway has NO demo fixtures. Re-export it and
+      # smoke every real empty/auth/error screen on iPhone WebKit and Chromium.
+      # A green synthetic screenshot suite alone cannot certify the live UI.
+      - name: Export actual production-mode Social web bundle
+        run: npm run build:web
+        env:
+          EXPO_PUBLIC_SOCIAL_TEST_FIXTURES: 'false'
+      - name: Smoke real production screens, including iPhone WebKit
+        run: npx playwright test --config=playwright.production.config.mjs
+      # Metro must resolve native-only camera, media, authentication and UI
+      # imports on both platforms. This checks JS bundles, not signed binaries
+      # or physical-device camera permissions.
+      - name: Verify iOS Social native JavaScript bundle
+        run: npx expo export --platform ios --output-dir dist-ios
+      - name: Verify Android Social native JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-android
+      # A vulnerable runtime dependency blocks beta promotion even when the UI
+      # looks correct. Keep dev-only test tooling out of the runtime scope.
+      - name: Audit production dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+      - name: Upload social app UI screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: social-ui-${{ github.run_id }}
+          path: social/mobile/test-results/
+          if-no-files-found: ignore

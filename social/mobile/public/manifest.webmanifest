@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Rider Comms Social — Preview",
+  "short_name": "Social Preview",
+  "description": "Early preview of the separate Rider Comms social application",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080A0E",
+  "theme_color": "#080A0E",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/social-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
