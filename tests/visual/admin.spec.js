@@ -157,6 +157,8 @@ test.describe('staff dashboard', () => {
     const state = await mockModerationApi(page);
     await page.goto('/admin.html#moderation');
     await page.getByRole('button', { name: 'Social posts' }).click();
+    // Five tabs are wider than a small phone: the tab row scrolls, the page doesn't.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     const card = page.locator('article[data-post-id]');
     await expect(card).toContainText('3 reports');
     await expect(card).toContainText('@rex · rider_badactor');
