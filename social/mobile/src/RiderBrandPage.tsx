@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import coastalMotorcycle from '../assets/editorial/coastal-motorcycle.jpg';
+import citySportsCar from '../assets/editorial/city-sports-car.jpg';
 import { C, s } from './styles';
 import { brandPosts, brandReels, brandStories } from './brandEditorial';
 type Tab = 'Posts' | 'Reels' | 'Stories';
@@ -25,8 +27,8 @@ export function RiderBrandHome({ onOpen }: {onOpen:()=>void}) {
 }
 
 const homeEditorial = [
-  { post: brandPosts[0], source: require('../assets/editorial/coastal-motorcycle.jpg') },
-  { post: brandPosts[1], source: require('../assets/editorial/city-sports-car.jpg') },
+  { post: brandPosts[0], source: coastalMotorcycle },
+  { post: brandPosts[1], source: citySportsCar },
 ];
 
 export function RiderBrandFeed({ onOpen }: { onOpen: () => void }) {
