@@ -362,7 +362,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     id: reel.id, authorId: RIDER_BRAND_ID, handle: '@ridercomms',
     title: reel.title, imageUrl: reel.imageUrl, theme: reel.theme,
     category: reel.category, editorialPreview: true,
-    clipSourceUrl: reel.sourceUrl,
+    videoUrl: reel.videoUrl, hasAudio: reel.hasAudio, clipSourceUrl: reel.sourceUrl, clipCredit: reel.credit,
   })))], [recommendedReels]);
   // Following is a separate, access-filtered video timeline, not the For You
   // order with cosmetic labels. Server-side follows/visibility must replace

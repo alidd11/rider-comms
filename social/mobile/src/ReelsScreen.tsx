@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ImageBackground, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './styles';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
 
 export type ReelPreview = {
   id: string;
@@ -13,8 +14,10 @@ export type ReelPreview = {
   title: string;
   imageUrl: string;
   videoUrl?: string;
+  hasAudio?: boolean;
   editorialPreview?: boolean;
   clipSourceUrl?: string;
+  clipCredit?: string;
   theme: string;
   category: 'CARS' | 'MOTORCYCLES' | 'CYCLING';
 };
@@ -55,33 +58,55 @@ function ReelActionButton({
   </Pressable>;
 }
 
-/** Video capability is active only when a verified media URL is supplied.
- * Current demo Reels are stills and never imply a video is playing. */
-function ReelVideo({ uri }: { uri: string }) {
+function ReelVideo({ uri, hasAudio, onRetry }: { uri: string; hasAudio: boolean; onRetry: () => void }) {
   const player = useVideoPlayer(uri, instance => {
     instance.loop = true;
-    instance.muted = true; // iOS / browser autoplay policy
+    instance.muted = true;
   });
-  const [playing, setPlaying] = useState(true);
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const { status } = useEvent(player, 'statusChange', { status: player.status });
+  const { muted } = useEvent(player, 'mutedChange', { muted: player.muted });
+  const [firstFrame, setFirstFrame] = useState(false);
   useEffect(() => {
     player.play();
     return () => player.pause();
   }, [player]);
+
+  const failed = status === 'error';
+  const loading = !firstFrame && !failed && status !== 'readyToPlay';
   const togglePlayback = () => {
-    if (playing) player.pause();
+    if (failed) onRetry();
+    else if (isPlaying) player.pause();
     else player.play();
-    setPlaying(!playing);
   };
   return <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
-    <VideoView player={player} style={{ flex: 1 }} contentFit="cover" nativeControls={false} playsInline/>
-    <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Pause Reel' : 'Play Reel'}
+    <VideoView player={player} style={{ flex: 1, opacity: firstFrame && !failed ? 1 : 0 }}
+      contentFit="cover" nativeControls={false} playsInline surfaceType="textureView"
+      onFirstFrameRender={() => setFirstFrame(true)}/>
+    <Pressable accessibilityRole="button"
+      accessibilityLabel={failed ? 'Retry Reel playback' : isPlaying ? 'Pause Reel' : 'Play Reel'}
       onPress={togglePlayback} style={{
         position: 'absolute', top: '25%', left: 50, right: 50, bottom: '28%',
-        alignItems: 'center', justifyContent: 'center',
+        alignItems: 'center', justifyContent: 'center', gap: 8,
       }}>
-      {!playing ? <Ionicons name="play-circle" color="#FFFFFF" size={52}/> : null}
+      {failed ? <>
+        <Ionicons name="refresh-circle" color="#FFFFFF" size={48} style={reelTextShadow}/>
+        <Text style={[{ color: '#FFFFFF', fontWeight: '800' }, reelTextShadow]}>Can’t play this Reel. Tap to retry.</Text>
+      </> : loading ? <ActivityIndicator accessibilityLabel="Loading Reel" color="#FFFFFF"/>
+        : !isPlaying ? <Ionicons name="play-circle" color="#FFFFFF" size={52} style={reelTextShadow}/> : null}
     </Pressable>
+    {hasAudio && !failed ? <Pressable accessibilityRole="button" accessibilityLabel={muted ? 'Unmute Reel' : 'Mute Reel'}
+      onPress={() => { player.muted = !player.muted; }}
+      style={{ position: 'absolute', right: 12, top: '21%', width: 44, height: 44,
+        borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#00000080' }}>
+      <Ionicons name={muted ? 'volume-mute-outline' : 'volume-high-outline'} color="#FFFFFF" size={22}/>
+    </Pressable> : null}
   </View>;
+}
+
+function ActiveReelVideo({ uri, hasAudio }: { uri: string; hasAudio: boolean }) {
+  const [attempt, setAttempt] = useState(0);
+  return <ReelVideo key={attempt} uri={uri} hasAudio={hasAudio} onRetry={() => setAttempt(previous => previous + 1)}/>;
 }
 
 export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds, onToggleSavedReel,
@@ -262,7 +287,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
               }}>
               <ImageBackground source={{ uri: reel.imageUrl }} resizeMode="cover" accessibilityLabel={reel.title}
                 style={{ width: '100%', height: '100%', justifyContent: 'flex-end' }}>
-                {reel.videoUrl && index === activeIndex ? <ReelVideo uri={reel.videoUrl}/> : null}
+                {reel.videoUrl && index === activeIndex ? <ActiveReelVideo key={reel.videoUrl} uri={reel.videoUrl} hasAudio={reel.hasAudio !== false}/> : null}
                 <View testID={'reel-caption-' + reel.id}
                   style={{ position: 'absolute', left: 16, bottom: 26, right: 80, gap: 9 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
@@ -310,13 +335,13 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                     {reel.editorialPreview ? 'Featured by Rider Comms' : 'Sample photo'}
                   </Text> : null}
                   {reel.editorialPreview && reel.clipSourceUrl ? <Pressable
-                    accessibilityRole="button" accessibilityLabel={'Watch source footage ' + reel.id}
+                    accessibilityRole="button" accessibilityLabel={'View source footage ' + reel.id}
                     onPress={() => { void Linking.openURL(reel.clipSourceUrl!).catch(() =>
-                      setNotice('Couldn’t open the sample footage.')); }}
+                      setNotice('Couldn’t open the source footage.')); }}
                     style={{ minHeight: 44, flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                     <Ionicons name="open-outline" size={18} color="#FFFFFF"/>
                     <Text style={[{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }, reelTextShadow]}>
-                      Watch source footage
+                      {reel.clipCredit ?? 'View source footage'}
                     </Text>
                   </Pressable> : null}
                 </View>

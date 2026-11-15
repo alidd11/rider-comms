@@ -114,7 +114,7 @@ export function RiderBrandPage({onBack,onStory,onReel}:{
       </Pressable>)}
     </View>
     <Text style={[s.small,{fontSize:11,lineHeight:17}]}>
-      First-party showcase using licensed stock imagery and source clip previews.
+      First-party showcase using licensed photos and videos.
       These aren't live user posts, genuine events or published Reels.
     </Text>
   </View>;

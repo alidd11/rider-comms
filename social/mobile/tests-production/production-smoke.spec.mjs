@@ -1,7 +1,7 @@
 /* global window, navigator */
 import { test, expect } from '@playwright/test';
 import { URL } from 'node:url';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 
 /**
@@ -382,6 +382,24 @@ test('production: empty Home offers real navigation without implying posts are l
 
 
 test('production: first-party Rider Comms editorial page, Stories and Reels show no fictional engagement', async ({ page }) => {
+  const clip = await readFile(new URL('./fixtures/reel-playback.mp4', import.meta.url));
+  let rejectCyclingClip = true;
+  await page.route('https://videos.pexels.com/**', async route => {
+    if (rejectCyclingClip && route.request().url().includes('/37445718/')) {
+      return route.fulfill({ status: 503 });
+    }
+    const headers = { 'accept-ranges': 'bytes' };
+    const range = /^bytes=(\d+)-(\d*)$/.exec(route.request().headers().range ?? '');
+    if (!range) return route.fulfill({ status: 200, contentType: 'video/mp4', headers, body: clip });
+    const start = Number(range[1]);
+    const end = range[2] ? Math.min(Number(range[2]), clip.length - 1) : clip.length - 1;
+    if (start > end) return route.fulfill({ status: 416, headers: { 'content-range': 'bytes */' + clip.length } });
+    return route.fulfill({
+      status: 206, contentType: 'video/mp4',
+      headers: { ...headers, 'content-range': `bytes ${start}-${end}/${clip.length}` },
+      body: clip.subarray(start, end + 1),
+    });
+  });
   await page.goto('/');
   await page.getByRole('button', { name: 'Open Rider Comms editorial page' }).click();
   await expect(page.getByTestId('rider-comms-brand-page')).toBeVisible();
@@ -396,7 +414,26 @@ test('production: first-party Rider Comms editorial page, Stories and Reels show
   await page.getByRole('button', { name: 'Close story' }).click();
   await page.getByRole('button', { name: 'View Rider Comms Reels' }).click();
   await expect(page.getByTestId('reels-viewport')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Watch source footage brand-mountain-reel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'View source footage brand-mountain-reel' })).toBeVisible();
+  const video = page.locator('video');
+  await expect(video).toHaveCount(1);
+  await expect(video).toHaveCSS('opacity', '1');
+  await expect.poll(() => video.evaluate(element => element.currentTime)).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Pause Reel', exact: true }).click();
+  await expect.poll(() => video.evaluate(element => element.paused)).toBe(true);
+  await page.getByRole('button', { name: 'Play Reel', exact: true }).click();
+  await expect.poll(() => video.evaluate(element => element.paused)).toBe(false);
+  await expect(page.getByRole('button', { name: 'Unmute Reel' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Like Reel brand-mountain-reel' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Follow @ridercomms' })).toHaveCount(0);
+
+  const feed = page.getByTestId('reels-swipe-feed');
+  await feed.evaluate(element => { element.scrollTop = element.clientHeight; });
+  const retry = page.getByRole('button', { name: 'Retry Reel playback' });
+  await expect(retry).toBeVisible();
+  rejectCyclingClip = false;
+  await retry.click();
+  await expect(video).toHaveCount(1);
+  await expect(video).toHaveAttribute('src', /37445718/);
+  await expect.poll(() => video.evaluate(element => element.currentTime)).toBeGreaterThan(0);
 });
