@@ -666,9 +666,9 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Ionicons name="close" color={C.muted} size={21}/>
           </Pressable>
         </View>
-        {liveSocial ? <View accessibilityRole="tablist" accessibilityLabel="Home feed" style={s.row}>
+        {!socialFixturesEnabled ? <View accessibilityRole="tablist" accessibilityLabel="Home feed" style={s.row}>
           {([['for-you', 'Home'], ['following', 'Following']] as const).map(([value, label]) =>
-            <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: homeScope === value }}
+            <Pressable key={value} accessibilityRole="tab" aria-selected={homeScope === value}
               onPress={() => { setHomeScope(value); setFeedPreferencesOpen(false); }}
               style={[s.ghost, { flex: 1, minHeight: 44, backgroundColor: homeScope === value ? C.accentDark : 'transparent' }]}>
               <Text style={s.ghostText}>{label}</Text>
@@ -689,26 +689,35 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}
         </View>
       </View> : null}
-      {/* With real posts, riders' posts come first and the editorial card follows them. */}
-      {!socialFixturesEnabled && !liveSocial ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
-      {liveSocial ? <LiveFeed client={client} riderId={identity.riderId} scope={homeScope} refreshKey={feedRefresh}
+      {!socialFixturesEnabled ? <>
+        <LiveFeed client={client} riderId={identity.riderId} scope={homeScope} refreshKey={feedRefresh}
           onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
-          empty={<HomeEmpty live
+          empty={<HomeEmpty live={liveSocial}
             onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
             onReels={() => navigate('Reels')}
             onMessages={() => navigate('Messages')}/>}/>
-        : null}
-      {liveSocial ? <RiderBrandHome onOpen={() => setBrandPageOpen(true)} /> : null}
-      {liveSocial ? null
-        : visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
+        <RiderBrandHome onOpen={() => setBrandPageOpen(true)} />
+      </> : visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : <HomeEmpty
             onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
             onReels={() => navigate('Reels')}
-            onMessages={() => navigate('Messages')}/>} 
+            onMessages={() => navigate('Messages')}/>}
     </View>;
   }
 
   function renderClubs() {
+    if (!socialFixturesEnabled) return <View style={{ gap: 14 }}>
+      <View style={[s.card, s.pad, { gap: 12 }]}>
+        <Ionicons name="people-outline" color={C.accent} size={27}/>
+        <Text style={s.cardHeading}>Clubs and meets haven’t opened yet</Text>
+        <Text style={s.muted}>You can still message riders you’re friends with on Rider Comms.</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open messages from Clubs"
+          onPress={() => navigate('Messages')} style={s.ghost}>
+          <Text style={s.ghostText}>Open messages</Text>
+        </Pressable>
+      </View>
+    </View>;
+
     const event = demoEvents.find((item) => item.id === selectedEvent);
     if (event) return (
       <>
@@ -818,7 +827,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       saved={shopSaved} basket={shopBasket}
       onToggleSaved={(id) => toggle(setShopSaved, id)}
       onAddBasket={(id) => setShopBasket(current => new Set(current).add(id))}
-      onExploreClubs={() => navigate('Clubs')}/>;
+      onBrowseReels={() => navigate('Reels')}/>;
   }
 
   async function clearDeviceDrafts(): Promise<void> {
@@ -943,7 +952,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           !(screen === 'Profile' && profileEditor) ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
           {screen === 'Home' ? <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
             <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
-          </Pressable> : <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
+          </Pressable> : screen === 'Shop' || (screen === 'Clubs' && !socialFixturesEnabled) ?
+            <Text accessibilityRole="header" style={[s.cardHeading, { marginRight: 'auto' }]}>
+              {screen === 'Shop' ? 'Shop' : 'Clubs & events'}
+            </Text> : <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
           <View style={s.headerTools}>
             {screen === 'Home' && !selectedCreator ?
               <IconButton name="options-outline" label="Feed preferences"
