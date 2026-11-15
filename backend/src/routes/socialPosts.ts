@@ -42,7 +42,7 @@ const VIDEO_CONTAINERS: Partial<Record<SocialMediaMime, VideoContainer>> = {
 /**
  * GET /social/media/:mediaId/(file|poster) — before sign-in, because an
  * <img> or <video> can't send the Authorization header. The signature binds
- * the link to one viewer and one file for at most two hours, and the post's
+ * the link to one viewer and one file for at most 30 minutes, and the post's
  * visibility to that viewer is checked again on every request.
  */
 export async function handleSocialMediaRoute(
@@ -70,6 +70,9 @@ export async function handleSocialMediaRoute(
   const key = variant === 'poster' ? media?.posterKey : media?.objectKey;
   if (!media || !key) return sendJson(res, 404, { error: 'not_found' });
   const range = parseByteRange(typeof req.headers.range === 'string' ? req.headers.range : undefined);
+  if (req.headers.range !== undefined && !range) {
+    return sendJson(res, 416, { error: 'invalid_media_range' });
+  }
   let stored: Response;
   try {
     stored = await socialMedia.storage.getProcessed(key, range ?? undefined);
@@ -80,8 +83,11 @@ export async function handleSocialMediaRoute(
   const isVideo = media.kind === 'video' && variant === 'file';
   const headers: Record<string, string> = {
     'Content-Type': isVideo ? 'video/mp4' : 'image/jpeg',
-    // Kept no longer than the link lasts.
-    'Cache-Control': `private, max-age=${Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))}`,
+    // Access can be revoked at any time by a block, moderation action or deletion.
+    // Never let a browser reuse bytes without re-checking server-side visibility.
+    'Cache-Control': 'private, no-store',
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
     'Accept-Ranges': 'bytes',
   };
   for (const name of ['content-length', 'content-range']) {
