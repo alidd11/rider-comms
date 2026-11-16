@@ -26,7 +26,7 @@ import { CommentsSheet } from './src/CommentsSheet';
 import type { CommentPreview } from './src/CommentsSheet';
 import { demoCreators, publicGallery } from './src/demoCreators';
 import { ProfileSummary } from './src/ProfileSummary';
-import { RiderBrandPage, RiderBrandHome } from './src/RiderBrandPage';
+import { RiderBrandPage, RiderBrandHome, RiderBrandFeed } from './src/RiderBrandPage';
 import { RIDER_BRAND_ID, brandStories, brandReels } from './src/brandEditorial';
 import { ProfileEditor } from './src/ProfileEditor';
 import type { ProfileFields } from './src/profileFields';
@@ -656,9 +656,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         {(socialFixturesEnabled ? demoStories : brandStories.slice(0, 1)).map(story=><Pressable key={story.id} accessibilityRole="button"
           accessibilityLabel={'View story by '+story.name}
           onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
-          <View style={s.storyCircle}><Image source={{uri:story.imageUrl}}
-            style={{width:54,height:54,borderRadius:27,backgroundColor:story.color}}/></View>
-          <Text style={s.storyLabel}>{story.name}</Text>
+          <View style={s.storyCircle}>{socialFixturesEnabled ? <Image source={{uri:story.imageUrl}}
+            style={{width:54,height:54,borderRadius:27,backgroundColor:story.color}}/> :
+            <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: C.accentDark,
+              alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: C.accent, fontWeight: '900' }}>RC</Text>
+            </View>}</View>
+          <Text numberOfLines={1} style={[s.storyLabel, !socialFixturesEnabled && { fontSize: 10 }]}>{story.name}</Text>
         </Pressable>)}
       </ScrollView>
 
@@ -698,10 +702,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       {!socialFixturesEnabled ? <>
         <LiveFeed client={client} riderId={identity.riderId} scope={homeScope} refreshKey={feedRefresh}
           onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
-          empty={<HomeEmpty live={liveSocial}
-            onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
-            onReels={() => navigate('Reels')}
-            onMessages={() => navigate('Messages')}/>}/>
+          empty={<>
+            <RiderBrandFeed onOpen={() => setBrandPageOpen(true)} />
+            <HomeEmpty live={liveSocial}
+              onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
+              onReels={() => navigate('Reels')}
+              onMessages={() => navigate('Messages')}/>
+          </>}/>
         <RiderBrandHome onOpen={() => setBrandPageOpen(true)} />
       </> : visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : <HomeEmpty
@@ -956,14 +963,22 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       <View style={s.root}>
         {!story && screen !== 'Reels' && screen !== 'Create' &&
           !(screen === 'Profile' && profileEditor) ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
-          {screen === 'Home' ? <Pressable accessibilityRole="button" accessibilityLabel="Go to home" onPress={() => navigate('Home')}>
+          {screen === 'Home' ? <Pressable accessibilityRole="button"
+            accessibilityLabel={!socialFixturesEnabled && !brandPageOpen ? 'Feed preferences' : 'Go to home'}
+            accessibilityState={!socialFixturesEnabled && !brandPageOpen ? { expanded: feedPreferencesOpen } : undefined}
+            style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5 }}
+            onPress={!socialFixturesEnabled && !brandPageOpen
+              ? () => setFeedPreferencesOpen(value => !value)
+              : () => navigate('Home')}>
             <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
+            {!socialFixturesEnabled && !brandPageOpen ?
+              <Ionicons name={feedPreferencesOpen ? 'chevron-up' : 'chevron-down'} size={15} color={C.muted}/> : null}
           </Pressable> : screen === 'Shop' || (screen === 'Clubs' && !socialFixturesEnabled) ?
             <Text accessibilityRole="header" style={[s.cardHeading, { marginRight: 'auto' }]}>
               {screen === 'Shop' ? 'Shop' : 'Clubs & events'}
             </Text> : <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
           <View style={s.headerTools}>
-            {screen === 'Home' && !selectedCreator ?
+            {socialFixturesEnabled && screen === 'Home' && !selectedCreator ?
               <IconButton name="options-outline" label="Feed preferences"
                 onPress={() => setFeedPreferencesOpen(value => !value)} /> : null}
             <IconButton name="chatbubble-ellipses-outline" label="Open messages" onPress={() => navigate('Messages')} />

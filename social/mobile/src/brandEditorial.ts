@@ -10,7 +10,7 @@ export const brandPosts = [
     caption:'Quiet roads, remarkable views, and the places we discover along the way.',
     imageUrl:'https://images.pexels.com/photos/31636520/pexels-photo-31636520.jpeg?auto=compress&cs=tinysrgb&w=1100',
     alt:'Classic motorcycle near a coastal road at sunset',tone:'#2B4648',
-    credit:'lhthoai / Pexels',source:'https://www.pexels.com/photo/vintage-motorcycle-by-coastal-road-at-sunset-31636520/' },
+    credit:'lhoang / Pexels',source:'https://www.pexels.com/photo/vintage-motorcycle-by-coastal-road-at-sunset-31636520/' },
   { id:'brand-cars', title:'After dark', category:'Cars',
     caption:'The detail, design and atmosphere that bring car communities together.',
     imageUrl:'https://images.pexels.com/photos/39779189/pexels-photo-39779189.jpeg?auto=compress&cs=tinysrgb&w=1100',

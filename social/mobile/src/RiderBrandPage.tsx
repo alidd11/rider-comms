@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import coastalMotorcycle from '../assets/editorial/coastal-motorcycle.jpg';
+import citySportsCar from '../assets/editorial/city-sports-car.jpg';
 import { C, s } from './styles';
 import { brandPosts, brandReels, brandStories } from './brandEditorial';
 type Tab = 'Posts' | 'Reels' | 'Stories';
@@ -22,6 +24,41 @@ export function RiderBrandHome({ onOpen }: {onOpen:()=>void}) {
     </View>
     <Ionicons name="chevron-forward" size={17} color={C.muted}/>
   </Pressable>;
+}
+
+const homeEditorial = [
+  { post: brandPosts[0], source: coastalMotorcycle },
+  { post: brandPosts[1], source: citySportsCar },
+];
+
+export function RiderBrandFeed({ onOpen }: { onOpen: () => void }) {
+  return <View testID="home-starter-feed">
+    {homeEditorial.map(({ post, source }) => <View key={post.id}
+      style={{ borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 14 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={'Visit Rider Comms for ' + post.title}
+        onPress={onOpen} style={{ minHeight: 54, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: C.accentDark,
+          justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: C.accent, fontSize: 11, fontWeight: '900' }}>RC</Text>
+        </View>
+        <View style={{ flex: 1, gap: 1 }}>
+          <Text style={{ color: C.ink, fontWeight: '800', fontSize: 14 }}>Rider Comms</Text>
+          <Text style={s.small}>Editorial</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={17} color={C.muted}/>
+      </Pressable>
+      <View style={{ width: '100%', aspectRatio: 1.15, overflow: 'hidden', backgroundColor: post.tone }}>
+        <Image source={source} accessibilityLabel={post.alt} resizeMode="cover"
+          style={{ width: '100%', height: '100%' }}/>
+      </View>
+      <View style={{ paddingHorizontal: 14, paddingTop: 11, gap: 5 }}>
+        <Text style={{ color: C.ink, fontSize: 14, lineHeight: 20 }}>
+          <Text style={{ fontWeight: '800' }}>Rider Comms</Text>{'  '}{post.caption}
+        </Text>
+        <Text style={s.small}>{post.credit}</Text>
+      </View>
+    </View>)}
+  </View>;
 }
 
 export function RiderBrandPage({onBack,onStory,onReel}:{

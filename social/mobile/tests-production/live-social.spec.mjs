@@ -95,6 +95,7 @@ test('shows the real feed, reports a post, shares a photo and deletes it', async
   const card = page.getByTestId('live-post-theirs-1');
   await expect(card).toBeVisible();
   await expect(card.getByText('Sam Rider')).toBeVisible();
+  await expect(page.getByTestId('home-starter-feed')).toHaveCount(0);
   await expect(card.getByText(/@sam_rides · 5 min/)).toBeVisible();
   await expect(card.getByText('Sunday run to the coast')).toBeVisible();
   await expect(card.getByRole('img').first()).toBeVisible();
