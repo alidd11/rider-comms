@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RiderAccountClient, AccountApiError, AccountConnectionError, accountErrorMessage, RESET_SENT_TEXT, SOCIAL_TERMS_URL, SOCIAL_GUIDELINES_URL } from './authClient';
@@ -9,6 +9,10 @@ import { clearLocalDemo } from './demoStorage';
 import { clearAccountTextDraft } from './textDraftStorage';
 import { ukPlanningPolicy } from './policy';
 import { SocialPilotGate } from './SocialPilotGate';
+import { C, R } from './styles';
+import { BrandMark } from './BrandMark';
+import { BRAND, BRAND_COPY } from '../../../shared/src/brand.ts';
+import authHero from '../assets/brand/auth-hero.jpg';
 
 type Mode = 'login' | 'signup' | 'recover';
 type SocialAccountContextValue = {
@@ -24,11 +28,11 @@ export function useSocialAccount(): SocialAccountContextValue {
   if (!context) throw new Error('Social account required');
   return context;
 }
-const accent = '#5CE4C1';
-const ink = '#F7F9FA';
-const muted = '#91A4B5';
-const bg = '#080A0E';
-const border = '#23303C';
+const accent = C.accent;
+const ink = C.ink;
+const muted = C.muted;
+const bg = C.bg;
+const border = C.border;
 const SESSION_CHECK_FAILED = 'Couldn’t check your account. Check your connection and try again.';
 
 function deviceName() {
@@ -40,11 +44,11 @@ function Action({ label, onPress, disabled = false }: {
 }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     disabled={disabled} onPress={onPress} style={{
-      borderRadius: 14, paddingVertical: 13, backgroundColor: disabled ? '#305248' : accent,
+      borderRadius: R.control, paddingVertical: 13, backgroundColor: disabled ? C.accentDark : accent,
       alignItems: 'center', justifyContent: 'center', minHeight: 50,
       opacity: disabled ? 0.75 : 1,
     }}>
-    <Text style={{ color: '#091814', fontSize: 15, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: C.accentText, fontSize: 15, fontWeight: '800' }}>{label}</Text>
   </Pressable>;
 }
 type AuthField = 'username' | 'email' | 'password' | 'terms';
@@ -300,14 +304,26 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
       showsVerticalScrollIndicator={false}>
       <View nativeID="social-auth-form" style={{ width: '100%', maxWidth: 430,
         alignSelf: 'center', gap: 17 }}>
+        {/* The same night-rider photo and mark as the Rider Comms sign-in. */}
+        <View style={{ height: 150, borderRadius: R.card, overflow: 'hidden', backgroundColor: C.panel }}>
+          <Image source={authHero} resizeMode="cover" accessibilityIgnoresInvertColors
+            style={{ position: 'absolute', width: '100%', height: '100%', opacity: 0.85 }}/>
+          <View style={{ position: 'absolute', left: 14, bottom: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <BrandMark size={40}/>
+            <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '800', textShadowColor: '#000000AA', textShadowRadius: 6 }}>{BRAND.socialName}</Text>
+          </View>
+        </View>
         <View style={{ gap: 5, paddingBottom: 9 }}>
-          <Text style={{ fontSize: 29, letterSpacing: -0.7, color: ink, fontWeight: '900' }}>Social<Text style={{ color: accent }}>.</Text></Text>
-          <Text style={{ fontSize: 14, color: muted, lineHeight: 21 }}>
-            {isTermsReview ? 'Review the Rider Comms Terms'
+          <Text accessibilityRole="header" style={{ fontSize: 29, letterSpacing: -0.7, color: ink, fontWeight: '900' }}>
+            {isTermsReview ? 'Review the Terms'
               : isAgeReview ? 'One more thing'
-                : mode === 'signup' ? 'Use one account across both apps.'
-                : mode === 'recover' ? 'Reset your Rider Comms password'
-                : 'Sign in with Rider Comms.'}
+                : mode === 'signup' ? BRAND_COPY.createAccount
+                : mode === 'recover' ? 'Reset your password'
+                : BRAND_COPY.signInHeading}
+          </Text>
+          <Text style={{ fontSize: 14, color: muted, lineHeight: 21 }}>
+            {isTermsReview || isAgeReview ? `Your ${BRAND.name} account`
+              : `One ${BRAND.name} account for both apps. Your name, avatar and friends come with you.`}
           </Text>
         </View>
         {isTermsReview || isAgeReview ? <>
@@ -395,25 +411,22 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
             </Pressable> : null}
           </View> : null}
           {notice ? <InlineMessage type="success" message={notice}/> : null}
-          <Action label={mode === 'signup' ? 'Create Rider Comms account'
-            : mode === 'recover' ? 'Send reset link' : 'Sign in'}
+          <Action label={mode === 'signup' ? BRAND_COPY.createAccount
+            : mode === 'recover' ? 'Send reset link' : BRAND_COPY.signIn}
             disabled={busy} onPress={() => void submit()}/>
           {mode === 'login' ? <>
             <Pressable accessibilityRole="button" accessibilityLabel="Create account"
               onPress={() => { setMode('signup'); setError(''); setFieldErrors({}); setNotice(''); setTermsChecked(false); }}>
-              <Text style={{ textAlign: 'center', color: ink }}>New here? <Text style={{ color: accent, fontWeight: '800' }}>Create account</Text></Text>
+              <Text style={{ textAlign: 'center', color: ink }}>New here? <Text style={{ color: accent, fontWeight: '800' }}>{BRAND_COPY.createAccount}</Text></Text>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Forgot password"
               onPress={() => { setMode('recover'); setError(''); setFieldErrors({}); setNotice(''); }}>
-              <Text style={{ textAlign: 'center', color: muted }}>Forgot password?</Text>
+              <Text style={{ textAlign: 'center', color: muted }}>{BRAND_COPY.forgotPassword}</Text>
             </Pressable>
           </> : <Pressable accessibilityRole="button" accessibilityLabel="Back to sign in"
             onPress={() => { setMode('login'); setError(''); setFieldErrors({}); setNotice(''); }}>
-            <Text style={{ textAlign: 'center', color: accent }}>Back to sign in</Text>
+            <Text style={{ textAlign: 'center', color: accent }}>{BRAND_COPY.backToSignIn}</Text>
           </Pressable>}
-          <Text style={{ textAlign: 'center', color: muted, fontSize: 11, lineHeight: 17 }}>
-            Sign in with your Rider Comms account. Your name, avatar and friends come with you.
-          </Text>
         </>}
       </View>
     </ScrollView>

@@ -15,6 +15,7 @@ export const PROFILE = {
   tiktokUsername: '',
   instagramVisibility: 'friends',
   tiktokVisibility: 'friends',
+  bio: 'Weekend rides along the coast.',
 };
 
 export async function mockAuthenticatedApi(page, movement = 'stationary', backendOverride = null) {

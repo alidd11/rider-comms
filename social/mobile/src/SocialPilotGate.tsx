@@ -8,9 +8,10 @@ import { clearAccountTextDraft } from './textDraftStorage';
 import { SocialSettings } from './SocialSettings';
 import { SocialAccessContext } from './socialAccess';
 import type { SocialAccess } from './socialAccess';
+import { C } from './styles';
 
 type Phase = 'checking' | 'allowed' | 'denied' | 'unavailable';
-const ink = '#F4F7FB', muted = '#91A4B5', accent = '#5CE4C1', bg = '#080D13';
+const ink = C.ink, muted = C.muted, accent = C.accent, bg = C.bg;
 
 export function SocialPilotGate({ identity, client, onSignOut, onDeleteAccount, children }: {
   identity: AccountIdentity; client: RiderAccountClient;

@@ -26,7 +26,8 @@ import { CommentsSheet } from './src/CommentsSheet';
 import type { CommentPreview } from './src/CommentsSheet';
 import { demoCreators, publicGallery } from './src/demoCreators';
 import { ProfileSummary } from './src/ProfileSummary';
-import { RiderBrandPage, RiderBrandHome, RiderBrandFeed } from './src/RiderBrandPage';
+import { RiderBrandPage, RiderBrandFeed } from './src/RiderBrandPage';
+import { BrandMark } from './src/BrandMark';
 import { RIDER_BRAND_ID, brandStories, brandReels } from './src/brandEditorial';
 import { ProfileEditor } from './src/ProfileEditor';
 import type { ProfileFields } from './src/profileFields';
@@ -655,15 +656,23 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
           <View style={s.storyCircle}>{socialFixturesEnabled ? <Image source={{uri:story.imageUrl}}
             style={{width:54,height:54,borderRadius:27,backgroundColor:story.color}}/> :
-            <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: C.accentDark,
-              alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: C.accent, fontWeight: '900' }}>RC</Text>
-            </View>}</View>
+            <BrandMark size={54}/>}</View>
           <Text numberOfLines={1} style={[s.storyLabel, !socialFixturesEnabled && { fontSize: 10 }]}>{story.name}</Text>
         </Pressable>)}
       </ScrollView>
 
       {!socialFixturesEnabled ? <>
+        <View accessibilityRole="tablist" accessibilityLabel="Home feed"
+          style={{ flexDirection: 'row', gap: 22, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 6 }}>
+          {([['for-you', 'For you'], ['following', 'Following']] as const).map(([value, label]) =>
+            <Pressable key={value} accessibilityRole="tab" accessibilityLabel={label + ' feed'}
+              aria-selected={homeScope === value} onPress={() => setHomeScope(value)}
+              style={{ minHeight: 44, justifyContent: 'center' }}>
+              <Text style={{ color: homeScope === value ? C.ink : C.muted, fontWeight: '800', fontSize: 15 }}>{label}</Text>
+              <View style={{ height: 2, marginTop: 4, borderRadius: 1,
+                backgroundColor: homeScope === value ? C.accent : 'transparent' }}/>
+            </Pressable>)}
+        </View>
         <LiveFeed client={client} riderId={identity.riderId} scope={homeScope} refreshKey={feedRefresh}
           onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
           empty={<>
@@ -673,7 +682,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               onReels={() => navigate('Reels')}
               onMessages={() => navigate('Messages')}/>
           </>}/>
-        <RiderBrandHome onOpen={() => setBrandPageOpen(true)} />
       </> : visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : <HomeEmpty
             onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
@@ -817,14 +825,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     if (settingsPage === 'feed') return <View testID="social-feed-preferences" style={{ gap: 18 }}>
       <SettingsHeader title="Feed preferences" backLabel="Back to settings" onBack={() => setSettingsPage('overview')}/>
       <Text style={s.body}>Choose what you see in your Home feed.</Text>
-        {!socialFixturesEnabled ? <View accessibilityRole="radiogroup" accessibilityLabel="Home feed" style={s.row}>
-          {([['for-you', 'Home'], ['following', 'Following']] as const).map(([value, label]) =>
-            <Pressable key={value} accessibilityRole="radio" aria-checked={homeScope === value} accessibilityState={{ checked: homeScope === value }}
-              onPress={() => setHomeScope(value)}
-              style={[s.ghost, { flex: 1, minHeight: 44, backgroundColor: homeScope === value ? C.accentDark : 'transparent' }]}>
-              <Text style={s.ghostText}>{label}</Text>
-            </Pressable>)}
-        </View> : null}
         {socialFixturesEnabled ? <>
         <View style={s.rowBetween}>
           <Text style={[s.body,{flex:1}]}>Personalised recommendations</Text>
@@ -840,12 +840,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           {topics.map(({topic,label})=><Pill key={topic} label={label}
             selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}
         </View>
-        </> : <Text style={s.small}>Following shows posts from your Rider Comms friends.</Text>}
+        </> : null}
     </View>;
     if (settingsPage === 'overview') return <SocialSettings username={identity.username}
       emailVerified={identity.emailVerified}
-      feedSummary={socialFixturesEnabled ? 'Recommendations and topics' : homeScope === 'following' ? 'Following' : 'Home'}
-      onOpenFeed={() => setSettingsPage('feed')}
+      // The live feed's For you and Following switch is on Home itself.
+      feedSummary={socialFixturesEnabled ? 'Recommendations and topics' : undefined}
+      onOpenFeed={socialFixturesEnabled ? () => setSettingsPage('feed') : undefined}
       onClose={() => setSettingsPage(null)}
       onClearDrafts={clearDeviceDrafts}
       onSignOut={logout}
@@ -955,8 +956,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       style={s.safe}>
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
-        {!story && screen !== 'Reels' && screen !== 'Create' &&
-          !(screen === 'Profile' && (profileEditor || settingsPage)) ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
+        {/* Messages and Profile have their own title rows, so no top bar above them. */}
+        {!story && screen !== 'Reels' && screen !== 'Create' && screen !== 'Messages' && screen !== 'Profile' ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
           {screen === 'Home' ? <Pressable accessibilityRole="button"
             accessibilityLabel="Go to home"
             style={{ minHeight: 44, justifyContent: 'center' }}

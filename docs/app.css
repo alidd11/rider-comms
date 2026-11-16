@@ -1,7 +1,10 @@
+/* BRAND COLOURS: generated from shared/src/brandPalette.json by `npm run build:pwa-app`. Do not edit here. */
+:root{--bg:#080d10;--bg-elevated:#0d1317;--surface:#11171b;--surface-raised:#182127;--surface-hover:#1d282f;--border:#27323a;--border-soft:#182127;--text:#f3f6f7;--text-secondary:#aab5ba;--text-muted:#85919a;--accent:#2fa8d3;--accent-ink:#2fa8d3;--accent-pressed:#278db1;--accent-soft:#102d38;--accent-text:#041318;--focus:#64bde0;--bubble-mine:#1b6e8e;--success:#42c58a;--danger:#f0646b;--danger-surface:#2a171a;--warning:#d39a42;--asphalt:#0d1317;--lane-line:#253139;--switch-off:#3a4850;--accent-ink-on-light:#156e90}
+@media(prefers-color-scheme:light){:root{--bg:#e9eef0;--bg-elevated:#f1f4f5;--surface:#f7f9fa;--surface-raised:#dfe7ea;--surface-hover:#d7e1e5;--border:#bcc8ce;--border-soft:#cdd8dd;--text:#0b1216;--text-secondary:#46545c;--text-muted:#58666e;--accent:#279fc8;--accent-ink:#156e90;--accent-pressed:#1f86aa;--accent-soft:#d5ebf2;--accent-text:#031217;--focus:#279fc8;--bubble-mine:#1a7396;--success:#1d7553;--danger:#a33640;--danger-surface:#f2dddf;--warning:#97620f;--asphalt:#dde5e8;--lane-line:#bbc7cd;--switch-off:#aebbc2}}
+/* END BRAND COLOURS */
 :root {
-  color-scheme: light dark; --bg:#080d10; --system-chrome:#080d10; --nav-chrome:#080d10; --bg-elevated:#0d1317; --border-soft:#182127; --text:#f3f6f7; --text-secondary:#aab5ba; --text-muted:#85919a; --accent:#2fa8d3; --accent-soft:#102d38; --accent-text:#041318; --bubble-mine:#1b6e8e; --success:#42c58a; --danger:#f0646b; --warning:#d39a42; --focus:#64bde0; --font-display:Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 3px 12px rgb(0 0 0/.2); --shadow-lg:0 12px 34px rgb(0 0 0/.36); --radius-sm:3px; --radius-md:4px; --radius-lg:4px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:var(--bottom-control-inset); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
+  color-scheme: light dark; --system-chrome:#080d10; --nav-chrome:#080d10; --font-display:Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 3px 12px rgb(0 0 0/.2); --shadow-lg:0 12px 34px rgb(0 0 0/.36); --radius-sm:3px; --radius-md:4px; --radius-lg:4px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:var(--bottom-control-inset); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
 }
-:root{--surface:#11171b;--surface-raised:#182127;--surface-hover:#1d282f;--border:#27323a}
 /* Installed iOS PWA viewport model.
    Safari standalone can cold-start with a dynamic viewport that is shorter
    than the actual Home Screen window and only correct it after rotation.
@@ -140,7 +143,7 @@ img,svg{-webkit-user-drag:none}
    canvas, glass chips, gradients, nav bar) and need their own light-mode
    value alongside them. */
 @media(prefers-color-scheme:light){
-  :root{--bg:#e9eef0;--bg-elevated:#f1f4f5;--surface:#f7f9fa;--surface-raised:#dfe7ea;--surface-hover:#d7e1e5;--border:#bcc8ce;--border-soft:#cdd8dd;--text:#0b1216;--text-secondary:#46545c;--text-muted:#58666e;--accent:#279fc8;--accent-ink:#156e90;--bubble-mine:#1a7396;--accent-soft:#d5ebf2;--accent-text:#031217;--success:#1d7553;--danger:#a33640;--warning:#97620f;--focus:#279fc8;--shadow-sm:0 3px 12px rgb(22 38 46/.09);--shadow-lg:0 12px 30px rgb(22 38 46/.14)}
+  :root{--shadow-sm:0 3px 12px rgb(22 38 46/.09);--shadow-lg:0 12px 30px rgb(22 38 46/.14)}
   .map-canvas{background:#dce5e8}
   .fallback-map{background:radial-gradient(circle at 68% 22%,#edf2f3 0,#dfe7e9 50%,#d2dde0 100%)}
   .fallback-map:after{opacity:.16;background-image:linear-gradient(#b7c2c7 1px,transparent 1px),linear-gradient(90deg,#b7c2c7 1px,transparent 1px)}
@@ -2467,8 +2470,6 @@ html.app-menu-open .ride-pill{display:none}
 
 /* ===== Polish (Nov 2026): switches, menu pages, Help, plan ===== */
 /* An off switch keeps a visible track in both themes. */
-:root{--switch-off:#3a4850}
-@media(prefers-color-scheme:light){:root{--switch-off:#aebbc2}}
 .toggle:not([aria-pressed=true]){background:var(--switch-off)}
 
 /* Routes and Settings open from the avatar menu and have a back arrow; the
@@ -2576,6 +2577,9 @@ html.ride-pill-visible .hud-speed{bottom:164px}
 .settings-category-icon{width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--tint);color:#fff}
 .settings-category-icon svg{width:22px;height:22px;color:#fff;stroke:currentColor}
 #settingsList .settings-row-label,.settings-page-mode .settings-row-label{flex:1;min-width:0;font-weight:500}
+/* Category names stay on one line on the smallest phones; the grey value gives way first. */
+#settingsList .settings-row-category .settings-row-label{flex:1 0 auto;white-space:nowrap}
+#settingsList .settings-row-category .settings-row-value{flex:0 1 auto;min-width:0;max-width:none}
 .settings-page-mode .settings-row-label small{display:block;margin-top:2px;color:var(--text-secondary);font-size:.85rem;font-weight:400}
 #settingsList .settings-row-chevron svg,.settings-page-mode .settings-row-chevron svg{width:16px;height:16px;color:var(--text-muted)}
 .settings-page-mode .settings-row-value{color:var(--text-secondary);font-size:.95rem;white-space:nowrap}
@@ -2768,7 +2772,7 @@ body:has(#destinationCard:not([hidden])) .screen-map .map-bottom-bar{display:non
 html.map-day .nav-banner,html.map-day .nav-summary{background:#fff;color:#0b1216;border-color:rgb(11 18 22/.08);box-shadow:0 12px 32px rgb(22 38 46/.18)}
 html.map-day .nav-summary{box-shadow:0 -10px 30px rgb(22 38 46/.14)}
 html.map-day .nav-maneuver-icon{color:#0b1216}
-html.map-day .nav-banner-copy strong,html.map-day .nav-summary-eta strong{color:var(--accent-ink,#156e90)}
+html.map-day .nav-banner-copy strong,html.map-day .nav-summary-eta strong{color:var(--accent-ink-on-light)}
 html.map-day .nav-banner-copy>span,html.map-day .nav-summary-stat strong{color:#0b1216}
 html.map-day .nav-provider-instruction{color:#46545c}
 html.map-day #endNavBtn{background:rgb(11 18 22/.06);border-color:rgb(11 18 22/.08);color:#1b262c}
@@ -2795,7 +2799,7 @@ html.map-day .nav-summary-stat{border-left-color:rgb(11 18 22/.1)}
 .nav-route-choices button{flex:1;min-width:0;min-height:48px;padding:6px 8px;border:1px solid rgb(255 255 255/.16);border-radius:var(--radius-md);background:#0d151a;color:var(--text);font:inherit;font-size:.78rem;font-weight:760;line-height:1.25;box-shadow:0 8px 20px rgb(0 0 0/.35)}
 .nav-route-choices button[aria-checked="true"]{border:2px solid var(--accent);color:var(--accent)}
 html.map-day .nav-route-choices button{background:#fff;color:#0b1216;border-color:rgb(11 18 22/.12)}
-html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--accent);color:var(--accent-ink,#156e90)}
+html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--accent);color:var(--accent-ink-on-light)}
 .nav-traffic{font-style:normal;font-size:.72rem;font-weight:800;color:var(--warning)}
 .nav-traffic[hidden]{display:none}
 /* Petrol, cafés or food on the way (native: StopsOnTheWaySheet). */
@@ -2848,3 +2852,8 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
 .search-voice[aria-pressed="true"]{background:var(--accent);color:var(--accent-text)}
 .search-voice[aria-pressed="true"] svg{color:inherit}
 .map-drawer-shortcuts .place-badge svg{width:18px;height:18px;color:#fff}
+/* Profile bio (shared with Rider Social). */
+.form-field textarea{width:100%;min-height:84px;padding:12px 13px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text);font:inherit;resize:vertical;user-select:text}
+.form-field .field-hint{color:var(--text-muted);font-size:.75rem}
+.my-profile-bio{max-width:32ch;margin:10px auto 0;color:var(--text-secondary);font-size:.92rem;line-height:1.45;text-align:center;white-space:pre-line;overflow-wrap:anywhere}
+.friend-profile-bio{margin:12px 0 0;color:var(--text-secondary);font-size:.9rem;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere}

@@ -181,19 +181,27 @@
   // menu only to riders the server lets in (native: MenuScreen).
   const RIDER_SOCIAL_URL = 'https://social-web-preview-preview.up.railway.app';
   let socialAccessCheck = 0;
+  // The session the server last let into Social. The entry shows straight
+  // away for it, so the menu doesn't flicker on every open while the check
+  // runs; a refusal hides it again.
+  let socialAllowedToken = null;
   async function showSocialEntryIfAllowed() {
     const check = ++socialAccessCheck;
     const token = session?.token;
     const entry = $('#appMenuSocial');
-    entry.hidden = true;
+    entry.hidden = !token || socialAllowedToken !== token;
     if (!token) return;
     try {
       await apiFetch('GET', '/social/bootstrap');
-      if (check === socialAccessCheck && session?.token === token && !$('#appMenu').hidden) {
-        entry.hidden = false;
+      if (check !== socialAccessCheck || session?.token !== token) return;
+      socialAllowedToken = token;
+      if (!$('#appMenu').hidden) entry.hidden = false;
+    } catch (error) {
+      // A refusal from the server hides it; a lost connection keeps the last answer.
+      if (check === socialAccessCheck && error instanceof ApiError && error.status > 0) {
+        socialAllowedToken = null;
+        entry.hidden = true;
       }
-    } catch {
-      // Leave the entry hidden until the next successful access check.
     }
   }
 

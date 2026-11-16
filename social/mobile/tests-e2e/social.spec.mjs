@@ -186,6 +186,8 @@ test('profile edits save to the shared Rider Comms profile and survive reload', 
   await expect(page.getByText('Your name, bio and avatar are the same in Rider Comms.')).toBeVisible();
   await page.getByRole('textbox', { name: 'Display name' }).fill('Weekend Rider');
   await page.getByRole('textbox', { name: 'Bio' }).fill('Cars, motorcycles and Sunday rides.');
+  await expect(page.getByRole('radio', { name: 'Ridge avatar' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Change avatar' }).click();
   await page.getByRole('radio', { name: 'Ridge avatar' }).click();
   const saved = page.waitForRequest(request => request.method() === 'PUT' &&
     new URL(request.url()).pathname === '/riders/rider_abcd1234/profile');
@@ -202,6 +204,7 @@ test('profile edits save to the shared Rider Comms profile and survive reload', 
   let puts = 0;
   page.on('request', request => { if (request.method() === 'PUT') puts += 1; });
   await page.getByRole('button', { name: 'Edit profile' }).click();
+  await page.getByRole('button', { name: 'Change avatar' }).click();
   await expect(page.getByRole('radio', { name: 'Ridge avatar' })).toBeChecked();
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByTestId('profile-editor')).toHaveCount(0);
@@ -289,10 +292,10 @@ test('iPhone and desktop render true edge-to-edge background with safe content i
   expect(geometry.viewport).toContain('viewport-fit=cover');
   expect(geometry.viewport).toContain('interactive-widget=resizes-content');
   expect(geometry.status).toBe('black-translucent');
-  expect(geometry.htmlBackground).toBe('rgb(8, 10, 14)');
-  expect(geometry.bodyBackground).toBe('rgb(8, 10, 14)');
-  expect(geometry.screenBackground).toBe('rgb(8, 10, 14)');
-  expect(geometry.tabsBackground).toBe('rgb(8, 10, 14)');
+  expect(geometry.htmlBackground).toBe('rgb(8, 13, 16)');
+  expect(geometry.bodyBackground).toBe('rgb(8, 13, 16)');
+  expect(geometry.screenBackground).toBe('rgb(8, 13, 16)');
+  expect(geometry.tabsBackground).toBe('rgb(8, 13, 16)');
   expect(geometry.hasSafeAreaCss).toBe(true);
   expect(geometry.rootBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
   expect(geometry.screenBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
@@ -698,6 +701,8 @@ test('repeated Home, Reels, Shop, Profile, Messages and Create navigation never 
     await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toBeVisible();
     await page.getByRole('button', { name: 'Open profile' }).click();
     await expect(page.getByTestId('social-profile-summary')).toBeVisible();
+    // Profile has no top bar; Messages opens from Home.
+    await page.getByRole('tab', { name: 'Home' }).click();
     await page.getByRole('button', { name: 'Open messages' }).click();
     await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
     await page.getByRole('tab', { name: 'Create' }).click();
@@ -1213,6 +1218,7 @@ test('visual inventory captures each Social screen at mobile and desktop sizes',
   await page.getByRole('tab', { name: 'Saved profile tab' }).click();
   await capture('profile-saved');
 
+  await page.getByRole('tab', { name: 'Home' }).click();
   await page.getByRole('button', { name: 'Open messages' }).click();
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
   await capture('messages');

@@ -17,6 +17,7 @@ import {
   StatusBar,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { BRAND_COPY } from '@rider-comms/shared';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '../config';
@@ -36,7 +37,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const AUTH_COPY = {
   login: {
     eyebrow: '',
-    title: 'Welcome back',
+    title: BRAND_COPY.signInHeading,
     description: '',
   },
   signup: {
@@ -332,7 +333,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                     <Text style={styles.rememberText}>Remember me</Text>
                   </Pressable>
                   <Pressable accessibilityRole="button" onPress={() => switchMode('recover')} style={({ pressed }) => [styles.forgotButton, pressed && pressedFeedback]}>
-                    <Text style={styles.forgotText}>Forgot password?</Text>
+                    <Text style={styles.forgotText}>{BRAND_COPY.forgotPassword}</Text>
                   </Pressable>
                 </View>
               ) : (
@@ -371,17 +372,17 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
                 onPress={() => void submit()}
                 style={({ pressed }) => [styles.primaryButton, pressed && !busy && styles.primaryButtonPressed, busy && styles.buttonDisabled]}
               >
-                {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>{isSignup ? 'Create account' : 'Log in'}</Text>}
+                {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>{isSignup ? BRAND_COPY.createAccount : BRAND_COPY.signIn}</Text>}
               </Pressable>
 
               {isSignup ? (
                 <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}>
-                  <Text style={styles.createAccountText}>Back to log in</Text>
+                  <Text style={styles.createAccountText}>{BRAND_COPY.backToSignIn}</Text>
                 </Pressable>
               ) : (
                 <>
                   <Pressable accessibilityRole="button" onPress={() => switchMode('signup')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}>
-                    <Text style={styles.createAccountText}>Create account</Text>
+                    <Text style={styles.createAccountText}>{BRAND_COPY.createAccount}</Text>
                   </Pressable>
                 </>
               )}
@@ -410,7 +411,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}>
                 {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>Send reset link</Text>}
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}><Text style={styles.createAccountText}>{BRAND_COPY.backToSignIn}</Text></Pressable>
             </View>
           ) : (
             <View style={styles.form}>
@@ -454,7 +455,7 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
               <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}>
                 {busy ? <ActivityIndicator color={AUTH_TEXT} /> : <Text style={styles.primaryButtonText}>Reset password</Text>}
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}><Text style={styles.createAccountText}>Back to log in</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => switchMode('login')} style={({ pressed }) => [styles.createAccountButton, pressed && pressedFeedback]}><Text style={styles.createAccountText}>{BRAND_COPY.backToSignIn}</Text></Pressable>
             </View>
           )}
 

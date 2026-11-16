@@ -67,3 +67,11 @@ not a root workspace) on the same Rider Comms accounts. Its backend is
   the rest of the staff dashboard.
 - **Ride safety still applies:** nothing in Social is reachable from the
   Rider Comms map while the rider is moving.
+
+## One look for both apps
+
+Colours live in `shared/src/brandPalette.json`; the logo, radii and sign-in
+words in `shared/src/brand.ts`. Native reads them directly, Social's
+`styles.ts` derives its colours from them, and `npm run build:pwa-app`
+writes the web's colour block at the top of `docs/app.css` (lint fails if
+it's stale). Change the look there, not in each app.

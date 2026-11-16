@@ -63,6 +63,7 @@ export const styles = StyleSheet.create({
   profileIdentity: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingTop: 0, paddingRight: 46, paddingBottom: 8 },
   profileAvatarWrap: { position: 'relative' },
   profileIdentityCopy: { flex: 1, minWidth: 0 },
+  profileBio: { ...type.body, color: colors.textSecondary, paddingBottom: spacing.sm },
   profileModalName: { ...type.heading, color: colors.textPrimary, fontSize: 17 },
   profileModalHandle: { ...type.body, color: colors.textSecondary, marginTop: 1 },
   profileLoader: { marginTop: spacing.sm },

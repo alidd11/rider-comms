@@ -54,7 +54,7 @@ function ReelActionButton({
 }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     style={{ alignItems: 'center', gap: 4, minWidth: 43, minHeight: 46, justifyContent: 'center' }}>
-    <Ionicons name={icon} size={27} color={active ? '#5CE4C1' : '#F7F8F9'} style={reelTextShadow} />
+    <Ionicons name={icon} size={27} color={active ? C.accent : '#F7F8F9'} style={reelTextShadow} />
   </Pressable>;
 }
 
@@ -313,7 +313,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
           alignItems: 'center', justifyContent: 'center', gap: 12 }}>
           <View style={{ width: 66, height: 66, borderRadius: 33,
             backgroundColor: '#F7F9FA', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="play" size={31} color="#080A0E" style={{ marginLeft: 4 }}/>
+            <Ionicons name="play" size={31} color={C.bg} style={{ marginLeft: 4 }}/>
           </View>
           <Text style={{ color: '#CDE8DE', fontSize: 9, fontWeight: '800',
             letterSpacing: 1.3 }}>YOUR REEL</Text>
@@ -335,8 +335,8 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
         style={{ minHeight: 50, minWidth: 193, paddingHorizontal: 23,
           borderRadius: 999, backgroundColor: '#FFFFFF', alignItems: 'center',
           justifyContent: 'center', marginTop: 10, flexDirection: 'row', gap: 9 }}>
-        <Ionicons name={feedMode === 'following' ? 'compass-outline' : 'add'} size={21} color="#080A0E"/>
-        <Text style={{ color: '#080A0E', fontWeight: '900', fontSize: 15 }}>
+        <Ionicons name={feedMode === 'following' ? 'compass-outline' : 'add'} size={21} color={C.accentText}/>
+        <Text style={{ color: C.accentText, fontWeight: '900', fontSize: 15 }}>
           {feedMode === 'following' ? 'Explore For You' : 'Create a Reel'}
         </Text>
       </Pressable>
@@ -410,7 +410,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                   ) : null}
                   {!reel.editorialPreview ? <Pressable accessibilityRole="button" accessibilityLabel={'View profile for ' + reel.handle}
                     onPress={() => onOpenCreator(reel.authorId)}>
-                    <Text style={[{ color: '#D7FFF3', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View profile</Text>
+                    <Text style={[{ color: '#FFFFFF', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View profile</Text>
                   </Pressable> : null}
                   {!reel.videoUrl ? <Text style={[{ color: '#E8ECEF', fontSize: 11 }, reelTextShadow]}>
                     {reel.editorialPreview ? 'Featured by Rider Comms' : 'Sample photo'}
@@ -462,7 +462,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
           paddingHorizontal: 15, paddingVertical: 13, borderRadius: 12,
           backgroundColor: 'rgba(9,24,29,0.94)', borderWidth: 1, borderColor: '#27564F',
         }}>
-        <Text style={{ color: '#EAFDF5', fontSize: 13 }}>{notice}</Text>
+        <Text style={{ color: C.ink, fontSize: 13 }}>{notice}</Text>
       </Pressable> : null}
       {Platform.OS === 'web' ? <View nativeID="social-reels-swipe-buttons" pointerEvents="box-none" style={{
         position: 'absolute', right: 10, top: 72, gap: 3,

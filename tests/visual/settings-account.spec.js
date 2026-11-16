@@ -292,6 +292,8 @@ test('PWA View profile is your profile, separate from editing it and from Accoun
   const body = page.locator('#sheetBody');
   await expect(page.locator('.my-profile-hero')).toContainText(PROFILE.displayName);
   await expect(page.locator('.my-profile-hero .rider-avatar-svg')).toBeVisible();
+  // The bio is shared with Rider Social.
+  await expect(page.locator('.my-profile-bio')).toHaveText(PROFILE.bio);
   await expect(body).toContainText('Connected profiles');
   // Nothing from other pages is repeated here.
   for (const absent of ['Signed-in devices', 'Delete account', 'Reset settings', 'Choose your Nearby range']) {
@@ -302,6 +304,8 @@ test('PWA View profile is your profile, separate from editing it and from Accoun
   await page.locator('#sheetBody [data-settings-open="editProfile"]').first().click();
   await expect(page.locator('#sheetTitle')).toHaveText('Edit profile');
   await expect(page.locator('#editName')).toHaveValue(PROFILE.displayName);
+  await expect(page.locator('#editBio')).toHaveValue(PROFILE.bio);
+  await expect(page.locator('#editBio')).toHaveAttribute('maxlength', '160');
   await expect(page.locator('#sheetInstagramVisibility')).toBeVisible();
   await expect(body).not.toContainText('Signed-in devices');
   // Back from Edit profile returns to the profile, not the map.
