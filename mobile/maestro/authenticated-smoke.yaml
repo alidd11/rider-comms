@@ -118,7 +118,7 @@ appId: com.ridercomms.app
       - tapOn:
           id: open-menu
           optional: true
-      - tapOn: "Ride(,.*)?"
+      - tapOn: "Group Ride(,.*)?"
       - extendedWaitUntil:
           visible:
             id: ride-back

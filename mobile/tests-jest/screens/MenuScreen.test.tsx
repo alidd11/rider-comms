@@ -74,7 +74,7 @@ test('the rows go where they say, with Live and new counts', async () => {
   mockIncoming = [{}, {}];
   mockUnread = 98;
   const nav = await renderMenu();
-  await fireEvent.press(screen.getByLabelText('Ride, Live'));
+  await fireEvent.press(screen.getByLabelText('Group Ride, Live'));
   expect(nav.navigate).toHaveBeenCalledWith('Tabs', expect.objectContaining({ screen: 'Map' }));
   await fireEvent.press(screen.getByLabelText('Friends, 99+ new'));
   expect(nav.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Friends' });
