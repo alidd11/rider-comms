@@ -64,7 +64,7 @@ export function ProfileSummary({
     <View style={{ flexDirection: 'row', alignItems: 'center',
       justifyContent: 'space-between', marginBottom: 17, gap: 12 }}>
       <View style={{ width: 85, height: 85, borderRadius: 43,
-        borderWidth: 2, borderColor: '#376E61', padding: 3,
+        borderWidth: 2, borderColor: C.accent, padding: 3,
         alignItems: 'center', justifyContent: 'center' }}>
         <IdentityAvatar name={accountProfile?.displayName || username} avatarId={accountProfile?.avatarId} size={75} />
       </View>

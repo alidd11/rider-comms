@@ -379,11 +379,11 @@ test('signup never submits without accepting Terms and Guidelines', async ({ pag
   await page.getByRole('textbox', { name: 'Username' }).fill('sample-rider');
   await page.getByRole('textbox', { name: 'Email' }).fill('example@invalid.test');
   await page.getByRole('textbox', { name: 'Password' }).fill(randomUUID());
-  await page.getByRole('button', { name: 'Create Rider Comms account' }).click();
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await expect(page.getByText('Accept the Terms and Community Guidelines to continue.')).toBeVisible();
   expect(signupRequests).toBe(0);
   await page.getByRole('checkbox', { name: 'Accept Terms and Guidelines' }).click();
-  await page.getByRole('button', { name: 'Create Rider Comms account' }).click();
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Continue to Social' })).toBeVisible();
   expect(signupRequests).toBe(1);
 });

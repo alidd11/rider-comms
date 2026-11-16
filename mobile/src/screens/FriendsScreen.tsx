@@ -398,6 +398,7 @@ function FriendProfileModal({
               <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle} · {activityCopy}</Text>
             </View>
           </View>
+          {profile?.bio ? <Text testID="friend-profile-bio" style={styles.profileBio}>{profile.bio}</Text> : null}
 
           {loading && <ActivityIndicator style={styles.profileLoader} color={colors.accent} />}
           {error && <Text style={styles.profileError}>{error}</Text>}

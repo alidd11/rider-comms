@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 
 const require = createRequire(import.meta.url);
-const palette = require('../src/themePalette.json') as { light: Record<string, string>; dark: Record<string, string> };
+const palette = require('@rider-comms/shared/src/brandPalette.json') as { light: Record<string, string>; dark: Record<string, string> };
 const pluginSource = await readFile(new URL('../plugins/withAndroidThemeColors.js', import.meta.url), 'utf8');
 const themeSource = await readFile(new URL('../src/theme.ts', import.meta.url), 'utf8');
 const appJson = JSON.parse(await readFile(new URL('../app.json', import.meta.url), 'utf8')) as { expo: { plugins: unknown[] } };

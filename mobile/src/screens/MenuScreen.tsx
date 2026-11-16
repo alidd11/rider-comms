@@ -11,10 +11,14 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import { useRide } from '../ride/RideContext';
 import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
+import { ApiError } from '../api/client';
 import { RIDER_SOCIAL_URL } from '@rider-comms/shared';
 import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Menu'>;
+
+/** The last Rider Social access answer for each signed-in client. */
+const socialAccess = new WeakMap<object, boolean>();
 
 function MenuRow({ icon, label, detail, onPress }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -49,11 +53,20 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
   const { incomingRequests, unreadMessageCount } = useFriends();
   const friendsCount = incomingRequests.length + unreadMessageCount;
   const { client } = useAuth();
-  // Rider Social is listed only for riders the server lets in.
-  const [socialAllowed, setSocialAllowed] = React.useState(false);
+  // Rider Social is listed only for riders the server lets in. The last
+  // answer for this session shows straight away, so the row doesn't flicker
+  // while the check runs; a refusal removes it, a lost connection doesn't.
+  const [socialAllowed, setSocialAllowed] = React.useState(() => socialAccess.get(client) === true);
   React.useEffect(() => {
     let live = true;
-    client.getSocialBootstrap().then(() => { if (live) setSocialAllowed(true); }, () => undefined);
+    client.getSocialBootstrap().then(() => {
+      socialAccess.set(client, true);
+      if (live) setSocialAllowed(true);
+    }, (error: unknown) => {
+      if (!(error instanceof ApiError)) return;
+      socialAccess.delete(client);
+      if (live) setSocialAllowed(false);
+    });
     return () => { live = false; };
   }, [client]);
 

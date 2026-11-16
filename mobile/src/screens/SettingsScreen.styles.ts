@@ -170,6 +170,8 @@ export const styles = StyleSheet.create({
   settingsSheetBody: { gap: spacing.md, paddingBottom: spacing.sm },
   settingsSheetSection: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
   sheetEyebrow: { ...type.label, color: colors.textMuted, paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xs },
+  bioInput: { minHeight: 88, paddingTop: spacing.sm, paddingBottom: spacing.sm },
+  fieldHint: { ...type.caption, color: colors.textMuted, paddingHorizontal: spacing.md, paddingTop: spacing.xs },
   fieldLabel: { ...type.caption, color: colors.textSecondary, fontWeight: '700', paddingHorizontal: spacing.md, paddingTop: spacing.md },
   sheetInput: { ...type.body, color: colors.textPrimary, minHeight: MIN_TOUCH_TARGET, marginHorizontal: spacing.md, marginTop: spacing.xs, paddingHorizontal: spacing.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.background },
   sheetAvatarRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.md, marginTop: spacing.xs, padding: spacing.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.background },
@@ -207,5 +209,6 @@ export const styles = StyleSheet.create({
   pageSectionNote: { ...type.caption, color: colors.textSecondary, lineHeight: 18, paddingHorizontal: spacing.xs },
   myProfileName: { ...type.title, color: colors.textPrimary, marginTop: spacing.sm, fontSize: 24, lineHeight: 29, maxWidth: '100%' },
   myProfileHandle: { ...type.body, color: colors.textSecondary, maxWidth: '100%' },
+  myProfileBio: { ...type.body, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.sm, maxWidth: 320 },
   myProfilePlan: { ...type.caption, color: colors.accentInk, fontWeight: '700', marginTop: spacing.xs, paddingHorizontal: 10, paddingVertical: 3, borderRadius: radii.pill, backgroundColor: colors.surface, overflow: 'hidden' },
 });

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { AndroidConfig, withAndroidColors, withAndroidColorsNight, withDangerousMod } = require('@expo/config-plugins');
-const palette = require('../src/themePalette.json');
+const palette = require('@rider-comms/shared/src/brandPalette.json');
 
 // The app's palette as Android colour resources: values/ for light,
 // values-night/ for dark. src/theme.ts reads them with

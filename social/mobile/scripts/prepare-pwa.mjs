@@ -1,7 +1,16 @@
-/* global URL */
-import { readFile, writeFile } from 'node:fs/promises';
+/* global process, URL */
+import { readFile, rm, writeFile } from 'node:fs/promises';
+
+// Colours come from the shared brand palette, like the app itself.
+const palette = JSON.parse(await readFile(new URL('../../../shared/src/brandPalette.json', import.meta.url), 'utf8')).dark;
 
 const indexUrl = new URL('../dist/index.html', import.meta.url);
+
+// The screenshot (fixture) build shows sample photos from Unsplash; the web
+// server allows that host only for a build marked like this.
+const fixtureMarker = new URL('../dist/.fixture-build', import.meta.url);
+if (process.env.EXPO_PUBLIC_SOCIAL_TEST_FIXTURES === 'true') await writeFile(fixtureMarker, 'sample media allowed\n');
+else await rm(fixtureMarker, { force: true });
 let html = await readFile(indexUrl, 'utf8');
 
 // iOS Safari Home Screen PWA: without viewport-fit=cover, the web
@@ -27,7 +36,7 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
     min-height: 100%;
     margin: 0;
     padding: 0;
-    background: #080A0E !important;
+    background: ${palette.background} !important;
   }
   html, body, #root { overflow: hidden; overscroll-behavior: none; }
   /* Eclipse PWA pattern: React's fixed shell tracks the actual visual viewport;
@@ -99,7 +108,7 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
   #social-screen input:focus,
   #social-screen textarea:focus {
     outline: none !important;
-    box-shadow: inset 0 -2px 0 0 #5CE4C1 !important;
+    box-shadow: inset 0 -2px 0 0 ${palette.accent} !important;
   }
   /* iOS WebKit can paint a bright yellow system autofill surface above the
      React Native background. Override the autofill layer as well as the input.
@@ -108,10 +117,10 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
   #social-account-gate input:-webkit-autofill:hover,
   #social-account-gate input:-webkit-autofill:focus,
   #social-account-gate input:-webkit-autofill:active {
-    -webkit-text-fill-color: #F7F9FA !important;
-    caret-color: #F7F9FA !important;
-    -webkit-box-shadow: inset 0 0 0 1000px #080A0E !important;
-    box-shadow: inset 0 0 0 1000px #080A0E !important;
+    -webkit-text-fill-color: ${palette.textPrimary} !important;
+    caret-color: ${palette.textPrimary} !important;
+    -webkit-box-shadow: inset 0 0 0 1000px ${palette.background} !important;
+    box-shadow: inset 0 0 0 1000px ${palette.background} !important;
     transition: background-color 999999s ease-in-out 0s;
   }
 
@@ -142,7 +151,7 @@ const edgeToEdgeStyle = `<style id="social-edge-to-edge">
   #social-bottom-tabs {
     flex-shrink: 0 !important;
     box-sizing: border-box;
-    background: #080A0E !important;
+    background: ${palette.background} !important;
     padding-bottom: max(12px, var(--bottom-safe-area, env(safe-area-inset-bottom, 0px))) !important;
   }
   /* Never reset the top safe-area inset in standalone mode: that override
@@ -154,7 +163,7 @@ if (!html.includes('id="social-edge-to-edge"')) {
 }
 const extraHeadTags = [
   ['robots', '<meta name="robots" content="noindex, nofollow, noarchive" />'],
-  ['theme-color', '<meta name="theme-color" content="#080A0E" />'],
+  ['theme-color', `<meta name="theme-color" content="${palette.background}" />`],
   ['apple-mobile-web-app-capable', '<meta name="apple-mobile-web-app-capable" content="yes" />'],
   ['apple-mobile-web-app-status-bar-style', '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />']
 ];

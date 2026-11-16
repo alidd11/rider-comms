@@ -99,20 +99,12 @@ test('shows the real feed, reports a post, shares a photo and deletes it', async
   await expect(card.getByText(/@sam_rides · 5 min/)).toBeVisible();
   await expect(card.getByText('Sunday run to the coast')).toBeVisible();
   await expect(card.getByRole('img').first()).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Following', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Open profile' }).click();
-  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
-  await page.getByRole('button', { name: 'Feed preferences' }).click();
-  await page.getByRole('radio', { name: 'Following', exact: true }).click();
-  await expect(page.getByRole('radio', { name: 'Following', exact: true })).toBeChecked();
-  await page.getByRole('tab', { name: 'Home', exact: true }).click();
+  // For you and Following switch at the top of Home.
+  await expect(page.getByRole('tab', { name: 'For you feed' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Following feed' }).click();
+  await expect(page.getByRole('tab', { name: 'Following feed' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Posts from your Rider Comms friends will show here.')).toBeVisible();
-  await page.getByRole('button', { name: 'Open profile' }).click();
-  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
-  await page.getByRole('button', { name: 'Feed preferences' }).click();
-  await page.getByRole('radio', { name: 'Home', exact: true }).click();
-  await expect(page.getByRole('radio', { name: 'Home', exact: true })).toBeChecked();
-  await page.getByRole('tab', { name: 'Home', exact: true }).click();
+  await page.getByRole('tab', { name: 'For you feed' }).click();
   await expect(card).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: `test-results/screenshots/${testInfo.project.name}-live-feed.png` });

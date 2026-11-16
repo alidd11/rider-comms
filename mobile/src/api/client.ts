@@ -52,6 +52,8 @@ export interface PublicRiderProfile {
   displayName: string;
   handle: string;
   avatarId: string;
+  /** Empty when the rider hasn't written one. Older servers leave it out. */
+  bio?: string;
   instagramUsername: string;
   tiktokUsername: string;
 }

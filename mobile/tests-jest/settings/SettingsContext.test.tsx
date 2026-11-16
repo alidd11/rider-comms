@@ -231,12 +231,14 @@ test('normalises names, handles and social usernames before saving', async () =>
     result.current.setHandle('  ');
     result.current.setInstagramUsername(' @moto_maya ');
     result.current.setTiktokUsername('@maya.rides');
+    result.current.setBio('  Coast roads on Sundays. ');
   });
-  await waitFor(() => expect(updateProfile).toHaveBeenCalledTimes(4));
+  await waitFor(() => expect(updateProfile).toHaveBeenCalledTimes(5));
   expect(updateProfile).toHaveBeenNthCalledWith(1, RIDER_ID, { displayName: 'Rider' });
   expect(updateProfile).toHaveBeenNthCalledWith(2, RIDER_ID, { handle: '@rider' });
   expect(updateProfile).toHaveBeenNthCalledWith(3, RIDER_ID, { instagramUsername: 'moto_maya' });
   expect(updateProfile).toHaveBeenNthCalledWith(4, RIDER_ID, { tiktokUsername: 'maya.rides' });
+  expect(updateProfile).toHaveBeenNthCalledWith(5, RIDER_ID, { bio: 'Coast roads on Sundays.' });
 });
 
 test.each([

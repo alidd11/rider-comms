@@ -14,17 +14,21 @@ const inlineScriptHashes = [...entryHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?
   .map(match => match[1])
   .filter(Boolean)
   .map(script => "'sha256-" + createHash('sha256').update(script, 'utf8').digest('base64') + "'");
+// Every photo and clip in the shipped app is either bundled or comes from the
+// API. Only the screenshot build, which shows sample photos, may load Unsplash.
+const fixtureBuild = await stat(resolve(dist, '.fixture-build')).then(() => true, () => false);
+const sampleImageHost = fixtureBuild ? ' https://images.unsplash.com' : '';
 const securityHeaders = {
   'Content-Security-Policy': [
     "default-src 'self'",
     "script-src 'self' " + inlineScriptHashes.join(' '),
     "style-src 'self' 'unsafe-inline'",
     // Rider Social photos and Reels come from the API through short-lived signed links.
-    "img-src 'self' blob: data: https://images.unsplash.com https://images.pexels.com https://backend-production-7fa0.up.railway.app",
+    "img-src 'self' blob: data: https://backend-production-7fa0.up.railway.app" + sampleImageHost,
     "font-src 'self' data:",
     // blob:/data: let the app read a photo or video the rider picked before uploading it.
     "connect-src 'self' blob: data: https://backend-production-7fa0.up.railway.app",
-    "media-src 'self' blob: data: https://backend-production-7fa0.up.railway.app https://videos.pexels.com",
+    "media-src 'self' blob: data: https://backend-production-7fa0.up.railway.app",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
@@ -50,6 +54,9 @@ const mime = {
   '.json': 'application/json',
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.mp4': 'video/mp4',
   '.svg': 'image/svg+xml',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
@@ -79,10 +86,30 @@ createServer(async (req, res) => {
       file = resolve(dist, 'index.html');
     }
     const bytes = await readFile(file);
-    res.writeHead(200, {
+    const headers = {
       ...securityHeaders,
       'Content-Type': mime[extname(file)] || 'application/octet-stream',
-    }).end(req.method === 'HEAD' ? undefined : bytes);
+      'Accept-Ranges': 'bytes',
+    };
+    // Bundled photos and clips have a content hash in their name, so a
+    // browser may keep them; everything else stays uncached.
+    if (requested.startsWith('/assets/') && /\.[0-9a-f]{16,}\.[a-z0-9]+$/i.test(requested)) {
+      headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+    }
+    // Safari plays video only from a server that answers byte ranges.
+    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (range && (range[1] || range[2])) {
+      const size = bytes.length;
+      const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+      const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+      if (start > end || start >= size) {
+        res.writeHead(416, { ...headers, 'Content-Range': 'bytes */' + size }).end(); return;
+      }
+      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 })
+        .end(req.method === 'HEAD' ? undefined : bytes.subarray(start, end + 1));
+      return;
+    }
+    res.writeHead(200, headers).end(req.method === 'HEAD' ? undefined : bytes);
   } catch {
     res.writeHead(404, securityHeaders).end('Not found');
   }

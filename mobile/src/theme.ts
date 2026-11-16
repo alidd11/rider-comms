@@ -1,10 +1,12 @@
 import { DynamicColorIOS, Platform, PlatformColor, useColorScheme } from 'react-native';
-import palette from './themePalette.json';
+import palette from '@rider-comms/shared/src/brandPalette.json';
 
 /**
  * One product identity translated between two lighting conditions. The
- * values live in themePalette.json so the Android build can turn them into
- * colour resources too (plugins/withAndroidThemeColors.js).
+ * values live in shared/src/brandPalette.json, the palette every app uses
+ * (web: docs/brand.css; Rider Social: social/mobile/src/styles.ts), so the
+ * Android build can turn them into colour resources too
+ * (plugins/withAndroidThemeColors.js).
  *
  * Notes on particular colours:
  * - accentInk: the accent for text and small marks; the brand accent is only

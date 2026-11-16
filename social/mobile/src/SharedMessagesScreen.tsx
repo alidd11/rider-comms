@@ -215,7 +215,7 @@ export function SharedMessagesScreen({
           style={{ width: 46, height: 46, borderRadius: 23,
             alignItems: 'center', justifyContent: 'center',
             backgroundColor: C.accent, opacity: !emailVerified || sending || threadLoading || threadLoadFailed || !draft.trim() || draft.trim().length > 1000 ? 0.45 : 1 }}>
-          <Ionicons name="arrow-up" color="#080A0E" size={22}/>
+          <Ionicons name="arrow-up" color={C.accentText} size={22}/>
         </Pressable>
       </View>
     </View>;

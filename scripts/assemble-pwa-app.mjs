@@ -5,6 +5,10 @@
 //
 //   node scripts/assemble-pwa-app.mjs          rewrite docs/app.js
 //   node scripts/assemble-pwa-app.mjs --check  fail if docs/app.js is stale
+//
+// It also writes the brand colours at the top of docs/app.css from
+// shared/src/brandPalette.json, the palette the native app and Rider Social
+// use, and checks the web sign-in wording against shared/src/brand.ts.
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 
 const partsDir = new URL('../docs/app/', import.meta.url);
@@ -24,14 +28,60 @@ for (const name of names) {
   assembled += source.slice(source.indexOf('\n') + 1);
 }
 
+// Each palette token becomes a CSS variable; the web's names predate the
+// shared palette, so they're mapped here.
+const CSS_VARS = {
+  background: '--bg', backgroundElevated: '--bg-elevated', surface: '--surface', surfaceRaised: '--surface-raised',
+  surfaceHover: '--surface-hover', border: '--border', borderSoft: '--border-soft', textPrimary: '--text',
+  textSecondary: '--text-secondary', textMuted: '--text-muted', accent: '--accent', accentInk: '--accent-ink',
+  accentPressed: '--accent-pressed', accentSoft: '--accent-soft', accentText: '--accent-text', focus: '--focus',
+  bubbleMine: '--bubble-mine', success: '--success', danger: '--danger', dangerSurface: '--danger-surface',
+  warning: '--warning', asphalt: '--asphalt', laneLine: '--lane-line', switchTrackOff: '--switch-off',
+};
+const BRAND_START = '/* BRAND COLOURS: generated from shared/src/brandPalette.json by `npm run build:pwa-app`. Do not edit here. */';
+const BRAND_END = '/* END BRAND COLOURS */';
+const palette = JSON.parse(await readFile(new URL('../shared/src/brandPalette.json', import.meta.url), 'utf8'));
+const declarations = (scheme) => {
+  const tokens = palette[scheme];
+  const missing = Object.keys(tokens).filter((token) => !CSS_VARS[token]);
+  if (missing.length) throw new Error(`No CSS variable for brand colour ${missing.join(', ')}`);
+  return Object.entries(tokens).map(([token, value]) => `${CSS_VARS[token]}:${value.toLowerCase()}`).join(';');
+};
+// Map-day banners are light in either appearance, so they need the light ink.
+const brandBlock = `${BRAND_START}\n:root{${declarations('dark')};--accent-ink-on-light:${palette.light.accentInk.toLowerCase()}}\n` +
+  `@media(prefers-color-scheme:light){:root{${declarations('light')}}}\n${BRAND_END}`;
+const cssTarget = new URL('../docs/app.css', import.meta.url);
+const css = await readFile(cssTarget, 'utf8');
+const startAt = css.indexOf(BRAND_START);
+const endAt = css.indexOf(BRAND_END);
+if (startAt < 0 || endAt < startAt) throw new Error('docs/app.css is missing its brand colour block');
+const brandedCss = css.slice(0, startAt) + brandBlock + css.slice(endAt + BRAND_END.length);
+
+// The sign-in words every app shows (shared/src/brand.ts) must be the web's too.
+const brandSource = await readFile(new URL('../shared/src/brand.ts', import.meta.url), 'utf8');
+const copyBlock = /export const BRAND_COPY = \{([\s\S]*?)\} as const;/.exec(brandSource)?.[1] ?? '';
+const brandWords = [...copyBlock.matchAll(/:\s*'([^']+)'/g)].map((match) => match[1]);
+const indexHtml = await readFile(new URL('../docs/index.html', import.meta.url), 'utf8');
+const unusedWords = brandWords.filter((word) => !indexHtml.includes(word.replace(/'/g, '&#39;')) && !indexHtml.includes(word));
+if (brandWords.length === 0) throw new Error('shared/src/brand.ts has no BRAND_COPY wording');
+if (unusedWords.length) {
+  console.error(`docs/index.html doesn't use the shared sign-in wording: ${unusedWords.join(' | ')}`);
+  process.exit(1);
+}
+
 if (process.argv.includes('--check')) {
   const current = await readFile(target, 'utf8');
   if (current !== assembled) {
     console.error('docs/app.js is out of date with docs/app/*.js. Run `npm run build:pwa-app` and commit the result.');
     process.exit(1);
   }
-  console.log(`docs/app.js matches its ${names.length} parts`);
+  if (css !== brandedCss) {
+    console.error('docs/app.css brand colours are out of date with shared/src/brandPalette.json. Run `npm run build:pwa-app` and commit the result.');
+    process.exit(1);
+  }
+  console.log(`docs/app.js matches its ${names.length} parts; docs/app.css has the shared brand colours`);
 } else {
   await writeFile(target, assembled);
-  console.log(`Wrote docs/app.js from ${names.length} parts`);
+  await writeFile(cssTarget, brandedCss);
+  console.log(`Wrote docs/app.js from ${names.length} parts and the brand colours in docs/app.css`);
 }

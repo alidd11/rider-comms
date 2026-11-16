@@ -117,6 +117,7 @@
       notifyChat: true,
       instagram: '',
       tiktok: '',
+      bio: '',
       instagramVisibility: 'friends',
       tiktokVisibility: 'friends',
       shareLocation: false,
@@ -1546,6 +1547,7 @@
               <span>${escapeHtml(currentFriend.handle)} · ${escapeHtml(activityCopy)}</span>
             </div>
           </div>
+          ${profile.bio ? `<p class="friend-profile-bio">${escapeHtml(profile.bio)}</p>` : ''}
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
           <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>
@@ -3095,6 +3097,7 @@
               <strong class="my-profile-name">${escapeHtml(state.profile.displayName)}</strong>
               <span class="my-profile-handle">${escapeHtml(state.profile.handle)}</span>
               <span class="my-profile-plan">${escapeHtml(plan.name)} plan</span>
+              ${state.profile.bio ? `<p class="my-profile-bio">${escapeHtml(state.profile.bio)}</p>` : ''}
             </div>
             ${settingsRowsMarkup([settingsLink('editProfile', 'Edit profile')])}
             <section class="my-profile-section" aria-label="Connected profiles"><h3 class="settings-page-heading">Connected profiles</h3>${settingsRowsMarkup([
@@ -3106,7 +3109,7 @@
       },
       profile: () => ({
         title: 'Edit profile',
-        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Avatar</span>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="settings-sheet-section"><span class="settings-sheet-label">Name</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetInstagramVisibility">Who can see your Instagram</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetTiktokVisibility">Who can see your TikTok</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Avatar</span>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="settings-sheet-section"><span class="settings-sheet-label">Name</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div><div class="form-field"><label for="editBio">Bio</label><textarea id="editBio" maxlength="160" rows="3" placeholder="What do you ride?">${escapeHtml(state.profile.bio || '')}</textarea><small class="field-hint">Shown on your profile in Rider Comms and Rider Social.</small></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetInstagramVisibility">Who can see your Instagram</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetTiktokVisibility">Who can see your TikTok</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#sheetInstagramVisibility').value = state.profile.instagramVisibility;
           $('#sheetTiktokVisibility').value = state.profile.tiktokVisibility;
@@ -3770,6 +3773,7 @@
       const profile = await apiFetch('PUT', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`, {
         displayName,
         handle,
+        bio: $('#editBio').value.trim(),
         instagramUsername: $('#editInstagram').value.trim().replace(/^@/, ''),
         tiktokUsername: $('#editTiktok').value.trim().replace(/^@/, ''),
         instagramVisibility: $('#sheetInstagramVisibility')?.value || state.profile.instagramVisibility,
@@ -8419,19 +8423,27 @@
   // menu only to riders the server lets in (native: MenuScreen).
   const RIDER_SOCIAL_URL = 'https://social-web-preview-preview.up.railway.app';
   let socialAccessCheck = 0;
+  // The session the server last let into Social. The entry shows straight
+  // away for it, so the menu doesn't flicker on every open while the check
+  // runs; a refusal hides it again.
+  let socialAllowedToken = null;
   async function showSocialEntryIfAllowed() {
     const check = ++socialAccessCheck;
     const token = session?.token;
     const entry = $('#appMenuSocial');
-    entry.hidden = true;
+    entry.hidden = !token || socialAllowedToken !== token;
     if (!token) return;
     try {
       await apiFetch('GET', '/social/bootstrap');
-      if (check === socialAccessCheck && session?.token === token && !$('#appMenu').hidden) {
-        entry.hidden = false;
+      if (check !== socialAccessCheck || session?.token !== token) return;
+      socialAllowedToken = token;
+      if (!$('#appMenu').hidden) entry.hidden = false;
+    } catch (error) {
+      // A refusal from the server hides it; a lost connection keeps the last answer.
+      if (check === socialAccessCheck && error instanceof ApiError && error.status > 0) {
+        socialAllowedToken = null;
+        entry.hidden = true;
       }
-    } catch {
-      // Leave the entry hidden until the next successful access check.
     }
   }
 
@@ -8798,6 +8810,7 @@
     state.unit = state.profile.unitSystem;
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;
+    state.profile.bio = typeof profile.bio === 'string' ? profile.bio : '';
     state.profile.instagramVisibility = profile.instagramVisibility;
     state.profile.tiktokVisibility = profile.tiktokVisibility;
     state.profile.shareLocation = profile.shareLocation;
@@ -8870,7 +8883,7 @@
     } finally {
       button.disabled = false;
       button.removeAttribute('aria-busy');
-      button.textContent = 'Log in';
+      button.textContent = 'Sign in';
     }
   }
 

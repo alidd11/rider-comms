@@ -647,7 +647,7 @@ export function CreateComposer({ initialMode = 'Post', onClose, riderId, onPubli
       style={{ position: 'absolute', left: 12, right: 12, top: stage === 'select' ? 65 : 57,
         backgroundColor: '#24332F', borderRadius: 12, borderWidth: 1,
         borderColor: '#415D54', padding: 12, zIndex: 15 }}>
-      <Text accessibilityRole="alert" style={{ color: '#EAFFF8', fontSize: 12, lineHeight: 18 }}>
+      <Text accessibilityRole="alert" style={{ color: C.ink, fontSize: 12, lineHeight: 18 }}>
         {status}
       </Text>
     </Pressable> : null}

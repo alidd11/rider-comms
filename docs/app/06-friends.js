@@ -220,6 +220,7 @@
               <span>${escapeHtml(currentFriend.handle)} · ${escapeHtml(activityCopy)}</span>
             </div>
           </div>
+          ${profile.bio ? `<p class="friend-profile-bio">${escapeHtml(profile.bio)}</p>` : ''}
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
           <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>

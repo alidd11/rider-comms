@@ -117,6 +117,7 @@
       notifyChat: true,
       instagram: '',
       tiktok: '',
+      bio: '',
       instagramVisibility: 'friends',
       tiktokVisibility: 'friends',
       shareLocation: false,

@@ -1,16 +1,29 @@
 import { StyleSheet } from 'react-native';
 
+import palette from '../../../shared/src/brandPalette.json';
+import { BRAND_RADII } from '../../../shared/src/brand.ts';
+
+/**
+ * Rider Social's colours are Rider Comms' dark palette, so both apps look like
+ * one product. Change them in shared/src/brandPalette.json, never here.
+ */
+const brand = palette.dark;
 export const C = {
-  bg: '#080A0E',
-  panel: '#12161C',
-  card: '#181D24',
-  border: '#262C34',
-  ink: '#F7F9FA',
-  muted: '#A3ACB6',
-  accent: '#5CE4C1',
-  accentDark: '#183D35',
-  warning: '#D3B47B',
+  bg: brand.background,
+  panel: brand.surface,
+  card: brand.surfaceRaised,
+  border: brand.border,
+  ink: brand.textPrimary,
+  muted: brand.textSecondary,
+  faint: brand.textMuted,
+  accent: brand.accent,
+  accentDark: brand.accentSoft,
+  accentText: brand.accentText,
+  danger: brand.danger,
+  success: brand.success,
+  warning: brand.warning,
 } as const;
+export const R = BRAND_RADII;
 
 export const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
@@ -28,17 +41,17 @@ export const s = StyleSheet.create({
   sectionTitle: { color: C.ink, fontWeight: '900', fontSize: 20, letterSpacing: -0.55 },
   body: { color: '#D5DFE9', fontSize: 15, lineHeight: 22 },
   muted: { color: C.muted, fontSize: 13, lineHeight: 20 },
-  card: { backgroundColor: C.panel, borderRadius: 18, overflow: 'hidden' },
+  card: { backgroundColor: C.panel, borderRadius: R.card, overflow: 'hidden' },
   pad: { padding: 16, gap: 11 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   divider: { height: 1, backgroundColor: C.border },
-  pill: { paddingHorizontal: 14, paddingVertical: 9, minHeight: 42, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.panel },
+  pill: { paddingHorizontal: 14, paddingVertical: 9, minHeight: 42, justifyContent: 'center', borderRadius: R.pill, borderWidth: 1, borderColor: C.border, backgroundColor: C.panel },
   pillActive: { borderColor: C.accent, backgroundColor: C.accentDark },
   pillText: { color: C.muted, fontWeight: '700', fontSize: 13 },
   pillTextActive: { color: C.accent },
-  avatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#284C57' },
-  avatarText: { fontSize: 12, fontWeight: '900', color: '#E2FCF4' },
+  avatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: C.accentDark },
+  avatarText: { fontSize: 12, fontWeight: '900', color: C.ink },
   storyCircle: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: C.accent, alignItems: 'center', justifyContent: 'center' },
   media: { height: 220, alignItems: 'center', justifyContent: 'center', gap: 12 },
   mediaCategory: { color: '#D6EDF0', fontWeight: '900', fontSize: 11, letterSpacing: 3 },
@@ -46,17 +59,17 @@ export const s = StyleSheet.create({
   cardHeading: { color: C.ink, fontWeight: '800', fontSize: 16 },
   actionText: { color: C.muted, fontWeight: '700', fontSize: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  cta: { paddingHorizontal: 17, paddingVertical: 12, minHeight: 48, backgroundColor: C.accent, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  ctaText: { fontSize: 14, fontWeight: '800', color: '#0B1D1C' },
-  ghost: { backgroundColor: '#20252C', paddingHorizontal: 15, paddingVertical: 11, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  cta: { paddingHorizontal: 17, paddingVertical: 12, minHeight: 48, backgroundColor: C.accent, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
+  ctaText: { fontSize: 14, fontWeight: '800', color: C.accentText },
+  ghost: { backgroundColor: C.card, paddingHorizontal: 15, paddingVertical: 11, minHeight: 44, borderRadius: R.control, alignItems: 'center', justifyContent: 'center' },
   ghostText: { color: C.ink, fontSize: 13, fontWeight: '800' },
   // All form inputs use a transparent field with one quiet baseline, never a filled blue box.
-  input: { color: C.ink, backgroundColor: 'transparent', borderWidth: 0, borderBottomWidth: 1, borderBottomColor: '#3B4752', borderRadius: 0, paddingHorizontal: 0, paddingVertical: 12, minHeight: 48, fontSize: 16 },
-  notice: { marginHorizontal: 18, marginTop: 10, padding: 12, backgroundColor: C.accentDark, borderWidth: 1, borderColor: '#296856', borderRadius: 12 },
-  tabBar: { flexDirection: 'row', borderTopColor: '#20262D', borderTopWidth: 1, backgroundColor: '#080A0E', paddingTop: 7, paddingBottom: 10 },
+  input: { color: C.ink, backgroundColor: 'transparent', borderWidth: 0, borderBottomWidth: 1, borderBottomColor: C.border, borderRadius: 0, paddingHorizontal: 0, paddingVertical: 12, minHeight: 48, fontSize: 16 },
+  notice: { marginHorizontal: 18, marginTop: 10, padding: 12, backgroundColor: C.accentDark, borderWidth: 1, borderColor: C.accent, borderRadius: R.control },
+  tabBar: { flexDirection: 'row', borderTopColor: C.border, borderTopWidth: 1, backgroundColor: C.bg, paddingTop: 7, paddingBottom: 10 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2, minHeight: 50, gap: 3 },
   tabLabel: { fontSize: 10, color: C.muted, fontWeight: '700' },
-  darkBadge: { backgroundColor: '#1E3A35', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 },
+  darkBadge: { backgroundColor: C.accentDark, borderRadius: R.pill, paddingHorizontal: 9, paddingVertical: 5 },
   badgeText: { color: C.accent, fontWeight: '800', fontSize: 10 },
   reel: { height: 455, borderRadius: 24, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', padding: 22, gap: 16 },
 
@@ -65,7 +78,7 @@ export const s = StyleSheet.create({
   feedOptions: { paddingHorizontal: 19, paddingVertical: 14, gap: 17, backgroundColor: C.panel, borderTopColor: C.border, borderTopWidth: 1 },
   feedMedia: { width: '100%', justifyContent: 'flex-start', alignItems: 'flex-start' },
   feedMediaTag: { margin: 12, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(5,12,18,0.76)' },
-  feedMediaTagText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.1, color: '#EAF9F4' },
+  feedMediaTagText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.1, color: C.ink },
   feedActions: { paddingHorizontal: 17, paddingTop: 12, paddingBottom: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   feedCaption: { paddingHorizontal: 17, paddingBottom: 17, paddingTop: 8, gap: 3 },
   // Keep the two Home feeds in fixed app chrome, immediately beneath the
@@ -89,7 +102,7 @@ export const s = StyleSheet.create({
   reelCaption: { alignSelf: 'stretch', gap: 6, backgroundColor: 'rgba(0,0,0,0.46)', padding: 12, borderRadius: 13 },
   twoCol: { flexDirection: 'row', gap: 10 },
   split: { flex: 1 },
-  empty: { backgroundColor: C.panel, borderRadius: 20,
+  empty: { backgroundColor: C.panel, borderRadius: R.card,
     paddingHorizontal: 22, paddingVertical: 31,
     alignItems: 'center', justifyContent: 'center', gap: 11 }
 });

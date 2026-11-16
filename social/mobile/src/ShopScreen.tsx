@@ -326,7 +326,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
               onPress={resetDiscovery} style={{minHeight:46,paddingHorizontal:22,
                 backgroundColor:C.accent,borderRadius:13,
                 justifyContent:'center',alignItems:'center',marginTop:5}}>
-              <Text style={{fontSize:14,fontWeight:'800',color:'#0B1D1C'}}>Clear filters</Text>
+              <Text style={{fontSize:14,fontWeight:'800',color:C.accentText}}>Clear filters</Text>
             </Pressable>
           :section==='saved'||section==='basket'?
             <Pressable accessibilityRole="button" accessibilityLabel="Browse Shop listings"
