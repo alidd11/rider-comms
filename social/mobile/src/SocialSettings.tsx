@@ -41,9 +41,9 @@ export function SettingsHeader({ title, backLabel, onBack }: {
   onBack: () => void;
 }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 26 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={backLabel}
-        onPress={onBack} style={{ width: 43, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+        onPress={onBack} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name="chevron-back" size={25} color={C.ink}/>
       </Pressable>
       <Text accessibilityRole="header" style={[s.title, { flex: 1 }]}>{title}</Text>

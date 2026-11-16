@@ -442,7 +442,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     if (screen === 'Reels' && to !== 'Reels') setReelStartId(null);
     setScreen(to);
     if (to === 'Create') setCreateMode('Post');
-    // Opening another section dismisses the Home feed settings panel.
     setNotice(null);
     setSelectedClub(null);
     setSelectedEvent(null);
@@ -1026,7 +1025,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                 {renderMessages()}
               </View>
             )}
-            {screen !== 'Create' && !(screen === 'Profile' && (profileEditor || settingsPage)) ?
+            {screen !== 'Create' && !(screen === 'Profile' && profileEditor) ?
               <BottomTabs screen={screen} onNavigate={navigate} /> : null}
           </>
         )}
