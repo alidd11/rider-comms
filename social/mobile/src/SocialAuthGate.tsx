@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RiderAccountClient, AccountApiError, AccountConnectionError, accountErrorMessage, RESET_SENT_TEXT, SOCIAL_TERMS_URL, SOCIAL_GUIDELINES_URL } from './authClient';
@@ -119,6 +119,8 @@ function Field({ label, value, onChangeText, secureTextEntry = false, keyboardTy
 }
 /** Shared identity, independent device session. No Social password database. */
 export function SocialAuthGate({ children }: { children: React.ReactNode }) {
+  const { width, height } = useWindowDimensions();
+  const centreForm = Platform.OS === 'web' && width >= 768 && height >= 680;
   const insets = useSafeAreaInsets();
   const client = React.useMemo(() => new RiderAccountClient(accountTokenStorage), []);
   const [identity, setIdentity] = React.useState<AccountIdentity | null>(null);
@@ -293,7 +295,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
     behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <ScrollView nativeID="social-auth-scroll" testID="social-auth-scroll"
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-      contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-start',
+      contentContainerStyle={{ flexGrow: 1, justifyContent: centreForm ? 'center' : 'flex-start',
         paddingHorizontal: 23,
         paddingTop: Platform.OS === 'web' ? 30 : Math.max(28, insets.top + 18),
         paddingBottom: Platform.OS === 'web' ? 28 : Math.max(28, insets.bottom + 18) }}
@@ -307,7 +309,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
               : isAgeReview ? 'One more thing'
                 : mode === 'signup' ? 'Use one account across both apps.'
                 : mode === 'recover' ? 'Reset your Rider Comms password'
-                : 'Sign in with Rider Comms.'}
+                : 'Sign in with your Rider Comms account.'}
           </Text>
         </View>
         {isTermsReview || isAgeReview ? <>
@@ -411,9 +413,6 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
             onPress={() => { setMode('login'); setError(''); setFieldErrors({}); setNotice(''); }}>
             <Text style={{ textAlign: 'center', color: accent }}>Back to sign in</Text>
           </Pressable>}
-          <Text style={{ textAlign: 'center', color: muted, fontSize: 11, lineHeight: 17 }}>
-            Sign in with your Rider Comms account. Your name, avatar and friends come with you.
-          </Text>
         </>}
       </View>
     </ScrollView>

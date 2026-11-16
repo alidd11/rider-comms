@@ -1,0 +1,9 @@
+@media(min-width:1080px){
+  .auth-screen{inset:0;width:100%;transform:none;border:0;box-shadow:none}
+  .auth-screen .auth-visual{
+    background-position:center 58%;
+  }
+  .auth-screen .auth-field>input,
+  .auth-screen .password-field input{font-size:.9rem}
+  .auth-screen .auth-field input::placeholder{color:var(--auth-muted)}
+}
