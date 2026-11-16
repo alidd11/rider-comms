@@ -35,9 +35,31 @@ function PolicyLink({ label, url, onOpenError }: {
   </Pressable>;
 }
 
-export function SocialSettings({ username, emailVerified, onClose, onClearDrafts, onSignOut, onDeleteAccount }: {
+export function SettingsHeader({ title, backLabel, onBack }: {
+  title: string;
+  backLabel: string;
+  onBack: () => void;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={backLabel}
+        onPress={onBack} style={{ width: 43, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="chevron-back" size={25} color={C.ink}/>
+      </Pressable>
+      <Text accessibilityRole="header" style={[s.title, { flex: 1 }]}>{title}</Text>
+    </View>
+
+  );
+}
+
+const sectionStyle = { backgroundColor: C.panel, borderColor: C.border, borderWidth: 1,
+  borderRadius: 16, padding: 16, gap: 8 } as const;
+
+export function SocialSettings({ username, emailVerified, feedSummary, onOpenFeed, onClose, onClearDrafts, onSignOut, onDeleteAccount }: {
   username: string;
   emailVerified: boolean;
+  feedSummary?: string;
+  onOpenFeed?: () => void;
   onClose: () => void;
   onClearDrafts: () => Promise<void>;
   onSignOut: () => Promise<void>;
@@ -76,15 +98,9 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
   }
 
   return <View testID="social-settings" style={{ gap: 22, paddingBottom: 30 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Back to profile"
-        onPress={onClose} style={{ width: 43, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name="chevron-back" size={25} color={C.ink}/>
-      </Pressable>
-      <Text style={s.title}>Settings & privacy</Text>
-    </View>
+    <SettingsHeader title="Settings & privacy" backLabel="Back to profile" onBack={onClose}/>
 
-    <View style={{ gap: 8 }}>
+    <View style={sectionStyle}>
       <Text style={s.cardHeading}>Rider Comms account</Text>
       <Text style={s.body}>@{username.replace(/^@/, '')}</Text>
       <Text style={s.small}>
@@ -93,7 +109,20 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
       <Text style={s.small}>One account for Rider Comms and Social. Signing out here ends this device’s Social session.</Text>
     </View>
 
-    <View style={{ gap: 7 }}>
+    {onOpenFeed ? <View style={sectionStyle}>
+      <Text accessibilityRole="header" style={s.cardHeading}>Content</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Feed preferences"
+        onPress={onOpenFeed} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 }}>
+        <Ionicons name="options-outline" size={22} color={C.accent}/>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={s.body}>Feed preferences</Text>
+          <Text style={s.small}>{feedSummary}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={C.muted}/>
+      </Pressable>
+    </View> : null}
+
+    <View style={sectionStyle}>
       <Text style={s.cardHeading}>Privacy on this device</Text>
       <Text style={[s.small, { lineHeight: 19 }]}>
         Text drafts you haven’t posted stay on this device and aren’t shared.
@@ -130,8 +159,10 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
         { color: notice.includes('cleared') ? C.accent : '#F1B7BE' }]}>{notice}</Text> : null}
     </View>
 
-    <View style={{ gap: 4 }}>
-      <Text style={s.cardHeading}>Legal & policies</Text>
+    <View style={sectionStyle}>
+      <Text style={s.cardHeading}>Help & policies</Text>
+      <PolicyLink label="Support" url="https://alidd11.github.io/rider-comms/support.html"
+        onOpenError={(label, url) => setFailedPolicy({ label, url })}/>
       <PolicyLink label="Privacy policy" url={PRIVACY_URL}
         onOpenError={(label, url) => setFailedPolicy({ label, url })}/>
       <PolicyLink label="Terms of service" url={SOCIAL_TERMS_URL}
@@ -162,7 +193,7 @@ export function SocialSettings({ username, emailVerified, onClose, onClearDrafts
       </Text>
     </View>
 
-    <View style={{gap:10}}>
+    <View style={sectionStyle}>
       <Text style={s.cardHeading}>Delete your account</Text>
       <Text style={[s.small,{lineHeight:20}]}>
         This deletes your entire Rider Comms account across Rider Comms and Social, not just

@@ -47,7 +47,7 @@ test.beforeEach(async ({ page }) => {
 
 test('Home feed hides posts and explains recommendations', async ({ page }, testInfo) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Feed preferences' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Feed preferences' })).toHaveCount(0);
   await expect(page.getByText('Members-only event details')).toHaveCount(0);
   await expect(page.getByText('Sunday roads, no rush.')).toBeVisible();
 
@@ -60,11 +60,13 @@ test('Home feed hides posts and explains recommendations', async ({ page }, test
   await page.getByRole('button', { name: 'Not interested in post by Alex Morgan' }).click();
   await expect(page.getByText('Sunday roads, no rush.')).toHaveCount(0);
 
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
   await page.getByRole('button', { name: 'Feed preferences' }).click();
-  await expect(page.getByTestId('home-feed-preferences')).toBeVisible();
+  await expect(page.getByTestId('social-feed-preferences')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Toggle personalised recommendations' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Home', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
-  await page.getByRole('button', { name: 'Close feed settings' }).click();
 
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-feed.png' });
@@ -79,14 +81,15 @@ test('Home has one editorial feed while Reels owns For You and Following', async
   await expect(page.getByRole('tab', { name: 'Following', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create story' })).toBeVisible();
 
-  const toggle = page.getByRole('button', { name: 'Feed preferences' });
-  await toggle.click();
-  await expect(page.getByTestId('home-feed-preferences')).toBeVisible();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
+  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await expect(page.getByTestId('social-feed-preferences')).toBeVisible();
   const personalised = page.getByRole('button', { name: 'Toggle personalised recommendations' });
   await expect(personalised).toContainText('Off');
   await personalised.click();
   await expect(personalised).toContainText('On');
-  await page.getByRole('button', { name: 'Close feed settings' }).click();
+  await page.getByRole('tab', { name: 'Home', exact: true }).click();
 
   await page.getByRole('button', { name: 'Create story' }).click();
   await expect(page.getByTestId('camera-first-studio')).toBeVisible();
@@ -101,12 +104,14 @@ test('Home has one editorial feed while Reels owns For You and Following', async
 
 test('Home recommendation personalisation is off by default and never switches Reels feeds', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
   await page.getByRole('button', { name: 'Feed preferences' }).click();
   const toggle = page.getByRole('button', { name: 'Toggle personalised recommendations' });
   await expect(toggle).toContainText('Off');
   await toggle.click();
   await expect(toggle).toContainText('On');
-  await page.getByRole('button', { name: 'Close feed settings' }).click();
+  await page.getByRole('tab', { name: 'Home', exact: true }).click();
   await page.getByRole('tab', { name: 'Reels' }).click();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await page.getByRole('tab', { name: 'Home' }).click();
@@ -306,9 +311,13 @@ test('media-first home removes intro and keeps content close to top', async ({ p
   const rect = await media.boundingBox();
   expect(rect).not.toBeNull();
   expect(rect?.y).toBeLessThan(460);
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('button', { name: 'Open settings and privacy' }).click();
   await page.getByRole('button', { name: 'Feed preferences' }).click();
-  await expect(page.getByText('Feed preferences')).toBeVisible();
-  await page.getByRole('button', { name: 'Feed preferences' }).click();
+  await expect(page.getByRole('heading', { name: 'Feed preferences' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to settings' }).click();
+  await expect(page.getByRole('heading', { name: 'Settings & privacy' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Home', exact: true }).click();
   await expect(page.getByText('Feed preferences')).toHaveCount(0);
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: 'test-results/screenshots/' + testInfo.project.name + '-feed-first.png' });
@@ -1181,7 +1190,7 @@ test('visual inventory captures each Social screen at mobile and desktop sizes',
     path: 'test-results/screenshots/' + testInfo.project.name + '-inventory-' + screen + '.png',
     animations: 'disabled',
   });
-  await expect(page.getByRole('button', { name: 'Feed preferences' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Feed preferences' })).toHaveCount(0);
   await capture('home');
 
   await page.getByRole('tab', { name: 'Reels' }).click();

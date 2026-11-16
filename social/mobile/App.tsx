@@ -31,7 +31,7 @@ import { RIDER_BRAND_ID, brandStories, brandReels } from './src/brandEditorial';
 import { ProfileEditor } from './src/ProfileEditor';
 import type { ProfileFields } from './src/profileFields';
 import { DEFAULT_AVATAR_ID } from '../../shared/src/avatars.ts';
-import { SocialSettings } from './src/SocialSettings';
+import { SettingsHeader, SocialSettings } from './src/SocialSettings';
 import type { ProfileContentTab } from './src/ProfileSummary';
 import { ProfileConnectionsSheet } from './src/ProfileConnectionsSheet';
 import { SocialAuthGate, useSocialAccount } from './src/SocialAuthGate';
@@ -262,7 +262,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const mediaHeight = Math.min(620, Math.max(330, Math.round(Math.min(screenWidth,620)*1.25)));
   const [screen, setScreen] = useState<Screen>('Home');
   const pageScrollEnabled = screen === 'Home' || screen === 'Clubs' || screen === 'Shop' || screen === 'Profile';
-  const [feedPreferencesOpen, setFeedPreferencesOpen] = useState(false);
   const [homeScope, setHomeScope] = useState<'for-you' | 'following'>('for-you');
   const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
   const [expandedCaptionId, setExpandedCaptionId] = useState<string | null>(null);
@@ -288,7 +287,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [selectedClub, setSelectedClub] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [profileEditor, setProfileEditor] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsPage, setSettingsPage] = useState<'overview' | 'feed' | null>(null);
   const [profileTab, setProfileTab] = useState<ProfileContentTab>('Posts');
   const [reelStartId, setReelStartId] = useState<string | null>(null);
   const access = useSocialAccess();
@@ -444,7 +443,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     setScreen(to);
     if (to === 'Create') setCreateMode('Post');
     // Opening another section dismisses the Home feed settings panel.
-    if (to !== 'Home') setFeedPreferencesOpen(false);
     setNotice(null);
     setSelectedClub(null);
     setSelectedEvent(null);
@@ -453,7 +451,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     setBrandPageOpen(false);
     setCommentsFor(null);
     setProfileEditor(false);
-    setSettingsOpen(false);
+    setSettingsPage(null);
     setConnectionSheet(null);
   }
 
@@ -666,39 +664,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         </Pressable>)}
       </ScrollView>
 
-      {feedPreferencesOpen ? <View testID="home-feed-preferences"
-        style={[s.card,s.pad,{marginHorizontal:16,marginTop:9,marginBottom:12,gap:13}]}>
-        <View style={s.rowBetween}>
-          <Text style={[s.cardHeading,{fontSize:16}]}>Feed preferences</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close feed settings"
-            onPress={()=>setFeedPreferencesOpen(false)}
-            style={{minWidth:44,minHeight:44,justifyContent:'center',alignItems:'center'}}>
-            <Ionicons name="close" color={C.muted} size={21}/>
-          </Pressable>
-        </View>
-        {!socialFixturesEnabled ? <View accessibilityRole="tablist" accessibilityLabel="Home feed" style={s.row}>
-          {([['for-you', 'Home'], ['following', 'Following']] as const).map(([value, label]) =>
-            <Pressable key={value} accessibilityRole="tab" aria-selected={homeScope === value}
-              onPress={() => { setHomeScope(value); setFeedPreferencesOpen(false); }}
-              style={[s.ghost, { flex: 1, minHeight: 44, backgroundColor: homeScope === value ? C.accentDark : 'transparent' }]}>
-              <Text style={s.ghostText}>{label}</Text>
-            </Pressable>)}
-        </View> : null}
-        <View style={s.rowBetween}>
-          <Text style={[s.body,{flex:1}]}>Personalised recommendations</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Toggle personalised recommendations"
-            accessibilityState={{checked:personalisation}}
-            onPress={()=>setPersonalisation(value=>!value)}
-            style={{minHeight:44,justifyContent:'center',paddingHorizontal:4}}>
-            <Text style={{color:C.accent,fontWeight:'800',fontSize:13}}>{personalisation?'On':'Off'}</Text>
-          </Pressable>
-        </View>
-        <Text style={s.small}>Community topics</Text>
-        <View style={[s.row,{flexWrap:'wrap'}]}>
-          {topics.map(({topic,label})=><Pill key={topic} label={label}
-            selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}
-        </View>
-      </View> : null}
       {!socialFixturesEnabled ? <>
         <LiveFeed client={client} riderId={identity.riderId} scope={homeScope} refreshKey={feedRefresh}
           onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
@@ -850,9 +815,39 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   }
 
   function renderProfile() {
-    if (settingsOpen) return <SocialSettings username={identity.username}
+    if (settingsPage === 'feed') return <View testID="social-feed-preferences" style={{ gap: 18 }}>
+      <SettingsHeader title="Feed preferences" backLabel="Back to settings" onBack={() => setSettingsPage('overview')}/>
+      <Text style={s.body}>Choose what you see in your Home feed.</Text>
+        {!socialFixturesEnabled ? <View accessibilityRole="radiogroup" accessibilityLabel="Home feed" style={s.row}>
+          {([['for-you', 'Home'], ['following', 'Following']] as const).map(([value, label]) =>
+            <Pressable key={value} accessibilityRole="radio" aria-checked={homeScope === value} accessibilityState={{ checked: homeScope === value }}
+              onPress={() => setHomeScope(value)}
+              style={[s.ghost, { flex: 1, minHeight: 44, backgroundColor: homeScope === value ? C.accentDark : 'transparent' }]}>
+              <Text style={s.ghostText}>{label}</Text>
+            </Pressable>)}
+        </View> : null}
+        {socialFixturesEnabled ? <>
+        <View style={s.rowBetween}>
+          <Text style={[s.body,{flex:1}]}>Personalised recommendations</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Toggle personalised recommendations"
+            accessibilityState={{checked:personalisation}}
+            onPress={()=>setPersonalisation(value=>!value)}
+            style={{minHeight:44,justifyContent:'center',paddingHorizontal:4}}>
+            <Text style={{color:C.accent,fontWeight:'800',fontSize:13}}>{personalisation?'On':'Off'}</Text>
+          </Pressable>
+        </View>
+        <Text style={s.small}>Community topics</Text>
+        <View style={[s.row,{flexWrap:'wrap'}]}>
+          {topics.map(({topic,label})=><Pill key={topic} label={label}
+            selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}
+        </View>
+        </> : <Text style={s.small}>Following shows posts from your Rider Comms friends.</Text>}
+    </View>;
+    if (settingsPage === 'overview') return <SocialSettings username={identity.username}
       emailVerified={identity.emailVerified}
-      onClose={() => setSettingsOpen(false)}
+      feedSummary={socialFixturesEnabled ? 'Recommendations and topics' : homeScope === 'following' ? 'Following' : 'Home'}
+      onOpenFeed={() => setSettingsPage('feed')}
+      onClose={() => setSettingsPage(null)}
       onClearDrafts={clearDeviceDrafts}
       onSignOut={logout}
       onDeleteAccount={deleteAccount}/>;
@@ -871,7 +866,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           friendCount={sharedFriends.length}
           followingCount={socialFixturesEnabled ? [...followed].filter(id => Boolean(demoCreators[id])).length : undefined}
           onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={() => setProfileEditor(true)}
-          onSettings={() => { setNotice(null); setSettingsOpen(true); }}/>
+          onSettings={() => { setNotice(null); setSettingsPage('overview'); }}/>
         {profileTab === 'Posts' && liveSocial ? <OwnPosts client={client} riderId={identity.riderId} refreshKey={feedRefresh}
           onCount={setOwnPostCount} onNotice={banner} onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }}
           onCreate={() => { navigate('Create'); setCreateMode('Post'); }}/> : null}
@@ -962,25 +957,17 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       <StatusBar barStyle="light-content" />
       <View style={s.root}>
         {!story && screen !== 'Reels' && screen !== 'Create' &&
-          !(screen === 'Profile' && profileEditor) ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
+          !(screen === 'Profile' && (profileEditor || settingsPage)) ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
           {screen === 'Home' ? <Pressable accessibilityRole="button"
-            accessibilityLabel={!socialFixturesEnabled && !brandPageOpen ? 'Feed preferences' : 'Go to home'}
-            accessibilityState={!socialFixturesEnabled && !brandPageOpen ? { expanded: feedPreferencesOpen } : undefined}
-            style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5 }}
-            onPress={!socialFixturesEnabled && !brandPageOpen
-              ? () => setFeedPreferencesOpen(value => !value)
-              : () => navigate('Home')}>
+            accessibilityLabel="Go to home"
+            style={{ minHeight: 44, justifyContent: 'center' }}
+            onPress={() => navigate('Home')}>
             <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
-            {!socialFixturesEnabled && !brandPageOpen ?
-              <Ionicons name={feedPreferencesOpen ? 'chevron-up' : 'chevron-down'} size={15} color={C.muted}/> : null}
           </Pressable> : screen === 'Shop' || (screen === 'Clubs' && !socialFixturesEnabled) ?
             <Text accessibilityRole="header" style={[s.cardHeading, { marginRight: 'auto' }]}>
               {screen === 'Shop' ? 'Shop' : 'Clubs & events'}
             </Text> : <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
           <View style={s.headerTools}>
-            {socialFixturesEnabled && screen === 'Home' && !selectedCreator ?
-              <IconButton name="options-outline" label="Feed preferences"
-                onPress={() => setFeedPreferencesOpen(value => !value)} /> : null}
             <IconButton name="chatbubble-ellipses-outline" label="Open messages" onPress={() => navigate('Messages')} />
             <IconButton name="person-circle-outline" label="Open profile" onPress={() => navigate('Profile')} />
           </View>
@@ -1000,9 +987,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                   screen === 'Shop' ? { paddingBottom: 28 } : s.content}
                 keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
                 overScrollMode="never" bounces={false}
-                key={screen === 'Home' ? 'Home-' + (brandPageOpen ? 'brand' : selectedCreator ?? 'feed') +
-                  (feedPreferencesOpen ? '-preferences' : '-content') :
-                  screen === 'Profile' ? 'Profile-' + (settingsOpen ? 'settings' : profileEditor ? 'edit' : profileTab) : screen}>
+                key={screen === 'Home' ? 'Home-' + (brandPageOpen ? 'brand' : selectedCreator ?? 'feed') :
+                  screen === 'Profile' ? 'Profile-' + (settingsPage ?? (profileEditor ? 'edit' : profileTab)) : screen}>
                 {screen === 'Home' ? renderHome() : null}
                 {screen === 'Clubs' ? renderClubs() : null}
                 {screen === 'Shop' ? renderShop() : null}
@@ -1040,7 +1026,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                 {renderMessages()}
               </View>
             )}
-            {screen !== 'Create' && !(screen === 'Profile' && profileEditor) ?
+            {screen !== 'Create' && !(screen === 'Profile' && (profileEditor || settingsPage)) ?
               <BottomTabs screen={screen} onNavigate={navigate} /> : null}
           </>
         )}
