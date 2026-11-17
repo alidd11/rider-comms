@@ -120,15 +120,27 @@
     });
   }
 
+  function setAvatarPickerOpen(open) {
+    const picker = $('#avatarPicker');
+    const button = $('#changeAvatarBtn');
+    if (!picker || !button) return;
+    picker.hidden = !open;
+    button.setAttribute('aria-expanded', String(open));
+    button.textContent = open ? 'Done' : 'Change avatar';
+  }
+
   async function selectProfileAvatar(avatarId) {
     if (!AVATAR_PRESET_BY_ID[avatarId] || avatarId === state.profile.avatarId) return;
     // Re-rendering the page must not drop anything typed but not yet saved.
-    const draftIds = ['editName', 'editHandle', 'editInstagram', 'editTiktok', 'sheetInstagramVisibility', 'sheetTiktokVisibility'];
+    const draftIds = ['editName', 'editHandle', 'editBio', 'editInstagram', 'editTiktok', 'sheetInstagramVisibility', 'sheetTiktokVisibility'];
     const drafts = Object.fromEntries(draftIds.map((id) => [id, document.getElementById(id)?.value]));
     const saved = await patchProfile({ avatarId });
     if (!saved) return;
     showToast('Avatar updated.');
     openSheet('profile');
+    // Keep the picker open on the family just chosen from.
+    setAvatarPickerOpen(true);
+    setAvatarPickerFamily(getAvatarFamily(avatarId));
     for (const [id, value] of Object.entries(drafts)) {
       const field = document.getElementById(id);
       if (field && value !== undefined) field.value = value;

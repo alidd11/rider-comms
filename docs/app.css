@@ -2857,3 +2857,12 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
 .form-field .field-hint{color:var(--text-muted);font-size:.75rem}
 .my-profile-bio{max-width:32ch;margin:10px auto 0;color:var(--text-secondary);font-size:.92rem;line-height:1.45;text-align:center;white-space:pre-line;overflow-wrap:anywhere}
 .friend-profile-bio{margin:12px 0 0;color:var(--text-secondary);font-size:.9rem;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere}
+/* Edit profile: the current avatar, with the full set behind Change avatar. */
+.avatar-current-row{display:flex;align-items:center;gap:16px;padding:6px 0 10px}
+#avatarPicker{padding-top:4px}
+/* Friends: bigger avatars and names, readable status. */
+[data-screen="friends"] .friend-row{min-height:68px}
+[data-screen="friends"] .friend-row .avatar{width:46px;height:46px}
+[data-screen="friends"] .friend-row .identity strong{font-size:.98rem}
+[data-screen="friends"] .friend-row .identity span{font-size:.8rem}
+.avatar-current-row .avatar{width:72px;height:72px;flex:none}
