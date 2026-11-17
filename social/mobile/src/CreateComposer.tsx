@@ -7,7 +7,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { CameraCapture } from './CameraCapture';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { C, s } from './styles';
+import { CDark as C, s } from './styles';
 import { cropRect } from './imageEdit';
 import { accountTextDraftKey, LEGACY_UNSCOPED_TEXT_DRAFT } from './createDraftKey';
 import { clearAccountTextDraft, loadAccountTextDraft, saveAccountTextDraft } from './textDraftStorage';

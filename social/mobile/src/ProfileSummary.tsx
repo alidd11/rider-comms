@@ -85,13 +85,13 @@ export function ProfileSummary({
     {showDisplayName || bio ? <View style={{ gap: 4, marginBottom: 16 }}>
       {showDisplayName ? <Text testID="profile-display-name"
         style={{ color: C.ink, fontSize: 15, fontWeight: '800' }}>{name}</Text> : null}
-      {bio ? <Text testID="profile-bio" style={{ color: '#D6DADE', fontSize: 13,
+      {bio ? <Text testID="profile-bio" style={{ color: C.ink, fontSize: 13,
         lineHeight: 19 }}>{bio}</Text> : null}
     </View> : null}
 
     <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
       onPress={onEdit} style={{ width: '100%', height: 45,
-        borderRadius: 12, backgroundColor: '#222830',
+        borderRadius: 12, backgroundColor: C.card,
         justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
       <Text style={{ fontSize: 13, fontWeight: '800', color: C.ink }}>Edit profile</Text>
     </Pressable>

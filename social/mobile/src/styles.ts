@@ -1,14 +1,15 @@
-import { StyleSheet } from 'react-native';
+import { Appearance, Platform, StyleSheet } from 'react-native';
 
 import palette from '../../../shared/src/brandPalette.json';
 import { BRAND_RADII } from '../../../shared/src/brand.ts';
 
 /**
- * Rider Social's colours are Rider Comms' dark palette, so both apps look like
- * one product. Change them in shared/src/brandPalette.json, never here.
+ * Rider Social's colours are Rider Comms' palette, so both apps look like one
+ * product, light or dark with the phone. Change them in
+ * shared/src/brandPalette.json, never here.
  */
-const brand = palette.dark;
-export const C = {
+type Brand = typeof palette.dark;
+const colours = (brand: Brand) => ({
   bg: brand.background,
   panel: brand.surface,
   card: brand.surfaceRaised,
@@ -20,9 +21,24 @@ export const C = {
   accentDark: brand.accentSoft,
   accentText: brand.accentText,
   danger: brand.danger,
+  dangerSurface: brand.dangerSurface,
   success: brand.success,
   warning: brand.warning,
-} as const;
+});
+
+/** The phone's light or dark setting, read once when Social opens. */
+export const colorScheme: 'light' | 'dark' = Appearance.getColorScheme() === 'light' ? 'light' : 'dark';
+export const C = colours(palette[colorScheme]);
+/** Photo and video screens (Reels, Stories, the camera) stay dark in light mode. */
+export const CDark = colours(palette.dark);
+
+// The colours are fixed when Social opens, so the web app reloads when the
+// phone switches between light and dark.
+if (Platform.OS === 'web') {
+  Appearance.addChangeListener(({ colorScheme: next }) => {
+    if ((next === 'light' ? 'light' : 'dark') !== colorScheme) globalThis.location?.reload();
+  });
+}
 export const R = BRAND_RADII;
 
 export const s = StyleSheet.create({
@@ -33,13 +49,13 @@ export const s = StyleSheet.create({
   brandTitle: { color: C.ink, fontSize: 27, fontWeight: '900', letterSpacing: -1.2 },
   small: { color: C.muted, fontSize: 13, lineHeight: 19 },
   headerTools: { flexDirection: 'row', gap: 5 },
-  iconButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: '#171B20' },
+  iconButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: C.card },
   scroll: { flex: 1, minHeight: 0 },
   content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 32, gap: 16 },
   eyebrow: { color: C.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
   title: { color: C.ink, fontSize: 25, fontWeight: '800', letterSpacing: -0.6 },
   sectionTitle: { color: C.ink, fontWeight: '900', fontSize: 20, letterSpacing: -0.55 },
-  body: { color: '#D5DFE9', fontSize: 15, lineHeight: 22 },
+  body: { color: C.ink, fontSize: 15, lineHeight: 22 },
   muted: { color: C.muted, fontSize: 13, lineHeight: 20 },
   card: { backgroundColor: C.panel, borderRadius: R.card, overflow: 'hidden' },
   pad: { padding: 16, gap: 11 },
@@ -84,7 +100,7 @@ export const s = StyleSheet.create({
   // Keep the two Home feeds in fixed app chrome, immediately beneath the
   // wordmark, rather than showing them as transient filter chips after Stories.
   feedSwitchBar: { width: '100%', minHeight: 46, paddingHorizontal: 13,
-    backgroundColor: C.bg, borderBottomWidth: 1, borderBottomColor: '#20262D',
+    backgroundColor: C.bg, borderBottomWidth: 1, borderBottomColor: C.border,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   feedModeTab: { minWidth: 88, minHeight: 46, paddingHorizontal: 3,
     justifyContent: 'center', alignItems: 'center',

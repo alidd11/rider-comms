@@ -13,7 +13,7 @@ export function IdentityAvatar({ name, avatarId, size = 44 }: { name: string; av
   }
   return <View accessibilityLabel={'Avatar for ' + name} style={{
     width: size, height: size, borderRadius: size / 2,
-    backgroundColor: '#2B363D', borderWidth: 1, borderColor: '#46505A',
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
     alignItems: 'center', justifyContent: 'center',
   }}>
     <Text style={{ color: C.ink, fontSize: Math.max(12, size * 0.32), fontWeight: '800' }}>

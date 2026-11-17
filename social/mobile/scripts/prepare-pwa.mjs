@@ -2,7 +2,10 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 
 // Colours come from the shared brand palette, like the app itself.
-const palette = JSON.parse(await readFile(new URL('../../../shared/src/brandPalette.json', import.meta.url), 'utf8')).dark;
+// The shell follows the phone's light or dark setting, like the app.
+const brand = JSON.parse(await readFile(new URL('../../../shared/src/brandPalette.json', import.meta.url), 'utf8'));
+const palette = { background: 'var(--social-bg)', accent: 'var(--social-accent)', textPrimary: 'var(--social-text)' };
+const shellColours = (colours) => `--social-bg:${colours.background};--social-accent:${colours.accent};--social-text:${colours.textPrimary}`;
 
 const indexUrl = new URL('../dist/index.html', import.meta.url);
 
@@ -30,6 +33,8 @@ if (viewportMatch) {
 // Ensure the iOS status-bar background, page and React root have exactly the
 // same colour; only the content is inset, never the app's background.
 const edgeToEdgeStyle = `<style id="social-edge-to-edge">
+  :root { ${shellColours(brand.dark)}; color-scheme: dark; }
+  @media (prefers-color-scheme: light) { :root { ${shellColours(brand.light)}; color-scheme: light; } }
   html, body, #root {
     width: 100%;
     height: 100%;
@@ -163,7 +168,7 @@ if (!html.includes('id="social-edge-to-edge"')) {
 }
 const extraHeadTags = [
   ['robots', '<meta name="robots" content="noindex, nofollow, noarchive" />'],
-  ['theme-color', `<meta name="theme-color" content="${palette.background}" />`],
+  ['theme-color', `<meta name="theme-color" media="(prefers-color-scheme: light)" content="${brand.light.background}" />\n<meta name="theme-color" media="(prefers-color-scheme: dark)" content="${brand.dark.background}" />`],
   ['apple-mobile-web-app-capable', '<meta name="apple-mobile-web-app-capable" content="yes" />'],
   ['apple-mobile-web-app-status-bar-style', '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />']
 ];

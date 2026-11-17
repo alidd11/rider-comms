@@ -97,7 +97,7 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
       </Pressable>
     </View>
 
-    {post.hidden ? <View style={{ marginHorizontal: 14, marginBottom: 8, padding: 10, borderRadius: 10, backgroundColor: '#2B2414' }}>
+    {post.hidden ? <View style={{ marginHorizontal: 14, marginBottom: 8, padding: 10, borderRadius: 10, backgroundColor: C.card }}>
       <Text style={[s.small, { color: C.warning }]}>Hidden from others while we review reports about it.</Text>
     </View> : null}
 
@@ -158,8 +158,8 @@ function PanelButton({ icon, label, danger = false, onPress }: {
 }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     style={[s.row, { minHeight: 46, paddingHorizontal: 10 }]}>
-    <Ionicons name={icon} size={20} color={danger ? '#F18E99' : C.ink}/>
-    <Text style={[s.body, danger ? { color: '#F18E99' } : null]}>{label}</Text>
+    <Ionicons name={icon} size={20} color={danger ? C.danger : C.ink}/>
+    <Text style={[s.body, danger ? { color: C.danger } : null]}>{label}</Text>
   </Pressable>;
 }
 
