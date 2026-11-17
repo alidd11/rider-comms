@@ -336,6 +336,11 @@ test('PWA profile avatar families persist and render the selected identity', asy
 
   await page.goto('/');
   await openOwnProfile(page, { edit: true });
+  // The grid is behind Change avatar, so Name and Bio come first.
+  await expect(page.locator('#avatarPicker')).toBeHidden();
+  await expect(page.locator('#editName')).toBeInViewport();
+  await page.locator('#changeAvatarBtn').click();
+  await expect(page.locator('#changeAvatarBtn')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('[data-avatar-family-tab="helmet"]')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-avatar-option="ember"]')).toHaveAttribute('aria-checked', 'true');
 

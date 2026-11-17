@@ -195,6 +195,6 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.accent },
   chipPressed: { opacity: 0.7 },
-  chipText: { ...type.body, color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
+  chipText: { ...type.body, color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
   chipTextActive: { color: colors.accentText },
 });

@@ -103,3 +103,12 @@ html.pwa-standalone .route-detail{max-height:92%}
   .route-search{min-height:43px;border-radius:4px}
   .route-tools .chip-row.compact .chip{min-height:34px;border-radius:4px}
 }
+/* Readable at arm's length: the route cards and filters were 9-10px. */
+.curated-route-card .curated-route-overlay strong{font-size:1rem}
+.curated-route-card .curated-route-overlay small{font-size:.78rem}
+.curated-route-card .curated-route-overlay .route-region{font-size:.74rem}
+.curated-route-card .route-quick-stats b{font-size:.74rem}
+.curated-route-card .route-quick-stats svg{width:13px;height:13px}
+#curatedRouteFilters .chip,.route-tools .chip-row.compact .chip{min-height:38px;padding-inline:13px;font-size:.78rem;border-radius:var(--radius-pill)}
+/* Cards keep their height; a shorter photo strip leaves room for the bigger text. */
+.curated-route-card .curated-route-overlay{top:64px;padding:6px 11px;gap:2px}
