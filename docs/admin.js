@@ -878,10 +878,10 @@
     const emailState = !email.configured ? 'down' : restricted ? 'warn' : 'ok';
     const emailLabel = !email.configured ? 'Not set up' : restricted ? 'Restricted' : 'Working';
     const emailDesc = !email.configured ? 'Set RESEND_API_KEY and RESEND_FROM_EMAIL on the backend'
-      : restricted ? `Resend refused: ${email.lastRefusal}` : email.lastSentAt ? `Last sent ${new Date(email.lastSentAt).toLocaleString()}` : 'Verification and reset emails';
+      : restricted ? `Resend refused: ${email.lastRefusal.replace(/^[a-z_]+: /, '')}` : email.lastSentAt ? `Last sent ${new Date(email.lastSentAt).toLocaleString()}` : 'Verification and reset emails';
     const setting = (name, state, label, description) => el('li', { class: 'status-row' }, [
-      el('span', { class: 'status-dot', dataset: { state } }),
-      el('div', {}, [el('div', { class: 'status-name', text: `${name} · ${label}` }), el('div', { class: 'status-desc', text: description })]),
+      el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
+      el('span', { class: 'status-value' }, [statusBadge(state, label)]),
     ]);
     return [
       setting('Email delivery', emailState, emailLabel, emailDesc),
@@ -890,12 +890,19 @@
     ];
   }
 
+  const STATE_TONES = { ok: 'success', warn: 'warning', down: 'danger' };
+  function statusBadge(state, label) {
+    return el('span', { class: 'badge', dataset: { tone: STATE_TONES[state], state }, text: label });
+  }
+
   async function renderSystem() {
     const [health, ready, system] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null)]);
     const row = (name, description, result) => el('li', { class: 'status-row' }, [
-      el('span', { class: 'status-dot', dataset: { state: result.ok ? 'ok' : 'down' } }),
-      el('div', {}, [el('div', { class: 'status-name', text: `${name} ${result.ok ? '· Operational' : '· Down'}` }), el('div', { class: 'status-desc', text: description })]),
-      el('span', { class: 'status-value', text: result.ms === null ? 'No response' : `${result.ms} ms` }),
+      el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
+      el('span', { class: 'status-value' }, [
+        el('span', { class: 'status-ms', text: result.ms === null ? 'No response' : `${result.ms} ms` }),
+        statusBadge(result.ok ? 'ok' : 'down', result.ok ? 'Operational' : 'Down'),
+      ]),
     ]);
     const setup = setupRows(system);
     const runbook = (file, label) => el('li', {}, [el('a', { href: `https://github.com/alidd11/rider-comms/blob/main/${file}`, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: label }), icon('external')])]);
