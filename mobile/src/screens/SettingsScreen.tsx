@@ -314,7 +314,7 @@ function SettingsPageLayout({ title, page, children }: { title: string; page: Se
 /** The Settings root: categories only, each opening its own
  * page (the PWA's SETTINGS_CATEGORIES has the same rows and tints). */
 export function SettingsScreen(): React.JSX.Element {
-  const { profileError, clearProfileError, unitSystem, navigationProvider, rideSafeEnabled, riderVehicle, zoneTier } = useSettings();
+  const { profileError, clearProfileError, unitSystem, navigationProvider, rideSafeEnabled, riderVehicle, zoneTier, spokenDirections } = useSettings();
   const insets = useSafeAreaInsets();
   const palette = useSettingsPalette();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -344,7 +344,7 @@ export function SettingsScreen(): React.JSX.Element {
         <SettingsGroup compact>
           <CategoryRow first icon="settings" tint="#1FB6D9" title="General" value={UNIT_LABELS[unitSystem].name} onPress={() => openPage('general')} />
           <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" value={navigationAppLabel} onPress={() => openPage('mapNavigation')} />
-          <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" onPress={() => openPage('voiceSound')} />
+          <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" value={spokenDirections ? 'Spoken' : 'Muted'} onPress={() => openPage('voiceSound')} />
           <CategoryRow icon="notifications" tint="#EF4444" title="Notifications" onPress={() => openPage('notifications')} />
         </SettingsGroup>
 

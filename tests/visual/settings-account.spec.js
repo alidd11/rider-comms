@@ -87,7 +87,8 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await page.locator('#closeSheetAll').click();
   await expect(page.locator('#sheetBackdrop')).toBeHidden();
 
-  // Voice and sound: whether new routes speak directions.
+  // Voice and sound: whether new routes speak directions, shown on its row.
+  await expect(page.locator('[data-settings-open="voiceSound"] .settings-row-value')).toHaveText('Spoken');
   await page.locator('[data-settings-open="voiceSound"]').click();
   const spoken = page.locator('#sheetBody [data-toggle="spokenDirections"]');
   await expect(spoken).toHaveAttribute('aria-pressed', 'true');
