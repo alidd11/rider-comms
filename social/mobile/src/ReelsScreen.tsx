@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './styles';
+import { BrandMark } from './BrandMark';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
 
@@ -245,8 +246,8 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
     minHeight: 44, flexDirection: 'row', gap: 18, alignItems: 'center',
     justifyContent: 'center',
   }}>
-    {([{mode:'following',label:'Following videos',text:'Following'},
-       {mode:'forYou',label:'For You videos',text:'For You'}] as const).map(tab =>
+    {([{mode:'forYou',label:'For you videos',text:'For you'},
+       {mode:'following',label:'Following videos',text:'Following'}] as const).map(tab =>
       <Pressable key={tab.mode} accessibilityRole="tab" accessibilityLabel={tab.label}
         aria-selected={feedMode === tab.mode}
         onPress={() => changeFeed(tab.mode)} style={{
@@ -330,14 +331,14 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
           : 'Reels riders share will appear here.'}
       </Text>
       <Pressable accessibilityRole="button"
-        accessibilityLabel={feedMode === 'following' ? 'Explore For You Reels' : 'Create Reel'}
+        accessibilityLabel={feedMode === 'following' ? 'Explore For you Reels' : 'Create Reel'}
         onPress={feedMode === 'following' ? () => changeFeed('forYou') : onCreateReel}
         style={{ minHeight: 50, minWidth: 193, paddingHorizontal: 23,
           borderRadius: 999, backgroundColor: '#FFFFFF', alignItems: 'center',
           justifyContent: 'center', marginTop: 10, flexDirection: 'row', gap: 9 }}>
         <Ionicons name={feedMode === 'following' ? 'compass-outline' : 'add'} size={21} color={C.accentText}/>
         <Text style={{ color: C.accentText, fontWeight: '900', fontSize: 15 }}>
-          {feedMode === 'following' ? 'Explore For You' : 'Create a Reel'}
+          {feedMode === 'following' ? 'Explore For you' : 'Create a Reel'}
         </Text>
       </Pressable>
       <View pointerEvents="box-none" style={{
@@ -372,14 +373,14 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                 <View testID={'reel-caption-' + reel.id}
                   style={{ position: 'absolute', left: 16, bottom: 18, right: 72, gap: 6 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-                    <View style={{
+                    {reel.editorialPreview ? <BrandMark size={36} ring/> : <View style={{
                       width: 36, height: 36, borderRadius: 18, backgroundColor: reel.theme,
                       borderColor: 'rgba(255,255,255,0.6)', borderWidth: 1,
                       alignItems: 'center', justifyContent: 'center',
                     }}>
                       <Ionicons name={reel.category === 'CYCLING' ? 'bicycle' : reel.category === 'CARS' ? 'car-sport' : 'speedometer'}
                         size={19} color={C.ink} />
-                    </View>
+                    </View>}
                     <Pressable accessibilityRole="button" accessibilityLabel={'View creator ' + reel.handle}
                       onPress={() => onOpenCreator(reel.authorId)}>
                       <Text style={[{ color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, reelTextShadow]}>{reel.handle}</Text>

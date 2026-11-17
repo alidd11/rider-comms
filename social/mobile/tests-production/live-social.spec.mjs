@@ -99,12 +99,8 @@ test('shows the real feed, reports a post, shares a photo and deletes it', async
   await expect(card.getByText(/@sam_rides · 5 min/)).toBeVisible();
   await expect(card.getByText('Sunday run to the coast')).toBeVisible();
   await expect(card.getByRole('img').first()).toBeVisible();
-  // For you and Following switch at the top of Home.
-  await expect(page.getByRole('tab', { name: 'For you feed' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('tab', { name: 'Following feed' }).click();
-  await expect(page.getByRole('tab', { name: 'Following feed' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByText('Posts from your Rider Comms friends will show here.')).toBeVisible();
-  await page.getByRole('tab', { name: 'For you feed' }).click();
+  // Home is one feed: no For you / Following switch.
+  await expect(page.getByRole('tablist', { name: 'Home feed' })).toHaveCount(0);
   await expect(card).toBeVisible();
   await mkdir('test-results/screenshots', { recursive: true });
   await page.screenshot({ path: `test-results/screenshots/${testInfo.project.name}-live-feed.png` });
