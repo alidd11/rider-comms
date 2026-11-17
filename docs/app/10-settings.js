@@ -637,6 +637,7 @@
   function settingsCategoryValue(page) {
     if (page === 'general') return state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';
     if (page === 'mapNavigation') return NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
+    if (page === 'voiceSound') return state.spokenDirections !== false ? 'Spoken' : 'Muted';
     if (page === 'rideSafe') return state.rideSafeEnabled ? 'On' : 'Off';
     if (page === 'vehicle') return RIDER_VEHICLE_OPTIONS.find(([vehicle]) => vehicle === state.vehicleCategory)?.[1] || '';
     if (page === 'plan') return PLAN_INFO[planTier(state.profile.zoneTier)].name;
