@@ -2864,3 +2864,12 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
 [data-screen="friends"] .friend-row .identity strong{font-size:.98rem}
 [data-screen="friends"] .friend-row .identity span{font-size:.8rem}
 .avatar-current-row .avatar{width:72px;height:72px;flex:none}
+/* Add friend: one rounded field with Send inside it. No inner focus box;
+   the whole field lights up while you type instead. */
+#addFriendForm{padding:0;border:0;background:transparent}
+#addFriendForm label{margin-bottom:8px}
+#addFriendForm .add-friend-field{min-height:50px;padding:4px 4px 4px 14px;gap:6px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--surface);transition:border-color 140ms ease,box-shadow 140ms ease}
+#addFriendForm .add-friend-field:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+#addFriendForm .add-friend-field input{min-height:40px;padding:0;font-size:1rem}
+#addFriendForm .add-friend-field input:focus,#addFriendForm .add-friend-field input:focus-visible{outline:0;box-shadow:none}
+#addFriendForm .add-friend-field .button{min-height:40px;padding-inline:18px;border-radius:var(--radius-pill)}

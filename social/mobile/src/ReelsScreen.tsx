@@ -3,7 +3,7 @@ import { ActivityIndicator, AppState, ImageBackground, Linking, Platform, Pressa
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { C } from './styles';
+import { CDark as C } from './styles';
 import { BrandMark } from './BrandMark';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';

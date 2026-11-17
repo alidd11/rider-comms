@@ -77,7 +77,7 @@ export function SocialPilotGate({ identity, client, onSignOut, onDeleteAccount, 
           </>}
           <Pressable accessibilityRole="button" accessibilityLabel="Account settings"
             onPress={() => setSettingsOpen(true)}
-            style={{ minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: '#23303C',
+            style={{ minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: C.border,
               alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: ink, fontSize: 14, fontWeight: '700' }}>Account settings & deletion</Text>
           </Pressable>

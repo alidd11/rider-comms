@@ -4,7 +4,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import type { CameraType, FlashMode } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import type { ComposerMedia, ComposerMode } from './upload';
-import { C } from './styles';
+import { CDark as C } from './styles';
 
 type CapturedMedia = Omit<ComposerMedia, 'id'>;
 type Props = {

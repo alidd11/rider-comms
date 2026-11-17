@@ -179,13 +179,13 @@ export function SharedMessagesScreen({
           const mine = item.fromRiderId === ownRiderId;
           return <View key={item.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start',
             maxWidth: '84%', borderRadius: 19, paddingHorizontal: 15,
-            paddingVertical: 11, backgroundColor: mine ? '#21433A' : '#242A32' }}>
+            paddingVertical: 11, backgroundColor: mine ? C.accentDark : C.card }}>
             <Text style={{ color: C.ink, fontSize: 14, lineHeight: 20 }}>{item.text}</Text>
           </View>;
         })}
       </ScrollView>
       {threadError ? <View style={{ gap: 8, paddingHorizontal: 6 }}>
-        <Text accessibilityRole="alert" style={{ color: '#F2B0BA',
+        <Text accessibilityRole="alert" style={{ color: C.danger,
           fontSize: 13, lineHeight: 19 }}>{threadError}</Text>
         {threadLoadFailed ? <Pressable accessibilityRole="button"
           accessibilityLabel="Retry loading messages"
@@ -200,7 +200,7 @@ export function SharedMessagesScreen({
         Verify your email to message riders.
       </Text> : null}
       <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end',
-        paddingTop: 9, paddingBottom: 7, borderTopWidth: 1, borderTopColor: '#242A32' }}>
+        paddingTop: 9, paddingBottom: 7, borderTopWidth: 1, borderTopColor: C.card }}>
         <TextInput accessibilityLabel="Write a message"
           value={draft} onChangeText={setDraft} editable={emailVerified && !sending && !threadLoading && !threadLoadFailed}
           placeholder="Message" placeholderTextColor={C.muted} multiline maxLength={1000}
@@ -230,7 +230,7 @@ export function SharedMessagesScreen({
         <Ionicons name="refresh" size={20} color={loading ? C.muted : C.ink}/>
       </Pressable>
     </View>
-    {error ? <Text accessibilityRole="alert" style={{ color: '#F2B0BA', fontSize: 12 }}>{error}</Text> : null}
+    {error ? <Text accessibilityRole="alert" style={{ color: C.danger, fontSize: 12 }}>{error}</Text> : null}
     {!emailVerified ? <Text style={{ color: C.muted, fontSize: 12 }}>
       Verify your email to message riders.
     </Text> : null}
@@ -241,7 +241,7 @@ export function SharedMessagesScreen({
           flexGrow: otherFriends.length === 0 ? 1 : 0,
           paddingVertical: 35, paddingHorizontal: 15, gap: 13 }}>
         <View style={{ width: 80, height: 80, borderRadius: 28,
-          backgroundColor: '#1B262B', alignItems: 'center', justifyContent: 'center' }}>
+          backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="chatbubbles-outline" color={C.accent} size={36}/>
         </View>
         <Text style={[s.cardHeading, { fontSize: 20, fontWeight: '900',
@@ -259,7 +259,7 @@ export function SharedMessagesScreen({
           onPress={() => setActive(riderId)}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 13,
             paddingVertical: 13, minHeight: 76, borderBottomWidth: 1,
-            borderColor: '#1F252C' }}>
+            borderColor: C.border }}>
           <IdentityAvatar name={rider.displayName} avatarId={rider.avatarId} size={48}/>
           <View style={{ flex: 1, gap: 5 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>

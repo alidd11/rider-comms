@@ -68,13 +68,13 @@ function InlineMessage({ message, type = 'error', label }: {
   return <View testID={danger ? 'auth-error' : 'auth-notice'}
     accessibilityRole="alert"
     style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-      borderLeftWidth: 2, borderLeftColor: danger ? '#ECA4B0' : accent,
+      borderLeftWidth: 2, borderLeftColor: danger ? C.danger : accent,
       paddingVertical: 5, paddingLeft: 10, paddingRight: 3 }}>
     <Ionicons name={danger ? 'alert-circle-outline' : 'checkmark-circle-outline'}
-      size={17} color={danger ? '#ECA4B0' : accent}/>
+      size={17} color={danger ? C.danger : accent}/>
     <View style={{ flex: 1, gap: 2 }}>
       {label ? <Text style={{ color: ink, fontSize: 12, fontWeight: '800' }}>{label}</Text> : null}
-      <Text style={{ color: danger ? '#DABAC2' : '#B2F5E2', fontSize: 12, lineHeight: 18 }}>
+      <Text style={{ color: danger ? C.danger : C.ink, fontSize: 12, lineHeight: 18 }}>
         {message}
       </Text>
     </View>
@@ -96,7 +96,7 @@ function Field({ label, value, onChangeText, secureTextEntry = false, keyboardTy
       // No filled/outlined input rectangles. A single accessible underline
       // gives focus feedback without the blue boxed-field appearance.
       borderBottomWidth: focused ? 2 : 1,
-      borderBottomColor: error ? '#E9869B' : focused ? accent : border,
+      borderBottomColor: error ? C.danger : focused ? accent : border,
       backgroundColor: 'transparent', minHeight: 50,
     }}>
       <TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText}
@@ -116,7 +116,7 @@ function Field({ label, value, onChangeText, secureTextEntry = false, keyboardTy
       </Pressable> : null}
     </View>
     {error ? <Text accessibilityRole="alert" testID={'auth-field-error-' + label.toLowerCase()}
-      style={{ color: '#FFB6C1', fontSize: 12, lineHeight: 18, paddingHorizontal: 2 }}>
+      style={{ color: C.danger, fontSize: 12, lineHeight: 18, paddingHorizontal: 2 }}>
       {error}
     </Text> : null}
   </View>;
@@ -396,7 +396,7 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
                   onPress={() => void Linking.openURL(SOCIAL_GUIDELINES_URL)} style={{ color: accent }}>Community Guidelines</Text>
               </Text>
             </View>
-            {fieldErrors.terms ? <Text accessibilityRole="alert" style={{ color: '#FFB6C1', fontSize: 12 }}>
+            {fieldErrors.terms ? <Text accessibilityRole="alert" style={{ color: C.danger, fontSize: 12 }}>
               {fieldErrors.terms}
             </Text> : null}
           </> : null}

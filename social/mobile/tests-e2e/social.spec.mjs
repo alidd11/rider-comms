@@ -257,6 +257,26 @@ test('event detail includes only demo interest, not real RSVP', async ({ page })
 });
 
 
+test.describe('light mode', () => {
+  test.use({ colorScheme: 'light' });
+  test('Social follows the phone into light mode; Reels stay dark', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#social-bottom-tabs')).toBeVisible();
+    const colours = await page.evaluate(() => ({
+      body: getComputedStyle(document.body).backgroundColor,
+      screen: getComputedStyle(document.getElementById('social-screen')).backgroundColor,
+      themeColour: document.querySelector('meta[name="theme-color"][media*="light"]')?.getAttribute('content'),
+    }));
+    expect(colours.body).toBe('rgb(233, 238, 240)');
+    expect(colours.screen).toBe('rgb(233, 238, 240)');
+    expect(colours.themeColour?.toUpperCase()).toBe('#E9EEF0');
+    await page.getByRole('tab', { name: 'Reels' }).click();
+    await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
+    const reelsBackground = await page.getByTestId('fixed-reels-screen').evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(reelsBackground).not.toBe('rgb(233, 238, 240)');
+  });
+});
+
 test('iPhone and desktop render true edge-to-edge background with safe content insets', async ({ page }) => {
   await page.goto('/');
   // Measure only once the app has rendered: an absent heading is true before

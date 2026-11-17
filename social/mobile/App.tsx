@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, ScrollView, StatusBar, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { C, s } from './src/styles';
+import { C, colorScheme, s } from './src/styles';
 import { rankForYou, rankFollowing, rankReels, rankClubs, rankEvents, rankMarketplace, explainReason, noViewer } from './src/recommendations';
 import type { Content, Viewer, Topic, RankReason } from './src/recommendations';
 import type { SocialPost } from './src/domain';
@@ -148,8 +148,8 @@ function HomeEmpty({ onCreate, onReels, onMessages, live = false }: {
 }) {
   return <View testID="home-empty-onboarding" style={{
     marginHorizontal: 16, marginTop: 12, marginBottom: 10, padding: 20,
-    borderRadius: 22, backgroundColor: '#12171D', gap: 17,
-    borderWidth: 1, borderColor: '#232C33',
+    borderRadius: 22, backgroundColor: C.card, gap: 17,
+    borderWidth: 1, borderColor: C.border,
   }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
       <View style={{ width: 49, height: 49, borderRadius: 16,
@@ -198,12 +198,12 @@ function PreviewEmpty({ icon, heading, body, actionLabel, onAction, featured = f
   return (
     <View style={[s.empty, featured && {
       minHeight: 300, marginHorizontal: 15, marginTop: 13, paddingVertical: 39,
-      overflow: 'hidden', backgroundColor: '#12171D',
+      overflow: 'hidden', backgroundColor: C.card,
     }]}>
       {featured ? <View pointerEvents="none" style={{
         position: 'absolute', top: -88, right: -66,
         width: 225, height: 225, borderRadius: 113,
-        backgroundColor: '#193B35', opacity: 0.33,
+        backgroundColor: C.accentDark, opacity: 0.33,
       }}/> : null}
       <View style={{ width: featured ? 66 : 52, height: featured ? 66 : 52,
         borderRadius: featured ? 23 : 18, backgroundColor: C.accentDark,
@@ -567,7 +567,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       <View style={s.feedActions}>
         <View style={[s.row,{gap:20}]}>
           <Pressable accessibilityRole="button" accessibilityLabel={liked.has(post.id) ? 'Unlike post' : 'Like post'} onPress={() => toggle(setLiked, post.id)}>
-            <Ionicons name={liked.has(post.id)?'heart':'heart-outline'} color={liked.has(post.id)?'#F18E99':C.ink} size={27}/>
+            <Ionicons name={liked.has(post.id)?'heart':'heart-outline'} color={liked.has(post.id)?C.danger:C.ink} size={27}/>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Open comments" onPress={() => openComments(post.id, post.heading)}><Ionicons name="chatbubble-outline" color={C.ink} size={25}/></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Share post" onPress={() => banner('Sharing is not live yet.')}><Ionicons name="paper-plane-outline" color={C.ink} size={25}/></Pressable>
@@ -942,7 +942,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     <SafeAreaView nativeID="social-screen"
       edges={Platform.OS === 'web' ? [] : screen === 'Reels' && !story ? ['left', 'right'] : ['top', 'left', 'right']}
       style={s.safe}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={colorScheme === 'light' ? 'dark-content' : 'light-content'} />
       <View style={s.root}>
         {/* Messages and Profile have their own title rows, so no top bar above them. */}
         {!story && screen !== 'Reels' && screen !== 'Create' && screen !== 'Messages' && screen !== 'Profile' ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
@@ -962,7 +962,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         </View> : null}
         {notice && screen !== 'Reels' ? (
           <Pressable style={s.notice} accessibilityRole="button" accessibilityLabel="Dismiss notice" onPress={() => setNotice(null)}>
-            <View style={s.rowBetween}><Text style={[s.body, { color: '#C4FFEC', flex: 1 }]}>{notice}</Text><Ionicons name="close" size={17} color={C.accent} /></View>
+            <View style={s.rowBetween}><Text style={[s.body, { color: C.ink, flex: 1 }]}>{notice}</Text><Ionicons name="close" size={17} color={C.accent} /></View>
           </Pressable>
         ) : null}
         {story ? (
@@ -1092,13 +1092,13 @@ class SocialAppRecoveryBoundary extends React.Component<
   render() {
     if (!this.state.failed) return this.props.children;
     return <View testID="social-app-recovery" style={{
-      flex: 1, backgroundColor: '#080D13', justifyContent: 'center',
+      flex: 1, backgroundColor: C.bg, justifyContent: 'center',
       alignItems: 'center', gap: 17, paddingHorizontal: 28,
     }}>
-      <Ionicons name="alert-circle-outline" size={44} color="#FFFFFF"/>
-      <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800',
+      <Ionicons name="alert-circle-outline" size={44} color={C.ink}/>
+      <Text style={{ color: C.ink, fontSize: 22, fontWeight: '800',
         textAlign: 'center' }}>Social couldn't open this screen</Text>
-      <Text style={{ color: '#B4BBC4', fontSize: 14, lineHeight: 21,
+      <Text style={{ color: C.muted, fontSize: 14, lineHeight: 21,
         textAlign: 'center' }}>
         This screen encountered a problem. You can restart the Social app without
         deleting your account or local drafts.
