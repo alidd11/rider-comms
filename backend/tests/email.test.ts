@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { RESEND_TIMEOUT_MS, sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
+import { emailDeliveryStatus, resetEmailDeliveryStatus, RESEND_TIMEOUT_MS, sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
 
 // Same fake-fetch shape as mobile/tests/places.test.ts's fakeFetch: never
 // touches the network, and hands the handler the URL + init so it can
@@ -157,5 +157,47 @@ describe('sendVerificationEmail', () => {
     }
     assert.equal(messages.some((message) => message.includes('private.rider@example.com')), false);
     assert.equal(messages.length, 1);
+  });
+});
+
+describe('emailDeliveryStatus', () => {
+  const originalApiKey = process.env.RESEND_API_KEY;
+  const originalFrom = process.env.RESEND_FROM_EMAIL;
+  beforeEach(() => {
+    resetEmailDeliveryStatus();
+    process.env.RESEND_API_KEY = 'test-key';
+    process.env.RESEND_FROM_EMAIL = 'noreply@example.com';
+  });
+  afterEach(() => {
+    resetEmailDeliveryStatus();
+    if (originalApiKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = originalApiKey;
+    if (originalFrom === undefined) delete process.env.RESEND_FROM_EMAIL; else process.env.RESEND_FROM_EMAIL = originalFrom;
+  });
+
+  it('reports whether Resend is configured', () => {
+    assert.equal(emailDeliveryStatus().configured, true);
+    delete process.env.RESEND_FROM_EMAIL;
+    assert.equal(emailDeliveryStatus().configured, false);
+  });
+
+  it('records a sent email and an account-level refusal, but not a refused address', async () => {
+    assert.deepEqual(emailDeliveryStatus(), { configured: true, lastSentAt: null, lastRefusedAt: null, lastRefusal: null });
+
+    await sendVerificationEmail('rider@example.com', 'token', { fetchImpl: fakeFetch(() => ({ status: 200 })) });
+    assert.equal(typeof emailDeliveryStatus().lastSentAt, 'number');
+
+    await sendVerificationEmail('bad@example.com', 'token', { fetchImpl: fakeFetch(() => ({ status: 422, body: { name: 'validation_error', message: 'Invalid `to` field.' } })) });
+    assert.equal(emailDeliveryStatus().lastRefusedAt, null);
+
+    await sendVerificationEmail('someone@example.com', 'token', { fetchImpl: fakeFetch(() => ({ status: 403, body: { name: 'validation_error', message: 'You can only send testing emails to your own email address (owner@example.com). Please verify a domain.' } })) });
+    const status = emailDeliveryStatus();
+    assert.equal(typeof status.lastRefusedAt, 'number');
+    assert.match(status.lastRefusal ?? '', /verify a domain/);
+    assert.doesNotMatch(status.lastRefusal ?? '', /owner@example\.com/);
+  });
+
+  it('records a refusal with no reason by its status', async () => {
+    await sendVerificationEmail('someone@example.com', 'token', { fetchImpl: fakeFetch(() => ({ status: 401 })) });
+    assert.equal(emailDeliveryStatus().lastRefusal, 'HTTP 401');
   });
 });

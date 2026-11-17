@@ -86,6 +86,10 @@ async function mockModerationApi(page, { admin = true, suspended = false } = {})
       state.riderQueries.push(url.searchParams.get('q'));
       return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : RIDERS });
     }
+    if (url.pathname === '/admin/system') {
+      return json(200, { socialMediaStorage: false, socialPosting: true, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
+    }
+    if (url.pathname === `/riders/${ADMIN_ID}/profile`) return json(200, { riderId: ADMIN_ID, displayName: 'Ali', handle: '@ali' });
     if (url.pathname === '/health') return json(200, { ok: true });
     if (url.pathname === '/ready') return json(503, { ok: false });
     if (url.pathname === '/profiles/batch') {
@@ -156,7 +160,7 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     const state = await mockModerationApi(page);
     await page.goto('/admin.html#moderation');
-    await page.getByRole('button', { name: 'Social posts' }).click();
+    await page.getByRole('button', { name: 'Social', exact: true }).click();
     // Five tabs are wider than a small phone: the tab row scrolls, the page doesn't.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     const card = page.locator('article[data-post-id]');
@@ -332,10 +336,18 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page);
     await page.goto('/admin.html#system');
     const rows = page.locator('.status-row');
-    await expect(rows.nth(0)).toContainText('API · Operational');
-    await expect(rows.nth(0).locator('.status-dot')).toHaveAttribute('data-state', 'ok');
-    await expect(rows.nth(1)).toContainText('Database · Down');
-    await expect(rows.nth(1).locator('.status-dot')).toHaveAttribute('data-state', 'down');
+    await expect(rows.nth(0)).toContainText('API');
+    await expect(rows.nth(0).locator('.badge')).toHaveText('Operational');
+    await expect(rows.nth(0).locator('.badge')).toHaveAttribute('data-state', 'ok');
+    await expect(rows.nth(1).locator('.badge')).toHaveText('Down');
+    await expect(rows.nth(1).locator('.badge')).toHaveAttribute('data-state', 'down');
+    await expect(rows.nth(2)).toContainText('Email delivery');
+    await expect(rows.nth(2)).toContainText('Resend refused: You can only send testing emails');
+    await expect(rows.nth(2).locator('.badge')).toHaveText('Restricted');
+    await expect(rows.nth(2).locator('.badge')).toHaveAttribute('data-state', 'warn');
+    await expect(rows.nth(3).locator('.badge')).toHaveText('Off');
+    await expect(rows.nth(4).locator('.badge')).toHaveText('On');
+    await expect(page.locator('#sidebarFooter')).toHaveText('Signed in as Ali · @ali');
   });
 });
 

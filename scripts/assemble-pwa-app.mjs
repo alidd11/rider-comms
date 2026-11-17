@@ -57,6 +57,25 @@ const endAt = css.indexOf(BRAND_END);
 if (startAt < 0 || endAt < startAt) throw new Error('docs/app.css is missing its brand colour block');
 const brandedCss = css.slice(0, startAt) + brandBlock + css.slice(endAt + BRAND_END.length);
 
+// The staff dashboard (docs/admin.css) uses the same palette under its own
+// variable names; status tints like --danger-soft stay in admin.css.
+const ADMIN_VARS = {
+  '--bg': 'background', '--surface': 'surface', '--surface-2': 'surfaceRaised', '--border': 'border',
+  '--border-strong': 'border', '--fg': 'textPrimary', '--fg-2': 'textSecondary', '--muted-fg': 'textMuted',
+  '--accent': 'accentInk', '--accent-soft': 'accentSoft', '--chart-1': 'accent', '--success': 'success',
+  '--danger': 'danger', '--warning': 'warning',
+};
+const adminDeclarations = (scheme) => Object.entries(ADMIN_VARS)
+  .map(([name, token]) => `${name}:${palette[scheme][token].toLowerCase()}`).join(';');
+const adminBrandBlock = `${BRAND_START}\n:root{${adminDeclarations('light')}}\n` +
+  `@media(prefers-color-scheme:dark){:root{${adminDeclarations('dark')}}}\n${BRAND_END}`;
+const adminTarget = new URL('../docs/admin.css', import.meta.url);
+const adminCss = await readFile(adminTarget, 'utf8');
+const adminStart = adminCss.indexOf(BRAND_START);
+const adminEnd = adminCss.indexOf(BRAND_END);
+if (adminStart < 0 || adminEnd < adminStart) throw new Error('docs/admin.css is missing its brand colour block');
+const brandedAdminCss = adminCss.slice(0, adminStart) + adminBrandBlock + adminCss.slice(adminEnd + BRAND_END.length);
+
 // The sign-in words every app shows (shared/src/brand.ts) must be the web's too.
 const brandSource = await readFile(new URL('../shared/src/brand.ts', import.meta.url), 'utf8');
 const copyBlock = /export const BRAND_COPY = \{([\s\S]*?)\} as const;/.exec(brandSource)?.[1] ?? '';
@@ -75,13 +94,18 @@ if (process.argv.includes('--check')) {
     console.error('docs/app.js is out of date with docs/app/*.js. Run `npm run build:pwa-app` and commit the result.');
     process.exit(1);
   }
+  if (adminCss !== brandedAdminCss) {
+    console.error('docs/admin.css brand colours are out of date with shared/src/brandPalette.json. Run `npm run build:pwa-app` and commit the result.');
+    process.exit(1);
+  }
   if (css !== brandedCss) {
     console.error('docs/app.css brand colours are out of date with shared/src/brandPalette.json. Run `npm run build:pwa-app` and commit the result.');
     process.exit(1);
   }
-  console.log(`docs/app.js matches its ${names.length} parts; docs/app.css has the shared brand colours`);
+  console.log(`docs/app.js matches its ${names.length} parts; docs/app.css and docs/admin.css have the shared brand colours`);
 } else {
   await writeFile(target, assembled);
   await writeFile(cssTarget, brandedCss);
-  console.log(`Wrote docs/app.js from ${names.length} parts and the brand colours in docs/app.css`);
+  await writeFile(adminTarget, brandedAdminCss);
+  console.log(`Wrote docs/app.js from ${names.length} parts and the brand colours in docs/app.css and docs/admin.css`);
 }
