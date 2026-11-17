@@ -145,14 +145,27 @@ test('says so when the feed can’t load, and retries', async ({ page }) => {
   await mockApi(page, state);
   // Registered last, so it runs first.
   await page.route(backend + '/social/feed**', async (route) => {
-    if (fail && route.request().method() === 'GET') return route.fulfill({ status: 503, contentType: 'application/json', headers: cors, body: JSON.stringify({ error: 'social_media_not_configured' }) });
+    if (fail && route.request().method() === 'GET') return route.fulfill({ status: 500, contentType: 'application/json', headers: cors, body: JSON.stringify({ error: 'internal_error' }) });
     return route.fallback();
   });
   await page.goto('/');
-  await expect(page.getByText('Posting isn’t switched on yet.')).toBeVisible();
+  await expect(page.getByText('That didn’t work. Try again.')).toBeVisible();
   fail = false;
   await page.getByRole('button', { name: 'Try loading posts again' }).click();
   await expect(page.getByText('Nobody in the Social test has posted yet.', { exact: false })).toBeVisible();
+});
+
+test('a server without media storage shows Rider Comms’ posts, not an error', async ({ page }) => {
+  const state = { posts: [], calls: [], uploads: [], created: [], reports: [] };
+  await mockApi(page, state);
+  await page.route(backend + '/social/feed**', async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ status: 503, contentType: 'application/json', headers: cors, body: JSON.stringify({ error: 'social_media_not_configured' }) });
+    return route.fallback();
+  });
+  await page.goto('/');
+  await expect(page.getByTestId('home-starter-feed')).toBeVisible();
+  await expect(page.getByText('Posting isn’t switched on yet.')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Try loading posts again' })).toHaveCount(0);
 });
 
 test('does not keep refreshing signed links for an unavailable photo', async ({ page }) => {

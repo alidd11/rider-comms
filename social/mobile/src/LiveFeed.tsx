@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { accountErrorMessage, SOCIAL_REPORT_REASONS } from './authClient';
+import { AccountApiError, accountErrorMessage, SOCIAL_REPORT_REASONS } from './authClient';
 import type { RiderAccountClient, RiderProfile, SocialFeedScope, SocialPost, SocialReportReason } from './authClient';
 import { C, s } from './styles';
 import { IdentityAvatar } from './IdentityAvatar';
@@ -192,6 +192,15 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
       setState('ready');
     } catch (failure) {
       if (id !== request.current) return;
+      // A server without Social's media storage has no posts to show: that's
+      // an empty feed (Home shows Rider Comms' own posts), not an error.
+      if (failure instanceof AccountApiError && failure.code === 'social_media_not_configured') {
+        setPosts([]);
+        setCursor(null);
+        setTotal(0);
+        setState('ready');
+        return;
+      }
       setError(accountErrorMessage(failure));
       setState('error');
     }
