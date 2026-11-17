@@ -380,21 +380,22 @@ export function SocialAuthGate({ children }: { children: React.ReactNode }) {
             error={fieldErrors.password} onSubmitEditing={() => void submit()}
             autoComplete={mode === 'signup' ? 'new-password' : 'password'} secureTextEntry/> : null}
           {mode === 'signup' ? <>
-            <Pressable accessibilityRole="link" accessibilityLabel="Read Rider Comms Terms"
-              onPress={() => void Linking.openURL(SOCIAL_TERMS_URL)}>
-              <Text style={{ color: accent }}>Rider Comms Terms of Service</Text>
-            </Pressable>
-            <Pressable accessibilityRole="link" accessibilityLabel="Read Community Guidelines"
-              onPress={() => void Linking.openURL(SOCIAL_GUIDELINES_URL)}>
-              <Text style={{ color: accent }}>Community Guidelines</Text>
-            </Pressable>
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: termsChecked }}
-              accessibilityLabel="Accept Terms and Guidelines"
-              onPress={() => { setTermsChecked(v => !v); setFieldErrors(e => ({ ...e, terms: undefined })); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Ionicons name={termsChecked ? 'checkbox' : 'square-outline'} size={24} color={accent}/>
-              <Text style={{ color: ink, flex: 1 }}>I agree to the Rider Comms Terms and Community Guidelines</Text>
-            </Pressable>
+            {/* One sentence: the checkbox, with both documents linked inside it. */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: termsChecked }}
+                accessibilityLabel="Accept Terms and Guidelines" hitSlop={10}
+                onPress={() => { setTermsChecked(v => !v); setFieldErrors(e => ({ ...e, terms: undefined })); }}>
+                <Ionicons name={termsChecked ? 'checkbox' : 'square-outline'} size={24} color={accent}/>
+              </Pressable>
+              <Text style={{ color: ink, flex: 1, lineHeight: 22, paddingTop: 1 }}>
+                I agree to the Rider Comms{' '}
+                <Text accessibilityRole="link" accessibilityLabel="Read Rider Comms Terms"
+                  onPress={() => void Linking.openURL(SOCIAL_TERMS_URL)} style={{ color: accent }}>Terms of Service</Text>
+                {' '}and{' '}
+                <Text accessibilityRole="link" accessibilityLabel="Read Community Guidelines"
+                  onPress={() => void Linking.openURL(SOCIAL_GUIDELINES_URL)} style={{ color: accent }}>Community Guidelines</Text>
+              </Text>
+            </View>
             {fieldErrors.terms ? <Text accessibilityRole="alert" style={{ color: '#FFB6C1', fontSize: 12 }}>
               {fieldErrors.terms}
             </Text> : null}

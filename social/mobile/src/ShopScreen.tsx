@@ -85,7 +85,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
     width:'100%',maxWidth:850,alignSelf:'center',gap:0,paddingBottom:30}}> 
     <Pressable accessibilityRole="button" accessibilityLabel="Back to Shop" onPress={()=>setSelected(null)}
       style={{paddingHorizontal:18,minHeight:52,flexDirection:'row',alignItems:'center',gap:9}}> 
-      <Ionicons name="arrow-back" color={C.ink} size={22}/>
+      <Ionicons name="chevron-back" color={C.ink} size={22}/>
       <Text style={{color:C.ink,fontWeight:'700',fontSize:15}}>Back to Shop</Text>
     </Pressable>
     <View style={{aspectRatio:1,maxHeight:560,backgroundColor:item.accent}}> 
@@ -254,7 +254,7 @@ export function ShopScreen({ items, collectionItems, search, onSearch, category,
     {shop?<View style={{paddingHorizontal:18,paddingTop:17,gap:8}}>
       <Pressable accessibilityRole="button" accessibilityLabel="Back to Shop" onPress={browse}
         style={{flexDirection:'row',alignItems:'center',gap:6,minHeight:44,alignSelf:'flex-start'}}>
-        <Ionicons name="arrow-back" size={18} color={C.accent}/>
+        <Ionicons name="chevron-back" size={18} color={C.accent}/>
         <Text style={{color:C.accent,fontWeight:'700',fontSize:14}}>All shops</Text>
       </Pressable>
       <Text style={{color:C.ink,fontWeight:'800',fontSize:21}}>{shop}</Text>

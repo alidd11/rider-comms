@@ -244,10 +244,10 @@ function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next:
           aria-selected={tab.name === screen}
           accessibilityLabel={tab.name} style={s.tab} onPress={() => onNavigate(tab.name)}>
           {tab.name === 'Create' ? <View testID="social-create-tab-symbol" style={{
-            width: 49, height: 33, borderRadius: 11, backgroundColor: C.ink,
+            width: 49, height: 33, borderRadius: 11, backgroundColor: C.accent,
             alignItems: 'center', justifyContent: 'center',
           }}>
-            <Ionicons name="add" size={27} color={C.bg}/>
+            <Ionicons name="add" size={27} color={C.accentText}/>
           </View> : <Ionicons name={tab.name === screen ? tab.activeIcon : tab.icon} size={24}
             color={tab.name === screen ? C.ink : C.muted} />}
           <Text style={[s.tabLabel, tab.name === screen && { color: C.ink }]}>{tab.name}</Text>
@@ -600,7 +600,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     const creator = selectedCreator ? demoCreators[selectedCreator] : undefined;
     if (creator) return <View style={{ padding: 18, gap: 14 }}>
       <Pressable accessibilityRole="button" accessibilityLabel="Back to Home feed" onPress={() => setSelectedCreator(null)}>
-        <View style={s.row}><Ionicons name="arrow-back" size={22} color={C.ink}/><Text style={s.ghostText}>Feed</Text></View>
+        <View style={s.row}><Ionicons name="chevron-back" size={22} color={C.ink}/><Text style={s.ghostText}>Feed</Text></View>
       </Pressable>
       <View style={[s.card, s.pad, { gap: 15 }]}>
         <View style={s.row}>
@@ -695,7 +695,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     if (event) return (
       <>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to clubs and events" style={s.row} onPress={() => setSelectedEvent(null)}>
-          <Ionicons name="arrow-back" size={20} color={C.ink} /><Text style={s.ghostText}>Clubs & events</Text>
+          <Ionicons name="chevron-back" size={20} color={C.ink} /><Text style={s.ghostText}>Clubs & events</Text>
         </Pressable>
         <View style={s.card}>
           <View style={[s.media, { height: 175, backgroundColor: event.accent }]}>
@@ -720,7 +720,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     const club = demoClubs.find((item) => item.id === selectedClub);
     if (club) return (
       <>
-        <Pressable accessibilityRole="button" style={s.row} onPress={() => setSelectedClub(null)}><Ionicons name="arrow-back" size={20} color={C.ink} /><Text style={s.ghostText}>All clubs</Text></Pressable>
+        <Pressable accessibilityRole="button" style={s.row} onPress={() => setSelectedClub(null)}><Ionicons name="chevron-back" size={20} color={C.ink} /><Text style={s.ghostText}>All clubs</Text></Pressable>
         <View style={[s.card, s.pad, { gap: 15 }]}>
           <View style={{ height: 120, backgroundColor: club.accent, borderRadius: 14, justifyContent: 'center', alignItems: 'center' }}><Ionicons name="people" color="#ECFFF7" size={56} /></View>
           <Text style={s.title}>{club.name}</Text>
@@ -880,7 +880,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         {profileTab === 'Saved' ? <View testID="profile-saved-reels" style={{ gap: 13, paddingVertical: 12 }}>
           <Text style={[s.sectionTitle, { fontSize: 20 }]}>Saved Reels</Text>
           <Text style={[s.small, { lineHeight: 19 }]}>
-            Only you can see these. They’re kept until you close the app.
+            Only you can see these. They clear when you close Social.
           </Text>
           {savedReelPreviews.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {savedReelPreviews.map(reel => <Pressable key={reel.id}
@@ -952,7 +952,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             onPress={() => navigate('Home')}>
             <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
           </Pressable> : screen === 'Shop' || (screen === 'Clubs' && !socialFixturesEnabled) ?
-            <Text accessibilityRole="header" style={[s.cardHeading, { marginRight: 'auto' }]}>
+            <Text accessibilityRole="header" style={[s.title, { marginRight: 'auto' }]}>
               {screen === 'Shop' ? 'Shop' : 'Clubs & events'}
             </Text> : <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
           <View style={s.headerTools}>
@@ -1061,8 +1061,8 @@ class CreateRecoveryBoundary extends React.Component<
       <Pressable accessibilityRole="button" accessibilityLabel="Retry Create"
         onPress={() => this.setState({ failed: false })}
         style={{ minHeight: 46, paddingHorizontal: 26, borderRadius: 24,
-          backgroundColor: '#FFFFFF', justifyContent: 'center' }}>
-        <Text style={{ color: '#050709', fontWeight: '800' }}>Try again</Text>
+          backgroundColor: C.accent, justifyContent: 'center' }}>
+        <Text style={{ color: C.accentText, fontWeight: '800' }}>Try again</Text>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Return Home"
         onPress={this.props.onClose}
@@ -1105,9 +1105,9 @@ class SocialAppRecoveryBoundary extends React.Component<
       </Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Restart Social"
         onPress={() => this.setState({ failed: false })}
-        style={{ minHeight: 48, borderRadius: 25, backgroundColor: '#FFFFFF',
+        style={{ minHeight: 48, borderRadius: 25, backgroundColor: C.accent,
           paddingHorizontal: 26, justifyContent: 'center' }}>
-        <Text style={{ color: '#050709', fontWeight: '800' }}>Restart Social</Text>
+        <Text style={{ color: C.accentText, fontWeight: '800' }}>Restart Social</Text>
       </Pressable>
     </View>;
   }

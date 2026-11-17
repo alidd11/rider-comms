@@ -294,34 +294,15 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
       backgroundColor: '#05070A', paddingHorizontal: 24, paddingVertical: 16, gap: 11,
       overflow: 'hidden',
     }}>
-      <View pointerEvents="none" style={{
-        position: 'absolute', width: 360, height: 360, borderRadius: 180,
-        backgroundColor: '#102C28', opacity: 0.34,
-      }}/>
+      {/* The same icon tile as the other empty screens. */}
       <View testID="reels-empty-studio-art" accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        style={{ width: 210, height: 218, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ position: 'absolute', width: 126, height: 184,
-          left: 13, top: 24, transform: [{ rotate: '-13deg' }],
-          borderRadius: 20, backgroundColor: '#142025', borderWidth: 1,
-          borderColor: '#284139' }}/>
-        <View style={{ position: 'absolute', width: 126, height: 186,
-          right: 12, top: 17, transform: [{ rotate: '12deg' }],
-          borderRadius: 20, backgroundColor: '#1A2329', borderWidth: 1,
-          borderColor: '#2A363B' }}/>
-        <View style={{ width: 132, height: 194, borderRadius: 22,
-          backgroundColor: '#202A30', borderWidth: 1, borderColor: '#4A615C',
-          alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <View style={{ width: 66, height: 66, borderRadius: 33,
-            backgroundColor: '#F7F9FA', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="play" size={31} color={C.bg} style={{ marginLeft: 4 }}/>
-          </View>
-          <Text style={{ color: '#CDE8DE', fontSize: 9, fontWeight: '800',
-            letterSpacing: 1.3 }}>YOUR REEL</Text>
-        </View>
+        style={{ width: 80, height: 80, borderRadius: 28, backgroundColor: C.card,
+          alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+        <Ionicons name="play-circle-outline" size={36} color={C.accent}/>
       </View>
-      <Text style={{ color: C.ink, fontWeight: '900', fontSize: 25,
-        letterSpacing: -0.6, textAlign: 'center' }}>
+      <Text style={{ color: C.ink, fontWeight: '900', fontSize: 20,
+        letterSpacing: -0.4, textAlign: 'center' }}>
         {feedMode === 'following' ? 'No followed Reels yet' : 'No Reels yet'}
       </Text>
       <Text style={{ color: '#ABB6BE', fontSize: 14, textAlign: 'center',
@@ -334,7 +315,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
         accessibilityLabel={feedMode === 'following' ? 'Explore For you Reels' : 'Create Reel'}
         onPress={feedMode === 'following' ? () => changeFeed('forYou') : onCreateReel}
         style={{ minHeight: 50, minWidth: 193, paddingHorizontal: 23,
-          borderRadius: 999, backgroundColor: '#FFFFFF', alignItems: 'center',
+          borderRadius: 999, backgroundColor: C.accent, alignItems: 'center',
           justifyContent: 'center', marginTop: 10, flexDirection: 'row', gap: 9 }}>
         <Ionicons name={feedMode === 'following' ? 'compass-outline' : 'add'} size={21} color={C.accentText}/>
         <Text style={{ color: C.accentText, fontWeight: '900', fontSize: 15 }}>

@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import type { CameraType, FlashMode } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import type { ComposerMedia, ComposerMode } from './upload';
+import { C } from './styles';
 
 type CapturedMedia = Omit<ComposerMedia, 'id'>;
 type Props = {
@@ -162,8 +163,8 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
           {permission?.canAskAgain !== false ? <Pressable accessibilityRole="button"
             accessibilityLabel="Enable camera"
             onPress={() => void requestPermission().catch(() => setError('Camera access was not granted.'))}
-            style={{ backgroundColor: WHITE, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 24 }}>
-            <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>Enable camera</Text>
+            style={{ backgroundColor: C.accent, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 24 }}>
+            <Text style={{ color: C.accentText, fontSize: 14, fontWeight: '800' }}>Enable camera</Text>
           </Pressable> : null}
         </View>}
 
@@ -230,11 +231,11 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
           accessibilityLabel="Choose from library"
           disabled={disabled || recording || busy} onPress={openLibrary}
           style={{ alignSelf: 'center', minWidth: 190, minHeight: 52,
-            paddingHorizontal: 20, backgroundColor: WHITE, borderRadius: 26,
+            paddingHorizontal: 20, backgroundColor: C.accent, borderRadius: 26,
             flexDirection: 'row', gap: 10, alignItems: 'center',
             justifyContent: 'center', opacity: disabled || busy ? 0.6 : 1 }}>
-          <Ionicons name="images-outline" size={22} color={BLACK}/>
-          <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>Open Gallery</Text>
+          <Ionicons name="images-outline" size={22} color={C.accentText}/>
+          <Text style={{ color: C.accentText, fontSize: 14, fontWeight: '800' }}>Open Gallery</Text>
         </Pressable> : <View style={{ paddingHorizontal: 15, flexDirection: 'row',
           alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
