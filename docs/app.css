@@ -2860,9 +2860,7 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
 /* Edit profile: the current avatar, with the full set behind Change avatar. */
 .avatar-current-row{display:flex;align-items:center;gap:16px;padding:6px 0 10px}
 #avatarPicker{padding-top:4px}
-/* Friends: bigger avatars and names, readable status. */
-[data-screen="friends"] .friend-row{min-height:68px}
-[data-screen="friends"] .friend-row .avatar{width:46px;height:46px}
+/* Friends: readable names and status; the row keeps its compact size. */
 [data-screen="friends"] .friend-row .identity strong{font-size:.98rem}
 [data-screen="friends"] .friend-row .identity span{font-size:.8rem}
 .avatar-current-row .avatar{width:72px;height:72px;flex:none}

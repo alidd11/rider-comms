@@ -44,7 +44,7 @@ export const styles = StyleSheet.create({
   friendSearchInput: { ...type.body, color: colors.textPrimary, flex: 1, minHeight: 42, fontSize: 14 },
   networkList: { marginTop: spacing.xs },
   networkSectionLabel: { ...type.label, color: colors.textSecondary, marginTop: 15, marginBottom: 5, textTransform: 'none', letterSpacing: 0, fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   friendRowPressed: { opacity: 0.7 },
   friendAvatarWrap: { position: 'relative', flexShrink: 0 },
   friendPresenceDot: { position: 'absolute', right: -2, bottom: 1, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colors.background },

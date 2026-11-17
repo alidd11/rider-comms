@@ -183,7 +183,7 @@ function RequestRow({ request, profile }: { request: FriendRequest; profile?: Fr
   };
   return (
     <View style={styles.requestRow}>
-      <RiderAvatar avatarId={profile?.avatarId ?? DEFAULT_AVATAR_ID} size={46} />
+      <RiderAvatar avatarId={profile?.avatarId ?? DEFAULT_AVATAR_ID} size={40} />
       <View style={styles.requestIdentity}>
         <Text style={styles.requestName}>{profile?.displayName ?? 'Rider request'}</Text>
         <Text style={styles.requestHandle}>{profile?.handle ?? ''}</Text>
