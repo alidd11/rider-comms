@@ -41,6 +41,31 @@ function recipientId(email: string): string {
   return createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 12);
 }
 
+/**
+ * What the staff dashboard shows about email: whether Resend is configured,
+ * when an email last went out, and the last time Resend refused to send at
+ * all (403: for example a sending domain that isn't verified yet). A refused
+ * single address (422) says nothing about delivery as a whole.
+ */
+export interface EmailDeliveryStatus {
+  configured: boolean;
+  lastSentAt: number | null;
+  lastRefusedAt: number | null;
+  lastRefusal: string | null;
+}
+const delivery: Omit<EmailDeliveryStatus, 'configured'> = { lastSentAt: null, lastRefusedAt: null, lastRefusal: null };
+
+export function emailDeliveryStatus(): EmailDeliveryStatus {
+  return { configured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL), ...delivery };
+}
+
+/** Tests only: forget what earlier sends recorded. */
+export function resetEmailDeliveryStatus(): void {
+  delivery.lastSentAt = null;
+  delivery.lastRefusedAt = null;
+  delivery.lastRefusal = null;
+}
+
 async function sendEmail(
   email: string,
   subject: string,
@@ -66,8 +91,13 @@ async function sendEmail(
     if (!response.ok) {
       const reason = await resendErrorReason(response);
       console.error(`[rider-comms] Resend returned HTTP ${response.status} for recipient ${recipient}${reason ? ` (${reason})` : ''}.`);
+      if (response.status === 401 || response.status === 403) {
+        delivery.lastRefusedAt = Date.now();
+        delivery.lastRefusal = reason || `HTTP ${response.status}`;
+      }
       return false;
     }
+    delivery.lastSentAt = Date.now();
     return true;
   } catch (error) {
     console.error(`[rider-comms] Resend request failed for recipient ${recipient}.`, error);

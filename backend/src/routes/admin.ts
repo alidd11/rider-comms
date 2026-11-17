@@ -1,4 +1,5 @@
 import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
+import { emailDeliveryStatus } from '../email.ts';
 import { sendJson } from '../serverHttp.ts';
 import { NOT_HANDLED } from './context.ts';
 import type { RouteContext } from './context.ts';
@@ -10,6 +11,14 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   if (!(await authStore.isAdmin(actorId))) return sendJson(res, 403, { error: 'admin_required' });
   if (req.method === 'GET' && url.pathname === '/admin/overview') {
     return sendJson(res, 200, await adminStatsStore.overview());
+  }
+  // What the running backend is set up to do, for the dashboard's System page.
+  if (req.method === 'GET' && url.pathname === '/admin/system') {
+    return sendJson(res, 200, {
+      socialMediaStorage: ctx.socialMedia !== null,
+      socialPosting: ctx.socialPostingEnabled,
+      email: emailDeliveryStatus(),
+    });
   }
   if (req.method === 'GET' && url.pathname === '/admin/riders') {
     const query = url.searchParams.get('q') ?? '';

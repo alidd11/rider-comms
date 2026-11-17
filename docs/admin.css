@@ -14,26 +14,12 @@
 
 :root {
   color-scheme: light;
-  --bg: #fafafa;
-  --surface: #ffffff;
-  --surface-2: #f5f5f5;
-  --border: #e5e5e5;
-  --border-strong: #d4d4d4;
-  --fg: #0a0a0a;
-  --fg-2: #404040;
-  /* Text tokens clear WCAG AA (4.5:1) on every light surface; the brighter
-     brand orange stays for chart marks, which aren't text. */
-  --muted-fg: #6b6b6b;
-  --accent: #c2410c;
-  --accent-soft: #fff1e8;
-  --chart-1: #ea580c;
+  /* Surfaces, text, accent and status colours come from the generated brand
+     block below; --accent is the palette's ink, which reads as text. */
   --chart-compare: #a3a3a3;
   --grid: #efefef;
-  --success: #15803d;
   --success-soft: #f0fdf4;
-  --danger: #b91c1c;
   --danger-soft: #fef2f2;
-  --warning: #b45309;
   --warning-soft: #fffbeb;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-lg: 0 10px 30px -8px rgba(0, 0, 0, 0.18);
@@ -46,29 +32,20 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #0a0a0a;
-    --surface: #171717;
-    --surface-2: #262626;
-    --border: rgba(255, 255, 255, 0.1);
-    --border-strong: rgba(255, 255, 255, 0.16);
-    --fg: #fafafa;
-    --fg-2: #d4d4d4;
-    --muted-fg: #a1a1a1;
-    --accent: #fb923c;
-    --accent-soft: rgba(251, 146, 60, 0.12);
-    --chart-1: #d95926;
     --chart-compare: #737373;
     --grid: rgba(255, 255, 255, 0.06);
-    --success: #4ade80;
     --success-soft: rgba(74, 222, 128, 0.1);
-    --danger: #f87171;
     --danger-soft: rgba(248, 113, 113, 0.1);
-    --warning: #fbbf24;
     --warning-soft: rgba(251, 191, 36, 0.1);
     --shadow-sm: none;
     --shadow-lg: 0 10px 30px -8px rgba(0, 0, 0, 0.6);
   }
 }
+
+/* BRAND COLOURS: generated from shared/src/brandPalette.json by `npm run build:pwa-app`. Do not edit here. */
+:root{--bg:#e9eef0;--surface:#f7f9fa;--surface-2:#dfe7ea;--border:#bcc8ce;--border-strong:#bcc8ce;--fg:#0b1216;--fg-2:#46545c;--muted-fg:#58666e;--accent:#156e90;--accent-soft:#d5ebf2;--chart-1:#279fc8;--success:#1d7553;--danger:#a33640;--warning:#97620f}
+@media(prefers-color-scheme:dark){:root{--bg:#080d10;--surface:#11171b;--surface-2:#182127;--border:#27323a;--border-strong:#27323a;--fg:#f3f6f7;--fg-2:#aab5ba;--muted-fg:#85919a;--accent:#2fa8d3;--accent-soft:#102d38;--chart-1:#2fa8d3;--success:#42c58a;--danger:#f0646b;--warning:#d39a42}}
+/* END BRAND COLOURS */
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -121,7 +98,7 @@ a { color: inherit; }
   place-items: center;
   flex: none;
 }
-.brand-mark svg { width: 14px; height: 14px; }
+.brand-mark svg { width: 18px; height: 18px; }
 .brand-name { font-weight: 600; font-size: 14px; letter-spacing: -0.01em; }
 .brand-tag {
   font-size: 11px;
@@ -177,7 +154,14 @@ a { color: inherit; }
 }
 .nav-item svg { width: 16px; height: 16px; flex: none; }
 .nav-item:hover { color: var(--fg); }
-.nav-item[aria-current="page"] { color: var(--fg); border-bottom-color: var(--fg); }
+.nav-item[aria-current="page"] { color: var(--fg); border-bottom-color: var(--accent); }
+/* Four sections fit a phone without scrolling: icons drop and the tabs share the width. */
+@media (max-width: 519px) {
+  .nav { gap: 0; padding: 0 4px; }
+  .nav-item { flex: 1 1 auto; justify-content: center; gap: 6px; padding: 0 6px; }
+  .nav-item svg { display: none; }
+  .segmented button { padding: 0 9px; font-size: 12.5px; }
+}
 .nav-count {
   font-size: 11px;
   line-height: 16px;
@@ -481,14 +465,14 @@ a { color: inherit; }
   flex: none;
   letter-spacing: 0;
 }
-.avatar[data-hue="0"] { background: #ffedd5; color: #9a3412; }
+.avatar[data-hue="0"] { background: #ccfbf1; color: #115e59; }
 .avatar[data-hue="1"] { background: #dbeafe; color: #1e40af; }
 .avatar[data-hue="2"] { background: #dcfce7; color: #166534; }
 .avatar[data-hue="3"] { background: #f3e8ff; color: #6b21a8; }
 .avatar[data-hue="4"] { background: #fce7f3; color: #9d174d; }
 .avatar[data-hue="5"] { background: #e0f2fe; color: #075985; }
 @media (prefers-color-scheme: dark) {
-  .avatar[data-hue="0"] { background: rgba(251, 146, 60, 0.15); color: #fdba74; }
+  .avatar[data-hue="0"] { background: rgba(45, 212, 191, 0.15); color: #5eead4; }
   .avatar[data-hue="1"] { background: rgba(96, 165, 250, 0.15); color: #93c5fd; }
   .avatar[data-hue="2"] { background: rgba(74, 222, 128, 0.15); color: #86efac; }
   .avatar[data-hue="3"] { background: rgba(192, 132, 252, 0.15); color: #d8b4fe; }
@@ -580,6 +564,7 @@ a { color: inherit; }
 .status-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
 .status-dot[data-state="ok"] { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
 .status-dot[data-state="down"] { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.status-dot[data-state="warn"] { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-soft); }
 .status-name { font-weight: 500; font-size: 13px; }
 .status-desc { font-size: 12px; color: var(--muted-fg); }
 .status-value { margin-left: auto; font-size: 12px; color: var(--muted-fg); font-variant-numeric: tabular-nums; white-space: nowrap; }

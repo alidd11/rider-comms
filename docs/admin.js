@@ -818,7 +818,7 @@
   }
 
   async function renderModeration() {
-    const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned'], ['actions', 'Audit log']], moderationView, (next) => {
+    const tabs = segmented([['open', 'Open'], ['social', 'Social'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned'], ['actions', 'Audit log']], moderationView, (next) => {
       moderationView = next;
       void render();
     }, 'Moderation queues');
@@ -869,13 +869,35 @@
     }
   }
 
+  // What the backend is set up to do. Email counts as restricted when Resend
+  // refused the account (e.g. no verified domain) after the last success.
+  function setupRows(system) {
+    if (!system) return [];
+    const email = system.email;
+    const restricted = email.configured && email.lastRefusedAt !== null && (email.lastSentAt === null || email.lastRefusedAt > email.lastSentAt);
+    const emailState = !email.configured ? 'down' : restricted ? 'warn' : 'ok';
+    const emailLabel = !email.configured ? 'Not set up' : restricted ? 'Restricted' : 'Working';
+    const emailDesc = !email.configured ? 'Set RESEND_API_KEY and RESEND_FROM_EMAIL on the backend'
+      : restricted ? `Resend refused: ${email.lastRefusal}` : email.lastSentAt ? `Last sent ${new Date(email.lastSentAt).toLocaleString()}` : 'Verification and reset emails';
+    const setting = (name, state, label, description) => el('li', { class: 'status-row' }, [
+      el('span', { class: 'status-dot', dataset: { state } }),
+      el('div', {}, [el('div', { class: 'status-name', text: `${name} · ${label}` }), el('div', { class: 'status-desc', text: description })]),
+    ]);
+    return [
+      setting('Email delivery', emailState, emailLabel, emailDesc),
+      setting('Social media storage', system.socialMediaStorage ? 'ok' : 'down', system.socialMediaStorage ? 'On' : 'Off', system.socialMediaStorage ? 'Photos and videos are stored privately' : 'Set the SOCIAL_MEDIA_S3_* variables on the backend'),
+      setting('Social posting', system.socialPosting ? 'ok' : 'warn', system.socialPosting ? 'On' : 'Off', system.socialPosting ? 'Riders can post to Rider Social' : 'Posting is switched off'),
+    ];
+  }
+
   async function renderSystem() {
-    const [health, ready] = await Promise.all([probe('/health'), probe('/ready')]);
+    const [health, ready, system] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null)]);
     const row = (name, description, result) => el('li', { class: 'status-row' }, [
       el('span', { class: 'status-dot', dataset: { state: result.ok ? 'ok' : 'down' } }),
       el('div', {}, [el('div', { class: 'status-name', text: `${name} ${result.ok ? '· Operational' : '· Down'}` }), el('div', { class: 'status-desc', text: description })]),
       el('span', { class: 'status-value', text: result.ms === null ? 'No response' : `${result.ms} ms` }),
     ]);
+    const setup = setupRows(system);
     const runbook = (file, label) => el('li', {}, [el('a', { href: `https://github.com/alidd11/rider-comms/blob/main/${file}`, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: label }), icon('external')])]);
     pageEl.replaceChildren(
       pageHeader('System', `Checked ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} from this browser`),
@@ -883,6 +905,7 @@
         row('API', 'Backend process is running', health),
         row('Database', 'Postgres reachable and migrations applied', ready),
       ])]),
+      ...(setup.length ? [el('h2', { class: 'section-title', text: 'Setup' }), el('section', { class: 'card' }, [el('ul', { class: 'status-list' }, setup)])] : []),
       el('h2', { class: 'section-title', text: 'Runbooks' }),
       el('section', { class: 'card' }, [el('ul', { class: 'link-list' }, [
         runbook('MODERATION.md', 'Moderation and this dashboard'),
@@ -961,6 +984,10 @@
     return;
   }
   footerEl.textContent = `Signed in as ${session.riderId}`;
+  api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
+    const name = profile?.displayName || profile?.handle;
+    if (name) footerEl.textContent = `Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`;
+  }).catch(() => {});
   navEl.hidden = false;
   void render();
 })();
