@@ -6,13 +6,27 @@ written to an audit log in the same database transaction.
 
 ## Who can moderate
 
-Moderators are admin accounts. Add a rider ID to `ADMIN_RIDER_IDS` on the
-backend and restart it: startup grants `users.is_admin` to the listed IDs.
-Removing an ID does **not** revoke an existing grant; demote someone
-explicitly with `UPDATE users SET is_admin = false WHERE id = '...'`.
+Dashboard access comes from a staff role (`backend/src/staffRoles.ts`).
+Riders have none until one is given:
 
-Admin status is re-read from the database on every moderation request.
-Moderators can't suspend themselves or another admin.
+| Role | Can |
+| --- | --- |
+| Admin | Everything, including adding and removing staff |
+| Moderator | Reports, hidden Social posts, suspensions; rider lookup; audit log |
+| Support | Rider lookup and verifying email; audit log. No reports or suspensions |
+| Analyst | Overview and System only. No rider details, reports or notes |
+
+Admins are set on the backend: add a rider ID to `ADMIN_RIDER_IDS` and
+restart it, and startup grants `users.is_admin` to the listed IDs. Removing
+an ID does **not** revoke an existing grant; demote someone explicitly with
+`UPDATE users SET is_admin = false WHERE id = '...'`.
+
+Admins give, change and remove the other roles on the dashboard's Staff page
+(stored in `staff_roles`). Each change needs a reason and goes in the audit
+log as `staff_grant` or `staff_revoke`.
+
+The role is re-read from the database on every request, and each action
+checks its own permission. Moderators can't suspend themselves or an admin.
 
 ## The staff dashboard
 
@@ -61,7 +75,7 @@ The dashboard is not linked from the app and asks search engines not to index it
 
 ## The API
 
-The dashboard is a thin layer over these endpoints, which also work directly (for example with `curl`). Two more, `GET /admin/overview` and `GET /admin/riders?q=…&limit=…` (up to 50), serve the Overview and Riders tabs.
+The dashboard is a thin layer over these endpoints, which also work directly (for example with `curl`). `GET /admin/me` returns the caller's role and permissions; `GET /admin/overview`, `GET /admin/riders?q=…&limit=…` (up to 50) and `GET /admin/system` serve the Overview, Riders and System pages. Admins manage staff with `GET /admin/staff`, `POST /admin/staff` (`{ rider, role, note }`, where `rider` is a rider ID or handle and `role` is moderator, support or analyst) and `POST /admin/staff/:riderId/remove` (`{ note }`). A staff member without the permission an endpoint needs gets 403 `permission_required`.
 
 
 All endpoints need an admin session (`Authorization: Bearer <token>` from

@@ -1005,4 +1005,20 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE rider_profiles ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
     `,
   },
+  {
+    // Staff roles below admin (see staffRoles.ts). Admins stay users.is_admin;
+    // each grant and removal goes in the moderation audit log with its note.
+    name: '0057_staff_roles',
+    sql: `
+      CREATE TABLE IF NOT EXISTS staff_roles (
+        rider_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL CHECK (role IN ('moderator', 'support', 'analyst')),
+        granted_by TEXT NOT NULL,
+        granted_at BIGINT NOT NULL
+      );
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove', 'staff_grant', 'staff_revoke'));
+    `,
+  },
 ];

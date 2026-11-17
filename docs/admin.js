@@ -1,8 +1,9 @@
-// Rider Comms staff dashboard: business overview, riders, moderation and
-// system health. Uses the PWA's own sign-in on this origin (same session
-// storage key), so staff sign in to the app in this browser first. The
-// backend re-checks admin status on every /admin and /moderation request;
-// this page only decides what to show.
+// Rider Comms staff dashboard: business overview, riders, moderation, the
+// audit log, staff roles and system health. Uses the PWA's own sign-in on
+// this origin (same session storage key), so staff sign in to the app in this
+// browser first. Each staff member has one role (admin, moderator, support or
+// analyst; backend/src/staffRoles.ts). The backend re-checks the role on
+// every /admin and /moderation request; this page only decides what to show.
 //
 // Rider-supplied text (names, report details, notes) is only ever inserted
 // with textContent, never parsed as HTML.
@@ -12,8 +13,28 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'riders', 'moderation', 'system'];
-  const VIEW_TITLES = { overview: 'Overview', riders: 'Riders', moderation: 'Moderation', system: 'System' };
+  const VIEWS = ['overview', 'riders', 'moderation', 'audit', 'staff', 'system'];
+  const VIEW_TITLES = { overview: 'Overview', riders: 'Riders', moderation: 'Moderation', audit: 'Audit log', staff: 'Staff and roles', system: 'System' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', riders: 'view_riders', moderation: 'moderate', audit: 'view_audit', staff: 'manage_staff', system: 'view_system' };
+  const ROLE_LABELS = { admin: 'Admin', moderator: 'Moderator', support: 'Support', analyst: 'Analyst' };
+  const ROLE_TONES = { admin: 'accent', moderator: 'warning', support: 'success', analyst: null };
+  // What each role can do, in words; mirrors backend/src/staffRoles.ts.
+  const ROLE_SUMMARIES = [
+    ['admin', 'Everything, including adding and removing staff. Set with ADMIN_RIDER_IDS on the backend.'],
+    ['moderator', 'Reports, hidden Social posts and suspensions. Can look riders up and read the audit log.'],
+    ['support', 'Account help: looks riders up and verifies email. Cannot suspend or see reports.'],
+    ['analyst', 'Overview and system status only. No rider details, reports or notes.'],
+  ];
+  const PERMISSION_LABELS = [
+    ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
+    ['verify_email', 'Verify email'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['view_system', 'System'],
+  ];
+  const ROLE_MATRIX = {
+    admin: ['view_overview', 'view_riders', 'moderate', 'verify_email', 'view_audit', 'manage_staff', 'view_system'],
+    moderator: ['view_overview', 'view_riders', 'moderate', 'view_audit', 'view_system'],
+    support: ['view_overview', 'view_riders', 'verify_email', 'view_audit', 'view_system'],
+    analyst: ['view_overview', 'view_system'],
+  };
   const REASON_LABELS = {
     harassment: 'Harassment',
     unsafe: 'Unsafe riding or behaviour',
@@ -21,7 +42,14 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role' };
+  const ACTION_GROUPS = [
+    ['all', 'All actions', null],
+    ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
+    ['social', 'Social posts', ['social_post_restore', 'social_post_remove']],
+    ['accounts', 'Accounts', ['verify_email']],
+    ['staff', 'Staff', ['staff_grant', 'staff_revoke']],
+  ];
 
   const pageEl = document.getElementById('page');
   const navEl = document.getElementById('nav');
@@ -33,6 +61,10 @@
   let period = readPeriod();
   let moderationView = 'open';
   let riderQuery = '';
+  let auditGroup = 'all';
+  let auditRider = '';
+  let me = null;
+  const allowed = (permission) => Boolean(me?.permissions?.includes(permission));
   let overviewCache = null;
   let chartSeq = 0;
   const names = new Map();
@@ -602,7 +634,7 @@
   function riderBadges(rider) {
     return el('div', { class: 'badges' }, [
       rider.suspended ? badge('Suspended', 'danger') : null,
-      rider.isAdmin ? badge('Admin', 'accent') : null,
+      rider.staffRole ? badge(ROLE_LABELS[rider.staffRole] || rider.staffRole, ROLE_TONES[rider.staffRole]) : rider.isAdmin ? badge('Admin', 'accent') : null,
       rider.emailVerified ? null : badge('Unverified', 'warning'),
       !rider.suspended && rider.emailVerified ? badge('Active', 'success') : null,
     ]);
@@ -611,7 +643,7 @@
   // Until account emails can be delivered (Resend needs a verified domain),
   // staff can verify riders they know. The note goes in the audit log.
   function verifyEmailButton(rider) {
-    if (rider.emailVerified) return null;
+    if (rider.emailVerified || !allowed('verify_email')) return null;
     const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'verify-email' }, text: 'Verify email', 'aria-label': `Mark ${rider.username}'s email verified` });
     button.addEventListener('click', async () => {
       const note = window.prompt(`Mark ${rider.username}'s email as verified? Only do this for riders you know. Note for the audit log:`, 'Known rider; verification email not delivered.');
@@ -677,6 +709,7 @@
   // ------------------------------------------------------------ Moderation
 
   function riderLabel(riderId) {
+    if (riderId && riderId === session.riderId) return { name: 'You', sub: riderId };
     const profile = names.get(riderId);
     return profile ? { name: profile.displayName || 'Rider', sub: `${profile.handle ?? ''} · ${riderId}` } : { name: riderId, sub: null };
   }
@@ -818,19 +851,11 @@
   }
 
   async function renderModeration() {
-    const tabs = segmented([['open', 'Open'], ['social', 'Social'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned'], ['actions', 'Audit log']], moderationView, (next) => {
+    const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned']], moderationView, (next) => {
       moderationView = next;
       void render();
     }, 'Moderation queues');
     const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
-    if (moderationView === 'actions') {
-      const { actions } = await api('GET', '/moderation/actions?limit=100');
-      await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
-      pageEl.replaceChildren(header, el('div', { class: 'card reports' }, actions.length
-        ? [el('ul', { class: 'list' }, actions.map(actionCard))]
-        : [emptyState('inbox', 'No decisions yet', 'Dismissals, suspensions and unsuspensions will be listed here.')]));
-      return;
-    }
     if (moderationView === 'social') {
       let posts = [];
       try {
@@ -855,6 +880,207 @@
   function updateReportCount(count) {
     reportCountEl.hidden = !count;
     reportCountEl.textContent = count > 99 ? '99+' : String(count);
+  }
+
+  // ------------------------------------------------------------ Audit log
+
+  function csvCell(value) {
+    const text = String(value ?? '');
+    // Leading = + - @ would run as a formula in spreadsheet apps.
+    const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+    return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  }
+
+  function downloadAuditCsv(actions) {
+    const rows = [['When (UTC)', 'Action', 'Staff member', 'Staff rider ID', 'Rider', 'Rider ID', 'Report ID', 'Note']];
+    for (const action of actions) {
+      rows.push([
+        new Date(action.createdAt).toISOString(), ACTION_LABELS[action.action] || action.action,
+        riderLabel(action.moderatorId).name, action.moderatorId, riderLabel(action.targetRiderId).name, action.targetRiderId,
+        action.reportId ?? '', action.note,
+      ]);
+    }
+    const blob = new Blob([rows.map((row) => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const link = el('a', { href: URL.createObjectURL(blob), download: `rider-comms-audit-${new Date().toISOString().slice(0, 10)}.csv` });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  async function renderAudit() {
+    const query = auditRider ? `&riderId=${encodeURIComponent(auditRider)}` : '';
+    const { actions } = await api('GET', `/moderation/actions?limit=200${query}`);
+    await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
+    const group = ACTION_GROUPS.find(([id]) => id === auditGroup) ?? ACTION_GROUPS[0];
+    const shown = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
+
+    const filters = segmented(ACTION_GROUPS.map(([id, label]) => [id, label]), auditGroup, (next) => {
+      auditGroup = next;
+      void render();
+    }, 'Filter the audit log');
+    const form = el('form', { class: 'toolbar', role: 'search' });
+    const input = el('input', { class: 'input', type: 'search', placeholder: 'Rider ID, e.g. rider_ab12cd34', 'aria-label': 'Show actions for one rider', maxlength: 100, autocomplete: 'off' });
+    input.value = auditRider;
+    form.append(el('div', { class: 'search' }, [icon('search'), input]), el('button', { type: 'submit', class: 'button', text: 'Filter' }));
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      auditRider = input.value.trim();
+      void render();
+    });
+    const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
+    exportButton.addEventListener('click', () => downloadAuditCsv(shown));
+
+    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'}${auditRider ? ` for ${auditRider}` : ''}, newest first. Notes are kept for good.`;
+    pageEl.replaceChildren(
+      pageHeader('Audit log', subtitle, [exportButton]),
+      el('div', { class: 'audit-filters' }, [filters]),
+      form,
+      el('div', { class: 'card reports' }, shown.length
+        ? [el('ul', { class: 'list' }, shown.map(actionCard))]
+        : [emptyState('inbox', 'Nothing recorded', auditRider || group[2] ? 'No decisions match these filters.' : 'Every staff decision will be listed here with its note.')]),
+    );
+  }
+
+  // ------------------------------------------------------------ Staff
+
+  function roleBadge(role) {
+    return badge(ROLE_LABELS[role] || role, ROLE_TONES[role]);
+  }
+
+  function staffErrorMessage(error) {
+    if (!(error instanceof ApiError)) return 'Could not reach the server. Try again.';
+    return {
+      not_found: 'No rider has that handle or rider ID.',
+      is_admin: 'Admins are set with ADMIN_RIDER_IDS on the backend, not here.',
+      unchanged: 'They already have that role.',
+      suspended: 'This rider is suspended. Unsuspend them first.',
+      not_staff: 'This rider is not staff.',
+    }[error.code] || actionErrorMessage(error);
+  }
+
+  function roleSelect(value, label) {
+    const select = el('select', { class: 'input select', 'aria-label': label });
+    for (const role of ['moderator', 'support', 'analyst']) select.append(el('option', { value: role, text: ROLE_LABELS[role], selected: role === value }));
+    return select;
+  }
+
+  function addStaffForm() {
+    const rider = el('input', { class: 'input', name: 'rider', placeholder: 'Handle or rider ID', 'aria-label': 'Handle or rider ID', maxlength: 100, autocomplete: 'off', required: true });
+    const role = roleSelect('moderator', 'Role');
+    const note = el('input', { class: 'input', name: 'note', placeholder: 'Reason (goes in the audit log)', 'aria-label': 'Reason for the audit log', maxlength: MAX_NOTE_LENGTH, autocomplete: 'off', required: true });
+    const submit = el('button', { type: 'submit', class: 'button button-primary', text: 'Add to staff' });
+    const error = el('p', { class: 'error-text', role: 'alert' });
+    const form = el('form', { class: 'card staff-form', id: 'addStaffForm', novalidate: true }, [
+      el('div', { class: 'card-header' }, [el('div', {}, [el('h2', { class: 'card-title', text: 'Add a staff member' }), el('p', { class: 'card-description', text: 'They see the pages their role allows the next time they open this dashboard.' })])]),
+      el('div', { class: 'staff-form-fields' }, [rider, role, note, submit]),
+      error,
+    ]);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!rider.value.trim() || !note.value.trim()) {
+        error.textContent = 'Enter their handle or rider ID and a reason.';
+        return;
+      }
+      submit.disabled = true;
+      error.textContent = '';
+      try {
+        await api('POST', '/admin/staff', { rider: rider.value.trim(), role: role.value, note: note.value.trim() });
+        await render();
+      } catch (failure) {
+        submit.disabled = false;
+        error.textContent = staffErrorMessage(failure);
+      }
+    });
+    return form;
+  }
+
+  function staffActions(member) {
+    if (member.role === 'admin') return el('span', { class: 'muted', text: 'Set on the backend' });
+    const select = roleSelect(member.role, `Role for ${member.displayName || member.riderId}`);
+    const remove = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'remove-staff' }, text: 'Remove' });
+    const ask = (question) => {
+      const note = window.prompt(question);
+      if (note === null) return null;
+      if (!note.trim()) {
+        window.alert('A reason is required. Every staff change is recorded.');
+        return null;
+      }
+      return note.trim();
+    };
+    select.addEventListener('change', async () => {
+      const note = ask(`Change ${member.displayName || member.riderId} to ${ROLE_LABELS[select.value]}? Reason for the audit log:`);
+      if (note === null) {
+        select.value = member.role;
+        return;
+      }
+      try {
+        await api('POST', '/admin/staff', { rider: member.riderId, role: select.value, note });
+        await render();
+      } catch (error) {
+        select.value = member.role;
+        window.alert(staffErrorMessage(error));
+      }
+    });
+    remove.addEventListener('click', async () => {
+      const note = ask(`Remove ${member.displayName || member.riderId} from staff? Reason for the audit log:`);
+      if (note === null) return;
+      try {
+        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/remove`, { note });
+        await render();
+      } catch (error) {
+        window.alert(staffErrorMessage(error));
+      }
+    });
+    return el('div', { class: 'row-actions' }, [select, remove]);
+  }
+
+  function roleMatrix() {
+    const roles = Object.keys(ROLE_MATRIX);
+    return el('section', { class: 'card table-card' }, [
+      el('div', { class: 'card-header' }, [el('div', {}, [el('h2', { class: 'card-title', text: 'What each role can do' }), el('p', { class: 'card-description', text: 'Least privilege: give people the smallest role that covers their work.' })])]),
+      el('ul', { class: 'role-list' }, ROLE_SUMMARIES.map(([role, text]) => el('li', {}, [roleBadge(role), el('span', { text })]))),
+      el('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Permissions by role' }, [el('table', { class: 'table matrix' }, [
+        el('thead', {}, [el('tr', {}, [el('th', { text: 'Permission' }), ...roles.map((role) => el('th', { class: 'center', text: ROLE_LABELS[role] }))])]),
+        el('tbody', {}, PERMISSION_LABELS.map(([permission, label]) => el('tr', {}, [
+          el('td', { text: label }),
+          ...roles.map((role) => {
+            const yes = ROLE_MATRIX[role].includes(permission);
+            return el('td', { class: 'center', 'aria-label': `${ROLE_LABELS[role]}: ${yes ? 'yes' : 'no'}` }, [el('span', { class: yes ? 'check yes' : 'check', 'aria-hidden': 'true', text: yes ? '✓' : '–' })]);
+          }),
+        ]))),
+      ])]),
+    ]);
+  }
+
+  async function renderStaff() {
+    const { staff } = await api('GET', '/admin/staff');
+    const counts = staff.reduce((total, member) => ({ ...total, [member.role]: (total[member.role] ?? 0) + 1 }), {});
+    const name = (member) => member.displayName || member.handle || member.riderId;
+    const sub = (member) => [member.handle, member.email].filter(Boolean).join(' · ') || member.riderId;
+    const granted = (member) => member.grantedAt ? el('span', {}, [timeEl(member.grantedAt), ` by ${riderLabel(member.grantedBy).name}`]) : el('span', { class: 'muted', text: 'ADMIN_RIDER_IDS' });
+    await loadNames(staff.map((member) => member.grantedBy).filter(Boolean));
+    pageEl.replaceChildren(
+      pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
+      addStaffForm(),
+      el('h2', { class: 'section-title', text: 'Team' }),
+      el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, staff.map((member) => el('li', { class: 'list-row staff-row', dataset: { riderId: member.riderId } }, [
+        person(name(member), sub(member), member.riderId),
+        el('div', { class: 'trail' }, [roleBadge(member.role), staffActions(member)]),
+      ])))]),
+      el('div', { class: 'card table-card only-desktop' }, [el('div', { class: 'table-scroll' }, [el('table', { class: 'table' }, [
+        el('thead', {}, [el('tr', {}, [el('th', { text: 'Member' }), el('th', { text: 'Role' }), el('th', { text: 'Added' }), el('th', { text: 'Last active' }), el('th', { text: 'Manage' })])]),
+        el('tbody', {}, staff.map((member) => el('tr', { dataset: { riderId: member.riderId } }, [
+          el('td', {}, [person(name(member), sub(member), member.riderId)]),
+          el('td', {}, [roleBadge(member.role)]),
+          el('td', { class: 'muted' }, [granted(member)]),
+          el('td', { class: 'muted' }, [timeEl(member.lastSeenAt, 'Over 30 days')]),
+          el('td', {}, [staffActions(member)]),
+        ]))),
+      ])])]),
+      el('h2', { class: 'section-title', text: 'Roles' }),
+      roleMatrix(),
+    );
   }
 
   // ------------------------------------------------------------ System
@@ -951,12 +1177,18 @@
         renderRiders(riders);
       } else if (view === 'moderation') {
         await renderModeration();
+      } else if (view === 'audit') {
+        await renderAudit();
+      } else if (view === 'staff') {
+        await renderStaff();
       } else {
         await renderSystem();
       }
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) {
-        notice('lock', 'This account is not staff', 'Ask an admin to add your rider ID to ADMIN_RIDER_IDS, then reload.');
+      if (error instanceof ApiError && error.code === 'permission_required') {
+        pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('lock', 'Your role doesn’t include this page', 'Ask an admin if you need it.')]));
+      } else if (error instanceof ApiError && error.status === 403) {
+        notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
       } else if (error instanceof ApiError && error.status === 401) {
         notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
       } else {
@@ -968,7 +1200,7 @@
   }
 
   function selectView(next) {
-    if (!VIEWS.includes(next)) return;
+    if (!VIEWS.includes(next) || (me && !allowed(VIEW_PERMISSIONS[next]))) return;
     view = next;
     if (location.hash !== `#${next}`) history.replaceState(null, '', `#${next}`);
     window.scrollTo(0, 0);
@@ -991,10 +1223,28 @@
     return;
   }
   footerEl.textContent = `Signed in as ${session.riderId}`;
+  const footerRole = el('span', { class: 'footer-role' });
   api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
     const name = profile?.displayName || profile?.handle;
-    if (name) footerEl.textContent = `Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`;
+    if (name) footerEl.replaceChildren(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`, footerRole);
   }).catch(() => {});
-  navEl.hidden = false;
-  void render();
+
+  // The role decides which pages appear; the backend enforces it either way.
+  async function start() {
+    try {
+      me = await api('GET', '/admin/me');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
+      else if (error instanceof ApiError && error.status === 401) notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
+      else pageEl.replaceChildren(el('div', { class: 'card notice' }, [emptyState('wifiOff', 'Couldn’t reach the server', 'Check your connection, then reload.')]));
+      return;
+    }
+    for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
+    footerRole.replaceChildren(roleBadge(me.role));
+    if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
+    if (!allowed(VIEW_PERMISSIONS[view])) view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
+    navEl.hidden = false;
+    void render();
+  }
+  void start();
 })();

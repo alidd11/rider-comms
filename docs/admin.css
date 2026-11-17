@@ -602,3 +602,30 @@ a { color: inherit; }
 .sk-chart { height: 190px; margin: 16px; }
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Audit log and staff ---------- */
+.audit-filters { margin-bottom: 12px; }
+.select, .staff-form .input { padding-left: 12px; }
+.select { width: auto; padding-right: 28px; cursor: pointer; }
+.staff-form { margin-bottom: 8px; padding-bottom: 16px; }
+.staff-form-fields { display: grid; gap: 8px; padding: 14px 16px 0; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) {
+  .staff-form-fields { grid-template-columns: minmax(0, 1.1fr) auto minmax(0, 1.6fr) auto; padding: 16px 20px 0; }
+}
+.staff-form .error-text { padding: 0 16px; }
+@media (min-width: 900px) { .staff-form .error-text { padding: 0 20px; } }
+.row-actions { display: inline-flex; align-items: center; gap: 8px; }
+.row-actions .select { height: 28px; font-size: 12.5px; }
+.row-actions .button-small { margin-top: 0; }
+.staff-row { flex-wrap: wrap; }
+.staff-row .trail { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.list-row.staff-row .trail .badge:not(:first-child) { display: inline-flex; }
+.role-list { list-style: none; margin: 0; padding: 12px 16px 4px; display: grid; gap: 10px; }
+@media (min-width: 900px) { .role-list { padding: 14px 20px 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.role-list li { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--fg-2); }
+.role-list .badge { flex: none; min-width: 84px; justify-content: center; }
+.matrix th.center, .matrix td.center { text-align: center; }
+.check { color: var(--muted-fg); }
+.check.yes { color: var(--success); font-weight: 700; }
+.footer-role { margin-left: 8px; }
+.footer-role .badge { vertical-align: middle; }

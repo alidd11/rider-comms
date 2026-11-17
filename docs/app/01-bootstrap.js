@@ -58,6 +58,53 @@
       // Not allowed here (iOS, multitasking, some tablets): keep the fallback.
     });
   }
+  // Installed iOS slides the whole app up when a text box gets focus, even
+  // when the box would sit above the keyboard anyway, and sometimes leaves it
+  // there after the keyboard closes. Outside chat (which follows the visual
+  // viewport itself), put the app back at the top: scroll the box's own list
+  // just far enough to keep it above the keyboard, and only keep the slide
+  // when nothing else can show the box.
+  const TEXT_FIELD = 'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="file"]):not([type="color"]), textarea, [contenteditable="true"], [contenteditable=""]';
+  let keyboardPanned = false;
+  let rootPanFrame = 0;
+  function scrollableAncestor(element) {
+    for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+      const { overflowY } = getComputedStyle(node);
+      if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node;
+    }
+    return null;
+  }
+  function settleRootPan() {
+    rootPanFrame = 0;
+    const root = document.documentElement;
+    if (root.classList.contains('chat-open')) return;
+    const panned = Math.max(0, window.scrollY || root.scrollTop || 0);
+    const field = document.activeElement;
+    const focusedField = field?.matches?.(TEXT_FIELD) ? field : null;
+    if (focusedField && panned > 0) keyboardPanned = true;
+    if (panned <= 0 || !keyboardPanned) return;
+    if (!focusedField) {
+      keyboardPanned = false;
+      window.scrollTo(0, 0);
+      return;
+    }
+    const visibleBottom = (visualViewport?.height ?? window.innerHeight) - 12;
+    const overflow = focusedField.getBoundingClientRect().bottom + panned - visibleBottom;
+    if (overflow > 0) {
+      const scroller = scrollableAncestor(focusedField);
+      if (!scroller || scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop < overflow) return;
+      scroller.scrollTop += overflow;
+    }
+    window.scrollTo(0, 0);
+  }
+  const queueRootPanCheck = () => {
+    if (!rootPanFrame) rootPanFrame = requestAnimationFrame(settleRootPan);
+  };
+  document.addEventListener('focusin', queueRootPanCheck);
+  document.addEventListener('focusout', () => setTimeout(queueRootPanCheck, 60));
+  window.addEventListener('scroll', queueRootPanCheck, { passive: true });
+  visualViewport?.addEventListener?.('resize', queueRootPanCheck);
+
   lockPortraitWhereSupported();
   settleViewportEnvironment();
   window.addEventListener('resize', syncViewportEnvironment);

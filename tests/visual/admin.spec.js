@@ -57,13 +57,26 @@ async function signIn(page) {
   }, ADMIN_ID);
 }
 
+const ROLE_PERMISSIONS = {
+  admin: ['view_overview', 'view_system', 'view_riders', 'moderate', 'verify_email', 'view_audit', 'manage_staff'],
+  moderator: ['view_overview', 'view_system', 'view_riders', 'moderate', 'view_audit'],
+  support: ['view_overview', 'view_system', 'view_riders', 'verify_email', 'view_audit'],
+  analyst: ['view_overview', 'view_system'],
+};
+
 /** Minimal in-memory moderation backend. */
-async function mockModerationApi(page, { admin = true, suspended = false } = {}) {
+async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin' } = {}) {
   const state = {
     reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended }],
     actions: [],
     posts: [],
     riderQueries: [],
+    // Each test gets its own riders, so verifying one doesn't leak into the next.
+    riders: RIDERS.map((rider) => ({ ...rider })),
+    staff: [
+      { riderId: ADMIN_ID, role: 'admin', displayName: 'Ali', handle: '@ali', email: 'ali@example.com', grantedBy: null, grantedAt: null, lastSeenAt: Date.now() - 60_000 },
+      { riderId: 'rider_maya', role: 'moderator', displayName: 'Maya', handle: '@maya_moto', email: 'maya@example.com', grantedBy: ADMIN_ID, grantedAt: Date.now() - 86_400_000, lastSeenAt: Date.now() - 3_600_000 },
+    ],
     socialPosts: [{
       post: { id: '11111111-1111-4111-8111-111111111111', authorId: 'rider_badactor', kind: 'photo', caption: '<b>Selling</b> cheap parts', createdAt: Date.now() - 60_000, hidden: false,
         media: [{ id: 'm1', kind: 'image', width: 10, height: 10, durationMs: null, url: '/social/media/m1/file?v=admin&exp=1&sig=x', posterUrl: null }] },
@@ -81,10 +94,28 @@ async function mockModerationApi(page, { admin = true, suspended = false } = {})
     const json = (status, body) => route.fulfill({ status, headers, contentType: 'application/json', body: JSON.stringify(body) });
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     if ((url.pathname.startsWith('/moderation') || url.pathname.startsWith('/admin')) && !admin) return json(403, { error: 'admin_required' });
+    if (url.pathname === '/admin/me') return json(200, { riderId: ADMIN_ID, role, permissions: ROLE_PERMISSIONS[role] });
+    if (url.pathname === '/admin/staff' && request.method() === 'GET') return json(200, { staff: state.staff });
+    if (url.pathname === '/admin/staff' && request.method() === 'POST') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      if (body.rider === 'nobody') return json(404, { error: 'not_found' });
+      const existing = state.staff.find((member) => member.riderId === body.rider || member.handle === `@${body.rider.replace(/^@/, '')}`);
+      if (existing) existing.role = body.role;
+      else state.staff.push({ riderId: 'rider_new', role: body.role, displayName: 'Sam', handle: `@${body.rider.replace(/^@/, '')}`, email: null, grantedBy: ADMIN_ID, grantedAt: Date.now(), lastSeenAt: null });
+      state.actions.unshift({ id: `a${state.actions.length}`, moderatorId: ADMIN_ID, targetRiderId: existing?.riderId ?? 'rider_new', reportId: null, action: 'staff_grant', note: `${body.role}: ${body.note}`, createdAt: Date.now() });
+      return json(200, { ok: true });
+    }
+    const removeStaff = url.pathname.match(/^\/admin\/staff\/([^/]+)\/remove$/);
+    if (removeStaff) {
+      state.posts.push({ path: url.pathname, body: request.postDataJSON() });
+      state.staff = state.staff.filter((member) => member.riderId !== decodeURIComponent(removeStaff[1]));
+      return json(200, { ok: true });
+    }
     if (url.pathname === '/admin/overview') return json(200, OVERVIEW);
     if (url.pathname === '/admin/riders') {
       state.riderQueries.push(url.searchParams.get('q'));
-      return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : RIDERS });
+      return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : state.riders });
     }
     if (url.pathname === '/admin/system') {
       return json(200, { socialMediaStorage: false, socialPosting: true, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
@@ -102,7 +133,10 @@ async function mockModerationApi(page, { admin = true, suspended = false } = {})
       const status = url.searchParams.get('status');
       return json(200, { reports: state.reports.filter((report) => report.status === status) });
     }
-    if (url.pathname === '/moderation/actions') return json(200, { actions: state.actions });
+    if (url.pathname === '/moderation/actions') {
+      const riderId = url.searchParams.get('riderId');
+      return json(200, { actions: riderId ? state.actions.filter((action) => action.targetRiderId === riderId) : state.actions });
+    }
     if (url.pathname === '/moderation/social-posts' && request.method() === 'GET') return json(200, { posts: state.socialPosts });
     if (url.pathname.startsWith('/social/media/')) {
       // A 1×1 PNG for the post's photo.
@@ -127,7 +161,7 @@ async function mockModerationApi(page, { admin = true, suspended = false } = {})
       return json(200, { ok: true });
     }
     if (url.pathname.endsWith('/verify-email')) {
-      const rider = RIDERS.find((candidate) => url.pathname.includes(candidate.riderId));
+      const rider = state.riders.find((candidate) => url.pathname.includes(candidate.riderId));
       if (rider) rider.emailVerified = true;
       return json(200, { ok: true });
     }
@@ -160,7 +194,7 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     const state = await mockModerationApi(page);
     await page.goto('/admin.html#moderation');
-    await page.getByRole('button', { name: 'Social', exact: true }).click();
+    await page.getByRole('button', { name: 'Social posts' }).click();
     // Five tabs are wider than a small phone: the tab row scrolls, the page doesn't.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     const card = page.locator('article[data-post-id]');
@@ -331,6 +365,98 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
   });
 
+  test('admins add, change and remove staff, each with a reason', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#staff');
+    await expect(page.locator('.page-title')).toHaveText('Staff and roles');
+    await expect(page.locator('.page-subtitle')).toHaveText('2 people have dashboard access · 1 admin, 1 moderator');
+    const rows = page.locator('[data-rider-id]:visible');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('Set on the backend');
+
+    const form = page.locator('#addStaffForm');
+    await form.getByRole('button', { name: 'Add to staff' }).click();
+    await expect(form.locator('.error-text')).toHaveText('Enter their handle or rider ID and a reason.');
+    await form.getByLabel('Handle or rider ID').fill('nobody');
+    await form.getByLabel('Role').selectOption('support');
+    await form.getByLabel('Reason for the audit log').fill('Help desk');
+    await form.getByRole('button', { name: 'Add to staff' }).click();
+    await expect(form.locator('.error-text')).toHaveText('No rider has that handle or rider ID.');
+    await form.getByLabel('Handle or rider ID').fill('@sam_rides');
+    await form.getByRole('button', { name: 'Add to staff' }).click();
+    await expect(rows).toHaveCount(3);
+    expect(state.posts.at(-1)).toEqual({ path: '/admin/staff', body: { rider: '@sam_rides', role: 'support', note: 'Help desk' } });
+
+    const maya = page.locator('[data-rider-id="rider_maya"]:visible');
+    page.once('dialog', (dialog) => dialog.accept('Covers reports now'));
+    await maya.getByLabel('Role for Maya').selectOption('analyst');
+    await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/admin/staff', body: { rider: 'rider_maya', role: 'analyst', note: 'Covers reports now' } });
+    page.once('dialog', (dialog) => dialog.accept('Left the team'));
+    await page.locator('[data-rider-id="rider_maya"]:visible').getByRole('button', { name: 'Remove' }).click();
+    await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
+    expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
+
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(7);
+    await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
+  });
+
+  test('the audit log filters by kind and rider and exports a CSV', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.actions.push(
+      { id: 'x1', moderatorId: ADMIN_ID, targetRiderId: 'rider_badactor', reportId: 'report-1', action: 'suspend', note: '=HYPERLINK("bad")', createdAt: Date.now() - 120_000 },
+      { id: 'x2', moderatorId: ADMIN_ID, targetRiderId: 'rider_reporter', reportId: null, action: 'verify_email', note: 'Known tester', createdAt: Date.now() - 60_000 },
+    );
+    await page.goto('/admin.html#audit');
+    await expect(page.locator('.list-row')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Accounts' }).click();
+    await expect(page.locator('.list-row')).toHaveCount(1);
+    await expect(page.locator('.list-row .person-name')).toHaveText('Verified email: Maya');
+    await page.getByRole('button', { name: 'All actions' }).click();
+    await page.getByLabel('Show actions for one rider').fill('rider_badactor');
+    await page.getByRole('button', { name: 'Filter' }).click();
+    await expect(page.locator('.list-row')).toHaveCount(1);
+    await expect(page.locator('.page-subtitle')).toContainText('for rider_badactor');
+
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export CSV' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^rider-comms-audit-\d{4}-\d{2}-\d{2}\.csv$/);
+    const text = await (await file.createReadStream()).toArray().then((chunks) => Buffer.concat(chunks).toString('utf8'));
+    expect(text.split('\r\n')[0]).toBe('When (UTC),Action,Staff member,Staff rider ID,Rider,Rider ID,Report ID,Note');
+    // A note that looks like a formula is exported as text.
+    expect(text).toContain(`"'=HYPERLINK(""bad"")"`);
+  });
+
+  test('each role sees only its own pages', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'analyst' });
+    await page.goto('/admin.html#moderation');
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+    const visibleNav = page.locator('#nav [data-view]:visible');
+    await expect(visibleNav).toHaveText(['Overview', 'System']);
+    await expect(page.locator('#sidebarFooter .badge')).toHaveText('Analyst');
+    await page.evaluate(() => { location.hash = '#staff'; });
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+  });
+
+  test('support staff verify email but cannot moderate', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'support' });
+    await page.goto('/admin.html#riders');
+    await expect(page.locator('#nav [data-view]:visible')).toHaveText(['Overview', 'Riders', 'Audit log', 'System']);
+    await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
+  });
+
+  test('a page the role lacks says so', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'analyst' });
+    await page.route(`${API}/admin/overview`, (route) => route.fulfill({ status: 403, headers: { 'Access-Control-Allow-Origin': '*' }, contentType: 'application/json', body: JSON.stringify({ error: 'permission_required', permission: 'view_overview' }) }));
+    await page.goto('/admin.html');
+    await expect(page.locator('.empty-title')).toHaveText('Your role doesn’t include this page');
+  });
+
   test('system view reports API and database health', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
@@ -347,7 +473,8 @@ test.describe('staff dashboard', () => {
     await expect(rows.nth(2).locator('.badge')).toHaveAttribute('data-state', 'warn');
     await expect(rows.nth(3).locator('.badge')).toHaveText('Off');
     await expect(rows.nth(4).locator('.badge')).toHaveText('On');
-    await expect(page.locator('#sidebarFooter')).toHaveText('Signed in as Ali · @ali');
+    await expect(page.locator('#sidebarFooter')).toContainText('Signed in as Ali · @ali');
+    await expect(page.locator('#sidebarFooter .badge')).toHaveText('Admin');
   });
 });
 
@@ -374,7 +501,7 @@ test('staff dashboard views have no automatically detectable accessibility viola
   test.skip(!AXE_PROJECTS.has(testInfo.project.name), 'Audited once per colour scheme');
   await signIn(page);
   await mockModerationApi(page);
-  for (const view of ['overview', 'moderation', 'riders', 'system']) {
+  for (const view of ['overview', 'moderation', 'riders', 'audit', 'staff', 'system']) {
     await page.goto(`/admin.html#${view}`);
     await expect(page.locator('main')).toBeVisible();
     await expectNoAxeViolations(page, view);

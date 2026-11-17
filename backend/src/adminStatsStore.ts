@@ -1,4 +1,5 @@
 import { ensureMigrated, getPool } from './db.ts';
+import type { StaffRole } from './staffRoles.ts';
 
 // Aggregate numbers for the staff dashboard. Everything here is counts; the
 // only per-rider data is the staff rider search, which is admin-only.
@@ -65,6 +66,8 @@ export interface AdminRiderSummary {
   createdAt: number;
   lastSeenAt: number | null;
   isAdmin: boolean;
+  /** Dashboard role: 'admin' for admins, a granted role, or null. */
+  staffRole: StaffRole | null;
   suspended: boolean;
   displayName: string | null;
   handle: string | null;
@@ -325,13 +328,14 @@ export class AdminStatsStore {
     const { rows } = await getPool().query(
       `SELECT u.id, u.username, u.email, u.email_verified_at IS NOT NULL AS email_verified,
               u.created_at, u.is_admin, u.suspended_at IS NOT NULL AS suspended,
-              p.display_name, p.handle, act.last_seen_at,
+              p.display_name, p.handle, act.last_seen_at, sr_role.role AS staff_role,
               (SELECT count(*) FROM friendships fr WHERE fr.rider_id = u.id) AS friends,
               (SELECT count(*) FROM safety_reports sr WHERE sr.reported_rider_id = u.id) AS reports_against,
               (SELECT count(*) FROM safety_reports sr WHERE sr.reporter_id = u.id) AS reports_filed
        FROM users u
        LEFT JOIN rider_profiles p ON p.rider_id = u.id
        LEFT JOIN rider_activity act ON act.rider_id = u.id
+       LEFT JOIN staff_roles sr_role ON sr_role.rider_id = u.id
        WHERE $1 = '' OR u.id = $2
           OR u.username ILIKE $3 OR u.email ILIKE $3 OR p.display_name ILIKE $3 OR p.handle ILIKE $3
        ORDER BY u.created_at DESC
@@ -346,6 +350,7 @@ export class AdminStatsStore {
       createdAt: new Date(row.created_at).getTime(),
       lastSeenAt: row.last_seen_at === null ? null : Number(row.last_seen_at),
       isAdmin: row.is_admin === true,
+      staffRole: row.is_admin === true ? 'admin' : (row.staff_role ?? null),
       suspended: row.suspended === true,
       displayName: row.display_name ?? null,
       handle: row.handle ?? null,
