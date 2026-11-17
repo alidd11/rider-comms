@@ -44,7 +44,7 @@ export function RiderBrandPage({onBack,onStory,onReel}:{
   const back=<Pressable accessibilityRole="button" accessibilityLabel={detail?'Back to Rider Comms page':'Close Rider Comms page'}
     onPress={detail?()=>setDetail(null):onBack} style={{flexDirection:'row',alignItems:'center',
       gap:9,minHeight:44}}>
-    <Ionicons name="arrow-back" size={23} color={C.ink}/>
+    <Ionicons name="chevron-back" size={23} color={C.ink}/>
     <Text style={{color:C.ink,fontWeight:'800'}}>Rider Comms</Text>
   </Pressable>;
   if(detail) return <View testID="brand-post-detail" style={{gap:12,paddingBottom:35}}>

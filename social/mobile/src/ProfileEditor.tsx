@@ -43,7 +43,7 @@ export function ProfileEditor({ initial, onCancel, onSave }: {
       <Pressable accessibilityRole="button" accessibilityLabel="Cancel" disabled={saving}
         onPress={onCancel} style={{ width: 44, height: 44, borderRadius: 22,
           justifyContent: 'center', alignItems: 'center' }}>
-        <Ionicons name="arrow-back" size={24} color={C.ink} />
+        <Ionicons name="chevron-back" size={24} color={C.ink} />
       </Pressable>
       <Text style={{ color: C.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.6 }}>Edit profile</Text>
     </View>

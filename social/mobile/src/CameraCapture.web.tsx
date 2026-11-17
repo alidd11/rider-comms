@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ComposerMedia, ComposerMode } from './upload';
+import { C } from './styles';
 
 type CapturedMedia = Omit<ComposerMedia, 'id'>;
 type Props = {
@@ -265,26 +266,26 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         </Text>
         {isReel ? <Pressable accessibilityRole="button" accessibilityLabel="Choose Reel video"
           disabled={disabled} onPress={openLibrary}
-          style={{ backgroundColor: WHITE, borderRadius: 24,
+          style={{ backgroundColor: C.accent, borderRadius: 24,
             opacity: disabled ? 0.6 : 1,
             flexDirection: 'row', alignItems: 'center', gap: 10,
             paddingVertical: 14, paddingHorizontal: 22, minHeight: 52 }}>
-          <Ionicons name="images-outline" color={BLACK} size={23}/>
-          <Text style={{ color: BLACK, fontSize: 15, fontWeight: '800' }}>
+          <Ionicons name="images-outline" color={C.accentText} size={23}/>
+          <Text style={{ color: C.accentText, fontSize: 15, fontWeight: '800' }}>
             Choose video
           </Text>
         </Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Enable camera"
           disabled={requesting || disabled}
           onPress={() => { void enableCamera(); }}
-          style={{ backgroundColor: WHITE, borderRadius: 22,
+          style={{ backgroundColor: C.accent, borderRadius: 22,
             opacity: requesting || disabled ? 0.6 : 1,
             paddingVertical: 12, paddingHorizontal: 24 }}>
-          <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>
+          <Text style={{ color: C.accentText, fontSize: 14, fontWeight: '800' }}>
             {requesting ? 'Opening camera…' : 'Enable camera'}
           </Text>
         </Pressable>}
         {error ? <Text accessibilityRole="alert" style={{
-          color: '#F5B7C5', fontSize: 12, textAlign: 'center', lineHeight: 18,
+          color: C.warning, fontSize: 12, textAlign: 'center', lineHeight: 18,
         }}>{error}</Text> : null}
       </View> : null}
 
@@ -344,11 +345,11 @@ export function CameraCapture({ mode, onCapture, onLibrary, onClose, disabled }:
         <Pressable accessibilityRole="button" accessibilityLabel="Choose from library"
           onPress={openLibrary} disabled={disabled}
           style={{ minHeight: 52, minWidth: 190, paddingHorizontal: 20,
-            borderRadius: 26, backgroundColor: '#FFFFFF',
+            borderRadius: 26, backgroundColor: C.accent,
             flexDirection: 'row', alignItems: 'center',
             justifyContent: 'center', gap: 10, opacity: disabled ? 0.6 : 1 }}>
-          <Ionicons name="images-outline" size={22} color={BLACK}/>
-          <Text style={{ color: BLACK, fontSize: 14, fontWeight: '800' }}>Open Gallery</Text>
+          <Ionicons name="images-outline" size={22} color={C.accentText}/>
+          <Text style={{ color: C.accentText, fontSize: 14, fontWeight: '800' }}>Open Gallery</Text>
         </Pressable>
       </View> : !isReel ? <View style={{ position: 'absolute', bottom: 14, left: 0, right: 0 }}>
         <View style={{ paddingHorizontal: 15, flexDirection: 'row',
