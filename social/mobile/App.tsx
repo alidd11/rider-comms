@@ -263,7 +263,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const mediaHeight = Math.min(620, Math.max(330, Math.round(Math.min(screenWidth,620)*1.25)));
   const [screen, setScreen] = useState<Screen>('Home');
   const pageScrollEnabled = screen === 'Home' || screen === 'Clubs' || screen === 'Shop' || screen === 'Profile';
-  const [homeScope, setHomeScope] = useState<'for-you' | 'following'>('for-you');
   const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
   const [expandedCaptionId, setExpandedCaptionId] = useState<string | null>(null);
   const [createMode, setCreateMode] = useState<'Post' | 'Story' | 'Reel'>('Post');
@@ -641,8 +640,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         contentContainerStyle={s.storyRail}>
         <Pressable accessibilityRole="button" accessibilityLabel="Create story"
           style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
-          <View style={[s.storyCircle, { borderColor: 'transparent' }]}>
-            <IdentityAvatar name={ownProfile?.displayName || identity.username} avatarId={ownProfile?.avatarId} size={54}/>
+          <View style={s.storyCircle}>
+            <IdentityAvatar name={ownProfile?.displayName || identity.username} avatarId={ownProfile?.avatarId} size={50}/>
             <View style={{ position: 'absolute', right: 0, bottom: 0, width: 21, height: 21,
               borderRadius: 11, borderWidth: 2, borderColor: C.bg, backgroundColor: C.ink,
               alignItems: 'center', justifyContent: 'center' }}>
@@ -662,18 +661,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       </ScrollView>
 
       {!socialFixturesEnabled ? <>
-        <View accessibilityRole="tablist" accessibilityLabel="Home feed"
-          style={{ flexDirection: 'row', gap: 22, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 6 }}>
-          {([['for-you', 'For you'], ['following', 'Following']] as const).map(([value, label]) =>
-            <Pressable key={value} accessibilityRole="tab" accessibilityLabel={label + ' feed'}
-              aria-selected={homeScope === value} onPress={() => setHomeScope(value)}
-              style={{ minHeight: 44, justifyContent: 'center' }}>
-              <Text style={{ color: homeScope === value ? C.ink : C.muted, fontWeight: '800', fontSize: 15 }}>{label}</Text>
-              <View style={{ height: 2, marginTop: 4, borderRadius: 1,
-                backgroundColor: homeScope === value ? C.accent : 'transparent' }}/>
-            </Pressable>)}
-        </View>
-        <LiveFeed client={client} riderId={identity.riderId} scope={homeScope} refreshKey={feedRefresh}
+        <LiveFeed client={client} riderId={identity.riderId} scope="for-you" refreshKey={feedRefresh}
           onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
           empty={<>
             <RiderBrandFeed onOpen={() => setBrandPageOpen(true)} />

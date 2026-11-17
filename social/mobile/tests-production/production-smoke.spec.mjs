@@ -103,8 +103,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Browse Reels from Home' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Go to inbox from Home' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'For you feed' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Following feed' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Home feed' })).toHaveCount(0);
   await expect(page.getByText('Sample feed')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Open studio' })).toBeVisible();
   // The main Compose CTA is visually prominent without changing the tab API.
@@ -148,16 +147,16 @@ test('production: every major route and empty state is visible, navigable and er
   const reelsTab = mainNavigation.getByRole('tab', { name: 'Reels' });
   await reelsTab.click();
   await expect(reelsTab).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tablist', { name: 'Reels feeds' }).getByRole('tab', { name: 'For You videos' }))
+  await expect(page.getByRole('tablist', { name: 'Reels feeds' }).getByRole('tab', { name: 'For you videos' }))
     .toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('reels-viewport')).toBeVisible();
   await expect(page.getByText('Ahmet Mert / Pexels')).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'For you videos' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await page.getByRole('tab', { name: 'Following videos' }).click();
   await expect(page.getByText('No followed Reels yet')).toBeVisible();
   await verifyScreen(page, testInfo, 'following-empty');
-  await page.getByRole('button', { name: 'Explore For You Reels' }).click();
+  await page.getByRole('button', { name: 'Explore For you Reels' }).click();
   await expect(page.getByTestId('reels-viewport')).toBeVisible();
   await verifyScreen(page, testInfo, 'reels-editorial');
   await page.getByRole('button', { name: 'Create Reel' }).click();

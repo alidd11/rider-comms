@@ -98,7 +98,7 @@ test('Home has one editorial feed while Reels owns For You and Following', async
   await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
 
   await page.getByRole('tab', { name: 'Reels' }).click();
-  await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'For you videos' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
 });
 
@@ -462,7 +462,7 @@ test('Reels For You and Following have separate visible creator sets and Saved s
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
   await page.getByRole('tab', { name: 'Reels', exact: true }).click();
-  await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'For you videos' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await expect(page.locator('#social-reel-panel-r1')).toHaveCount(1);
   await page.getByRole('tab', { name: 'Following videos' }).click();
@@ -474,7 +474,7 @@ test('Reels For You and Following have separate visible creator sets and Saved s
   await page.getByRole('button', { name: 'Next Reel' }).click();
   await expect(page.getByRole('button', { name: 'Next Reel' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Next Reel' })).toHaveCSS('opacity', '0.3');
-  await page.getByRole('tab', { name: 'For You videos' }).click();
+  await page.getByRole('tab', { name: 'For you videos' }).click();
   await page.getByRole('button', { name: 'Save Reel r2' }).click();
   await page.getByRole('tab', { name: 'Home' }).click();
   await page.getByRole('button', { name: 'Open profile' }).click();
