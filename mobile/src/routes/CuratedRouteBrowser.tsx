@@ -311,7 +311,7 @@ function CuratedRouteCard({
         <View style={styles.cardImageShade} />
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{route.name}</Text>
+        <Text style={styles.cardTitle} numberOfLines={2}>{route.name}</Text>
         <Text style={styles.cardRegion} numberOfLines={1}>{route.region}</Text>
         <View style={styles.cardStats}>
           <View style={styles.cardStatItem}><Ionicons name="navigate-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.distanceMiles} mi</Text></View>
