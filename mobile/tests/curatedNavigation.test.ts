@@ -23,6 +23,21 @@ describe('curated scenic-route navigation checkpoints', () => {
     assert.equal(attempt.reached, null);
     assert.deepEqual(attempt.remaining, initial);
   });
+  it('does not mistake a later viewpoint for the next stop when arrival radii overlap', () => {
+    // 111 m separates these two stops; each has a 140 m arrival radius.
+    const adjacent = [
+      { lat: 51.501, lon: -0.1, label: 'First viewpoint' },
+      { lat: 51.502, lon: -0.1, label: 'Second viewpoint' },
+    ];
+    const atSecond = advanceCuratedStops(adjacent, adjacent[1]!, 5);
+    assert.equal(atSecond.reached, null);
+    assert.deepEqual(atSecond.remaining, adjacent);
+
+    const atFirst = advanceCuratedStops(adjacent, adjacent[0]!, 5);
+    assert.equal(atFirst.reached?.label, 'First viewpoint');
+    assert.deepEqual(atFirst.remaining, [adjacent[1]]);
+    assert.equal(advanceCuratedStops(atFirst.remaining, adjacent[1]!, 5).reached?.label, 'Second viewpoint');
+  });
   it('rejects unreliable fixes instead of skipping checkpoints', () => {
     const initial = initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 });
     for (const accuracy of [null, undefined, 120, Number.NaN, -1]) {
