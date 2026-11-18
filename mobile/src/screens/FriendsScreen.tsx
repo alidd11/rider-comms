@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -19,6 +19,7 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import { openRiderSafetyMenu } from '../safety/riderSafetyActions';
 import type { PublicRiderProfile, RideMemberLocation } from '../api/client';
 import { SkeletonRows } from '../components/SkeletonRows';
+import { SHEET_GRAB_ZONE, useDragToDismiss } from '../components/useDragToDismiss';
 
 const FRIEND_RIDE_LOCATION_STALE_MS = 20_000;
 
@@ -300,6 +301,7 @@ function FriendProfileModal({
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const sheetDrag = useDragToDismiss(onClose);
   const { client } = useAuth();
   const { refresh, remove } = useFriends();
   const [profile, setProfile] = React.useState<PublicRiderProfile | null>(null);
@@ -384,8 +386,9 @@ function FriendProfileModal({
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose} accessible={false}>
+        <Animated.View style={{ transform: [{ translateY: sheetDrag.translateY }] }}>
         <Pressable style={[styles.profileModal, { paddingBottom: insets.bottom + spacing.md }]} onPress={(event) => event.stopPropagation()} accessible={false}>
-          <View style={styles.modalHandle} />
+          <View {...sheetDrag.panHandlers} style={SHEET_GRAB_ZONE}><View style={styles.modalHandle} /></View>
           <Pressable style={({ pressed }) => [styles.modalClose, pressed && pressedFeedback]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close profile">
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </Pressable>
@@ -529,6 +532,7 @@ function FriendProfileModal({
             </Pressable>
           ) : null}
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );

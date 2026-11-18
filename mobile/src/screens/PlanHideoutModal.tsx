@@ -1,6 +1,6 @@
 import { userFacingError } from '../errors/userFacingError';
 import * as React from 'react';
-import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, Text, TextInput, View, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
@@ -8,6 +8,7 @@ import type { MapPressEvent } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, pressedFeedback } from '../theme';
 import { styles } from './FriendChatScreen.styles';
+import { SHEET_GRAB_ZONE, useDragToDismiss } from '../components/useDragToDismiss';
 
 /** Plan a hideout by tapping the map or using the rider's location. */
 export function PlanHideoutModal({
@@ -20,6 +21,7 @@ export function PlanHideoutModal({
   onCreate: (name: string, lat: number, lon: number) => Promise<void>;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const sheetDrag = useDragToDismiss(onClose);
   const [name, setName] = React.useState('');
   const [pin, setPin] = React.useState<{ latitude: number; longitude: number } | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -74,8 +76,9 @@ export function PlanHideoutModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable accessible={false} style={styles.modalBackdrop} onPress={onClose}>
+        <Animated.View style={{ transform: [{ translateY: sheetDrag.translateY }] }}>
         <Pressable accessible={false} style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.modalHandle} />
+          <View {...sheetDrag.panHandlers} style={SHEET_GRAB_ZONE}><View style={styles.modalHandle} /></View>
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderCopy}>
               <Text style={styles.modalTitle}>Plan a hideout</Text>
@@ -142,6 +145,7 @@ export function PlanHideoutModal({
             )}
           </Pressable>
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
