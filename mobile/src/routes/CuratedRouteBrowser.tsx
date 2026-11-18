@@ -220,9 +220,9 @@ function RouteOverview({
               accessibilityRole="button"
             >
               <MaterialCommunityIcons name="map-marker-path" size={19} color={colors.textPrimary} />
-              <Text style={styles.secondaryButtonText}>Open full route in Maps</Text>
+              <Text style={styles.secondaryButtonText}>Preview in Google Maps</Text>
             </Pressable>
-            <Text style={styles.estimateNote}>*Ride time is an estimate without stops or traffic.{route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; check the route before riding.' : ''}</Text>
+            <Text style={styles.estimateNote}>*Ride time is an estimate without stops or traffic.{route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; confirm each stop before riding.' : ''}</Text>
 
             <View style={styles.sourceBlock}>
               <Text style={styles.sectionTitle}>Sources & image rights</Text>
