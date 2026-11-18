@@ -1219,6 +1219,187 @@
     }
   ];
 
+  // Human-readable stop labels mirror the native catalogue. Checked by
+  // the curatedRoutes parity test; coordinate arrays remain identical.
+  const itineraryLabels = {
+    "surrey-hills-circuit": {
+      "start": "Guildford",
+      "waypoints": [
+        "Newlands Corner",
+        "Shere",
+        "Box Hill",
+        "Leith Hill"
+      ],
+      "end": "Guildford"
+    },
+    "a507-baldock-buntingford": {
+      "start": "Baldock",
+      "waypoints": [
+        "A507 east of Cottered"
+      ],
+      "end": "Buntingford"
+    },
+    "b1145-norfolk": {
+      "start": "Bawdeswell",
+      "waypoints": [
+        "North Elmham",
+        "Litcham"
+      ],
+      "end": "Gayton"
+    },
+    "a466-wye-valley": {
+      "start": "Monmouth",
+      "waypoints": [
+        "Tintern"
+      ],
+      "end": "Chepstow"
+    },
+    "b3212-dartmoor": {
+      "start": "Exeter",
+      "waypoints": [
+        "Moretonhampstead",
+        "Princetown"
+      ],
+      "end": "Yelverton"
+    },
+    "b3306-west-cornwall": {
+      "start": "St Ives",
+      "waypoints": [
+        "Zennor"
+      ],
+      "end": "St Just"
+    },
+    "a39-porlock-lynmouth": {
+      "start": "Porlock",
+      "waypoints": [
+        "Countisbury"
+      ],
+      "end": "Lynmouth"
+    },
+    "glyndwrs-way": {
+      "start": "Knighton",
+      "waypoints": [
+        "Rhayader",
+        "Llanidloes",
+        "Cwmystwyth",
+        "Machynlleth",
+        "Cross Foxes",
+        "Lake Vyrnwy"
+      ],
+      "end": "Welshpool"
+    },
+    "b4391-ffestiniog-arenig": {
+      "start": "Llan Ffestiniog (A470 junction)",
+      "waypoints": [
+        "Cwm Cynfal Viewpoint",
+        "B4407 junction"
+      ],
+      "end": "A4212 junction near Arenig"
+    },
+    "b4560-llangynidr": {
+      "start": "Talgarth",
+      "waypoints": [
+        "Llangynidr"
+      ],
+      "end": "Beaufort"
+    },
+    "a686-hartside": {
+      "start": "Penrith",
+      "waypoints": [
+        "Alston"
+      ],
+      "end": "Haydon Bridge"
+    },
+    "b6277-north-pennines": {
+      "start": "Barnard Castle",
+      "waypoints": [
+        "Middleton-in-Teesdale"
+      ],
+      "end": "Alston"
+    },
+    "honister-newlands-loop": {
+      "start": "Keswick",
+      "waypoints": [
+        "Seatoller",
+        "Honister Pass",
+        "Buttermere",
+        "Newlands Pass",
+        "Braithwaite"
+      ],
+      "end": "Keswick"
+    },
+    "yorkshire-ribblehead-buttertubs": {
+      "start": "Ingleton",
+      "waypoints": [
+        "Ribblehead",
+        "Hawes",
+        "Buttertubs Pass"
+      ],
+      "end": "Muker"
+    },
+    "a708-three-lochs": {
+      "start": "Moffat",
+      "waypoints": [
+        "St Mary's Loch",
+        "Talla Reservoir",
+        "Tweedsmuir",
+        "Devil's Beef Tub"
+      ],
+      "end": "Moffat"
+    },
+    "a821-dukes-pass": {
+      "start": "Aberfoyle",
+      "waypoints": [
+        "Brig o’ Turk"
+      ],
+      "end": "Kilmahog"
+    },
+    "a82-glencoe": {
+      "start": "Tyndrum",
+      "waypoints": [
+        "Rannoch Moor"
+      ],
+      "end": "Glencoe"
+    },
+    "snowroads": {
+      "start": "Blairgowrie",
+      "waypoints": [
+        "Braemar",
+        "Ballater",
+        "Tomintoul"
+      ],
+      "end": "Grantown-on-Spey"
+    },
+    "a838-durness-tongue": {
+      "start": "Durness",
+      "waypoints": [
+        "Loch Eriboll"
+      ],
+      "end": "Tongue"
+    },
+    "causeway-coast": {
+      "start": "Belfast",
+      "waypoints": [
+        "Larne",
+        "Ballycastle",
+        "Bushmills",
+        "Portrush",
+        "Castlerock"
+      ],
+      "end": "Derry/Londonderry"
+    },
+    "mourne-coast-a2": {
+      "start": "Newry",
+      "waypoints": [
+        "Warrenpoint",
+        "Rostrevor",
+        "Kilkeel",
+        "Annalong"
+      ],
+      "end": "Newcastle"
+    }
+  };
+
   // Route types come from each route's reviewed road type and difficulty,
   // not words in its description (native: ROUTE_CATEGORIES and
   // routeMatchesCategory in curatedRoutes.ts).
@@ -1574,6 +1755,22 @@
     }));
   }
 
+  function navigateFullRoute(route, close) {
+    const names = itineraryLabels[route.id];
+    close();
+    window.dispatchEvent(new CustomEvent('rider-comms:navigate-curated-route', {
+      detail: {
+        routeId: route.id,
+        label: route.name,
+        stops: [route.start, ...route.waypoints].map(([lat, lng], index) => ({
+          lat, lng,
+          label: index === 0 ? (names?.start || 'Start') : (names?.waypoints[index - 1] || `Stop ${index}`),
+        })),
+        end: { lat: route.end[0], lng: route.end[1], label: names?.end || 'Finish' },
+      },
+    }));
+  }
+
   function openRoute(id) {
     const route = routes.find((item) => item.id === id);
     if (!route) return;
@@ -1582,14 +1779,17 @@
     backdrop.className = 'route-detail-backdrop';
     backdrop.innerHTML = `<section class="route-detail" role="dialog" aria-modal="true" aria-labelledby="routeDetailTitle">
       <div class="route-detail-photo"><img src="${routeCardImage(route)}" alt="${escapeHtml(route.alt)}" decoding="async" referrerpolicy="no-referrer"><button class="icon-button route-detail-close" aria-label="Close route overview">×</button><div><span>${escapeHtml(route.region)}</span><h2 id="routeDetailTitle">${escapeHtml(route.name)}</h2><p>${escapeHtml(route.road)}</p></div></div>
-      <div class="route-detail-body"><div class="route-detail-stats"><span><b>${route.distance} mi</b>route</span><span><b>${route.minutes} min</b>ride time*</span><span><b>${escapeHtml(route.difficulty)}</b>difficulty</span>${approach ? `<span><b>${escapeHtml(approach.replace(' from you', ''))}</b>to start</span>` : ''}</div>
+      <div class="route-detail-body"><div class="route-detail-stats"><span><b>${route.distance} mi</b>route</span><span><b>${route.minutes} min</b>travel time*</span><span><b>${escapeHtml(route.difficulty)}</b>difficulty</span>${approach ? `<span><b>${escapeHtml(approach.replace(' from you', ''))}</b>to start</span>` : ''}</div>
+      <button class="button primary wide" data-start-full-route>Navigate full route</button>
+      <p class="caption route-action-note">Follow the start, ${route.waypoints.length} planned ${route.waypoints.length === 1 ? 'stop' : 'stops'} and finish in Rider Comms.</p>
       <div class="route-trace-panel"><div><h3>Waypoint sketch</h3><p>${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}</p></div><span class="route-trace-detail">${routeTraceSvg(route, 156, 88)}</span></div>
-      <p class="route-sketch-disclaimer">Waypoint sketch only — lines do not follow the road network.</p><p>${escapeHtml(route.description)}</p><div class="rider-note"><strong>Rider note</strong><p>${escapeHtml(route.note)}</p></div>
-      <div><h3>Why ride it</h3><div class="badge-row"><span class="badge">${escapeHtml(roadTypeLabels[route.roadType.toLowerCase()] || route.roadType)}</span>${route.highlights.map((item) => `<span class="badge">${escapeHtml(item)}</span>`).join('')}</div></div>
-      <div class="safety-box"><svg><use href="#i-shield"/></svg><div><strong>Before you ride</strong>${route.safety.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></div>
-      <button class="button primary wide" data-guide-route-start>Guide me to the start</button>
+      <p class="route-sketch-disclaimer">Waypoint sketch only — lines do not follow the road network.</p>
+      <div class="route-itinerary"><h3>Route itinerary</h3><ol>${[route.start, ...route.waypoints, route.end].map((point, index, points) => `<li><span class="route-itinerary-marker">${index === 0 ? 'S' : index === points.length - 1 ? 'F' : index}</span><span><strong>${escapeHtml(index === 0 ? (itineraryLabels[route.id]?.start || 'Start') : index === points.length - 1 ? (itineraryLabels[route.id]?.end || 'Finish') : (itineraryLabels[route.id]?.waypoints[index - 1] || `Stop ${index}`))}</strong><small>${index === 0 ? 'Start' : index === points.length - 1 ? 'Finish' : `Stop ${index} of ${route.waypoints.length}`}</small></span></li>`).join('')}</ol></div><p>${escapeHtml(route.description)}</p><div class="rider-note"><strong>Route note</strong><p>${escapeHtml(route.note)}</p></div>
+      <div><h3>Highlights</h3><div class="badge-row"><span class="badge">${escapeHtml(roadTypeLabels[route.roadType.toLowerCase()] || route.roadType)}</span>${route.highlights.map((item) => `<span class="badge">${escapeHtml(item)}</span>`).join('')}</div></div>
+      <div class="safety-box"><svg><use href="#i-shield"/></svg><div><strong>Before you go</strong>${route.safety.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></div>
+      <button class="button secondary wide" data-guide-route-start>Directions to starting point</button>
       <a class="button secondary wide" href="${mapsUrl(route)}" target="_blank" rel="noopener">Preview in Google Maps</a>
-      <p class="caption route-action-note">*Ride time is an estimate without stops or traffic.${route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; confirm each stop before riding.' : ''}</p>
+      <p class="caption route-action-note">*Travel time is an estimate without stops or traffic.${route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; confirm each stop before riding.' : ''}</p>
       <div class="route-links"><a href="${route.conditions}" target="_blank" rel="noopener">Live conditions</a><a href="${route.routeSource}" target="_blank" rel="noopener">Route source</a><a href="${route.source}" target="_blank" rel="noopener">Photo: ${escapeHtml(route.credit)}</a><a href="${route.license}" target="_blank" rel="noopener">Photo licence</a></div></div>
     </section>`;
     document.body.append(backdrop);
@@ -1605,10 +1805,14 @@
       }, { once: true });
       heroImage.src = heroImageSrc;
     }
-    const close = () => backdrop.remove();
+    const previousFocus = document.activeElement;
+    const onKeyDown = (event) => { if (event.key === 'Escape') close(); };
+    const close = () => { backdrop.remove(); document.removeEventListener('keydown', onKeyDown); previousFocus?.focus?.(); };
+    document.addEventListener('keydown', onKeyDown);
     backdrop.querySelector('.route-detail-close').addEventListener('click', close);
     backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
     backdrop.querySelector('[data-guide-route-start]').addEventListener('click', () => guideToStart(route, close));
+    backdrop.querySelector('[data-start-full-route]').addEventListener('click', () => navigateFullRoute(route, close));
     backdrop.querySelector('.route-detail-close').focus();
   }
 
