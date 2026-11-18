@@ -13,6 +13,7 @@ export const styles = StyleSheet.create({
   cardBody: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, backgroundColor: colors.surface },
   cardTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 16, lineHeight: 21, fontWeight: '800' },
   cardRegion: { ...type.caption, color: colors.textSecondary, marginTop: 2, fontSize: 12 },
+  cardApproach: { ...type.caption, color: colors.accentInk, marginTop: 3, fontSize: 12, fontWeight: '700' },
   cardStats: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 10, rowGap: 4, marginTop: 6 },
   cardStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   cardStat: { ...type.caption, color: colors.textMuted, fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
