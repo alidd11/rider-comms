@@ -1588,8 +1588,8 @@
       <div><h3>Why ride it</h3><div class="badge-row"><span class="badge">${escapeHtml(roadTypeLabels[route.roadType.toLowerCase()] || route.roadType)}</span>${route.highlights.map((item) => `<span class="badge">${escapeHtml(item)}</span>`).join('')}</div></div>
       <div class="safety-box"><svg><use href="#i-shield"/></svg><div><strong>Before you ride</strong>${route.safety.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></div>
       <button class="button primary wide" data-guide-route-start>Guide me to the start</button>
-      <a class="button secondary wide" href="${mapsUrl(route)}" target="_blank" rel="noopener">Open full route in Maps</a>
-      <p class="caption route-action-note">*Ride time is an estimate without stops or traffic.${route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; check the route before riding.' : ''}</p>
+      <a class="button secondary wide" href="${mapsUrl(route)}" target="_blank" rel="noopener">Preview in Google Maps</a>
+      <p class="caption route-action-note">*Ride time is an estimate without stops or traffic.${route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; confirm each stop before riding.' : ''}</p>
       <div class="route-links"><a href="${route.conditions}" target="_blank" rel="noopener">Live conditions</a><a href="${route.routeSource}" target="_blank" rel="noopener">Route source</a><a href="${route.source}" target="_blank" rel="noopener">Photo: ${escapeHtml(route.credit)}</a><a href="${route.license}" target="_blank" rel="noopener">Photo licence</a></div></div>
     </section>`;
     document.body.append(backdrop);
