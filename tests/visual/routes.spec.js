@@ -59,6 +59,34 @@ test('PWA route discovery previews route shape and hands the start back to the m
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-destination-navigation-final.png'), fullPage: true });
 });
 
+test('PWA Navigate full route sends every named checkpoint in order to the map', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.goto('/');
+  await openFromMenu(page, 'routes');
+  await page.locator('.curated-route-card').first().click();
+  await expect(page.locator('.route-detail')).toBeVisible();
+
+  const itinerary = await page.locator('.route-itinerary li strong').allTextContents();
+  expect(itinerary.length).toBeGreaterThanOrEqual(3);
+  await page.evaluate(() => {
+    window.__curatedItineraryTest = null;
+    window.addEventListener('rider-comms:navigate-curated-route', (event) => {
+      window.__curatedItineraryTest = event.detail;
+    }, { once: true });
+  });
+
+  await page.locator('[data-start-full-route]').click();
+  const payload = await page.evaluate(() => window.__curatedItineraryTest);
+  expect(payload?.routeId).toBeTruthy();
+  expect(payload?.stops).toHaveLength(itinerary.length - 1);
+  expect([...payload.stops.map((stop) => stop.label), payload.end.label]).toEqual(itinerary);
+  for (const point of [...payload.stops, payload.end]) {
+    expect(Number.isFinite(point.lat)).toBe(true);
+    expect(Number.isFinite(point.lng)).toBe(true);
+  }
+  await expect(page.locator('[data-screen="map"]')).toHaveClass(/active/);
+});
+
 test('PWA Routes shows only roads that suit the rider’s vehicle', async ({ page }) => {
   await mockAuthenticatedApi(page, 'stationary');
   await page.goto('/');
