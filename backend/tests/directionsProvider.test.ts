@@ -266,6 +266,43 @@ describe('Google Routes API provider', () => {
   });
 });
 
+describe('ordered curated route waypoints', () => {
+  it('passes every ordered waypoint to Google Routes and disables alternatives', async () => {
+    const intermediate = [{ lat: 51.502, lon: -0.101 }, { lat: 51.506, lon: -0.105 }, { lat: 51.508, lon: -0.108 }];
+    let body: Record<string, unknown> = {};
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ routes: [routesRoute('300s', '280s')] }), { status: 200 });
+    }) as typeof fetch;
+    await fetchGoogleRoutes(origin, destination, { apiKey: 'k', fetchImpl, avoid: { waypoints: intermediate } });
+    assert.deepEqual(body.intermediates, intermediate.map((coordinate) => ({ location: { latLng: { latitude: coordinate.lat, longitude: coordinate.lon } } })));
+    assert.equal(body.computeAlternativeRoutes, false);
+  });
+
+  it('keeps ordered waypoints on legacy Directions fallback', async () => {
+    let url = '';
+    const fetchImpl = (async (requested: string | URL | Request) => {
+      url = String(requested);
+      return new Response(JSON.stringify({ status: 'ZERO_RESULTS' }), { status: 200 });
+    }) as typeof fetch;
+    await assert.rejects(() => fetchGoogleDrivingRoute(origin, destination, {
+      apiKey: 'k', fetchImpl, avoid: { waypoints: [{ lat: 51.502, lon: -0.101 }, { lat: 51.506, lon: -0.105 }] },
+    }), (error: unknown) => error instanceof DirectionsProviderError && error.code === 'directions_no_route');
+    assert.equal(new URL(url).searchParams.get('waypoints'), '51.502,-0.101|51.506,-0.105');
+  });
+
+  it('rejects invalid and oversized waypoint sets before requesting a provider', async () => {
+    const invalidSets = [[{ lat: Number.NaN, lon: 0 }], Array.from({ length: 21 }, (_, i) => ({ lat: 51.5 + i / 1000, lon: -0.1 }))];
+    for (const waypoints of invalidSets) {
+      const fail = () => { throw new Error('provider should not be called'); };
+      for (const run of [fetchGoogleRoutes, fetchGoogleDrivingRoute]) {
+        await assert.rejects(() => run(origin, destination, { apiKey: 'k', fetchImpl: fail as typeof fetch, avoid: { waypoints } }),
+          (error: unknown) => error instanceof DirectionsProviderError && error.code === 'directions_invalid_request');
+      }
+    }
+  });
+});
+
 describe('a stop on the way', () => {
   it('asks the Routes API to go through it, without alternatives, and rides its legs as one', async () => {
     let body: Record<string, unknown> = {};
