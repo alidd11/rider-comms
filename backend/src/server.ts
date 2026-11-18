@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { errorFields, log } from './log.ts';
 import { RequestMetrics, routeKey } from './requestMetrics.ts';
+import { apiPath, openApiDocument, requiresVerifiedEmail } from './apiCatalogue.ts';
 import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv } from './liveKitToken.ts';
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
 import { fetchDrivingRoute } from './directionsProvider.ts';
@@ -11,6 +12,7 @@ import { configureErrorAlerts, ErrorAlerter, flushErrorAlerts, reportOperational
 import { DEFAULT_PUBLIC_APP_URL, sendOperationalEmail } from './email.ts';
 import { SITE_CHECK_INTERVAL_MS, SiteMonitor } from './siteMonitor.ts';
 import { createShutdown, errorMessage, installCrashHandlers, runMaintenance, scheduleMaintenance } from './processLifecycle.ts';
+import { onceAcrossReplicas } from './jobLease.ts';
 import { fetchGooglePlaceDetails, fetchGooglePlaces, fetchGooglePlacesAlongRoute, fetchGooglePlaceSuggestions } from './placesProvider.ts';
 import type { PlaceAlongRoute, PlaceAlongRouteRequest, PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
@@ -88,6 +90,8 @@ export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
   trustProxy?: boolean;
   logger?: (event: ApiRequestLog) => void;
+  /** The API's public address, for the servers list in /openapi.json. */
+  publicApiUrl?: string;
   /** Per-route request figures for the dashboard; one per process. */
   requestMetrics?: RequestMetrics;
   /** Defaults to reading LIVEKIT_API_KEY/LIVEKIT_API_SECRET/LIVEKIT_URL from
@@ -167,23 +171,6 @@ async function authRider(req: http.IncomingMessage, res: http.ServerResponse, au
   if (!riderId) sendJson(res, 401, { error: 'unauthorized' });
   return riderId;
 }
-function requiresVerifiedEmail(method: string | undefined, pathname: string): boolean {
-  if (method !== 'POST') return false;
-  if ([
-    '/presence',
-    '/voice/token',
-    '/reports',
-    '/friends/requests',
-    '/messages',
-    '/hideouts',
-    '/hazards',
-    '/scenic-routes',
-    '/social/media',
-    '/social/posts',
-  ].includes(pathname)) return true;
-  return /^\/hazards\/[^/]+\/(confirm|deny)$/.test(pathname) || /^\/social\/posts\/[^/]+\/report$/.test(pathname);
-}
-
 async function requireVerifiedEmail(
   res: http.ServerResponse,
   authStore: AuthStore,
@@ -320,7 +307,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       try {
         const error = responseErrorCode(res);
         const method = req.method ?? 'UNKNOWN';
-        const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+        const path = apiPath(new URL(req.url ?? '/', 'http://localhost').pathname);
         const durationMs = Date.now() - startedAt;
         requestMetrics.record(method, path, res.statusCode, durationMs);
         options.logger?.({
@@ -333,8 +320,11 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     });
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
+      // Every route also answers under /v1, so clients can pin the version.
+      url.pathname = apiPath(url.pathname);
       if (!applyCors(req, res, allowedOrigins)) return sendJson(res, 403, { error: 'origin_not_allowed' });
       if (req.method === 'OPTIONS') return sendEmpty(res, 204);
+      if (req.method === 'GET' && url.pathname === '/openapi.json') return sendJson(res, 200, openApiDocument(options.publicApiUrl ?? process.env.PUBLIC_API_URL));
       if ((await handlePublicRoutes({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
       if ((await handleBillingNotificationRoutes({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
       if ((await handleSocialMediaRoute({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
@@ -484,15 +474,15 @@ async function startProductionServer(): Promise<void> {
     log: ({ level, event, ...fields }) => log(level === 'warn' ? 'warn' : 'info', String(event), fields),
   });
   const timers = [
-    scheduleMaintenance(AUTH_CLEANUP_INTERVAL_MS, 'auth_record_cleanup_failed', cleanAuthRecords),
-    scheduleMaintenance(RATE_LIMIT_CLEANUP_INTERVAL_MS, 'rate_limit_cleanup_failed', cleanRateLimits),
-    scheduleMaintenance(SOCIAL_RATE_CLEANUP_INTERVAL_MS, 'social_rate_cleanup_failed', cleanSocialRates),
-    scheduleMaintenance(SOCIAL_STATE_CLEANUP_INTERVAL_MS, 'social_state_cleanup_failed', cleanSocialState),
-    scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'retention_sweep_failed', sweepRetention),
-    scheduleMaintenance(BILLING_SWEEP_INTERVAL_MS, 'billing_sweep_failed', sweepBilling),
-    scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'active_riders_snapshot_failed', recordActiveRiders),
-    scheduleMaintenance(SITE_CHECK_INTERVAL_MS, 'site_check_failed', () => siteMonitor.check()),
-    scheduleMaintenance(SOCIAL_MEDIA_SWEEP_INTERVAL_MS, 'social_media_sweep_failed', sweepSocialMedia),
+    scheduleMaintenance(AUTH_CLEANUP_INTERVAL_MS, 'auth_record_cleanup_failed', onceAcrossReplicas('auth_record_cleanup', AUTH_CLEANUP_INTERVAL_MS, cleanAuthRecords)),
+    scheduleMaintenance(RATE_LIMIT_CLEANUP_INTERVAL_MS, 'rate_limit_cleanup_failed', onceAcrossReplicas('rate_limit_cleanup', RATE_LIMIT_CLEANUP_INTERVAL_MS, cleanRateLimits)),
+    scheduleMaintenance(SOCIAL_RATE_CLEANUP_INTERVAL_MS, 'social_rate_cleanup_failed', onceAcrossReplicas('social_rate_cleanup', SOCIAL_RATE_CLEANUP_INTERVAL_MS, cleanSocialRates)),
+    scheduleMaintenance(SOCIAL_STATE_CLEANUP_INTERVAL_MS, 'social_state_cleanup_failed', onceAcrossReplicas('social_state_cleanup', SOCIAL_STATE_CLEANUP_INTERVAL_MS, cleanSocialState)),
+    scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'retention_sweep_failed', onceAcrossReplicas('retention_sweep', RETENTION_SWEEP_INTERVAL_MS, sweepRetention)),
+    scheduleMaintenance(BILLING_SWEEP_INTERVAL_MS, 'billing_sweep_failed', onceAcrossReplicas('billing_sweep', BILLING_SWEEP_INTERVAL_MS, sweepBilling)),
+    scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'active_riders_snapshot_failed', onceAcrossReplicas('active_riders_snapshot', RETENTION_SWEEP_INTERVAL_MS, recordActiveRiders)),
+    scheduleMaintenance(SITE_CHECK_INTERVAL_MS, 'site_check_failed', onceAcrossReplicas('site_check', SITE_CHECK_INTERVAL_MS, () => siteMonitor.check())),
+    scheduleMaintenance(SOCIAL_MEDIA_SWEEP_INTERVAL_MS, 'social_media_sweep_failed', onceAcrossReplicas('social_media_sweep', SOCIAL_MEDIA_SWEEP_INTERVAL_MS, sweepSocialMedia)),
   ];
 
   const shutdown = createShutdown({

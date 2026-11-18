@@ -1,4 +1,5 @@
 import { bearerToken, consumeRateLimit, rateLimitSubject, readJsonBody, sendEmpty, sendJson } from '../serverHttp.ts';
+import { exportRiderData } from '../accountExport.ts';
 import { TERMS_VERSION } from '../authStore.ts';
 import { NOT_HANDLED, STAFF_REAUTH_WINDOW_MS, ejectFromVoice, voiceMembershipsOf } from './context.ts';
 import type { RouteContext } from './context.ts';
@@ -40,6 +41,14 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<unknown> {
     return confirmed
       ? sendJson(res, 200, { reauthenticated: true, validForMs: STAFF_REAUTH_WINDOW_MS })
       : sendJson(res, 401, { error: 'invalid_credentials' });
+  }
+  // Download my data: everything held about this rider, as one JSON file.
+  if (req.method === 'GET' && url.pathname === '/auth/export') {
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'auth'))) return;
+    const data = await exportRiderData(actorId);
+    if (!data) return sendJson(res, 404, { error: 'not_found' });
+    res.setHeader('Content-Disposition', `attachment; filename="rider-comms-data-${new Date().toISOString().slice(0, 10)}.json"`);
+    return sendJson(res, 200, data);
   }
   if (req.method === 'GET' && url.pathname === '/auth/security-events') {
     return sendJson(res, 200, { events: await authStore.listSecurityEvents({ riderId: actorId, limit: 50 }) });

@@ -42,12 +42,12 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
     ['social', 'Social posts', ['social_post_restore', 'social_post_remove']],
-    ['accounts', 'Accounts', ['verify_email']],
+    ['accounts', 'Accounts', ['verify_email', 'data_export']],
     ['staff', 'Staff', ['staff_grant', 'staff_revoke']],
   ];
 
@@ -721,6 +721,36 @@
     return button;
   }
 
+  // Answering a data access request: admins download everything held about
+  // a rider. Needs a reason, which goes in the audit log.
+  function exportButton(rider) {
+    if (!allowed('manage_staff')) return null;
+    const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'export-data' }, text: 'Export data', 'aria-label': `Export ${rider.username}'s data` });
+    button.addEventListener('click', async () => {
+      const note = window.prompt(`Download everything held about ${rider.username}? Reason for the audit log (e.g. the access request it answers):`);
+      if (note === null) return;
+      if (!note.trim()) {
+        window.alert('A reason is required. Every export is recorded.');
+        return;
+      }
+      button.disabled = true;
+      try {
+        const data = await api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note: note.trim() });
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const link = el('a', { href: URL.createObjectURL(blob), download: `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json` });
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      } catch (error) {
+        window.alert(actionErrorMessage(error));
+      } finally {
+        button.disabled = false;
+      }
+    });
+    return button;
+  }
+
   function renderRiders(riders) {
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', name: 'q', placeholder: 'Search name, username, email or ID', 'aria-label': 'Search riders', maxlength: 100, autocomplete: 'off' });
@@ -738,7 +768,7 @@
       : [
         el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, riders.map((rider) => el('li', { class: 'list-row', dataset: { riderId: rider.riderId } }, [
           person(displayName(rider), [rider.handle, rider.email].filter(Boolean).join(' · '), rider.riderId),
-          el('div', { class: 'trail' }, [riderBadges(rider), verifyEmailButton(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
+          el('div', { class: 'trail' }, [riderBadges(rider), verifyEmailButton(rider), exportButton(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
         ])))]),
         el('div', { class: 'card table-card only-desktop' }, [el('div', { class: 'table-scroll' }, [el('table', { class: 'table' }, [
           el('thead', {}, [el('tr', {}, [
@@ -748,7 +778,7 @@
           el('tbody', {}, riders.map((rider) => el('tr', { dataset: { riderId: rider.riderId } }, [
             el('td', {}, [person(displayName(rider), [rider.handle, rider.riderId].filter(Boolean).join(' · '), rider.riderId)]),
             el('td', { class: 'muted', text: rider.email || '—' }),
-            el('td', {}, [riderBadges(rider), verifyEmailButton(rider)]),
+            el('td', {}, [riderBadges(rider), verifyEmailButton(rider), exportButton(rider)]),
             el('td', { class: 'muted' }, [timeEl(rider.createdAt)]),
             el('td', { class: 'muted' }, [timeEl(rider.lastSeenAt, 'Over 30 days')]),
             el('td', { class: 'num', text: numberFormat.format(rider.friends) }),

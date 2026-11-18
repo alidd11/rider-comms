@@ -1,3 +1,4 @@
+import { exportRiderData } from '../accountExport.ts';
 import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
 import { getPool } from '../db.ts';
 import { emailDeliveryStatus } from '../email.ts';
@@ -57,6 +58,21 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 200' });
     const riderId = url.searchParams.get('riderId')?.trim() || undefined;
     return sendJson(res, 200, { events: await authStore.listSecurityEvents({ riderId, staffOnly: url.searchParams.get('staff') === '1', limit }) });
+  }
+  // A data access request answered by staff: needs a reason and is recorded.
+  if (req.method === 'POST' && s[1] === 'riders' && s[2] && s[3] === 'export' && s.length === 4) {
+    if (lacks('manage_staff')) return refuse('manage_staff');
+    if (await refuseWithoutRecentReauth(ctx)) return;
+    const body = await readJsonBody(req);
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+      return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    const riderId = decodeURIComponent(s[2]);
+    const data = await exportRiderData(riderId);
+    if (!data) return sendJson(res, 404, { error: 'not_found' });
+    await moderationStore.recordDataExport(riderId, actorId, note);
+    return sendJson(res, 200, data);
   }
   if (s[1] === 'staff') {
     if (lacks('manage_staff')) return refuse('manage_staff');

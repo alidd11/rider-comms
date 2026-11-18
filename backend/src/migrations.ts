@@ -1044,4 +1044,18 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS reauthenticated_at TIMESTAMPTZ;
     `,
   },
+  {
+    // Staff exporting a rider's data (a data access request) is recorded, and
+    // recurring jobs are claimed per interval so one replica runs each (jobLease.ts).
+    name: '0059_data_export_action_and_job_runs',
+    sql: `
+      CREATE TABLE IF NOT EXISTS job_runs (
+        job TEXT PRIMARY KEY,
+        last_run_at BIGINT NOT NULL
+      );
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove', 'staff_grant', 'staff_revoke', 'data_export'));
+    `,
+  },
 ];

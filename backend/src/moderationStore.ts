@@ -20,7 +20,7 @@ export const REPORT_STATUSES = ['open', 'dismissed', 'actioned'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export const REPORT_RESOLUTIONS = ['dismiss', 'suspend'] as const;
 export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
-export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke';
+export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke' | 'data_export';
 export const MAX_MODERATION_NOTE_LENGTH = 1000;
 
 export interface QueuedSafetyReport extends SafetyReport {
@@ -470,6 +470,12 @@ export class ModerationStore {
       const action = await this.recordAction(client, adminId, riderId, null, 'staff_revoke', `${removed.rows[0].role}: ${note}`, now);
       return { ok: true, action };
     });
+  }
+
+  /** Records that staff exported a rider's data, and why. */
+  async recordDataExport(riderId: string, staffId: string, note: string, now = Date.now()): Promise<ModerationAction> {
+    await ensureMigrated();
+    return withTransaction((client) => this.recordAction(client, staffId, riderId, null, 'data_export', note, now));
   }
 
   /** The moderation audit log, newest first, optionally for one rider. */

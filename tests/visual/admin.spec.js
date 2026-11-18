@@ -187,6 +187,11 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.actions.unshift({ id: `a${state.actions.length}`, moderatorId: ADMIN_ID, targetRiderId: report.reportedRiderId, reportId: report.id, action: body.resolution, note: body.note, createdAt: Date.now() });
       return json(200, { ok: true });
     }
+    const exportMatch = url.pathname.match(/^\/admin\/riders\/([^/]+)\/export$/);
+    if (exportMatch) {
+      state.posts.push({ path: url.pathname, body: request.postDataJSON() });
+      return json(200, { format: 'rider-comms-data-export', version: 1, account: { rider_id: decodeURIComponent(exportMatch[1]) } });
+    }
     if (url.pathname.endsWith('/verify-email')) {
       const rider = state.riders.find((candidate) => url.pathname.includes(candidate.riderId));
       if (rider) rider.emailVerified = true;
@@ -474,6 +479,7 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#riders');
     await expect(page.locator('#nav [data-view]:visible')).toHaveText(['Overview', 'Riders', 'Audit log', 'System']);
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
   });
 
   test('a page the role lacks says so', async ({ page }) => {
@@ -509,6 +515,19 @@ test.describe('staff dashboard', () => {
     await expect(dialog).toBeHidden();
     await expect(page.locator('.empty-title')).toHaveText('No open reports');
     expect(state.posts).toEqual([{ path: '/moderation/reports/report-1/resolve', body: { resolution: 'dismiss', note: 'Checked the chat history.' } }]);
+  });
+
+  test('admins export a rider\'s data with a reason', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    const maya = page.locator('[data-rider-id="rider_maya"]:visible');
+    page.once('dialog', (dialog) => dialog.accept('Access request, ticket 42'));
+    const download = page.waitForEvent('download');
+    await maya.getByRole('button', { name: "Export maya's data" }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^rider-comms-data-rider_maya-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(state.posts.at(-1)).toEqual({ path: '/admin/riders/rider_maya/export', body: { note: 'Access request, ticket 42' } });
   });
 
   test('system view shows the last hour of traffic', async ({ page }) => {

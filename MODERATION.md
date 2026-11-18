@@ -33,6 +33,12 @@ verifying email, staff roles) needs the password re-entered on that session
 within the last 15 minutes. The dashboard asks for it when needed
 (`POST /auth/reauthenticate`); otherwise the change gets 403 `reauth_required`.
 
+Data access requests: riders download everything held about them with
+`GET /auth/export`. Admins can answer a request by email from the Riders
+page (Export data, `POST /admin/riders/:riderId/export` with a reason), which
+is recorded as `data_export`. The export leaves out password hashes, tokens,
+who reported the rider and staff notes about them.
+
 Sign-ins, wrong passwords, password resets, sign-outs and revoked devices are
 kept for 180 days in `security_events`. Riders see their own with
 `GET /auth/security-events`; admins see staff sign-ins on the Staff page and

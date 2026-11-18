@@ -143,6 +143,15 @@ This file is the current picture. Older documents are still accurate for their t
 
 ---
 
+### API contract
+
+`backend/src/apiCatalogue.ts` lists every endpoint (method, path, who can call
+it, the staff permission and whether a password re-check is needed). It is
+served as OpenAPI 3.1 at `GET /openapi.json`, and a test fails when a route
+in `backend/src/routes` is missing from it. Every path also answers under
+`/v1` (for example `/v1/rides/current`), so clients can pin the version
+before a breaking change ships under `/v2`.
+
 ## 3. Rider Comms (the main app)
 
 The feature descriptions in `PROJECT_STATUS.md` still hold. In brief:
