@@ -369,6 +369,9 @@ export function MapScreen(): React.JSX.Element {
     const id = route.params?.curatedRouteId;
     if (!id) return;
     const curated = CURATED_ROUTES.find((item) => item.id === id);
+    // Consume the one-shot selection. Otherwise later Map tab presses could
+    // accidentally restart the previous scenic route.
+    navigation.setParams({ curatedRouteId: undefined });
     if (curated) void startCuratedNavigation(curated);
     else Alert.alert('Route unavailable', 'The selected scenic route is no longer in the reviewed catalogue.');
     // A new selection supplies an `at` nonce even if the Map tab is already mounted.
