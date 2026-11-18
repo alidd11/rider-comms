@@ -1,16 +1,22 @@
 import { MAX_MODERATION_NOTE_LENGTH, REPORT_RESOLUTIONS, REPORT_STATUSES } from '../moderationStore.ts';
 import type { ReportResolution, ReportStatus } from '../moderationStore.ts';
 import { readJsonBody, sendJson } from '../serverHttp.ts';
+import { roleCan } from '../staffRoles.ts';
 import { NOT_HANDLED, ejectFromVoice, voiceMembershipsOf } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, actorId, s, authStore, moderationStore } = ctx;
   if (s[0] === 'moderation') {
-    // Staff moderation queue. Admin status is re-read from Postgres on
-    // every request (see ADMIN_RIDER_IDS / users.is_admin), never trusted
-    // from the client.
-    if (!(await authStore.isAdmin(actorId))) return sendJson(res, 403, { error: 'admin_required' });
+    // Staff moderation queue. The caller's role is re-read from Postgres on
+    // every request (users.is_admin and staff_roles), never trusted from the
+    // client; each action checks the permission it needs (staffRoles.ts).
+    const role = await authStore.staffRole(actorId);
+    if (!role) return sendJson(res, 403, { error: 'admin_required' });
+    const permission = req.method === 'GET' && url.pathname === '/moderation/actions' ? 'view_audit'
+      : req.method === 'POST' && s[1] === 'riders' && s[3] === 'verify-email' ? 'verify_email'
+      : 'moderate';
+    if (!roleCan(role, permission)) return sendJson(res, 403, { error: 'permission_required', permission });
     const limitParam = url.searchParams.get('limit');
     const limit = limitParam === null ? undefined : Number(limitParam);
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 200)) {

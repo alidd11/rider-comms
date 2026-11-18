@@ -1,19 +1,31 @@
 import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
 import { emailDeliveryStatus } from '../email.ts';
-import { sendJson } from '../serverHttp.ts';
+import { MAX_MODERATION_NOTE_LENGTH } from '../moderationStore.ts';
+import { readJsonBody, sendJson } from '../serverHttp.ts';
+import { GRANTABLE_STAFF_ROLES, isGrantableStaffRole, permissionsFor, roleCan } from '../staffRoles.ts';
+import type { StaffPermission } from '../staffRoles.ts';
 import { NOT_HANDLED } from './context.ts';
 import type { RouteContext } from './context.ts';
 
-/** Staff business dashboard. Admin status is re-read from Postgres on every request. */
+/** Staff dashboard. The caller's role is re-read from Postgres on every request. */
 export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
-  const { req, res, url, actorId, s, authStore, adminStatsStore } = ctx;
+  const { req, res, url, actorId, s, authStore, adminStatsStore, moderationStore, profileStore } = ctx;
   if (s[0] !== 'admin') return NOT_HANDLED;
-  if (!(await authStore.isAdmin(actorId))) return sendJson(res, 403, { error: 'admin_required' });
+  const role = await authStore.staffRole(actorId);
+  if (!role) return sendJson(res, 403, { error: 'admin_required' });
+  const lacks = (permission: StaffPermission) => !roleCan(role, permission);
+  const refuse = (permission: StaffPermission) => sendJson(res, 403, { error: 'permission_required', permission });
+
+  if (req.method === 'GET' && url.pathname === '/admin/me') {
+    return sendJson(res, 200, { riderId: actorId, role, permissions: permissionsFor(role) });
+  }
   if (req.method === 'GET' && url.pathname === '/admin/overview') {
+    if (lacks('view_overview')) return refuse('view_overview');
     return sendJson(res, 200, await adminStatsStore.overview());
   }
   // What the running backend is set up to do, for the dashboard's System page.
   if (req.method === 'GET' && url.pathname === '/admin/system') {
+    if (lacks('view_system')) return refuse('view_system');
     return sendJson(res, 200, {
       socialMediaStorage: ctx.socialMedia !== null,
       socialPosting: ctx.socialPostingEnabled,
@@ -21,6 +33,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     });
   }
   if (req.method === 'GET' && url.pathname === '/admin/riders') {
+    if (lacks('view_riders')) return refuse('view_riders');
     const query = url.searchParams.get('q') ?? '';
     if (query.length > 100) return sendJson(res, 400, { error: 'q must be at most 100 characters' });
     const limitParam = url.searchParams.get('limit');
@@ -29,6 +42,32 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       return sendJson(res, 400, { error: `limit must be an integer from 1 to ${MAX_RIDER_SEARCH_RESULTS}` });
     }
     return sendJson(res, 200, { riders: await adminStatsStore.searchRiders(query, limit) });
+  }
+
+  if (s[1] === 'staff') {
+    if (lacks('manage_staff')) return refuse('manage_staff');
+    if (req.method === 'GET' && s.length === 2) return sendJson(res, 200, { staff: await moderationStore.listStaff() });
+    if (req.method !== 'POST') return sendJson(res, 404, { error: 'not_found' });
+    const body = await readJsonBody(req);
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+      return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    if (s.length === 2) {
+      if (!isGrantableStaffRole(body.role)) return sendJson(res, 400, { error: `role must be one of ${GRANTABLE_STAFF_ROLES.join(', ')}` });
+      const rider = typeof body.rider === 'string' ? body.rider.trim() : '';
+      if (!rider || rider.length > 100) return sendJson(res, 400, { error: 'rider must be a rider ID or handle' });
+      const riderId = rider.startsWith('rider_') ? rider : await profileStore.findRiderIdByHandle(`@${rider.replace(/^@/, '')}`) ?? rider;
+      if (riderId === actorId) return sendJson(res, 409, { error: 'is_admin' });
+      const result = await moderationStore.setStaffRole(riderId, body.role, actorId, note);
+      if (!result.ok) return sendJson(res, result.error === 'not_found' ? 404 : 409, { error: result.error });
+      return sendJson(res, 200, result);
+    }
+    if (s.length === 4 && s[3] === 'remove') {
+      const result = await moderationStore.removeStaffRole(decodeURIComponent(s[2]!), actorId, note);
+      if (!result.ok) return sendJson(res, result.error === 'not_found' ? 404 : 409, { error: result.error });
+      return sendJson(res, 200, result);
+    }
   }
   return sendJson(res, 404, { error: 'not_found' });
 }

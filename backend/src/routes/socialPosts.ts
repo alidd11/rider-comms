@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { roleCan } from '../staffRoles.ts';
 import { containsSevereText } from '../contentFilter.ts';
 import { MAX_MODERATION_NOTE_LENGTH, REPORT_REASONS } from '../moderationStore.ts';
 import type { ReportReason } from '../moderationStore.ts';
@@ -66,7 +67,7 @@ export async function handleSocialMediaRoute(
     return sendJson(res, 403, { error: 'invalid_media_link' });
   }
   const media = await socialPostStore.servableMedia(viewer.riderId, mediaId) ??
-    (await ctx.authStore.isAdmin(viewer.riderId) ? await socialPostStore.mediaForStaff(mediaId) : null);
+    (await ctx.authStore.can(viewer.riderId, 'moderate') ? await socialPostStore.mediaForStaff(mediaId) : null);
   const key = variant === 'poster' ? media?.posterKey : media?.objectKey;
   if (!media || !key) return sendJson(res, 404, { error: 'not_found' });
   const range = parseByteRange(typeof req.headers.range === 'string' ? req.headers.range : undefined);
@@ -251,7 +252,9 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
 export async function handleSocialModerationRoutes(ctx: SocialPostContext): Promise<unknown> {
   const { req, res, url, s, actorId, authStore, socialPostStore } = ctx;
   if (s[0] !== 'moderation' || s[1] !== 'social-posts') return NOT_HANDLED;
-  if (!(await authStore.isAdmin(actorId))) return sendJson(res, 403, { error: 'admin_required' });
+  const role = await authStore.staffRole(actorId);
+  if (!role) return sendJson(res, 403, { error: 'admin_required' });
+  if (!roleCan(role, 'moderate')) return sendJson(res, 403, { error: 'permission_required', permission: 'moderate' });
   if (req.method === 'GET' && s.length === 2) {
     const limit = Number(url.searchParams.get('limit') ?? 50);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 100' });

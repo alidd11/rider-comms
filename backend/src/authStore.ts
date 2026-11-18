@@ -1,4 +1,6 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
+import { roleCan } from './staffRoles.ts';
+import type { StaffPermission, StaffRole } from './staffRoles.ts';
 import type { ScryptOptions } from 'node:crypto';
 import { generateRideCode } from '@rider-comms/shared';
 import { getPool, ensureMigrated, withTransaction } from './db.ts';
@@ -428,6 +430,23 @@ export class AuthStore {
       'SELECT email FROM users WHERE is_admin AND email_verified_at IS NOT NULL AND email IS NOT NULL ORDER BY email'
     );
     return rows.map((row) => row.email);
+  }
+
+  /** The rider's staff role, re-read from Postgres each time; null for riders who aren't staff. */
+  async staffRole(riderId: string): Promise<StaffRole | null> {
+    if (!process.env.DATABASE_URL) return null;
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ is_admin: boolean; role: StaffRole | null }>(
+      'SELECT u.is_admin, s.role FROM users u LEFT JOIN staff_roles s ON s.rider_id = u.id WHERE u.id = $1',
+      [riderId]
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return row.is_admin ? 'admin' : row.role ?? null;
+  }
+
+  async can(riderId: string, permission: StaffPermission): Promise<boolean> {
+    return roleCan(await this.staffRole(riderId), permission);
   }
 
   async isAdmin(riderId: string): Promise<boolean> {

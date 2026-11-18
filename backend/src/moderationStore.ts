@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { GrantableStaffRole, StaffRole } from './staffRoles.ts';
 import type { PoolClient } from 'pg';
 import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { appendSocialEventForRiders } from './socialEventStore.ts';
@@ -19,7 +20,7 @@ export const REPORT_STATUSES = ['open', 'dismissed', 'actioned'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export const REPORT_RESOLUTIONS = ['dismiss', 'suspend'] as const;
 export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
-export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove';
+export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke';
 export const MAX_MODERATION_NOTE_LENGTH = 1000;
 
 export interface QueuedSafetyReport extends SafetyReport {
@@ -48,6 +49,21 @@ export type ResolveReportResult =
 export type UnsuspendResult =
   | { ok: true; action: ModerationAction }
   | { ok: false; error: 'not_found' | 'not_suspended' };
+
+export interface StaffMember {
+  riderId: string;
+  role: StaffRole;
+  displayName: string | null;
+  handle: string | null;
+  email: string | null;
+  grantedBy: string | null;
+  grantedAt: number | null;
+  lastSeenAt: number | null;
+}
+
+export type StaffChangeResult =
+  | { ok: true; action: ModerationAction }
+  | { ok: false; error: 'not_found' | 'is_admin' | 'unchanged' | 'not_staff' | 'suspended' };
 
 export type VerifyEmailResult =
   | { ok: true; action: ModerationAction }
@@ -386,6 +402,72 @@ export class ModerationStore {
       }
       await client.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [riderId]);
       const action = await this.recordAction(client, moderatorId, riderId, null, 'verify_email', note, now);
+      return { ok: true, action };
+    });
+  }
+
+  /** Everyone with dashboard access: admins first, then by role and name. */
+  async listStaff(): Promise<StaffMember[]> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{
+      id: string; is_admin: boolean; role: GrantableStaffRole | null; display_name: string | null; handle: string | null;
+      email: string | null; granted_by: string | null; granted_at: string | null; last_seen_at: string | null;
+    }>(
+      `SELECT u.id, u.is_admin, s.role, p.display_name, p.handle, u.email, s.granted_by, s.granted_at, act.last_seen_at
+       FROM users u
+       LEFT JOIN staff_roles s ON s.rider_id = u.id
+       LEFT JOIN rider_profiles p ON p.rider_id = u.id
+       LEFT JOIN rider_activity act ON act.rider_id = u.id
+       WHERE u.is_admin OR s.role IS NOT NULL
+       ORDER BY u.is_admin DESC, s.role, lower(coalesce(p.display_name, u.id))`,
+    );
+    return rows.map((row) => ({
+      riderId: row.id,
+      role: row.is_admin ? 'admin' : row.role!,
+      displayName: row.display_name ?? null,
+      handle: row.handle ?? null,
+      email: row.email ?? null,
+      grantedBy: row.is_admin ? null : row.granted_by,
+      grantedAt: row.is_admin || row.granted_at === null ? null : Number(row.granted_at),
+      lastSeenAt: row.last_seen_at === null ? null : Number(row.last_seen_at),
+    }));
+  }
+
+  /** Gives a rider a staff role, or changes it, and records why. */
+  async setStaffRole(riderId: string, role: GrantableStaffRole, adminId: string, note: string, now = Date.now()): Promise<StaffChangeResult> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      const { rows } = await client.query<{ is_admin: boolean; suspended: boolean; role: string | null }>(
+        `SELECT u.is_admin, u.suspended_at IS NOT NULL AS suspended, s.role
+         FROM users u LEFT JOIN staff_roles s ON s.rider_id = u.id WHERE u.id = $1 FOR UPDATE OF u`,
+        [riderId],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, error: 'not_found' };
+      if (row.is_admin) return { ok: false, error: 'is_admin' };
+      if (row.suspended) return { ok: false, error: 'suspended' };
+      if (row.role === role) return { ok: false, error: 'unchanged' };
+      await client.query(
+        `INSERT INTO staff_roles (rider_id, role, granted_by, granted_at) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (rider_id) DO UPDATE SET role = EXCLUDED.role, granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at`,
+        [riderId, role, adminId, now],
+      );
+      const change = row.role ? `${row.role} → ${role}` : role;
+      const action = await this.recordAction(client, adminId, riderId, null, 'staff_grant', `${change}: ${note}`, now);
+      return { ok: true, action };
+    });
+  }
+
+  /** Takes a rider's staff role away, and records why. Admins are removed in ADMIN_RIDER_IDS and the database, not here. */
+  async removeStaffRole(riderId: string, adminId: string, note: string, now = Date.now()): Promise<StaffChangeResult> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      const { rows } = await client.query<{ is_admin: boolean }>('SELECT is_admin FROM users WHERE id = $1 FOR UPDATE', [riderId]);
+      if (!rows[0]) return { ok: false, error: 'not_found' };
+      if (rows[0].is_admin) return { ok: false, error: 'is_admin' };
+      const removed = await client.query<{ role: string }>('DELETE FROM staff_roles WHERE rider_id = $1 RETURNING role', [riderId]);
+      if (!removed.rows[0]) return { ok: false, error: 'not_staff' };
+      const action = await this.recordAction(client, adminId, riderId, null, 'staff_revoke', `${removed.rows[0].role}: ${note}`, now);
       return { ok: true, action };
     });
   }

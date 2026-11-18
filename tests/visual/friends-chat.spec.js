@@ -403,3 +403,51 @@ test('PWA chat uses the body canvas and keeps its controls above the safe area',
   // No solid bar over the status bar on the map or chat.
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#chatScreen'), '::before').content)).toBe('none');
 });
+
+test('@viewport PWA puts the app back when iOS slides it up for a visible text box', async ({ page }) => {
+  await page.addInitScript(() => {
+    const listeners = { resize: new Set(), scroll: new Set() };
+    const viewport = {
+      height: window.innerHeight,
+      offsetTop: 0,
+      addEventListener(type, listener) { listeners[type]?.add(listener); },
+      removeEventListener(type, listener) { listeners[type]?.delete(listener); },
+    };
+    let rootScrollY = 0;
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport });
+    Object.defineProperty(window.navigator, 'standalone', { configurable: true, value: true });
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => rootScrollY });
+    // A real root pan moves the page's boxes up with it; model that so the
+    // app measures the field where WebKit has put it.
+    const pan = (value) => {
+      rootScrollY = value;
+      document.documentElement.style.transform = value ? `translateY(${-value}px)` : '';
+    };
+    window.scrollTo = (_x, y) => pan(typeof y === 'number' ? y : 0);
+    window.__setRiderTestRootScrollY = (value) => {
+      pan(value);
+      window.dispatchEvent(new Event('scroll'));
+    };
+    window.__setRiderTestVisualViewport = (height) => {
+      viewport.height = height;
+      listeners.resize.forEach((listener) => listener(new Event('resize')));
+    };
+  });
+  await mockAuthenticatedApi(page, 'stationary', () => null);
+  await page.goto('/#friends');
+  await page.locator('#addFriendToggle').click();
+  await page.locator('#friendId').focus();
+  // Keyboard opens and WebKit slides the whole app up, although the field sits
+  // near the top of the screen and would be visible anyway.
+  const fieldBottom = await page.locator('#friendId').evaluate((field) => field.getBoundingClientRect().bottom);
+  await page.evaluate((h) => window.__setRiderTestVisualViewport(h), Math.round(fieldBottom + 120));
+  await page.evaluate(() => window.__setRiderTestRootScrollY(180));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.locator('#friendId')).toBeFocused();
+
+  // After the keyboard closes, a slide WebKit leaves behind is undone too.
+  await page.evaluate(() => window.__setRiderTestRootScrollY(0));
+  await page.locator('#friendId').blur();
+  await page.evaluate(() => window.__setRiderTestRootScrollY(140));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
