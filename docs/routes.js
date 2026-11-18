@@ -1725,14 +1725,17 @@
         : '<div class="route-discovery-empty"><svg><use href="#i-route"/></svg><strong>No reviewed routes for your vehicle yet</strong><span>We only list a route for a vehicle once we’ve checked it suits it. You can change your vehicle in Settings → Vehicle details.</span></div>';
       return;
     }
-    root.innerHTML = visible.map((route, index) => {
+    const locationNotice = category === 'near' && !riderLocation
+      ? '<p class="route-location-prompt" role="status">Allow location access to sort routes by distance to their start. Tap Near me again to retry.</p>'
+      : '';
+    root.innerHTML = locationNotice + visible.map((route, index) => {
       const approach = riderLocation ? formatApproach(haversineMiles(riderLocation, route.start)) : '';
       const eager = routesScreenSeen && index < ROUTE_IMAGE_PREFETCH_COUNT;
       return `<button class="curated-route-card" data-curated-route="${route.id}" aria-label="View ${escapeHtml(route.name)} route overview">
         <img src="${routeCardImage(route)}" data-route-card-image="${route.id}" alt="${escapeHtml(route.alt)}" loading="${eager ? 'eager' : 'lazy'}" fetchpriority="${index < 4 ? 'high' : 'auto'}" decoding="async" referrerpolicy="no-referrer">
         <span class="route-photo-fallback" aria-hidden="true"><svg><use href="#i-route"/></svg></span>
         <span class="route-trace-card">${routeTraceSvg(route)}</span>
-        <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${category === 'near' && approach ? `<b class="route-approach">${escapeHtml(approach)}</b>` : ''}<b><svg aria-hidden="true"><use href="#i-route"/></svg>${route.distance} mi</b><b><svg aria-hidden="true"><use href="#i-speedometer"/></svg>${escapeHtml(route.difficulty)}</b><b><svg aria-hidden="true"><use href="#i-history"/></svg>${route.minutes} min</b></span></span>
+        <span class="curated-route-overlay"><span class="route-region">${escapeHtml(route.region)}</span><strong>${escapeHtml(route.name)}</strong><small>${escapeHtml(route.road)}</small><span class="route-quick-stats">${category === 'near' && approach ? `<b class="route-approach" aria-label="Approximate straight-line distance to the route start: ${escapeHtml(approach)}">${escapeHtml(approach === 'Start is here' ? 'At route start' : `~${approach.replace(' from you', ' to start')}`)}</b>` : ''}<b><svg aria-hidden="true"><use href="#i-route"/></svg>${route.distance} mi</b><b><svg aria-hidden="true"><use href="#i-speedometer"/></svg>${escapeHtml(route.difficulty)}</b><b><svg aria-hidden="true"><use href="#i-history"/></svg>${route.minutes} min</b></span></span>
       </button>`;
     }).join('');
     root.querySelectorAll('img[data-route-card-image]').forEach((image) => image.addEventListener('error', () => {
