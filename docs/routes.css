@@ -24,7 +24,7 @@ html.pwa-standalone .route-detail{max-height:92%}
 .route-trace-panel{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px;border-radius:4px;background:var(--surface-hover)}
 .route-trace-panel h3{margin:0}.route-trace-panel p{margin:4px 0 0;color:var(--text-secondary);font-size:.72rem}
 .route-trace-detail{display:block;flex:none;width:156px;height:88px;border:1px solid var(--border-soft);border-radius:4px;background:#0b0d16;color:var(--accent);overflow:hidden}
-.route-action-note{max-width:520px;margin:-4px auto 0!important;text-align:center}
+.route-action-note{max-width:520px;margin:-4px auto 0!important;text-align:center;line-height:1.5}.route-sketch-disclaimer{margin:-11px 0 0!important;color:var(--text-muted)!important;font-size:.72rem!important}
 .route-discovery-empty{display:grid;justify-items:center;gap:8px;padding:42px 20px;color:var(--text-secondary);text-align:center}
 .route-discovery-empty svg{width:30px;height:30px;color:var(--text-muted)}.route-discovery-empty strong{color:var(--text);font-size:.9rem}.route-discovery-empty span{max-width:360px;font-size:.76rem;line-height:1.45}
 .routes-featured-heading+.chip-row .chip{border-radius:8px}
