@@ -8222,7 +8222,7 @@
       return;
     }
     list.innerHTML = ordered.map(({ place, text }, index) => `<button type="button" data-stop-index="${index}" aria-label="${escapeHtml([place.name, place.address, text].filter(Boolean).join(', '))}"><span><strong>${escapeHtml(place.name)}</strong>${place.address ? `<small>${escapeHtml(place.address)}</small>` : ''}</span>${text ? `<em>${escapeHtml(text)}</em>` : ''}</button>`).join('');
-    $('[data-stop-index]', list).forEach((button) => button.addEventListener('click', () => {
+    $$('[data-stop-index]', list).forEach((button) => button.addEventListener('click', () => {
       closeSheet();
       addNavStop(ordered[Number(button.dataset.stopIndex)].place);
     }));
