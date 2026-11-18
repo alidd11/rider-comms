@@ -227,3 +227,30 @@ test('PWA finds petrol along the rest of the route and routes through it', async
   await expect(page.locator('#navGpsNotice')).toHaveText('Stop added: Shell.');
   await expect.poll(() => page.evaluate(() => window.__spoken)).toContain('Stop added: Shell.');
 });
+
+test('PWA guidance looks like Google Maps: coloured banner, End in the trip card, Re-centre after moving the map', async ({ page }) => {
+  await startNavigationHome(page);
+  // The turn banner is the guidance colour with white type, day or night.
+  const banner = await page.locator('#navBanner').evaluate((node) => ({
+    background: getComputedStyle(node).backgroundColor,
+    guidance: getComputedStyle(document.documentElement).getPropertyValue('--guidance').trim(),
+    road: getComputedStyle(document.querySelector('#navInstruction')).color,
+  }));
+  expect(banner.guidance).toMatch(/^#[0-9a-f]{6}$/);
+  expect(banner.background).not.toBe('rgba(0, 0, 0, 0)');
+  expect(banner.road).toBe('rgb(255, 255, 255)');
+  // End sits at the left of the trip card, away from the turn.
+  await expect(page.locator('#navSummary #endNavBtn')).toBeVisible();
+  await expect(page.locator('#navBanner #endNavBtn')).toHaveCount(0);
+  // Re-centre shows only once the rider has left follow mode.
+  await expect(page.locator('#navRecentreBtn')).toBeHidden();
+  await expect(page.locator('#navSpeedBadge')).toBeVisible();
+  await page.locator('#navOverviewBtn').click();
+  await expect(page.locator('#navRecentreBtn')).toBeVisible();
+  await expect(page.locator('#navSpeedBadge')).toBeHidden();
+  await page.locator('#navRecentreBtn').click();
+  await expect(page.locator('#navRecentreBtn')).toBeHidden();
+  await page.locator('#endNavBtn').click();
+  await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
+  await expect(page.locator('#navRecentreBtn')).toBeHidden();
+});

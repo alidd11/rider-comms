@@ -254,6 +254,7 @@
       else if (navSteps.length) renderNavStep();
       updateNavigationControls();
     });
+    $('#navRecentreBtn')?.addEventListener('click', () => resumeNavigationFollowing());
     $('#navOverviewBtn')?.addEventListener('click', () => {
       if (navFollowing) showNavigationOverview();
       else resumeNavigationFollowing();

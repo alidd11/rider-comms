@@ -48,7 +48,7 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
 import { RidingHud } from './RidingHud';
-import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
+import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
 import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
@@ -252,6 +252,7 @@ export function MapScreen(): React.JSX.Element {
     navigationFollowing,
     navigationSpeedMps,
     navigationPuck,
+    navigationRouteLine,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,
@@ -480,6 +481,10 @@ export function MapScreen(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rideLocations, activeRide?.rideId]);
 
+  const routeLineCoordinates = React.useMemo(
+    () => navigationRouteLine?.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon })) ?? null,
+    [navigationRouteLine],
+  );
   const maneuverArrowPath = React.useMemo(() => {
     if (!activeRoute) return null;
     const arrow = navigationManeuverArrow(
@@ -684,15 +689,15 @@ export function MapScreen(): React.JSX.Element {
                 pinColor={colors.accent}
               />
             )}
-            {activeRoute && (
+            {activeRoute && routeLineCoordinates && (
               <>
                 <Polyline
-                  coordinates={activeRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon }))}
+                  coordinates={routeLineCoordinates}
                   strokeColor="#174EA6"
                   strokeWidth={10}
                 />
                 <Polyline
-                  coordinates={activeRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon }))}
+                  coordinates={routeLineCoordinates}
                   strokeColor="#4285F4"
                   strokeWidth={6}
                 />
@@ -950,13 +955,22 @@ export function MapScreen(): React.JSX.Element {
             roadAlerts={navigationRoadAlerts}
             notice={navigationNotice}
             onHeight={setNavigationBannerHeight}
-            onEnd={() => finishInAppNavigation(false)}
           />
-          <NavigationSpeedBadge
-            top={insets.top + spacing.sm + navigationBannerHeight + spacing.sm}
-            navigationSpeedMps={navigationSpeedMps}
-            unitSystem={unitSystem}
-          />
+          {/* Bottom-left, as in Google Maps: Re-centre once the map has been
+              moved, otherwise the speedometer (hidden while route choices
+              are offered, which only happens parked). */}
+          {!navigationFollowing ? (
+            <NavigationRecentreButton
+              bottom={navigationSummaryHeight + spacing.md}
+              onPress={() => void centreOnCurrentLocation()}
+            />
+          ) : lockedForSafety || navigationRouteChoices.length <= 1 ? (
+            <NavigationSpeedBadge
+              bottom={navigationSummaryHeight + spacing.md}
+              navigationSpeedMps={navigationSpeedMps}
+              unitSystem={unitSystem}
+            />
+          ) : null}
           <NavigationTripSummary
             bottomPadding={Math.max(insets.bottom, spacing.sm)}
             arrivalLabel={navigationArrivalLabel}
@@ -969,6 +983,7 @@ export function MapScreen(): React.JSX.Element {
             chosenRouteIndex={chosenRouteIndex}
             onChooseRoute={chooseRoute}
             trafficText={activeRoute ? routeTrafficDelayText(activeRoute.durationSeconds, activeRoute.typicalDurationSeconds) : ''}
+            onEnd={() => finishInAppNavigation(false)}
           />
         </NavigationNightContext.Provider>
       )}

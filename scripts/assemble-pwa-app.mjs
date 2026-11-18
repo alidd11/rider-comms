@@ -37,6 +37,7 @@ const CSS_VARS = {
   accentPressed: '--accent-pressed', accentSoft: '--accent-soft', accentText: '--accent-text', focus: '--focus',
   bubbleMine: '--bubble-mine', success: '--success', danger: '--danger', dangerSurface: '--danger-surface',
   warning: '--warning', asphalt: '--asphalt', laneLine: '--lane-line', switchTrackOff: '--switch-off',
+  guidance: '--guidance', guidanceStrip: '--guidance-strip',
 };
 const BRAND_START = '/* BRAND COLOURS: generated from shared/src/brandPalette.json by `npm run build:pwa-app`. Do not edit here. */';
 const BRAND_END = '/* END BRAND COLOURS */';

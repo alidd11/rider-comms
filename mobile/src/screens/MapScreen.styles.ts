@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, type, elevation, MIN_TOUCH_TARGET, radii } from '../theme';
+import { colors, lightColors, spacing, type, elevation, MIN_TOUCH_TARGET, radii } from '../theme';
 
 export const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
 // Map screen controls (PWA: .map-bottom-bar, .map-action-small, .hud-button).
@@ -392,11 +392,11 @@ export const styles = StyleSheet.create({
   },
   navigationSpeedBadge: {
     position: 'absolute',
-    right: spacing.md,
+    left: spacing.md,
     zIndex: 13,
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
     // Follows the theme like the banner: a fixed dark disc put the
@@ -406,10 +406,25 @@ export const styles = StyleSheet.create({
     borderColor: colors.border,
     ...elevation.raised,
   },
+  navigationRecentre: {
+    position: 'absolute',
+    left: spacing.md,
+    zIndex: 13,
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingLeft: 14,
+    paddingRight: 18,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    ...elevation.raised,
+  },
+  navigationRecentreText: { color: lightColors.guidance, fontSize: 15, lineHeight: 20, fontWeight: '800' },
   navigationSpeedBadgeValue: {
     color: colors.textPrimary,
-    fontSize: 30,
-    lineHeight: 32,
+    fontSize: 26,
+    lineHeight: 28,
     fontWeight: '800',
     letterSpacing: -0.8,
   },
@@ -450,6 +465,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   navigationSummaryPrimary: { flex: 1.08, minWidth: 78 },
   navigationRouteChoices: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },

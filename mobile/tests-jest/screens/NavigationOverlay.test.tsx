@@ -3,7 +3,7 @@ import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { NavigationRoadAhead } from '../../src/components/NavigationRoadAhead';
 import { NavigationNightContext } from '../../src/navigationTone';
-import { darkColors } from '../../src/theme';
+import { darkColors, lightColors } from '../../src/theme';
 import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
 jest.mock('../../src/screens/useInAppNavigation', () => ({ ROUTE_UPDATED_NOTICE: 'Route updated.' }));
 const ROUTE_UPDATED_NOTICE = 'Route updated.';
@@ -28,10 +28,9 @@ function screen(night: boolean, notice: string | null) {
         roadAlerts={[alert]}
         notice={notice}
         onHeight={() => {}}
-        onEnd={() => {}}
       />
-      <NavigationSpeedBadge top={0} navigationSpeedMps={12} unitSystem="mi" />
-      <NavigationTripSummary bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1740} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} />
+      <NavigationSpeedBadge bottom={0} navigationSpeedMps={12} unitSystem="mi" />
+      <NavigationTripSummary bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1740} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} onEnd={() => {}} />
     </NavigationNightContext.Provider>
   );
 }
@@ -41,7 +40,8 @@ const background = (node: { props: Record<string, unknown> }) => StyleSheet.flat
 test('navigation cards take the dark colours over the night map, whatever the phone theme', async () => {
   const view = await render(screen(true, 'GPS signal lost'));
   expect(background(view.getByTestId('navigation-summary'))).toBe(darkColors.surface);
-  expect(background(view.getByTestId('navigation-banner'))).toBe(darkColors.surface);
+  // The turn banner is the guidance colour day and night, as in Google Maps.
+  expect(background(view.getByTestId('navigation-banner'))).toBe(darkColors.guidance);
   expect(StyleSheet.flatten(view.getByText('11:08').props.style).color).toBe(darkColors.success);
   expect(StyleSheet.flatten(view.getByText('Reports ahead').props.style).color).toBe(darkColors.textMuted);
   expect(view.getByText('GPS signal lost')).toBeTruthy();
@@ -53,6 +53,7 @@ test('navigation cards take the dark colours over the night map, whatever the ph
 test('by day the cards keep the theme colours', async () => {
   const view = await render(screen(false, ROUTE_UPDATED_NOTICE));
   expect(background(view.getByTestId('navigation-summary'))).not.toBe(darkColors.surface);
+  expect(background(view.getByTestId('navigation-banner'))).toBe(lightColors.guidance);
   expect(StyleSheet.flatten(view.getByText('11:08').props.style).color).not.toBe(darkColors.success);
 });
 
@@ -70,7 +71,7 @@ test('the trip card offers the other ways there, and says when traffic adds time
   const view = await render(
     <NavigationNightContext.Provider value>
       <NavigationTripSummary
-        bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1380} remainingMeters={7400} unitSystem="mi" onHeight={() => {}}
+        bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1380} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} onEnd={() => {}}
         routeChoices={[...choices]} chosenRouteIndex={0} onChooseRoute={onChooseRoute} trafficText="+8 min traffic"
       />
     </NavigationNightContext.Provider>,
@@ -82,7 +83,7 @@ test('the trip card offers the other ways there, and says when traffic adds time
   expect(view.getByTestId('navigation-traffic').props.children).toBe('+8 min traffic');
 
   // One way, or none offered: no choices and no traffic line.
-  await view.rerender(<NavigationTripSummary bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1380} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} routeChoices={[choices[0]]} onChooseRoute={onChooseRoute} />);
+  await view.rerender(<NavigationTripSummary bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1380} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} routeChoices={[choices[0]]} onChooseRoute={onChooseRoute} onEnd={() => {}} />);
   expect(view.queryByTestId('navigation-route-choices')).toBeNull();
   expect(view.queryByTestId('navigation-traffic')).toBeNull();
 });
