@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import * as Location from 'expo-location';
 import { act, renderHook } from '@testing-library/react-native';
 import { ApiError } from '../../src/api/client';
 import type { RiderCommsClient } from '../../src/api/client';
@@ -133,7 +134,7 @@ async function renderNavigation(overrides: Partial<Props> = {}) {
     reduceMotionEnabled: false,
     currentLocation: { lat: 51.5, lon: -0.1 },
     currentLocationAccuracyRef: { current: null },
-    requestCurrentLocation: jest.fn(async () => ({ lat: 51.5, lon: -0.1 })),
+    requestCurrentLocation: jest.fn(async () => ({ lat: 51.5, lon: -0.1, accuracyMeters: 5 })),
     setCurrentLocation: jest.fn(),
     setSelectedPlace: jest.fn(),
     setNavigationTarget: jest.fn(),
@@ -744,7 +745,7 @@ test('curated navigation starts from a fresh GPS fix through every unfinished st
   await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
 
   // Already within the start's arrival radius: skip only that checkpoint.
-  expect(props.requestCurrentLocation).toHaveBeenCalledWith(true);
+  expect(props.requestCurrentLocation).toHaveBeenCalledWith(true, Location.Accuracy.High);
   expect(props.client.getDrivingRoute).toHaveBeenCalledWith(
     { lat: 51.5, lon: -0.1 },
     { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
@@ -758,6 +759,37 @@ test('curated navigation starts from a fresh GPS fix through every unfinished st
   expect(props.setNavigationTarget).toHaveBeenCalledWith(null);
   expect(props.setSelectedHazardId).toHaveBeenCalledWith(null);
   expect(result.current.navigationLoading).toBe(false);
+});
+
+test('uncertain start GPS keeps the route start in the itinerary', async () => {
+  const requestCurrentLocation = jest.fn(async () => ({ lat: 51.5, lon: -0.1, accuracyMeters: 120 }));
+  const { result, props } = await renderNavigation({ requestCurrentLocation });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+
+  expect(requestCurrentLocation).toHaveBeenCalledWith(true, Location.Accuracy.High);
+  expect(props.client.getDrivingRoute).toHaveBeenCalledWith(
+    { lat: 51.5, lon: -0.1 },
+    { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
+    { highways: false, tolls: false, ferries: false },
+    undefined,
+    [SCENIC_ROUTE.start, ...SCENIC_ROUTE.waypoints],
+  );
+  expect(result.current.curatedRemainingStops.map((stop) => stop.label)).toEqual(['Route start', 'First viewpoint', 'Second viewpoint']);
+});
+
+test('missing start GPS accuracy also retains the route start', async () => {
+  const requestCurrentLocation = jest.fn(async () => ({ lat: 51.5, lon: -0.1 }));
+  const { result, props } = await renderNavigation({ requestCurrentLocation });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+
+  expect(props.client.getDrivingRoute).toHaveBeenCalledWith(
+    { lat: 51.5, lon: -0.1 },
+    expect.objectContaining({ label: SCENIC_ROUTE.name }),
+    expect.any(Object),
+    undefined,
+    [SCENIC_ROUTE.start, ...SCENIC_ROUTE.waypoints],
+  );
+  expect(result.current.curatedRemainingStops).toHaveLength(3);
 });
 
 test('curated checkpoint progression is ordered and rejects uncertain GPS', async () => {
@@ -825,7 +857,7 @@ test('curated navigation does not start without a fresh location fix', async () 
   const { result, props } = await renderNavigation({ requestCurrentLocation });
   await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
 
-  expect(requestCurrentLocation).toHaveBeenCalledWith(true);
+  expect(requestCurrentLocation).toHaveBeenCalledWith(true, Location.Accuracy.High);
   expect(props.client.getDrivingRoute).not.toHaveBeenCalled();
   expect(result.current.activeRoute).toBeNull();
   expect(result.current.navigationLoading).toBe(false);

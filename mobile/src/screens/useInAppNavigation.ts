@@ -162,7 +162,7 @@ export function useInAppNavigation(
   unitSystem: UnitSystem,
   currentLocation: { lat: number; lon: number } | null,
   currentLocationAccuracyRef: React.RefObject<number | null>,
-  requestCurrentLocation: (showSettingsPrompt: boolean) => Promise<{ lat: number; lon: number } | null>,
+  requestCurrentLocation: (showSettingsPrompt: boolean, accuracy?: Location.Accuracy) => Promise<{ lat: number; lon: number; accuracyMeters?: number | null } | null>,
   setCurrentLocation: (location: { lat: number; lon: number }) => void,
   setSelectedPlace: (place: null) => void,
   setNavigationTarget: (target: null) => void,
@@ -608,9 +608,11 @@ export function useInAppNavigation(
   const startCuratedNavigation = React.useCallback(async (route: CuratedRoute): Promise<void> => {
     // A fresh location fix is required before deciding whether the first
     // checkpoint has already been reached.
-    const origin = await requestCurrentLocation(true);
-    if (!origin) return;
-    const pending = initialCuratedStops(route, origin);
+    const fix = await requestCurrentLocation(true, Location.Accuracy.High);
+    if (!fix) return;
+    // Accuracy is metadata for checkpoint decisions, not a route coordinate.
+    const origin = { lat: fix.lat, lon: fix.lon };
+    const pending = initialCuratedStops(route, origin, fix.accuracyMeters);
     const destination = { lat: route.end.lat, lon: route.end.lon, label: route.name };
     setNavigationLoading(true);
     setNavigationNotice(null);

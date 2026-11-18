@@ -16,9 +16,20 @@ function metresBetween(a: { lat: number; lon: number }, b: { lat: number; lon: n
 export function initialCuratedStops(
   route: Pick<CuratedRoute, 'start' | 'waypoints'>,
   origin: { lat: number; lon: number },
+  accuracyMeters: number | null | undefined,
 ): CuratedNavigationStop[] {
   const stops = [route.start, ...route.waypoints];
-  return metresBetween(origin, route.start) <= CURATED_STOP_REACHED_METERS ? stops.slice(1) : stops;
+  // A coarse position can land within the start's arrival radius while the
+  // rider is still approaching it. Keep the start until the reported fix is
+  // accurate enough and its uncertainty fits completely inside the radius.
+  if (accuracyMeters == null || !Number.isFinite(accuracyMeters)
+    || accuracyMeters < 0 || accuracyMeters > CURATED_STOP_MAX_GPS_ACCURACY_METERS) return stops;
+  const distanceToStart = metresBetween(origin, route.start);
+  if (distanceToStart + accuracyMeters > CURATED_STOP_REACHED_METERS) return stops;
+  // Adjacent checkpoints can overlap: being closer to a later point is not
+  // evidence the route's start has already been visited.
+  if (route.waypoints.some((later) => metresBetween(origin, later) < distanceToStart)) return stops;
+  return stops.slice(1);
 }
 
 /** Advance only the *next* checkpoint on a trustworthy GPS fix. We never

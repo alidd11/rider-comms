@@ -12,13 +12,37 @@ const itinerary = {
 
 describe('curated scenic-route navigation checkpoints', () => {
   it('routes to the start and every ordered waypoint when joining from afar', () => {
-    assert.deepEqual(initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 }).map(p => p.label), ['Start', 'First stop', 'Second stop']);
+    assert.deepEqual(initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 }, 5).map(p => p.label), ['Start', 'First stop', 'Second stop']);
   });
   it('does not send a rider already at the start back around the block', () => {
-    assert.deepEqual(initialCuratedStops(itinerary, { lat: 51.5001, lon: -0.1001 }).map(p => p.label), ['First stop', 'Second stop']);
+    assert.deepEqual(initialCuratedStops(itinerary, { lat: 51.5001, lon: -0.1001 }, 5).map(p => p.label), ['First stop', 'Second stop']);
+  });
+  it('keeps the start when accuracy is missing, stale-looking or too uncertain', () => {
+    const nearby = { lat: 51.5001, lon: -0.1001 };
+    for (const accuracy of [null, undefined, -1, Number.NaN, Infinity, 81, 140]) {
+      assert.deepEqual(
+        initialCuratedStops(itinerary, nearby, accuracy).map((point) => point.label),
+        ['Start', 'First stop', 'Second stop'],
+      );
+    }
+  });
+  it('does not skip the start until its location uncertainty fits inside the arrival radius', () => {
+    const nearEdge = { lat: 51.501, lon: -0.1 }; // ~111 metres from the start
+    assert.equal(initialCuratedStops(itinerary, nearEdge, 5)[0]?.label, 'First stop');
+    assert.equal(initialCuratedStops(itinerary, nearEdge, 40)[0]?.label, 'Start');
+  });
+  it('does not confuse a nearby later checkpoint for the route start', () => {
+    const adjacent = {
+      start: { lat: 51.5, lon: -0.1, label: 'Start' },
+      waypoints: [{ lat: 51.501, lon: -0.1, label: 'First stop' }],
+    };
+    assert.deepEqual(
+      initialCuratedStops(adjacent, adjacent.waypoints[0]!, 5).map((point) => point.label),
+      ['Start', 'First stop'],
+    );
   });
   it('does not skip an earlier stop because the rider is near a later one', () => {
-    const initial = initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 });
+    const initial = initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 }, 5);
     const attempt = advanceCuratedStops(initial, itinerary.waypoints[1]!, 5);
     assert.equal(attempt.reached, null);
     assert.deepEqual(attempt.remaining, initial);
@@ -39,13 +63,13 @@ describe('curated scenic-route navigation checkpoints', () => {
     assert.equal(advanceCuratedStops(atFirst.remaining, adjacent[1]!, 5).reached?.label, 'Second viewpoint');
   });
   it('rejects unreliable fixes instead of skipping checkpoints', () => {
-    const initial = initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 });
+    const initial = initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 }, 5);
     for (const accuracy of [null, undefined, 120, Number.NaN, -1]) {
       assert.equal(advanceCuratedStops(initial, itinerary.start, accuracy).reached, null);
     }
   });
   it('advances one stop at a time in order without mutating the original array', () => {
-    const initial = initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 });
+    const initial = initialCuratedStops(itinerary, { lat: 51.4, lon: -0.2 }, 5);
     const first = advanceCuratedStops(initial, itinerary.start, 10);
     assert.equal(first.reached?.label, 'Start');
     assert.deepEqual(initial.map(s=>s.label), ['Start', 'First stop', 'Second stop']);
