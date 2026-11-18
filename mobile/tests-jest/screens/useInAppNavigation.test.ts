@@ -768,7 +768,7 @@ test('uncertain start GPS keeps the route start in the itinerary', async () => {
 
   expect(requestCurrentLocation).toHaveBeenCalledWith(true, Location.Accuracy.High);
   expect(props.client.getDrivingRoute).toHaveBeenCalledWith(
-    { lat: 51.5, lon: -0.1, accuracyMeters: 120 },
+    { lat: 51.5, lon: -0.1 },
     { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
     { highways: false, tolls: false, ferries: false },
     undefined,
