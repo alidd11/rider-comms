@@ -303,3 +303,30 @@ describe('Google places along the route', () => {
     await assert.rejects(fetchGooglePlacesAlongRoute({ query: 'petrol', path: [] }, { apiKey: 'k', fetchImpl: answer({}) }), { code: 'places_invalid_request' });
   });
 });
+
+describe('places refusals', () => {
+  it("logs Google's reason for refusing a request, never the key", async () => {
+  const sessionToken = 'session-0123456789';
+  const { mock } = await import('node:test');
+  const warn = mock.method(console, 'warn', () => {});
+  try {
+    const refusal = (async () => new Response(JSON.stringify({
+      error: { code: 403, status: 'PERMISSION_DENIED', message: 'Places API (New) has not been used in project 123 before or it is disabled.' },
+    }), { status: 403, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+    await assertProviderError(fetchGooglePlaces({ kind: 'text', query: 'coffee', near }, { apiKey: 'secret-key', fetchImpl: refusal }), 'places_unavailable');
+    const line = JSON.parse(String(warn.mock.calls.at(-1)?.arguments[0]));
+    assert.equal(line.event, 'places_provider_refused');
+    assert.equal(line.httpStatus, 403);
+    assert.equal(line.googleStatus, 'PERMISSION_DENIED');
+    assert.match(line.googleMessage, /Places API \(New\)/);
+    assert.doesNotMatch(JSON.stringify(line), /secret-key/);
+    // A body that isn't JSON still logs the HTTP status.
+    await assertProviderError(fetchGooglePlaceSuggestions({ input: 'ace', near, sessionToken }, { apiKey: 'k', fetchImpl: (async () => new Response('nope', { status: 500 })) as typeof fetch }), 'places_unavailable');
+    const plain = JSON.parse(String(warn.mock.calls.at(-1)?.arguments[0]));
+    assert.equal(plain.httpStatus, 500);
+    assert.equal(plain.googleStatus, undefined);
+  } finally {
+    warn.mock.restore();
+  }
+});
+});
