@@ -24,6 +24,7 @@ import { styles } from './RideBar.styles';
 import { useRide } from './RideContext';
 import { buildRideInviteLink } from './rideInvite';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
+import { haptics } from '../haptics';
 
 /**
  * Configures + starts the native audio session (device routing — see
@@ -291,6 +292,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
     const code = activeRide.code;
     if (!code) return;
     await Clipboard.setStringAsync(code);
+    haptics.success();
     setCodeCopied(true);
     if (codeCopiedTimeout.current) clearTimeout(codeCopiedTimeout.current);
     codeCopiedTimeout.current = setTimeout(() => setCodeCopied(false), 2000);

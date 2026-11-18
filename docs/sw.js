@@ -1,6 +1,6 @@
-const CACHE_NAME = 'rider-comms-pwa-v153';
+const CACHE_NAME = 'rider-comms-pwa-v154';
 const ASSETS = [
-  './', './index.html', './app.css?v=116', './avatar-system.js?v=1', './navigation-road-events.js?v=1', './position-interpolation.js?v=1', './navigation-guidance.js?v=1', './navigation-camera.js?v=3', './navigation-puck.js?v=2', './voice-activity.js?v=1', './app.js?v=120', './routes.css?v=40', './routes.js?v=34', './movement-safety.js?v=2', './message-state.js?v=2', './config.js?v=31',
+  './', './index.html', './app.css?v=116', './avatar-system.js?v=1', './navigation-road-events.js?v=1', './position-interpolation.js?v=1', './navigation-guidance.js?v=1', './navigation-camera.js?v=3', './navigation-puck.js?v=2', './voice-activity.js?v=1', './app.js?v=121', './routes.css?v=40', './routes.js?v=34', './movement-safety.js?v=2', './message-state.js?v=2', './config.js?v=31',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png',
 ];
 const SHELL_URLS = new Set(ASSETS.map((asset) => new URL(asset, self.location.href).href));

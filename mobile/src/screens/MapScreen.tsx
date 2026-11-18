@@ -59,6 +59,7 @@ import { StopsOnTheWaySheet } from './StopsOnTheWaySheet';
 import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
 import { useInAppNavigation } from './useInAppNavigation';
+import { haptics } from '../haptics';
 import { CURATED_ROUTES } from '../routes/curatedRoutes';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
@@ -857,7 +858,10 @@ export function MapScreen(): React.JSX.Element {
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.mapLiveButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
-            onPress={() => void handleNearbyToggle()}
+            onPress={() => {
+              haptics.tap();
+              void handleNearbyToggle();
+            }}
             accessibilityRole="switch"
             accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
             accessibilityLabel={publicLive ? `Leave nearby${nearbyCount ? `, ${nearbyCount} ${nearbyCount === 1 ? 'rider' : 'riders'} nearby` : ''}` : 'Go live nearby'}

@@ -360,7 +360,9 @@
       if (activeChat?.riderId !== riderId) return;
       chatMessages = window.RiderMessageState.acknowledge(chatMessages, localId, sent);
       renderChat();
+      haptic('tap');
     } catch {
+      haptic('warning');
       if (activeChat?.riderId !== riderId) return;
       chatMessages = chatMessages.map((message) => message.id === localId ? { ...message, status: 'failed' } : message);
       renderChat();

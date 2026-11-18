@@ -2,6 +2,7 @@ import * as React from 'react';
 import { View, Text, Pressable, Switch, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, pressedFeedback } from '../theme';
+import { haptics } from '../haptics';
 
 /**
  * Settings: grouped full-width rows on a darker page, coloured
@@ -150,7 +151,10 @@ export function SwitchRow({ title, value, first = false, onValueChange }: {
       <Switch
         accessibilityLabel={title}
         value={value}
-        onValueChange={onValueChange}
+        onValueChange={(next) => {
+          haptics.select();
+          onValueChange(next);
+        }}
         trackColor={{ false: colors.switchTrackOff, true: colors.accent }}
         ios_backgroundColor={colors.switchTrackOff}
         thumbColor="#FFFFFF"
