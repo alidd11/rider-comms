@@ -212,6 +212,20 @@ export function useInAppNavigation(
   // A petrol stop comes before the remaining curated stops, without replacing
   // the itinerary. This is the backend's ordered `waypoints` contract.
   const routeStops = React.useCallback((): [NavigationStop | null, CuratedNavigationStop[]] => [navigationStopRef.current, curatedStopsRef.current], []);
+  // Preserve the three-argument contract for an ordinary navigation journey.
+  // The fourth argument is used only for a single ad-hoc stop; the fifth is
+  // reserved for a curated route's actual remaining checkpoints. This also
+  // keeps existing routing and fuel-stop behaviour unchanged.
+  const getRouteThroughStops = React.useCallback((
+    origin: { lat: number; lon: number },
+    target: NavigationTarget,
+    via: NavigationStop | null,
+    planned: readonly CuratedNavigationStop[],
+  ): Promise<InAppNavigationRoute> => {
+    if (planned.length) return client.getDrivingRoute(origin, target, routeAvoidanceRef.current, via, planned);
+    if (via) return client.getDrivingRoute(origin, target, routeAvoidanceRef.current, via);
+    return client.getDrivingRoute(origin, target, routeAvoidanceRef.current);
+  }, [client]);
   // Where the rider is and how long is left there, from the latest fix, for
   // the faster-route check.
   const latestRouteProgress = React.useRef<{ route: InAppNavigationRoute; here: { lat: number; lon: number }; remainingSeconds: number } | null>(null);
@@ -462,8 +476,7 @@ export function useInAppNavigation(
     if (rerouting) navRerouting.current = true;
     try {
       const [via, pending] = routeStops();
-      const nextRoute = await client.getDrivingRoute(origin, target, routeAvoidanceRef.current,
-        rerouting ? via : undefined, rerouting ? pending : []);
+      const nextRoute = await getRouteThroughStops(origin, target, rerouting ? via : null, rerouting ? pending : []);
       if (!rerouting) {
         updateCuratedStops([]);
         setNavigationStop(null);
@@ -472,7 +485,7 @@ export function useInAppNavigation(
     } finally {
       if (rerouting) navRerouting.current = false;
     }
-  }, [applyInAppRoute, client, routeStops, setNavigationStop, updateCuratedStops]);
+  }, [applyInAppRoute, getRouteThroughStops, routeStops, setNavigationStop, updateCuratedStops]);
 
   // Like Waze: every few minutes, ask for the way from here with live
   // traffic, and switch when it saves enough (shared fasterRouteSavingSeconds),
@@ -485,7 +498,8 @@ export function useInAppNavigation(
       const progress = latestRouteProgress.current;
       if (checking || navRerouting.current || !progress) return;
       checking = true;
-      void client.getDrivingRoute(progress.here, navigatingTo, routeAvoidanceRef.current, ...routeStops())
+      const [via, planned] = routeStops();
+      void getRouteThroughStops(progress.here, navigatingTo, via, planned)
         .then((candidate) => {
           const latest = latestRouteProgress.current;
           if (!latest || latest.route !== progress.route || navRerouting.current) return;
@@ -499,7 +513,7 @@ export function useInAppNavigation(
         .finally(() => { checking = false; });
     }, FASTER_ROUTE_CHECK_MS);
     return () => clearInterval(timer);
-  }, [applyInAppRoute, client, navigatingTo, routeStops]);
+  }, [applyInAppRoute, getRouteThroughStops, navigatingTo, routeStops]);
 
   /** Petrol (or a café) along the rest of the route, ordered by what each
    * adds (shared routeAheadPath and stopsOnTheWay). */
@@ -524,7 +538,8 @@ export function useInAppNavigation(
     setNavigationStop({ lat: place.lat, lon: place.lon, label: place.name });
     try {
       navRerouting.current = true;
-      const route = await client.getDrivingRoute(here, target, routeAvoidanceRef.current, ...routeStops());
+      const [via, planned] = routeStops();
+      const route = await getRouteThroughStops(here, target, via, planned);
       const added = `Stop added: ${place.name}.`;
       applyInAppRoute(route, here, target, true, added);
       if (!navigationMutedRef.current) speakNavigationPrompt(added);
@@ -536,7 +551,7 @@ export function useInAppNavigation(
     } finally {
       navRerouting.current = false;
     }
-  }, [applyInAppRoute, client, currentLocation, navigationDestination, routeStops, setNavigationStop]);
+  }, [applyInAppRoute, currentLocation, getRouteThroughStops, navigationDestination, routeStops, setNavigationStop]);
 
   /** Switches to another of the offered ways there, before setting off. */
   const chooseRoute = React.useCallback((index: number) => {
