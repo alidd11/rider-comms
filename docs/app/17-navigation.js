@@ -144,8 +144,8 @@
   const CURATED_STOP_MAX_GPS_ACCURACY_M = 80;
 
   /** A Google Directions request with the rider's route options applied. */
-  function navigationRouteRequest(origin, destination, plannedStops = navCuratedStops) {
-    const stops = [...(navStop ? [navStop] : []), ...plannedStops];
+  function navigationRouteRequest(origin, destination, plannedStops = navCuratedStops, preserveFuelStop = true) {
+    const stops = [...(preserveFuelStop && navStop ? [navStop] : []), ...plannedStops];
     return {
       origin,
       destination,
@@ -727,12 +727,15 @@
       ? plannedStops.slice(1)
       : plannedStops;
     getDirectionsService().route(
-      navigationRouteRequest(origin, destination, remainingStops),
+      // A new navigation selection must not inherit a fuel stop left over
+      // from a previous journey. Only reroutes preserve existing stops.
+      navigationRouteRequest(origin, destination, remainingStops, false),
       (result, status) => {
         if (status !== 'OK' || !result) {
           showToast('Couldn’t calculate the complete route. Try again.');
           return;
         }
+        navStop = null;
         navCuratedStops = [...remainingStops];
         applyRoute(result, destination, label);
       }
