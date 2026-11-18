@@ -64,6 +64,17 @@ const ROLE_PERMISSIONS = {
   analyst: ['view_overview', 'view_system'],
 };
 
+/** Opens a dashboard section, through the side menu on phones. */
+async function openSection(page, name) {
+  const toggle = page.locator('#menuToggle');
+  if (await toggle.isVisible()) await toggle.click();
+  await page.locator('#nav').getByRole('button', { name }).click();
+}
+async function openMenuIfPhone(page) {
+  const toggle = page.locator('#menuToggle');
+  if (await toggle.isVisible()) await toggle.click();
+}
+
 /** Minimal in-memory moderation backend. */
 async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false } = {}) {
   const state = {
@@ -273,7 +284,7 @@ test.describe('staff dashboard', () => {
     await card.getByRole('button', { name: 'Remove post' }).click();
     await expect(page.locator('.empty-title')).toHaveText('No hidden posts');
     expect(state.posts.at(-1)).toEqual({ path: '/moderation/social-posts/11111111-1111-4111-8111-111111111111/remove', body: { note: 'Scam listing.' } });
-    await page.getByRole('button', { name: 'Audit log' }).click();
+    await openSection(page, 'Audit log');
     await expect(page.locator('.list-row .person-name')).toHaveText('Removed a Social post: Rex');
   });
 
@@ -305,7 +316,7 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.empty-title')).toHaveText('No open reports');
     expect(state.posts).toEqual([{ path: '/moderation/reports/report-1/resolve', body: { resolution: 'dismiss', note: 'Checked the chat history; no harassment.' } }]);
 
-    await page.getByRole('button', { name: 'Audit log' }).click();
+    await openSection(page, 'Audit log');
     await expect(page.locator('.list-row .person-name')).toHaveText('Dismissed a report: Rex');
     await expect(page.locator('.list-row')).toContainText('Checked the chat history; no harassment.');
   });
@@ -498,6 +509,7 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page, { role: 'analyst' });
     await page.goto('/admin.html#moderation');
     await expect(page.locator('.page-title')).toHaveText('Overview');
+    await openMenuIfPhone(page);
     const visibleNav = page.locator('#nav [data-view]:visible');
     await expect(visibleNav).toHaveText(['Overview', 'System']);
     await expect(page.locator('#sidebarFooter .badge')).toHaveText('Analyst');
@@ -509,6 +521,7 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     await mockModerationApi(page, { role: 'support' });
     await page.goto('/admin.html#riders');
+    await openMenuIfPhone(page);
     await expect(page.locator('#nav [data-view]:visible')).toHaveText(['Overview', 'Riders', 'Audit log', 'System']);
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
@@ -657,6 +670,35 @@ test.describe('staff dashboard', () => {
     await expect(rows.nth(0)).toContainText('Wrong password · iPhone');
     await expect(rows.nth(0).locator('.badge')).toHaveText('Failed');
     await expect(rows.nth(1)).toContainText('You');
+  });
+
+  test('on phones the sections open from a side menu', async ({ page }, testInfo) => {
+    test.skip(!/phone/.test(testInfo.project.name), 'Phones only');
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const toggle = page.locator('#menuToggle');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#nav').getByRole('button', { name: 'Riders' })).toBeHidden();
+    await expect(page.locator('#brandSection')).toHaveText('Overview');
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#nav').getByRole('button', { name: 'Overview' })).toBeFocused();
+    await expect(page.locator('#sidebarFooter')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toBeFocused();
+
+    await toggle.click();
+    await page.locator('#menuBackdrop').click({ position: { x: page.viewportSize().width - 8, y: 400 } });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await openSection(page, 'Riders');
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+    await expect(page.locator('#brandSection')).toHaveText('Riders');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   });
 
   test('system view reports API and database health', async ({ page }) => {

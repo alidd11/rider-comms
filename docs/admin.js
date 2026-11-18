@@ -1545,6 +1545,7 @@
       else button.removeAttribute('aria-current');
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
+    document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
     if (view === 'overview' && !overviewCache) pageEl.replaceChildren(...skeletonOverview());
     else if (view !== 'overview') pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
     setBusy(true);
@@ -1593,7 +1594,31 @@
     void render();
   }
 
-  for (const button of navEl.querySelectorAll('[data-view]')) button.addEventListener('click', () => selectView(button.dataset.view));
+  // Phones: the sections are in a side menu. It closes on a choice, a tap
+  // outside or Escape, and gives focus back to the menu button.
+  const appEl = document.querySelector('.app');
+  const menuToggle = document.getElementById('menuToggle');
+  const menuBackdrop = document.getElementById('menuBackdrop');
+  function setMenu(open) {
+    appEl.classList.toggle('menu-open', open);
+    menuBackdrop.hidden = !open;
+    menuToggle.setAttribute('aria-expanded', String(open));
+    menuToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    if (open) (navEl.querySelector('[aria-current="page"]') || navEl.querySelector('[data-view]:not([hidden])'))?.focus();
+  }
+  menuToggle.addEventListener('click', () => {
+    const open = !appEl.classList.contains('menu-open');
+    setMenu(open);
+    if (!open) menuToggle.focus();
+  });
+  menuBackdrop.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
+  });
+  for (const button of navEl.querySelectorAll('[data-view]')) button.addEventListener('click', () => {
+    if (appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
+    selectView(button.dataset.view);
+  });
   // Links to a rider (#rider/<id>) open their page.
   pageEl.addEventListener('click', (event) => {
     const link = event.target.closest?.('a[data-rider-link]');

@@ -17,13 +17,16 @@
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
+        <button type="button" class="icon-button menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebarPanel" aria-expanded="false"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg></button>
         <span class="brand-mark" aria-hidden="true"><svg viewBox="66 66 380 380" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M118 238 A138 138 0 0 1 394 238" stroke-width="36"/><path d="M128 350 C138 404 186 420 232 420" stroke-width="22"/><path d="M226 252 V300 M256 228 V324 M286 252 V300" stroke-width="22"/><g fill="currentColor" stroke="none"><rect x="84" y="212" width="86" height="146" rx="38"/><rect x="342" y="212" width="86" height="146" rx="38"/><rect x="226" y="400" width="54" height="40" rx="20"/></g></svg></span>
         <span class="brand-name">Rider Comms</span>
         <span class="brand-tag">Staff</span>
+        <span class="brand-section" id="brandSection" aria-hidden="true"></span>
         <div class="brand-actions">
           <button type="button" class="icon-button" id="refreshMobile" aria-label="Refresh"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.5 2.5v3h-3"/></svg></button>
         </div>
       </div>
+      <div class="sidebar-panel" id="sidebarPanel">
       <nav class="nav" id="nav" aria-label="Dashboard sections" hidden>
         <button type="button" class="nav-item" data-view="overview" data-permission="view_overview"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Overview</button>
         <button type="button" class="nav-item" data-view="riders" data-permission="view_riders"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.3 2.4-3.5 4.5-3.5s3.9 1.2 4.5 3.5"/><path d="M10.5 3.2a2.5 2.5 0 0 1 0 4.6"/><path d="M12 10.3c1.2.5 2 1.6 2.5 3.2"/></svg>Riders</button>
@@ -33,7 +36,9 @@
         <button type="button" class="nav-item" data-view="system" data-permission="view_system"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8h3l2-5 3 10 2-5h3"/></svg>System</button>
       </nav>
       <div class="sidebar-footer" id="sidebarFooter"></div>
+      </div>
     </aside>
+    <div class="menu-backdrop" id="menuBackdrop" hidden></div>
     <div class="main">
       <main class="page" id="page" aria-live="polite"></main>
     </div>
