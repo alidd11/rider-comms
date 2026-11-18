@@ -199,6 +199,9 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
   }));
 
   await page.goto('/');
+  // Wait for the app to be ready before tapping: on a slow WebKit run the tap
+  // landed before app.js had loaded, so no token was ever requested.
+  await expect(page.locator('#mapDrawer')).toBeVisible();
   await page.locator('#joinNearbyBtn').click();
 
   // The first token mint is deliberately failed above before any LiveKit

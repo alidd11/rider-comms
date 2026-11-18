@@ -691,7 +691,7 @@ test.describe('staff dashboard', () => {
     await expect(toggle).toBeFocused();
 
     await toggle.click();
-    await page.locator('#menuBackdrop').click({ position: { x: page.viewportSize().width - 8, y: 400 } });
+    await page.locator('#menuBackdrop').click({ position: { x: page.viewportSize().width - 8, y: Math.round(page.viewportSize().height / 2) } });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
     await openSection(page, 'Riders');
