@@ -59,6 +59,7 @@ import { StopsOnTheWaySheet } from './StopsOnTheWaySheet';
 import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
 import { useInAppNavigation } from './useInAppNavigation';
+import { CURATED_ROUTES } from '../routes/curatedRoutes';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const DEFAULT_REGION = {
@@ -260,6 +261,8 @@ export function MapScreen(): React.JSX.Element {
     navigationArrival,
     dismissNavigationArrival,
     startInAppNavigation,
+    startCuratedNavigation,
+    curatedRemainingStops,
     stopFollowingRoute,
     resumeFollowingRoute,
     routeChoices: navigationRouteChoices,
@@ -360,6 +363,19 @@ export function MapScreen(): React.JSX.Element {
       setSelectedPlace(null);
     }
   }, [route.params?.at, route.params?.label, route.params?.lat, route.params?.lon]);
+
+  React.useEffect(() => {
+    const id = route.params?.curatedRouteId;
+    if (!id) return;
+    const curated = CURATED_ROUTES.find((item) => item.id === id);
+    // Consume the one-shot selection. Otherwise later Map tab presses could
+    // accidentally restart the previous scenic route.
+    navigation.setParams({ curatedRouteId: undefined });
+    if (curated) void startCuratedNavigation(curated);
+    else Alert.alert('Route unavailable', 'The selected scenic route is no longer in the reviewed catalogue.');
+    // A new selection supplies an `at` nonce even if the Map tab is already mounted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.at, route.params?.curatedRouteId]);
 
   React.useEffect(() => {
     if (!mapReady || segment !== 'public') return;
@@ -691,6 +707,14 @@ export function MapScreen(): React.JSX.Element {
             )}
             {activeRoute && routeLineCoordinates && (
               <>
+                {curatedRemainingStops.map((stop, index) => (
+                  <Marker
+                    key={`curated-stop-${index}-${stop.lat}-${stop.lon}`}
+                    coordinate={{ latitude: stop.lat, longitude: stop.lon }}
+                    title={`Planned stop ${index + 1}: ${stop.label}`}
+                    pinColor={colors.accent}
+                  />
+                ))}
                 <Polyline
                   coordinates={routeLineCoordinates}
                   strokeColor="#174EA6"

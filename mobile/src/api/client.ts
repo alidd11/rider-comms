@@ -125,12 +125,14 @@ export class RiderCommsClient {
     destination: RouteCoordinate,
     avoid: { highways: boolean; tolls: boolean; ferries?: boolean } = { highways: false, tolls: false, ferries: false },
     via?: RouteCoordinate | null,
+    /** The ordered stops on a curated route. An ad-hoc `via` stays first. */
+    waypoints?: readonly RouteCoordinate[],
   ): Promise<InAppNavigationRoute> {
     return this.request('POST', '/directions', {
       origin: { lat: origin.lat, lon: origin.lon },
       destination: { lat: destination.lat, lon: destination.lon },
       avoid: { highways: avoid.highways, tolls: avoid.tolls, ferries: avoid.ferries === true },
-      ...(via ? { via: { lat: via.lat, lon: via.lon } } : {}),
+      ...(waypoints?.length ? { waypoints: [...(via ? [via] : []), ...waypoints].map((point) => ({ lat: point.lat, lon: point.lon })) } : via ? { via: { lat: via.lat, lon: via.lon } } : {}),
     }, 12_000);
   }
   /** Petrol (or a café) along the rest of the route, with the time via each. */

@@ -7232,8 +7232,15 @@
     applyManeuverSvg($('#navManeuverSvg'), maneuver);
   }
 
+  /** Curated itineraries preserve all unfinished checkpoints through reroutes.
+   * An ad-hoc fuel stop is inserted first, rather than replacing the route. */
+  let navCuratedStops = [];
+  const CURATED_STOP_REACHED_RADIUS_M = 140;
+  const CURATED_STOP_MAX_GPS_ACCURACY_M = 80;
+
   /** A Google Directions request with the rider's route options applied. */
-  function navigationRouteRequest(origin, destination) {
+  function navigationRouteRequest(origin, destination, plannedStops = navCuratedStops, preserveFuelStop = true) {
+    const stops = [...(preserveFuelStop && navStop ? [navStop] : []), ...plannedStops];
     return {
       origin,
       destination,
@@ -7244,9 +7251,9 @@
       // Live traffic and the other ways there, as in Google Maps and Waze
       // (native: the backend's Routes API request).
       // Google offers no alternatives for a trip with a stop.
-      provideRouteAlternatives: !navStop,
+      provideRouteAlternatives: stops.length === 0,
       drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel?.BEST_GUESS ?? 'bestguess' },
-      ...(navStop ? { waypoints: [{ location: { lat: navStop.lat, lng: navStop.lng }, stopover: true }] } : {}),
+      ...(stops.length ? { waypoints: stops.map(({ lat, lng }) => ({ location: { lat, lng }, stopover: true })) } : {}),
     };
   }
 
@@ -7814,7 +7821,7 @@
    * button (see showDestinationCard above). Fetches the rider's live GPS
    * fix, requests a real route from it to the selected destination, and
    * hands off to applyRoute on success. */
-  async function startInAppNavigation(location, label) {
+  async function startInAppNavigation(location, label, plannedStops = []) {
     let position;
     try {
       position = await currentPosition();
@@ -7824,17 +7831,54 @@
     }
     const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
     const destination = { lat: location.lat(), lng: location.lng() };
+    // When already at the start, do not route the rider around it again.
+    // Match native's first-checkpoint handling using the current GPS fix.
+    const remainingStops = plannedStops.length
+      && metersBetween(origin, plannedStops[0]) <= CURATED_STOP_REACHED_RADIUS_M
+      ? plannedStops.slice(1)
+      : plannedStops;
     getDirectionsService().route(
-      navigationRouteRequest(origin, destination),
+      // A new navigation selection must not inherit a fuel stop left over
+      // from a previous journey. Only reroutes preserve existing stops.
+      navigationRouteRequest(origin, destination, remainingStops, false),
       (result, status) => {
         if (status !== 'OK' || !result) {
-          showToast('Couldn’t calculate a route. Try again.');
+          showToast('Couldn’t calculate the complete route. Try again.');
           return;
         }
+        navStop = null;
+        navCuratedStops = [...remainingStops];
         applyRoute(result, destination, label);
       }
     );
   }
+
+  // Curated Routes lives in docs/routes.js, while this is the existing
+  // turn-by-turn map engine. A dedicated event preserves every itinerary
+  // point without exposing routing credentials or opening an external app.
+  window.addEventListener('rider-comms:navigate-curated-route', (event) => {
+    const detail = event.detail;
+    const safePoint = (value) => {
+      const lat = Number(value?.lat);
+      const lng = Number(value?.lng);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return null;
+      return { lat, lng, label: typeof value?.label === 'string' ? value.label.slice(0, 100) : '' };
+    };
+    const end = safePoint(detail?.end);
+    const stops = Array.isArray(detail?.stops) ? detail.stops.map(safePoint) : null;
+    if (!end || !stops || stops.length < 1 || stops.length > 20 || stops.some((point) => !point)) {
+      showToast('This route has invalid planned stops.');
+      return;
+    }
+    navigate('map');
+    if (!map || !window.google?.maps) {
+      showToast('Map is still loading. Try starting the route again once it is ready.');
+      return;
+    }
+    const label = typeof detail?.label === 'string' && detail.label.trim()
+      ? detail.label.trim().slice(0, 120) : 'Scenic route';
+    void startInAppNavigation(new google.maps.LatLng(end.lat, end.lng), label, stops);
+  });
 
   // Navigation now extends the real app surface through the installed-iPhone
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
@@ -8031,6 +8075,7 @@
     const placed = placeNavigationPuck(position);
     const here = placed.now;
     checkNavStopReached(here);
+    checkCuratedStopReached(raw);
     navCurrentPosition = here;
 
     let effectiveIndex = navStepIndex;
@@ -8233,6 +8278,24 @@
     });
   }
 
+  /** Only advance the next planned checkpoint on a reliable raw GPS fix.
+   * Missed turns never silently remove remaining scenic-route waypoints. */
+  function checkCuratedStopReached(here) {
+    const next = navCuratedStops[0];
+    if (!next || navCurrentAccuracyMeters == null
+      || navCurrentAccuracyMeters < 0 || navCurrentAccuracyMeters > CURATED_STOP_MAX_GPS_ACCURACY_M
+      || metersBetween(here, next) > CURATED_STOP_REACHED_RADIUS_M) return;
+    // Do not count an earlier stop as passed if a nearby later stop is
+    // actually closer to this GPS fix. Small waypoint gaps can overlap
+    // the arrival tolerance; avoid silently skipping the itinerary.
+    const nextDistance = metersBetween(here, next);
+    if (navCuratedStops.slice(1).some((later) => metersBetween(here, later) < nextDistance)) return;
+    navCuratedStops.shift();
+    const reached = `Passed ${next.label || 'the planned stop'}.`;
+    setNavStatusNotice(reached, { tone: 'info', clearAfterMs: 5000 });
+    if (!navMuted) speak(reached);
+  }
+
   /** At the stop: say so, and route straight on from here. */
   function checkNavStopReached(here) {
     if (!navStop || distanceToPathMeters(here, [navStop, navStop]) > NAV_STOP_REACHED_RADIUS_M) return;
@@ -8300,6 +8363,7 @@
     navRouteResult = null;
     navTrafficScale = 1;
     navStop = null;
+    navCuratedStops = [];
     renderNavRouteChoices();
     const traffic = $('#navTraffic');
     if (traffic) traffic.hidden = true;
