@@ -34,5 +34,13 @@ export function advanceCuratedStops(
     || metresBetween(fix, next) > CURATED_STOP_REACHED_METERS) {
     return { remaining: [...remaining], reached: null };
   }
+  // Nearby planned checkpoints can have overlapping arrival radii. A GPS
+  // fix closer to any later checkpoint is not proof that the *next* stop
+  // was visited. In particular, never silently skip the first of two
+  // adjacent viewpoints after a GPS interruption.
+  const distanceToNext = metresBetween(fix, next);
+  if (remaining.slice(1).some((later) => metresBetween(fix, later) < distanceToNext)) {
+    return { remaining: [...remaining], reached: null };
+  }
   return { remaining: remaining.slice(1), reached: next };
 }
