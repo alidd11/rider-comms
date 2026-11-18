@@ -857,7 +857,7 @@ test('curated navigation does not start without a fresh location fix', async () 
   const { result, props } = await renderNavigation({ requestCurrentLocation });
   await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
 
-  expect(requestCurrentLocation).toHaveBeenCalledWith(true);
+  expect(requestCurrentLocation).toHaveBeenCalledWith(true, Location.Accuracy.High);
   expect(props.client.getDrivingRoute).not.toHaveBeenCalled();
   expect(result.current.activeRoute).toBeNull();
   expect(result.current.navigationLoading).toBe(false);
