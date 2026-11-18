@@ -41,6 +41,8 @@ import { watchNavigationLocation, type NavigationLocationWatch } from '../naviga
 import {
   buildNavigationPathIndex,
   matchFixToPath,
+  navigationOffRouteGraceMs,
+  navigationPathAhead,
   navigationFixAgeSeconds,
   navigationPuckConeDegrees,
   navigationPuckTravelHeading,
@@ -67,7 +69,6 @@ const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 /** Shown briefly after a successful reroute; styled as information, not a warning. */
 export const ROUTE_UPDATED_NOTICE = 'Route updated.';
 const ROUTE_UPDATED_NOTICE_MS = 4000;
-const NAV_OFF_ROUTE_GRACE_MS = 10_000;
 /** The puck and camera glide to where the rider will be when the next fix
  * is due (fixes arrive about once a second), so motion never stops. */
 export const NAV_PUCK_GLIDE_MS = 1000;
@@ -99,6 +100,8 @@ export interface InAppNavigation {
   navigationFollowing: boolean;
   navigationSpeedMps: number | null;
   navigationPuck: NavigationPuckPlacement | null;
+  /** The route line to draw: what is still to ride, or all of it (null when not navigating). */
+  navigationRouteLine: readonly { lat: number; lon: number }[] | null;
   currentNavigationStep: InAppNavigationRoute['steps'][number] | null;
   fitRoute: (nextRoute: InAppNavigationRoute) => void;
   focusNavigationCamera: (
@@ -188,6 +191,8 @@ export function useInAppNavigation(
   const [navigationFollowing, setNavigationFollowing] = React.useState(true);
   const [navigationSpeedMps, setNavigationSpeedMps] = React.useState<number | null>(null);
   const [navigationPuck, setNavigationPuck] = React.useState<NavigationPuckPlacement | null>(null);
+  /** The route still to ride (PWA: trimNavigationRouteLine); null draws all of it. */
+  const [routeLineAhead, setRouteLineAhead] = React.useState<{ lat: number; lon: number }[] | null>(null);
   const navOffRouteSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
   // A stop on the way (petrol found along the route); every route asked for
@@ -389,6 +394,7 @@ export function useInAppNavigation(
   const finishInAppNavigation = React.useCallback((arrived = false) => {
     setActiveRoute(null);
     setNavigationPuck(null);
+    setRouteLineAhead(null);
     setNavigationDestination(null);
     setNavigationStepIndex(0);
     announcedNavigationStep.current = null;
@@ -625,6 +631,8 @@ export function useInAppNavigation(
     // measured path, and how far along it the last fix matched.
     const puckPath = buildNavigationPathIndex(activeRoute.steps.flatMap((step) => step.coordinates));
     let puckAlongMeters: number | null = null;
+    let lineFromMeters: number | null = null;
+    setRouteLineAhead(null);
 
     // Keeps delivering fixes with the phone locked (see navigationLocationStream).
     void watchNavigationLocation(
@@ -659,6 +667,15 @@ export function useInAppNavigation(
           speedMps: speed,
         }, puckAlongMeters);
         puckAlongMeters = match.distanceAlongMeters;
+        // Drop the ridden part of the line every few metres, as Google and
+        // Apple Maps do.
+        if (match.snapped && (lineFromMeters === null || Math.abs(match.distanceAlongMeters - lineFromMeters) >= 5)) {
+          const ahead = navigationPathAhead(puckPath, match.distanceAlongMeters);
+          if (ahead.length >= 2) {
+            lineFromMeters = match.distanceAlongMeters;
+            setRouteLineAhead(ahead);
+          }
+        }
         const age = navigationFixAgeSeconds(position.timestamp, nowMs);
         const current = predictNavigationPuck(puckPath, match, speed, age);
         const ahead = predictNavigationPuck(puckPath, match, speed, age + NAV_PUCK_GLIDE_MS / 1000);
@@ -773,7 +790,8 @@ export function useInAppNavigation(
           navOffRouteSince.current = Date.now();
           return;
         }
-        if (Date.now() - navOffRouteSince.current < NAV_OFF_ROUTE_GRACE_MS || navRerouting.current) return;
+        // Shorter at speed (shared navigationOffRouteGraceMs).
+        if (Date.now() - navOffRouteSince.current < navigationOffRouteGraceMs(speed) || navRerouting.current) return;
 
         navOffRouteSince.current = null;
         setNavigationNotice('Rerouting…');
@@ -831,6 +849,8 @@ export function useInAppNavigation(
     navigationFollowing,
     navigationSpeedMps,
     navigationPuck,
+    /** The line to draw: what's still to ride, or the whole route. */
+    navigationRouteLine: activeRoute ? (routeLineAhead ?? activeRoute.coordinates) : null,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,

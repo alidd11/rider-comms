@@ -349,7 +349,8 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.actionRadius).toBe('14px');
   expect(mapGeometry.reportWidth).toBe(52);
   expect(mapGeometry.locateWidth).toBe(52);
-  expect(mapGeometry.nearbyWidth).toBe(52);
+  // Go live is a labelled pill: as tall as the square buttons, wider than them.
+  expect(mapGeometry.nearbyWidth).toBeGreaterThan(52);
   expect(mapGeometry.reportTransform).toBe('none');
   expect(mapGeometry.locateTransform).toBe('none');
   expectNear(mapGeometry.barTopDelta, 0);

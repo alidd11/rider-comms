@@ -81,6 +81,7 @@ test('PWA Nearby control switches public visibility and proximity voice off toge
   await expect.poll(() => page.evaluate(() => window.__riderCommsGetCurrentPositionCalls)).toBe(locationCallsBeforeNearby);
   await expect(nearby).toHaveAttribute('data-active', 'true');
   await expect(nearby).toHaveAttribute('aria-label', 'Leave nearby');
+  await expect(page.locator('#joinNearbyLabel')).toHaveText('Live');
   await expect(nearby).toHaveAttribute('aria-pressed', 'true');
   await expect(nearby).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('#voiceStatusBtn')).toBeVisible();

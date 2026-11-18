@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, type, elevation, MIN_TOUCH_TARGET, radii } from '../theme';
+import { colors, lightColors, spacing, type, elevation, MIN_TOUCH_TARGET, radii } from '../theme';
 
 export const NAVIGATION_SUMMARY_BASE_HEIGHT = 104;
 // Map screen controls (PWA: .map-bottom-bar, .map-action-small, .hud-button).
@@ -73,30 +73,6 @@ export const styles = StyleSheet.create({
     borderColor: colors.accent,
     backgroundColor: colors.accent,
   },
-  mapStatusChip: {
-    position: 'absolute',
-    left: spacing.md,
-    zIndex: 9,
-    maxWidth: '80%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  mapStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.textSecondary },
-  mapStatusDotLive: { backgroundColor: '#35E68A' },
-  mapStatusDotRide: { backgroundColor: colors.accent },
-  mapStatusText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
   // Report on the left, Go live on the right: the middle stays map.
   mapBottomBar: {
     position: 'absolute',
@@ -121,7 +97,10 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
   mapLiveButton: {
-    width: BOTTOM_BAR_HEIGHT,
+    minWidth: BOTTOM_BAR_HEIGHT,
+    maxWidth: '62%',
+    paddingLeft: 14,
+    paddingRight: 16,
     height: BOTTOM_BAR_HEIGHT,
     borderRadius: 14,
     flexDirection: 'row',
@@ -136,6 +115,8 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
   mapLiveButtonActive: { backgroundColor: '#35E68A' },
+  mapLiveLabel: { fontSize: 15, fontWeight: '800', color: '#04161D', flexShrink: 1 },
+  mapLiveLabelActive: { color: '#04210F' },
   // Riding HUD: shown while Ride Safe has locked the map (moving, not navigating).
   hudChips: { position: 'absolute', left: spacing.md, right: spacing.md, zIndex: 10, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   hudChip: {
@@ -411,11 +392,11 @@ export const styles = StyleSheet.create({
   },
   navigationSpeedBadge: {
     position: 'absolute',
-    right: spacing.md,
+    left: spacing.md,
     zIndex: 13,
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
     // Follows the theme like the banner: a fixed dark disc put the
@@ -425,10 +406,25 @@ export const styles = StyleSheet.create({
     borderColor: colors.border,
     ...elevation.raised,
   },
+  navigationRecentre: {
+    position: 'absolute',
+    left: spacing.md,
+    zIndex: 13,
+    minHeight: MIN_TOUCH_TARGET,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingLeft: 14,
+    paddingRight: 18,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    ...elevation.raised,
+  },
+  navigationRecentreText: { color: lightColors.guidance, fontSize: 15, lineHeight: 20, fontWeight: '800' },
   navigationSpeedBadgeValue: {
     color: colors.textPrimary,
-    fontSize: 30,
-    lineHeight: 32,
+    fontSize: 26,
+    lineHeight: 28,
     fontWeight: '800',
     letterSpacing: -0.8,
   },
@@ -469,6 +465,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   navigationSummaryPrimary: { flex: 1.08, minWidth: 78 },
   navigationRouteChoices: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },

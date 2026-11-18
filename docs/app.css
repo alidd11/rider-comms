@@ -1,6 +1,6 @@
 /* BRAND COLOURS: generated from shared/src/brandPalette.json by `npm run build:pwa-app`. Do not edit here. */
-:root{--bg:#080d10;--bg-elevated:#0d1317;--surface:#11171b;--surface-raised:#182127;--surface-hover:#1d282f;--border:#27323a;--border-soft:#182127;--text:#f3f6f7;--text-secondary:#aab5ba;--text-muted:#85919a;--accent:#2fa8d3;--accent-ink:#2fa8d3;--accent-pressed:#278db1;--accent-soft:#102d38;--accent-text:#041318;--focus:#64bde0;--bubble-mine:#1b6e8e;--success:#42c58a;--danger:#f0646b;--danger-surface:#2a171a;--warning:#d39a42;--asphalt:#0d1317;--lane-line:#253139;--switch-off:#3a4850;--accent-ink-on-light:#156e90}
-@media(prefers-color-scheme:light){:root{--bg:#e9eef0;--bg-elevated:#f1f4f5;--surface:#f7f9fa;--surface-raised:#dfe7ea;--surface-hover:#d7e1e5;--border:#bcc8ce;--border-soft:#cdd8dd;--text:#0b1216;--text-secondary:#46545c;--text-muted:#58666e;--accent:#279fc8;--accent-ink:#156e90;--accent-pressed:#1f86aa;--accent-soft:#d5ebf2;--accent-text:#031217;--focus:#279fc8;--bubble-mine:#1a7396;--success:#1d7553;--danger:#a33640;--danger-surface:#f2dddf;--warning:#97620f;--asphalt:#dde5e8;--lane-line:#bbc7cd;--switch-off:#aebbc2}}
+:root{--bg:#080d10;--bg-elevated:#0d1317;--surface:#11171b;--surface-raised:#182127;--surface-hover:#1d282f;--border:#27323a;--border-soft:#182127;--text:#f3f6f7;--text-secondary:#aab5ba;--text-muted:#85919a;--accent:#2fa8d3;--accent-ink:#2fa8d3;--accent-pressed:#278db1;--accent-soft:#102d38;--accent-text:#041318;--focus:#64bde0;--bubble-mine:#1b6e8e;--success:#42c58a;--danger:#f0646b;--danger-surface:#2a171a;--warning:#d39a42;--asphalt:#0d1317;--lane-line:#253139;--switch-off:#3a4850;--guidance:#0a5069;--guidance-strip:#073b4e;--accent-ink-on-light:#156e90}
+@media(prefers-color-scheme:light){:root{--bg:#e9eef0;--bg-elevated:#f1f4f5;--surface:#f7f9fa;--surface-raised:#dfe7ea;--surface-hover:#d7e1e5;--border:#bcc8ce;--border-soft:#cdd8dd;--text:#0b1216;--text-secondary:#46545c;--text-muted:#58666e;--accent:#279fc8;--accent-ink:#156e90;--accent-pressed:#1f86aa;--accent-soft:#d5ebf2;--accent-text:#031217;--focus:#279fc8;--bubble-mine:#1a7396;--success:#1d7553;--danger:#a33640;--danger-surface:#f2dddf;--warning:#97620f;--asphalt:#dde5e8;--lane-line:#bbc7cd;--switch-off:#aebbc2;--guidance:#0b5d78;--guidance-strip:#084a60}}
 /* END BRAND COLOURS */
 :root {
   color-scheme: light dark; --system-chrome:#080d10; --nav-chrome:#080d10; --font-display:Inter,ui-sans-serif,system-ui,sans-serif; --shadow-sm:0 3px 12px rgb(0 0 0/.2); --shadow-lg:0 12px 34px rgb(0 0 0/.36); --radius-sm:3px; --radius-md:4px; --radius-lg:4px; --radius-pill:999px; --touch:48px; --nav-height:58px; --content-max:680px; --safe-top:env(safe-area-inset-top,0px); --safe-right:env(safe-area-inset-right,0px); --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px); --app-vh:100dvh; --visual-vh:100dvh; --visual-viewport-top:0px; --bottom-safe-area:0px; --nav-safe-bottom:0px; --bottom-control-inset:0px; --navigation-control-inset:0px; --bottom-nav-height:var(--bottom-control-inset); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none;
@@ -2698,7 +2698,11 @@ html.map-drawer-open #ridePill{display:none}
    colour says live or not) bottom-right, Centre on me above it. */
 .map-bottom-bar{justify-content:space-between;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right))}
 .map-hazard-button{width:52px;height:52px;border-radius:14px}.map-hazard-button svg{width:24px;height:24px}
-#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button{flex:none;width:52px;min-width:52px;height:52px;padding:0;border-radius:14px}
+#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button{flex:none;width:auto;min-width:52px;max-width:62%;height:52px;padding:0 16px 0 14px;border-radius:14px;font-size:.95rem;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+#joinNearbyLabel{overflow:hidden;text-overflow:ellipsis}
+#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button[data-active=true] svg{animation:live-icon-pulse 2.4s ease-in-out infinite}
+@keyframes live-icon-pulse{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button[data-active=true] svg{animation:none}}
 #app:not(.nav-mode) .screen-map .map-action-small{width:52px;height:52px;min-width:52px;min-height:52px}#app:not(.nav-mode) .screen-map .map-action-small svg{width:22px;height:22px}
 #app:not(.nav-mode) .screen-map .map-actions{right:max(16px,var(--safe-right))}
 /* Pulled up, the drawer reaches just below the avatar; the list fills it and
@@ -2761,7 +2765,7 @@ body:has(#destinationCard:not([hidden])) .screen-map .map-bottom-bar{display:non
 .ride-ticket-meta{color:var(--text-secondary);font-size:.9rem;font-weight:600}
 .ride-ticket .ride-code-card{display:grid;grid-template-columns:minmax(0,1fr);justify-items:center;gap:4px;margin:0;padding:14px 12px;border:1px dashed var(--border);border-radius:12px;background:var(--bg)}
 .ride-ticket .ride-code-card span{color:var(--text-muted);font-size:.72rem;font-weight:750;letter-spacing:.09em;text-transform:uppercase}
-.ride-ticket .ride-code-card strong{color:var(--accent);font-size:2.1rem;font-weight:850;letter-spacing:.18em;font-variant-numeric:tabular-nums;line-height:1.1;padding-left:.18em}
+.ride-ticket .ride-code-card strong{color:var(--accent-ink);font-size:2.1rem;font-weight:850;letter-spacing:.18em;font-variant-numeric:tabular-nums;line-height:1.1;padding-left:.18em}
 .ride-ticket-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ride-ticket-actions .button{min-height:48px;gap:8px}
 .ride-ticket-actions svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -2873,3 +2877,35 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
 #addFriendForm .add-friend-field input{min-height:40px;padding:0;font-size:1rem}
 #addFriendForm .add-friend-field input:focus,#addFriendForm .add-friend-field input:focus-visible{outline:0;box-shadow:none}
 #addFriendForm .add-friend-field .button{min-height:40px;padding-inline:18px;border-radius:var(--radius-pill)}
+/* Guidance look (native: NavigationOverlay): a solid guidance-coloured turn
+   banner with white type and its "Then" strip attached underneath, End in the
+   trip card, and the speedometer bottom-left, as in Google Maps. The banner
+   stays the same colour day and night, so it reads at a glance either way. */
+.nav-banner,html.map-day .nav-banner{background:var(--guidance);color:#fff;border-color:transparent;box-shadow:0 12px 30px rgb(0 0 0/.3)}
+.nav-maneuver-icon,html.map-day .nav-maneuver-icon{color:#fff}
+.nav-banner-copy strong,html.map-day .nav-banner-copy strong{color:#fff}
+.nav-banner-copy>span,html.map-day .nav-banner-copy>span{color:#fff}
+.nav-provider-instruction,html.map-day .nav-provider-instruction{color:rgb(255 255 255/.82)}
+.nav-next-preview,html.map-day .nav-next-preview{background:var(--guidance-strip);border-top-color:transparent;color:rgb(255 255 255/.78)}
+.nav-next-preview span:last-child,html.map-day .nav-next-preview span:last-child{color:#fff}
+.nav-road-ahead,html.map-day .nav-road-ahead{background:var(--guidance-strip);border-top-color:rgb(255 255 255/.12)}
+.nav-road-ahead-label,html.map-day .nav-road-ahead-label{color:rgb(255 255 255/.72)}
+.nav-road-ahead-event,html.map-day .nav-road-ahead-event{background:rgb(255 255 255/.12)}
+.nav-road-ahead-event>span,html.map-day .nav-road-ahead-event>span{color:rgb(255 255 255/.86)}
+.nav-road-ahead-event strong,html.map-day .nav-road-ahead-event strong{color:#fff}
+.nav-summary{grid-template-columns:48px 1.14fr 1fr 1fr;column-gap:12px}
+.nav-end-button{width:48px;height:48px;min-width:48px;margin:0;display:grid;place-items:center;border-radius:50%;background:rgb(255 255 255/.1);border:1px solid rgb(255 255 255/.1);color:#f3f6f7}
+.nav-end-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+html.map-day .nav-end-button{background:rgb(11 18 22/.06);border-color:rgb(11 18 22/.1);color:#1b262c}
+.nav-speed-badge{top:auto;right:auto;bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 18px);left:max(14px,var(--safe-left));width:64px;height:64px;border-radius:32px}
+.nav-speed-badge strong{font-size:1.6rem}
+/* Re-centre: shown once the rider has moved the map, where the speedometer sits. */
+.nav-recentre{position:absolute;z-index:13;bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 22px);left:max(14px,var(--safe-left));min-height:48px;display:inline-flex;align-items:center;gap:8px;padding:0 18px 0 14px;border:0;border-radius:var(--radius-pill);background:#fff;color:#0b5d78;font:800 .95rem/1 Inter,sans-serif;box-shadow:0 8px 22px rgb(0 0 0/.3)}
+.nav-recentre[hidden]{display:none}
+.nav-recentre svg{width:20px;height:20px;fill:currentColor}
+#app:has(#navRecentreBtn:not([hidden])) .nav-speed-badge,#app:has(#navRouteChoices:not([hidden])) .nav-speed-badge{display:none}
+#app:has(#navRouteChoices:not([hidden])) .nav-recentre{bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 76px)}
+#app:not(.nav-mode) .nav-recentre{display:none}
+.nav-summary-eta strong{white-space:nowrap;font-size:clamp(1.05rem,5.2vw,1.48rem)}
+.nav-summary-stat strong{font-size:clamp(.98rem,4.6vw,1.25rem)}
+.nav-summary-stat{padding-left:10px}

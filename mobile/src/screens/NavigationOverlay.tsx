@@ -15,12 +15,23 @@ import {
 } from '../navigationGuidance';
 import type { RouteChoice } from '@rider-comms/shared';
 import type { UnitSystem } from '../settings/SettingsContext';
-import { colors, darkColors, pressedFeedback } from '../theme';
+import { colors, darkColors, lightColors, pressedFeedback } from '../theme';
 import { GLANCE_TEXT_MAX_SCALE, useNavigationPalette } from '../navigationTone';
 import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { styles } from './MapScreen.styles';
 import { ROUTE_UPDATED_NOTICE } from './useInAppNavigation';
+
+// The turn banner is the guidance colour day and night, with white type, as
+// in Google Maps (PWA: .nav-banner); night only deepens it.
+const guidance = StyleSheet.create({
+  banner: { backgroundColor: lightColors.guidance, borderColor: 'transparent' },
+  bannerNight: { backgroundColor: darkColors.guidance },
+  strip: { backgroundColor: lightColors.guidanceStrip, borderTopColor: 'transparent' },
+  stripNight: { backgroundColor: darkColors.guidanceStrip },
+  text: { color: '#FFFFFF' },
+  softText: { color: 'rgba(255,255,255,0.82)' },
+});
 
 // The night look over a dark map while the phone is in light mode (see
 // navigationTone.ts): the same shapes in the dark theme's colours.
@@ -61,7 +72,6 @@ export function NavigationBanner({
   roadAlerts,
   notice,
   onHeight,
-  onEnd,
 }: {
   top: number;
   upcomingStep: Step | null;
@@ -74,55 +84,51 @@ export function NavigationBanner({
   roadAlerts: NavigationRouteHazard[];
   notice: string | null;
   onHeight: React.Dispatch<React.SetStateAction<number>>;
-  onEnd: () => void;
 }): React.JSX.Element {
   const { night: isNight, palette } = useNavigationPalette();
   return (
-    <View testID="navigation-banner" style={[styles.navigationBanner, isNight && night.card, { top }]} onLayout={measured(onHeight)}>
+    <View testID="navigation-banner" style={[styles.navigationBanner, guidance.banner, isNight && guidance.bannerNight, { top }]} onLayout={measured(onHeight)}>
       <View style={styles.navigationBannerMain}>
         <View style={styles.navigationManeuver}>
           <NavigationManeuverGlyph
             maneuver={upcomingStep?.maneuver ?? 'arrive'}
             size={66}
-            color={palette.textPrimary}
-            secondaryColor={palette.textMuted}
+            color="#FFFFFF"
+            secondaryColor="rgba(255,255,255,0.55)"
           />
         </View>
         <View style={styles.navigationBannerCopy}>
-          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationDistance, isNight && night.distance]}>{formatNavigationDistance(distanceToStepEnd, unitSystem)}</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationDistance, guidance.text]}>{formatNavigationDistance(distanceToStepEnd, unitSystem)}</Text>
           {/* As in Google and Apple Maps: the distance, then the road the
               turn leads onto in large type (the arrow shows the turn).
               Without a named road, the action and full instruction show. */}
           <Text
             numberOfLines={roadName ? 2 : 1}
-            style={[styles.navigationInstruction, roadName ? styles.navigationRoad : null, isNight && night.primaryText]}
+            style={[styles.navigationInstruction, roadName ? styles.navigationRoad : null, guidance.text]}
             accessibilityLiveRegion="polite"
             accessibilityLabel={guidanceInstruction}
           >
             {roadName ?? glanceAction}
           </Text>
           {roadName ? null : (
-            <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={2} accessible={false} style={[styles.navigationProviderInstruction, isNight && night.secondaryText]}>
+            <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={2} accessible={false} style={[styles.navigationProviderInstruction, guidance.softText]}>
               {guidanceInstruction}
             </Text>
           )}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={onEnd} style={({ pressed }) => [styles.navigationEndButton, isNight && night.endButton, pressed && pressedFeedback]}>
-          <Ionicons name="close" size={24} color={palette.textPrimary} />
-        </Pressable>
       </View>
       {followingStep ? (
-        <View style={[styles.navigationNextPreview, isNight && night.nextPreview]}>
+        <View style={[styles.navigationNextPreview, guidance.strip, isNight && guidance.stripNight]}>
           <View style={styles.navigationNextGlyph}>
             <NavigationManeuverGlyph
               maneuver={followingStep.maneuver}
               size={30}
-              color={palette.textSecondary}
-              secondaryColor={palette.textMuted}
+              color="#FFFFFF"
+              secondaryColor="rgba(255,255,255,0.55)"
             />
           </View>
-          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationNextLabel, isNight && night.mutedText]}>Then</Text>
-          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={1} style={[styles.navigationNextInstruction, isNight && night.secondaryText]} accessibilityLabel={followingStep.instruction}>{navigationInstructionRoad(followingStep.instruction) ?? followingStep.instruction}</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationNextLabel, guidance.softText]}>Then</Text>
+          <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={1} style={[styles.navigationNextInstruction, guidance.text]} accessibilityLabel={followingStep.instruction}>{navigationInstructionRoad(followingStep.instruction) ?? followingStep.instruction}</Text>
         </View>
       ) : null}
       <NavigationRoadAhead alerts={roadAlerts} unit={unitSystem} />
@@ -144,15 +150,16 @@ export function NavigationBanner({
   );
 }
 
-export function NavigationSpeedBadge({ top, navigationSpeedMps, unitSystem }: {
-  top: number;
+/** Bottom-left above the trip card, as in Google Maps (PWA: #navSpeedBadge). */
+export function NavigationSpeedBadge({ bottom, navigationSpeedMps, unitSystem }: {
+  bottom: number;
   navigationSpeedMps: number | null;
   unitSystem: UnitSystem;
 }): React.JSX.Element {
   const { night: isNight } = useNavigationPalette();
   return (
     <View
-      style={[styles.navigationSpeedBadge, isNight && night.card, { top }]}
+      style={[styles.navigationSpeedBadge, isNight && night.card, { bottom }]}
       accessible
       accessibilityLabel={navigationSpeedMps == null
         ? 'Current speed unavailable'
@@ -175,6 +182,7 @@ export function NavigationTripSummary({
   chosenRouteIndex = -1,
   onChooseRoute,
   trafficText = '',
+  onEnd,
 }: {
   bottomPadding: number;
   arrivalLabel: string;
@@ -188,8 +196,10 @@ export function NavigationTripSummary({
   onChooseRoute?: (index: number) => void;
   /** "+8 min traffic" when today's traffic is adding time. */
   trafficText?: string;
+  /** End sits at the left of the trip card, away from the turn, as in Google Maps. */
+  onEnd: () => void;
 }): React.JSX.Element {
-  const { night: isNight } = useNavigationPalette();
+  const { night: isNight, palette } = useNavigationPalette();
   const label = [styles.navigationSummaryLabel, isNight && night.mutedText];
   const value = [styles.navigationSummaryValue, isNight && night.primaryText];
   const divider = [styles.navigationSummaryDivider, isNight && night.divider];
@@ -223,6 +233,9 @@ export function NavigationTripSummary({
         </View>
       ) : null}
       <View style={styles.navigationSummaryContent}>
+        <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={onEnd} style={({ pressed }) => [styles.navigationEndButton, isNight && night.endButton, pressed && pressedFeedback]}>
+          <Ionicons name="close" size={24} color={palette.textPrimary} />
+        </Pressable>
         <View style={styles.navigationSummaryPrimary}>
           <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationArrival, isNight && night.arrival]}>{arrivalLabel}</Text>
           <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={label}>arrival</Text>
@@ -310,5 +323,23 @@ export function NavigationControls({
         />
       </Pressable>
     </View>
+  );
+}
+
+/** Google Maps' Re-centre: shown once the rider has moved the map, where the
+ * speedometer sits (PWA: #navRecentreBtn). */
+export function NavigationRecentreButton({ bottom, onPress }: { bottom: number; onPress: () => void }): React.JSX.Element {
+  return (
+    <Pressable
+      testID="navigation-recentre"
+      accessibilityRole="button"
+      accessibilityLabel="Re-centre"
+      accessibilityHint="Keeps the map centred on your ride"
+      onPress={onPress}
+      style={({ pressed }) => [styles.navigationRecentre, { bottom }, pressed && pressedFeedback]}
+    >
+      <Ionicons name="navigate" size={20} color={lightColors.guidance} />
+      <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={styles.navigationRecentreText}>Re-centre</Text>
+    </Pressable>
   );
 }

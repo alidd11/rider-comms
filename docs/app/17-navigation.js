@@ -238,6 +238,19 @@
     navRouteLine.setMap(map);
   }
 
+  /** Drops the ridden part of the route line, as Google and Apple Maps do.
+   * Redrawn only every few metres, so a fix a second stays cheap. */
+  function trimNavigationRouteLine(distanceAlongMeters) {
+    if (!navRouteLine || !navPuckPath || !Number.isFinite(distanceAlongMeters)) return;
+    if (navRouteLineFromMeters !== null && Math.abs(distanceAlongMeters - navRouteLineFromMeters) < 5) return;
+    const ahead = navigationPuck.navigationPathAhead(navPuckPath, distanceAlongMeters);
+    if (ahead.length < 2) return;
+    navRouteLineFromMeters = distanceAlongMeters;
+    const path = ahead.map((point) => ({ lat: point.lat, lng: point.lon }));
+    navRouteOutline.setPath(path);
+    navRouteLine.setPath(path);
+  }
+
   function clearNavigationRouteLine() {
     navRouteOutline?.setMap(null);
     navRouteLine?.setMap(null);
@@ -416,6 +429,9 @@
       if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-locate');
       overview.classList.toggle('active', !navFollowing);
     }
+    // Google Maps' Re-centre: offered once the rider has moved the map.
+    const recentre = $('#navRecentreBtn');
+    if (recentre) recentre.hidden = navFollowing || !navSteps.length;
   }
 
   function updateNavigationPositionIcon() {
@@ -749,6 +765,7 @@
     renderNavigationRouteLine(routePath);
     navPuckPath = navigationPuck.buildNavigationPathIndex(routePath.map((point) => ({ lat: point.lat, lon: point.lng })));
     navPuckAlongMeters = null;
+    navRouteLineFromMeters = null;
     navStepIndex = 0;
     navArrowKey = null;
     navLastAnnouncedStep = -1;
@@ -967,6 +984,7 @@
       speedMps: speed,
     }, navPuckAlongMeters);
     navPuckAlongMeters = match.distanceAlongMeters;
+    if (match.snapped) trimNavigationRouteLine(match.distanceAlongMeters);
     const age = navigationPuck.navigationFixAgeSeconds(position.timestamp, nowMs);
     const current = navigationPuck.predictNavigationPuck(navPuckPath, match, speed, age);
     const ahead = navigationPuck.predictNavigationPuck(navPuckPath, match, speed, age + NAV_PUCK_GLIDE_MS / 1000);
@@ -996,7 +1014,9 @@
     if (status === 'unknown') return;
     if (status === 'off') {
       if (!navOffRouteSince) navOffRouteSince = Date.now();
-      else if (Date.now() - navOffRouteSince > NAV_OFF_ROUTE_GRACE_MS) {
+      // Shorter at speed (shared navigationOffRouteGraceMs), as Google Maps
+      // and Waze recalculate within seconds of a missed exit.
+      else if (Date.now() - navOffRouteSince > navigationPuck.navigationOffRouteGraceMs(navCurrentSpeedMps)) {
         navOffRouteSince = null;
         void rerouteFromCurrentPosition(here);
       }
@@ -1144,6 +1164,7 @@
     navSteps = [];
     navPuckPath = null;
     navPuckAlongMeters = null;
+    navRouteLineFromMeters = null;
     navPuckPlaced = false;
     navPuckTravelHeading = null;
     removeAnimatedMarker('self-nav');

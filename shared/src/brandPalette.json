@@ -23,7 +23,9 @@
     "warning": "#97620F",
     "asphalt": "#DDE5E8",
     "laneLine": "#BBC7CD",
-    "switchTrackOff": "#AEBBC2"
+    "switchTrackOff": "#AEBBC2",
+    "guidance": "#0B5D78",
+    "guidanceStrip": "#084A60"
   },
   "dark": {
     "background": "#080D10",
@@ -49,6 +51,8 @@
     "warning": "#D39A42",
     "asphalt": "#0D1317",
     "laneLine": "#253139",
-    "switchTrackOff": "#3A4850"
+    "switchTrackOff": "#3A4850",
+    "guidance": "#0A5069",
+    "guidanceStrip": "#073B4E"
   }
 }

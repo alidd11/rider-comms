@@ -278,8 +278,8 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
       speedWidth: speed?.getBoundingClientRect().width ?? NaN,
       speedHeight: speed?.getBoundingClientRect().height ?? NaN,
       speedRadius: speed ? parseFloat(getComputedStyle(speed).borderTopLeftRadius) : NaN,
-      speedTopGap: speed && banner ? speed.getBoundingClientRect().top - banner.getBoundingClientRect().bottom : NaN,
-      speedRightGap: speed ? window.innerWidth - speed.getBoundingClientRect().right : NaN,
+      speedBottomGap: speed && summary ? summary.getBoundingClientRect().top - speed.getBoundingClientRect().bottom : NaN,
+      speedLeftGap: speed ? speed.getBoundingClientRect().left : NaN,
       speedValue: speedValue?.textContent ?? null,
       speedUnit: speedUnit?.textContent ?? null,
       speedStillInSummary: Boolean(document.querySelector('.nav-summary-speed')),
@@ -342,11 +342,12 @@ test('PWA navigation summary extends through the installed iPhone bottom safe ar
   expect(metrics.roadAheadLabels[0]).toContain('0.6 mi');
   expect(metrics.roadAheadLabels[1]).toContain('Road closure');
   expect(metrics.roadAheadLabels[1]).toContain('1.4 mi');
-  expectNear(metrics.speedWidth, 76, 0.1);
-  expectNear(metrics.speedHeight, 76, 0.1);
-  expectNear(metrics.speedRadius, 38, 0.1);
-  expectNear(metrics.speedTopGap, 10, 2);
-  expectNear(metrics.speedRightGap, 14, 2);
+  // Bottom-left above the trip card, as in Google Maps.
+  expectNear(metrics.speedWidth, 64, 0.1);
+  expectNear(metrics.speedHeight, 64, 0.1);
+  expectNear(metrics.speedRadius, 32, 0.1);
+  expectNear(metrics.speedBottomGap, 18, 2);
+  expectNear(metrics.speedLeftGap, 14, 2);
   expect(metrics.speedValue).toBe('32');
   expect(metrics.speedUnit).toBe('mph');
   expect(metrics.speedStillInSummary).toBe(false);
