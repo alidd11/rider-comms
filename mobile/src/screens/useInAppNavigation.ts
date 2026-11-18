@@ -608,9 +608,11 @@ export function useInAppNavigation(
   const startCuratedNavigation = React.useCallback(async (route: CuratedRoute): Promise<void> => {
     // A fresh location fix is required before deciding whether the first
     // checkpoint has already been reached.
-    const origin = await requestCurrentLocation(true, Location.Accuracy.High);
-    if (!origin) return;
-    const pending = initialCuratedStops(route, origin, origin.accuracyMeters);
+    const fix = await requestCurrentLocation(true, Location.Accuracy.High);
+    if (!fix) return;
+    // Accuracy is metadata for checkpoint decisions, not a route coordinate.
+    const origin = { lat: fix.lat, lon: fix.lon };
+    const pending = initialCuratedStops(route, origin, fix.accuracyMeters);
     const destination = { lat: route.end.lat, lon: route.end.lon, label: route.name };
     setNavigationLoading(true);
     setNavigationNotice(null);
