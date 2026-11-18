@@ -439,7 +439,9 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await expect(finalRouteCard.locator('.route-trace-card')).toBeHidden();
   const finalRouteBox = await finalRouteCard.boundingBox();
   expect(finalRouteBox).not.toBeNull();
-  expect(finalRouteBox.width / finalRouteBox.height).toBeGreaterThan(2);
+  // Route cards now have a full photograph and a distinct, readable text
+  // panel; the previous >2:1 ratio assumed a compressed 136px card.
+  expect(finalRouteBox.height).toBeGreaterThanOrEqual(200);
   await expect(finalRouteCard.locator('.route-quick-stats svg')).toHaveCount(3);
   const routeCardGeometry = await finalRouteCard.evaluate((card) => {
     const image = card.querySelector('img');
@@ -451,11 +453,12 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       statsHeight: box(stats)?.height ?? NaN,
     };
   });
-  expect(routeCardGeometry.cardHeight).toBeGreaterThanOrEqual(136);
-  expect(routeCardGeometry.cardHeight).toBeLessThanOrEqual(140);
-  expect(routeCardGeometry.imageHeight).toBeGreaterThanOrEqual(76);
-  expect(routeCardGeometry.imageHeight).toBeLessThanOrEqual(80);
-  expect(routeCardGeometry.statsHeight).toBeLessThanOrEqual(18);
+  expect(routeCardGeometry.cardHeight).toBeGreaterThanOrEqual(200);
+  expect(routeCardGeometry.imageHeight).toBeGreaterThanOrEqual(120);
+  expect(routeCardGeometry.imageHeight).toBeLessThanOrEqual(132);
+  // Stats may wrap with larger text or smaller viewports; never truncate.
+  expect(routeCardGeometry.statsHeight).toBeGreaterThan(10);
+  expect(routeCardGeometry.statsHeight).toBeLessThan(80);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-routes-final.png'), fullPage: true });
 
   await openTab(page, 'friends');

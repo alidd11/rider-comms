@@ -112,3 +112,34 @@ html.pwa-standalone .route-detail{max-height:92%}
 #curatedRouteFilters .chip,.route-tools .chip-row.compact .chip{min-height:38px;padding-inline:13px;font-size:.78rem;border-radius:var(--radius-pill)}
 /* Cards keep their height; a shorter photo strip leaves room for the bigger text. */
 .curated-route-card .curated-route-overlay{top:64px;padding:6px 11px;gap:2px}
+
+/* Curated itinerary: an actionable, ordered stop list rather than relying on
+   the schematic route trace. This matches the native route overview. */
+.route-itinerary{padding:14px;border-radius:var(--radius-md);background:var(--surface-hover)}
+.route-itinerary h3{margin:0 0 10px}
+.route-itinerary ol{list-style:none;display:grid;gap:0;margin:0;padding:0}
+.route-itinerary li{position:relative;display:flex;align-items:center;gap:12px;min-height:49px;padding:6px 0}
+.route-itinerary li:not(:last-child):before{content:"";position:absolute;left:14px;top:37px;bottom:-8px;width:1px;background:var(--border)}
+.route-itinerary-marker{z-index:1;display:grid;place-items:center;flex:none;width:30px;height:30px;border:1px solid var(--border);border-radius:50%;background:var(--surface);color:var(--accent);font-size:.76rem;font-weight:800}
+.route-itinerary li>span:last-child{display:grid;gap:3px;min-width:0}
+.route-itinerary strong{overflow-wrap:anywhere;color:var(--text);font-size:.88rem;line-height:1.3}
+.route-itinerary small{color:var(--text-muted);font-size:.73rem}
+.route-detail-body [data-start-full-route]{min-height:52px;font-weight:800}
+.route-detail-body [data-guide-route-start]{min-height:48px}
+.route-detail .route-action-note{margin:0 auto!important}
+
+/* Card hierarchy on PWA matches native: a useful landscape photo, a
+   separate readable text strip, and natural height at larger font sizes. */
+.curated-route-card{display:flex;flex-direction:column;height:auto!important;min-height:204px}
+.curated-route-card::before{content:"";display:block;flex:none;height:128px}
+.curated-route-card>img,.curated-route-card:after,.route-photo-fallback{height:128px}
+.curated-route-card .curated-route-overlay{position:relative;inset:auto;flex:1;align-content:center;min-height:75px;padding:9px 12px;gap:3px}
+.curated-route-card .route-quick-stats{flex-wrap:wrap;overflow:visible;row-gap:4px}
+.route-detail-photo{min-height:255px}
+@media(min-width:700px){.route-detail-photo{min-height:285px}}
+@media(prefers-reduced-motion:reduce){.curated-route-card:active{transform:none}}
+
+/* Proximity sorting is not a driving-distance quote: show its approximate
+   straight-line origin-distance and explain unavailable location permission. */
+.curated-route-card .route-quick-stats .route-approach{display:inline-flex!important;color:var(--accent-ink);flex-basis:auto}
+.route-location-prompt{grid-column:1/-1;margin:0;padding:12px;border-radius:var(--radius-md);background:var(--surface-hover);color:var(--text-secondary);font-size:.82rem;line-height:1.5}
