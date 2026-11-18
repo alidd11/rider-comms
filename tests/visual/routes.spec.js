@@ -13,11 +13,26 @@ test('PWA route discovery previews route shape and hands the start back to the m
   await expect(firstRoute.locator('.route-trace-card')).toBeHidden();
   const routeCardBox = await firstRoute.boundingBox();
   expect(routeCardBox).not.toBeNull();
-  expect(routeCardBox.width / routeCardBox.height).toBeGreaterThan(2);
+  // Cards now provide a legible text strip beneath the photo rather than
+  // squeezing all metadata into the old 136px-wide-format mockup.
+  expect(routeCardBox.height).toBeGreaterThanOrEqual(200);
+  const visualHierarchy = await firstRoute.evaluate((card) => {
+    const image = card.querySelector('img')?.getBoundingClientRect();
+    const details = card.querySelector('.curated-route-overlay')?.getBoundingClientRect();
+    const stats = card.querySelector('.route-quick-stats')?.getBoundingClientRect();
+    return { imageHeight: image?.height, detailsHeight: details?.height, statsHeight: stats?.height };
+  });
+  expect(visualHierarchy.imageHeight).toBeGreaterThanOrEqual(120);
+  expect(visualHierarchy.detailsHeight).toBeGreaterThanOrEqual(70);
+  expect(visualHierarchy.statsHeight).toBeGreaterThan(10);
+  await expect(firstRoute.locator('.route-quick-stats svg')).toHaveCount(3);
 
   await firstRoute.click();
   await expect(page.locator('.route-detail')).toBeVisible();
   await expect(page.locator('.route-trace-detail')).toBeVisible();
+  await expect(page.locator('[data-start-full-route]')).toBeVisible();
+  await expect(page.locator('.route-itinerary li').first()).toContainText('Start');
+  expect(await page.locator('.route-itinerary li').count()).toBeGreaterThanOrEqual(3);
   await expect(page.locator('[data-guide-route-start]')).toBeVisible();
 
   await page.locator('[data-guide-route-start]').click();
