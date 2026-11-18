@@ -318,6 +318,7 @@
           chips.forEach((chip) => chip.addEventListener('click', () => {
             clearInterval(hazardAutoCloseTimer);
             $('#hazardAutoClose').hidden = true;
+            haptic('success');
             createHazard(chip.dataset.hazardType, chips);
           }));
         },

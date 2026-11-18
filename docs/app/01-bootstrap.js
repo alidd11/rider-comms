@@ -517,3 +517,10 @@
       this.body = body;
     }
   }
+
+  // Touch feedback (native: mobile/src/haptics.ts). Android browsers vibrate;
+  // Safari has no vibration API, so on iPhone this does nothing.
+  const HAPTIC_MS = { tap: 10, select: 6, success: [12, 40, 12], warning: [20, 60, 20] };
+  function haptic(kind = 'tap') {
+    try { navigator.vibrate?.(HAPTIC_MS[kind] ?? 10); } catch { /* never needed */ }
+  }

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { HazardType } from '@rider-comms/shared';
 import { colors, spacing, radii, type, pressedFeedback } from '../theme';
 import { HazardIcon } from '../components/HazardIcon';
+import { haptics } from '../haptics';
 
 export const HAZARD_TYPE_META: Record<HazardType, { label: string; color: string }> = {
   police: { label: 'Police', color: colors.accent },
@@ -73,7 +74,10 @@ export function HazardReportSheet({
                 <Pressable accessibilityRole="button"
                   key={type}
                   style={({ pressed }) => [styles.typeButton, pressed && styles.typeButtonPressed]}
-                  onPress={() => onReport(type)}
+                  onPress={() => {
+                    haptics.success();
+                    onReport(type);
+                  }}
                 >
                   <View style={styles.typeIcon}>
                     <HazardIcon type={type} size={40} />

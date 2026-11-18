@@ -517,6 +517,13 @@
       this.body = body;
     }
   }
+
+  // Touch feedback (native: mobile/src/haptics.ts). Android browsers vibrate;
+  // Safari has no vibration API, so on iPhone this does nothing.
+  const HAPTIC_MS = { tap: 10, select: 6, success: [12, 40, 12], warning: [20, 60, 20] };
+  function haptic(kind = 'tap') {
+    try { navigator.vibrate?.(HAPTIC_MS[kind] ?? 10); } catch { /* never needed */ }
+  }
   function loadSession() {
     for (const storage of [localStorage, sessionStorage]) {
       try {
@@ -2028,7 +2035,9 @@
       if (activeChat?.riderId !== riderId) return;
       chatMessages = window.RiderMessageState.acknowledge(chatMessages, localId, sent);
       renderChat();
+      haptic('tap');
     } catch {
+      haptic('warning');
       if (activeChat?.riderId !== riderId) return;
       chatMessages = chatMessages.map((message) => message.id === localId ? { ...message, status: 'failed' } : message);
       renderChat();
@@ -3376,6 +3385,7 @@
           chips.forEach((chip) => chip.addEventListener('click', () => {
             clearInterval(hazardAutoCloseTimer);
             $('#hazardAutoClose').hidden = true;
+            haptic('success');
             createHazard(chip.dataset.hazardType, chips);
           }));
         },
@@ -8665,7 +8675,7 @@
     });
     $('#shareRideBtn').addEventListener('click', shareRide);
     $('#rideShareTop').addEventListener('click', shareRide);
-    $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); showToast('Ride code copied.'); } catch { shareRide(); } });
+    $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); haptic('success'); showToast('Ride code copied.'); } catch { shareRide(); } });
     $('#openRideMap').addEventListener('click', () => navigate('map'));
     $('#ridePill').addEventListener('click', () => navigate('ride'));
     $('#regroupChip')?.addEventListener('click', showRegroupPoint);
@@ -8756,10 +8766,10 @@
       }
     });
     $('#locateBtn').addEventListener('click', locate);
-    $('#joinNearbyBtn').addEventListener('click', toggleNearby);
+    $('#joinNearbyBtn').addEventListener('click', () => { haptic('tap'); toggleNearby(); });
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
-    $('#endNavBtn').addEventListener('click', () => finishNavigation(false));
+    $('#endNavBtn').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
   }
 
   // --- Auth screen -----------------------------------------------------

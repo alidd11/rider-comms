@@ -32,6 +32,7 @@ import { useFriends } from '../friends/FriendsContext';
 import { useSettings } from '../settings/SettingsContext';
 import { navigationProviderLabel } from '../navigationPreference';
 import { RiderAvatar } from '../components/RiderAvatar';
+import { haptics } from '../haptics';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
@@ -244,8 +245,10 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       const sent = await client.sendMessage(riderId, text);
       setMessages((current) => acknowledgeOptimisticMessage(current, tempId, sent));
       setError(null);
+      haptics.tap();
     } catch {
       setMessages((current) => current.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
+      haptics.warning();
     } finally {
       setSending(false);
     }

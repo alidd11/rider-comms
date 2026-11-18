@@ -23,6 +23,7 @@ import { RecentRides } from './RecentRides';
 import { buildRideInviteLink, isCompleteRideCode, normalizeRideCodeInput } from './rideInvite';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
 import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/microphone';
+import { haptics } from '../haptics';
 
 
 function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; onBack?: () => void }): React.JSX.Element {
@@ -255,6 +256,7 @@ function RideTicket(): React.JSX.Element {
   const copy = async () => {
     if (!code) return;
     await Clipboard.setStringAsync(code);
+    haptics.success();
     setCopied(true);
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
     copiedTimer.current = setTimeout(() => setCopied(false), 2000);

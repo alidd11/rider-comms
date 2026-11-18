@@ -21,6 +21,7 @@ import { NavigationManeuverGlyph } from '../components/NavigationManeuverGlyph';
 import { NavigationRoadAhead } from '../components/NavigationRoadAhead';
 import { styles } from './MapScreen.styles';
 import { ROUTE_UPDATED_NOTICE } from './useInAppNavigation';
+import { haptics } from '../haptics';
 
 // The turn banner is the guidance colour day and night, with white type, as
 // in Google Maps (PWA: .nav-banner); night only deepens it.
@@ -233,7 +234,7 @@ export function NavigationTripSummary({
         </View>
       ) : null}
       <View style={styles.navigationSummaryContent}>
-        <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={onEnd} style={({ pressed }) => [styles.navigationEndButton, isNight && night.endButton, pressed && pressedFeedback]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => { haptics.tap(); onEnd(); }} style={({ pressed }) => [styles.navigationEndButton, isNight && night.endButton, pressed && pressedFeedback]}>
           <Ionicons name="close" size={24} color={palette.textPrimary} />
         </Pressable>
         <View style={styles.navigationSummaryPrimary}>
@@ -292,7 +293,7 @@ export function NavigationControls({
       {canReport && (
         <Pressable
           style={({ pressed }) => [styles.navigationActionButton, pressed && styles.navigationActionButtonPressed]}
-          onPress={onReport}
+          onPress={() => { haptics.tap(); onReport(); }}
           accessibilityRole="button"
           accessibilityLabel="Report on the road"
         >
@@ -301,7 +302,7 @@ export function NavigationControls({
       )}
       <Pressable
         style={({ pressed }) => [styles.navigationActionButton, muted && styles.navigationActionButtonActive, pressed && styles.navigationActionButtonPressed]}
-        onPress={onToggleMute}
+        onPress={() => { haptics.select(); onToggleMute(); }}
         accessibilityRole="button"
         accessibilityState={{ selected: muted }}
         accessibilityLabel={muted ? 'Unmute navigation guidance' : 'Mute navigation guidance'}

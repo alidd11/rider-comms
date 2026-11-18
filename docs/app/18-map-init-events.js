@@ -341,7 +341,7 @@
     });
     $('#shareRideBtn').addEventListener('click', shareRide);
     $('#rideShareTop').addEventListener('click', shareRide);
-    $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); showToast('Ride code copied.'); } catch { shareRide(); } });
+    $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); haptic('success'); showToast('Ride code copied.'); } catch { shareRide(); } });
     $('#openRideMap').addEventListener('click', () => navigate('map'));
     $('#ridePill').addEventListener('click', () => navigate('ride'));
     $('#regroupChip')?.addEventListener('click', showRegroupPoint);
@@ -432,10 +432,10 @@
       }
     });
     $('#locateBtn').addEventListener('click', locate);
-    $('#joinNearbyBtn').addEventListener('click', toggleNearby);
+    $('#joinNearbyBtn').addEventListener('click', () => { haptic('tap'); toggleNearby(); });
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
-    $('#endNavBtn').addEventListener('click', () => finishNavigation(false));
+    $('#endNavBtn').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
   }
 
   // --- Auth screen -----------------------------------------------------
