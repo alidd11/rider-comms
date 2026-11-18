@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
+import { errorFields, log } from './log.ts';
 import { roleCan } from './staffRoles.ts';
 import type { StaffPermission, StaffRole } from './staffRoles.ts';
 import type { ScryptOptions } from 'node:crypto';
@@ -38,6 +39,18 @@ const SCRYPT_V2_OPTIONS: ScryptOptions = {
 const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const ACCOUNT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** How long account security history is kept. */
+export const SECURITY_EVENT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
+export const SECURITY_EVENTS = ['account_created', 'login', 'login_failed', 'signed_out', 'session_revoked', 'password_reset', 'reauthenticated', 'reauth_failed'] as const;
+export type SecurityEventType = (typeof SECURITY_EVENTS)[number];
+export interface SecurityEvent {
+  id: string;
+  riderId: string;
+  event: SecurityEventType;
+  sessionId: string | null;
+  device: string | null;
+  createdAt: number;
+}
 const MAX_PASSWORD_LENGTH = 128;
 // A valid, fixed scrypt record used only to equalise the cost of an unknown
 // username and a wrong password. Without it, login timing exposes whether a
@@ -99,7 +112,7 @@ async function verifyPassword(password: string, stored: string, algorithm: strin
 }
 
 export class AuthStore {
-  private riderByTokenDigest = new Map<string, { riderId: string; expiresAt: number; sessionId: string }>();
+  private riderByTokenDigest = new Map<string, { riderId: string; expiresAt: number; sessionId: string; reauthenticatedAt?: number }>();
   private issuedRiderIds = new Set<string>();
 
   /**
@@ -162,8 +175,10 @@ export class AuthStore {
     this.riderByTokenDigest.delete(tokenHash);
     if (!process.env.DATABASE_URL) return;
     await ensureMigrated();
-    await getPool().query('DELETE FROM account_sessions WHERE token_hash = $1', [tokenHash]);
+    const removed = await getPool().query<{ id: string; user_id: string }>('DELETE FROM account_sessions WHERE token_hash = $1 RETURNING id, user_id', [tokenHash]);
     await getPool().query('DELETE FROM push_subscriptions WHERE session_token_hash = $1', [tokenHash]);
+    const session = removed.rows[0];
+    if (session) await this.recordSecurityEvent(session.user_id, 'signed_out', session.id, null);
   }
   /** The session behind a bearer token, so a link can be tied to it. */
   async sessionIdForToken(token: string): Promise<string | undefined> {
@@ -203,18 +218,22 @@ export class AuthStore {
   createTestSession(riderId: string): GuestSession {
     const token = randomBytes(32).toString('base64url');
     this.issuedRiderIds.add(riderId);
-    this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY, sessionId: randomUUID() });
+    // Test sessions count as freshly re-authenticated so staff tests can act; the real check is tested with real sessions.
+    this.riderByTokenDigest.set(this.digest(token), { riderId, expiresAt: Number.POSITIVE_INFINITY, sessionId: randomUUID(), reauthenticatedAt: Number.POSITIVE_INFINITY });
     return { riderId, token };
   }
-  private async issueAccountSession(riderId: string, deviceName?: unknown): Promise<GuestSession> {
+  private async issueAccountSession(riderId: string, deviceName?: unknown, event: SecurityEventType = 'login'): Promise<GuestSession> {
     const token = randomBytes(32).toString('base64url');
     const tokenHash = this.digest(token);
     const expiresAt = Date.now() + ACCOUNT_SESSION_TTL_MS;
+    const sessionId = randomUUID();
+    const device = this.deviceName(deviceName);
     await getPool().query(
       `INSERT INTO account_sessions (id, token_hash, user_id, expires_at, device_name)
        VALUES ($1, $2, $3, $4, $5)`,
-      [randomUUID(), tokenHash, riderId, new Date(expiresAt), this.deviceName(deviceName)]
+      [sessionId, tokenHash, riderId, new Date(expiresAt), device]
     );
+    await this.recordSecurityEvent(riderId, event, sessionId, device);
     await getPool().query(`
       DELETE FROM account_sessions
       WHERE token_hash IN (
@@ -259,7 +278,7 @@ export class AuthStore {
     // environment that hasn't configured it yet) block account creation —
     // issueVerification() already swallows send failures internally.
     const emailVerificationSent = await this.issueVerification(riderId, email);
-    const session = await this.issueAccountSession(riderId, deviceName);
+    const session = await this.issueAccountSession(riderId, deviceName, 'account_created');
     return { ...session, emailVerified: false, termsAccepted: true, emailVerificationSent };
   }
 
@@ -277,6 +296,7 @@ export class AuthStore {
       row?.password_hash ?? DUMMY_PASSWORD_HASH,
       row?.password_algorithm ?? PASSWORD_ALGORITHM
     );
+    if (row && !passwordMatches) await this.recordSecurityEvent(row.id, 'login_failed', null, this.deviceName(deviceName));
     if (!row || !passwordMatches) return { error: 'invalid_credentials' };
     // Checked only after the password matches, so suspension status is never
     // revealed to someone who doesn't hold the account's credentials.
@@ -394,6 +414,10 @@ export class AuthStore {
       await client.query('DELETE FROM account_sessions WHERE user_id = $1', [row.user_id]);
       // Every device signs in again, and re-registers for notifications then.
       await client.query('DELETE FROM push_subscriptions WHERE rider_id = $1', [row.user_id]);
+      await client.query(
+        `INSERT INTO security_events (rider_id, event, created_at) VALUES ($1, 'password_reset', $2)`,
+        [row.user_id, Date.now()],
+      );
       return { reset: true };
     });
   }
@@ -449,6 +473,79 @@ export class AuthStore {
     return roleCan(await this.staffRole(riderId), permission);
   }
 
+  /**
+   * Re-checks the rider's password on this session, so staff can make
+   * sensitive changes for the next STAFF_REAUTH_WINDOW_MS.
+   */
+  async reauthenticate(riderId: string, token: string, password: unknown): Promise<boolean> {
+    if (typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) return false;
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ password_hash: string; password_algorithm: string }>(
+      'SELECT password_hash, password_algorithm FROM users WHERE id = $1',
+      [riderId],
+    );
+    const row = rows[0];
+    const sessionId = await this.sessionIdForToken(token) ?? null;
+    const matches = await verifyPassword(password, row?.password_hash ?? DUMMY_PASSWORD_HASH, row?.password_algorithm ?? PASSWORD_ALGORITHM);
+    if (!row || !matches) {
+      if (row) await this.recordSecurityEvent(riderId, 'reauth_failed', sessionId, null);
+      return false;
+    }
+    const tokenHash = this.digest(token);
+    const cached = this.riderByTokenDigest.get(tokenHash);
+    if (cached) cached.reauthenticatedAt = Date.now();
+    await getPool().query('UPDATE account_sessions SET reauthenticated_at = now() WHERE token_hash = $1 AND user_id = $2', [tokenHash, riderId]);
+    await this.recordSecurityEvent(riderId, 'reauthenticated', sessionId, null);
+    return true;
+  }
+
+  /** Whether this session re-entered its password within the window. */
+  async recentlyReauthenticated(token: string, windowMs: number): Promise<boolean> {
+    if (!token) return false;
+    const tokenHash = this.digest(token);
+    const cached = this.riderByTokenDigest.get(tokenHash);
+    if (cached?.reauthenticatedAt !== undefined && cached.reauthenticatedAt >= Date.now() - windowMs) return true;
+    if (!process.env.DATABASE_URL) return false;
+    await ensureMigrated();
+    const { rowCount } = await getPool().query(
+      `SELECT 1 FROM account_sessions WHERE token_hash = $1 AND expires_at > now()
+       AND reauthenticated_at > now() - ($2::bigint * interval '1 millisecond')`,
+      [tokenHash, windowMs],
+    );
+    return Boolean(rowCount);
+  }
+
+  /** Account security history, newest first: one rider's, staff's, or everyone's. */
+  async listSecurityEvents({ riderId, staffOnly = false, limit = 100 }: { riderId?: string; staffOnly?: boolean; limit?: number } = {}): Promise<SecurityEvent[]> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ id: string; rider_id: string; event: SecurityEventType; session_id: string | null; device: string | null; created_at: string }>(
+      `SELECT e.id, e.rider_id, e.event, e.session_id, e.device, e.created_at
+       FROM security_events e
+       WHERE ($1::text IS NULL OR e.rider_id = $1)
+         AND (NOT $2 OR EXISTS (
+           SELECT 1 FROM users u LEFT JOIN staff_roles s ON s.rider_id = u.id
+           WHERE u.id = e.rider_id AND (u.is_admin OR s.role IS NOT NULL)))
+       ORDER BY e.created_at DESC, e.id
+       LIMIT $3`,
+      [riderId ?? null, staffOnly, Math.min(Math.max(Math.trunc(limit), 1), 200)],
+    );
+    return rows.map((row) => ({
+      id: row.id, riderId: row.rider_id, event: row.event, sessionId: row.session_id, device: row.device, createdAt: Number(row.created_at),
+    }));
+  }
+
+  /** Never fails the action it describes: a lost history line is logged instead. */
+  private async recordSecurityEvent(riderId: string, event: SecurityEventType, sessionId: string | null, device: string | null): Promise<void> {
+    try {
+      await getPool().query(
+        'INSERT INTO security_events (rider_id, event, session_id, device, created_at) VALUES ($1, $2, $3, $4, $5)',
+        [riderId, event, sessionId, device, Date.now()],
+      );
+    } catch (error) {
+      log('error', 'security_event_not_recorded', { riderId, securityEvent: event, ...errorFields(error) });
+    }
+  }
+
   async isAdmin(riderId: string): Promise<boolean> {
     if (!process.env.DATABASE_URL) return false;
     await ensureMigrated();
@@ -492,18 +589,20 @@ export class AuthStore {
     if (!revoked) return false;
     // The revoked device stops getting notifications too.
     await getPool().query('DELETE FROM push_subscriptions WHERE session_token_hash = $1', [revoked.token_hash]);
+    await this.recordSecurityEvent(riderId, 'session_revoked', sessionId, null);
     return true;
   }
 
   /** Removes abandoned authentication artefacts without waiting for their
    * exact bearer/reset/verification token to be presented again. Safe to run
    * repeatedly from every replica because each delete is idempotent. */
-  async cleanupExpiredRecords(now = new Date()): Promise<{ sessions: number; verifications: number; passwordResets: number }> {
+  async cleanupExpiredRecords(now = new Date()): Promise<{ sessions: number; verifications: number; passwordResets: number; securityEvents: number }> {
     await ensureMigrated();
     return withTransaction(async (client) => {
       const sessions = await client.query('DELETE FROM account_sessions WHERE expires_at <= $1', [now]);
       const verifications = await client.query('DELETE FROM email_verifications WHERE expires_at <= $1', [now]);
       const passwordResets = await client.query('DELETE FROM password_resets WHERE expires_at <= $1', [now]);
+      const securityEvents = await client.query('DELETE FROM security_events WHERE created_at < $1', [now.getTime() - SECURITY_EVENT_RETENTION_MS]);
       await client.query(
         `DELETE FROM push_subscriptions p WHERE p.session_token_hash IS NOT NULL
          AND NOT EXISTS (SELECT 1 FROM account_sessions s WHERE s.token_hash = p.session_token_hash)`,
@@ -512,6 +611,7 @@ export class AuthStore {
         sessions: sessions.rowCount ?? 0,
         verifications: verifications.rowCount ?? 0,
         passwordResets: passwordResets.rowCount ?? 0,
+        securityEvents: securityEvents.rowCount ?? 0,
       };
     });
   }

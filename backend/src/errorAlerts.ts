@@ -1,3 +1,4 @@
+import { log } from './log.ts';
 // Emails staff when the backend or a client reports an error, so crashes are
 // noticed without a paid monitoring vendor. Alerts are batched: the first
 // error in a quiet period is emailed at once, and anything after it within
@@ -84,14 +85,14 @@ export class ErrorAlerter {
     try {
       const recipients = await this.options.recipients();
       if (recipients.length === 0) {
-        console.warn(JSON.stringify({ level: 'warn', event: 'error_alert_skipped', reason: 'no_recipients' }));
+        log('warn', 'error_alert_skipped', { reason: 'no_recipients' });
         return;
       }
       const { subject, text } = formatAlert(samples, counts, this.options.environment);
       const results = await Promise.all(recipients.map((to) => this.options.send(to, subject, text)));
-      console.log(JSON.stringify({ level: 'info', event: 'error_alert_sent', recipients: recipients.length, delivered: results.filter(Boolean).length }));
+      log('info', 'error_alert_sent', { recipients: recipients.length, delivered: results.filter(Boolean).length });
     } catch (error) {
-      console.error(JSON.stringify({ level: 'error', event: 'error_alert_failed', message: error instanceof Error ? error.message : String(error) }));
+      log('error', 'error_alert_failed', { message: error instanceof Error ? error.message : String(error) });
     }
   }
 }

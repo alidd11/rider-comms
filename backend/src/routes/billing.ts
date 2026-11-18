@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { log } from '../log.ts';
 import { decodeJwsPayload, StoreVerificationError } from '../storeBilling.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { NOT_HANDLED } from './context.ts';
@@ -11,7 +12,7 @@ function sameSecret(given: string, expected: string): boolean {
 }
 
 function logNotificationFailure(platform: string, error: unknown): void {
-  console.error(JSON.stringify({ level: 'error', event: 'billing_notification_failed', platform, message: error instanceof Error ? error.message : String(error) }));
+  log('error', 'billing_notification_failed', { platform, message: error instanceof Error ? error.message : String(error) });
 }
 
 /**

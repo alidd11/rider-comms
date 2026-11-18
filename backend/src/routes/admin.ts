@@ -1,10 +1,11 @@
 import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
+import { getPool } from '../db.ts';
 import { emailDeliveryStatus } from '../email.ts';
 import { MAX_MODERATION_NOTE_LENGTH } from '../moderationStore.ts';
 import { readJsonBody, sendJson } from '../serverHttp.ts';
 import { GRANTABLE_STAFF_ROLES, isGrantableStaffRole, permissionsFor, roleCan } from '../staffRoles.ts';
 import type { StaffPermission } from '../staffRoles.ts';
-import { NOT_HANDLED } from './context.ts';
+import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 /** Staff dashboard. The caller's role is re-read from Postgres on every request. */
@@ -32,6 +33,11 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       email: emailDeliveryStatus(),
     });
   }
+  // Request rates, errors and response times on the replica that answers.
+  if (req.method === 'GET' && url.pathname === '/admin/metrics') {
+    if (lacks('view_system')) return refuse('view_system');
+    return sendJson(res, 200, ctx.requestMetrics.snapshot(process.env.DATABASE_URL ? getPool() : null));
+  }
   if (req.method === 'GET' && url.pathname === '/admin/riders') {
     if (lacks('view_riders')) return refuse('view_riders');
     const query = url.searchParams.get('q') ?? '';
@@ -44,10 +50,19 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     return sendJson(res, 200, { riders: await adminStatsStore.searchRiders(query, limit) });
   }
 
+  // Sign-ins, failed passwords, resets and revoked devices; staff only, or one rider.
+  if (req.method === 'GET' && url.pathname === '/admin/security-events') {
+    if (lacks('manage_staff')) return refuse('manage_staff');
+    const limit = Number(url.searchParams.get('limit') ?? 100);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 200' });
+    const riderId = url.searchParams.get('riderId')?.trim() || undefined;
+    return sendJson(res, 200, { events: await authStore.listSecurityEvents({ riderId, staffOnly: url.searchParams.get('staff') === '1', limit }) });
+  }
   if (s[1] === 'staff') {
     if (lacks('manage_staff')) return refuse('manage_staff');
     if (req.method === 'GET' && s.length === 2) return sendJson(res, 200, { staff: await moderationStore.listStaff() });
     if (req.method !== 'POST') return sendJson(res, 404, { error: 'not_found' });
+    if (await refuseWithoutRecentReauth(ctx)) return;
     const body = await readJsonBody(req);
     const note = typeof body.note === 'string' ? body.note.trim() : '';
     if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {

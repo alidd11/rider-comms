@@ -1,5 +1,6 @@
 import type { RegroupPoint } from '@rider-comms/shared';
 import type http from 'node:http';
+import { bearerToken, sendJson } from '../serverHttp.ts';
 import type { AccountDeletionStore } from '../accountDeletionStore.ts';
 import type { AuthStore } from '../authStore.ts';
 import type { BillingStore } from '../billingStore.ts';
@@ -11,6 +12,7 @@ import type { LiveKitCredentials } from '../liveKitToken.ts';
 import type { MessageStore } from '../messageStore.ts';
 import type { ModerationStore } from '../moderationStore.ts';
 import type { AdminStatsStore } from '../adminStatsStore.ts';
+import type { RequestMetrics } from '../requestMetrics.ts';
 import type { PlaceAlongRoute, PlaceAlongRouteRequest, PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from '../placesProvider.ts';
 import type { PresenceStore } from '../presenceStore.ts';
 import type { ProfileStore } from '../profileStore.ts';
@@ -107,6 +109,7 @@ export interface RouteDeps {
   socialMedia: SocialMediaService | null;
   /** Uploads and new posts; off unless SOCIAL_POSTING_ENABLED=true, even with storage. */
   socialPostingEnabled: boolean;
+  requestMetrics: RequestMetrics;
 }
 
 /** Context for routes that run before authentication. */
@@ -163,4 +166,14 @@ export async function publicProfile(profileStore: ProfileStore, friendStore: Fri
     instagramUsername: canSee(profile.instagramVisibility) ? profile.instagramUsername : '',
     tiktokUsername: canSee(profile.tiktokVisibility) ? profile.tiktokUsername : '',
   };
+}
+
+/** Staff changes (decisions, suspensions, staff roles) need the password re-entered within this window. */
+export const STAFF_REAUTH_WINDOW_MS = 15 * 60_000;
+
+/** Refuses a staff change unless this session re-entered its password recently; true when refused. */
+export async function refuseWithoutRecentReauth(ctx: Pick<RouteContext, 'req' | 'res' | 'authStore'>): Promise<boolean> {
+  if (await ctx.authStore.recentlyReauthenticated(bearerToken(ctx.req), STAFF_REAUTH_WINDOW_MS)) return false;
+  sendJson(ctx.res, 403, { error: 'reauth_required', windowMs: STAFF_REAUTH_WINDOW_MS });
+  return true;
 }

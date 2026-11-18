@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { errorFields, log } from './log.ts';
+import { RequestMetrics, routeKey } from './requestMetrics.ts';
 import { createLiveKitRoomAdmin, getLiveKitCredentialsFromEnv } from './liveKitToken.ts';
 import type { LiveKitCredentials, LiveKitRoomAdmin } from './liveKitToken.ts';
 import { fetchDrivingRoute } from './directionsProvider.ts';
@@ -86,6 +88,8 @@ export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
   trustProxy?: boolean;
   logger?: (event: ApiRequestLog) => void;
+  /** Per-route request figures for the dashboard; one per process. */
+  requestMetrics?: RequestMetrics;
   /** Defaults to reading LIVEKIT_API_KEY/LIVEKIT_API_SECRET/LIVEKIT_URL from
    * the environment; pass null explicitly (e.g. in tests) to force the
    * "voice not configured" path regardless of the real environment. */
@@ -142,8 +146,20 @@ export interface ApiRequestLog {
   status: number;
   durationMs: number;
   clientAddress: string;
+  /** The route with IDs replaced, for grouping (see requestMetrics.ts). */
+  route: string;
+  /** The signed-in rider, once the request was authenticated. */
+  riderId?: string;
   /** Why a 4xx/5xx was returned, when the handler said (see sendJson). */
   error?: string;
+}
+
+/** Requests slower than this are logged as warnings. */
+export const SLOW_REQUEST_MS = 2_000;
+
+export function requestLogLevel(event: Pick<ApiRequestLog, 'status' | 'durationMs'>): 'info' | 'warn' | 'error' {
+  if (event.status >= 500) return 'error';
+  return event.durationMs > SLOW_REQUEST_MS ? 'warn' : 'info';
 }
 
 async function authRider(req: http.IncomingMessage, res: http.ServerResponse, auth: AuthStore): Promise<string | undefined> {
@@ -231,6 +247,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     expoAccessToken: process.env.EXPO_ACCESS_TOKEN?.trim() || undefined,
   });
   const readinessCheck = options.readinessCheck ?? checkDatabaseReady;
+  const requestMetrics = options.requestMetrics ?? new RequestMetrics();
   const directionsCache = options.directionsCache ?? new DirectionsCache();
   const directionsProvider = wrapDirectionsProviderWithCache(
     options.directionsProvider ?? ((origin, destination, avoid) => fetchDrivingRoute(origin, destination, { avoid })),
@@ -249,13 +266,11 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     );
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
-        console.error(JSON.stringify({
-          level: 'error',
-          event: 'ride_voice_revocation_failed',
+        log('error', 'ride_voice_revocation_failed', {
           rideId,
           riderId: uniqueRiderIds[index],
           message: result.reason instanceof Error ? result.reason.message : String(result.reason),
-        }));
+        });
       }
     });
   };
@@ -269,14 +284,12 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     );
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
-        console.error(JSON.stringify({
-          level: 'error',
-          event: 'proximity_voice_revocation_failed',
+        log('error', 'proximity_voice_revocation_failed', {
           riderA,
           riderB,
           riderId: riderIds[index],
           message: result.reason instanceof Error ? result.reason.message : String(result.reason),
-        }));
+        });
       }
     });
   };
@@ -295,19 +308,27 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
     moderationStore, adminStatsStore, hazardStore, scenicRouteStore, billingStore, accountDeletionStore, rateLimitStore,
     socialRateLimitStore, socialActivityStore, socialEventStore, readinessCheck, directionsProvider,
     placesProvider, placesAlongRouteProvider, placeSuggestionsProvider, placeDetailsProvider, liveKitCredentials, revokeRideVoiceParticipants, revokeProximityVoiceParticipants,
-    visibleRideLocationsFor, socialPostStore, socialMedia, socialPostingEnabled,
+    visibleRideLocationsFor, socialPostStore, socialMedia, socialPostingEnabled, requestMetrics,
   };
   const app = http.createServer(async (req, res) => {
     const startedAt = Date.now();
     const id = requestId(req, REQUEST_ID_PATTERN);
+    let actorIdForLog: string | undefined;
     const address = clientAddress(req, options.trustProxy === true);
     applyResponsePolicy(res, id);
     res.once('finish', () => {
       try {
         const error = responseErrorCode(res);
-        options.logger?.({ requestId: id, method: req.method ?? 'UNKNOWN', path: new URL(req.url ?? '/', 'http://localhost').pathname, status: res.statusCode, durationMs: Date.now() - startedAt, clientAddress: address, ...(error ? { error } : {}) });
+        const method = req.method ?? 'UNKNOWN';
+        const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+        const durationMs = Date.now() - startedAt;
+        requestMetrics.record(method, path, res.statusCode, durationMs);
+        options.logger?.({
+          requestId: id, method, path, route: routeKey(method, path), status: res.statusCode, durationMs, clientAddress: address,
+          ...(actorIdForLog ? { riderId: actorIdForLog } : {}), ...(error ? { error } : {}),
+        });
       } catch (error) {
-        console.error('request logger failed', error);
+        log('error', 'request_logger_failed', errorFields(error));
       }
     });
     try {
@@ -319,6 +340,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if ((await handleSocialMediaRoute({ ...deps, req, res, url, address })) !== NOT_HANDLED) return;
       const actorId = await authRider(req, res, authStore);
       if (!actorId) return;
+      actorIdForLog = actorId;
       const ctx: RouteContext = { ...deps, req, res, url, address, actorId, s: url.pathname.split('/').filter(Boolean) };
       await socialActivityStore.touch(actorId);
       if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'api'))) return;
@@ -358,21 +380,21 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
       if (error instanceof URIError) return sendJson(res, 400, { error: 'invalid URL encoding' });
       const failedPath = new URL(req.url ?? '/', 'http://localhost').pathname;
       const failureMessage = error instanceof Error ? error.message : String(error);
-      console.error(JSON.stringify({
-        level: 'error',
-        event: 'request_failed',
+      log('error', 'request_failed', {
         requestId: id,
         method: req.method,
         path: failedPath,
+        riderId: actorIdForLog,
         message: failureMessage,
         stack: error instanceof Error ? error.stack : undefined,
-      }));
+      });
       reportOperationalError('request_failed', `${req.method} ${failedPath} (request ${id}): ${failureMessage}`);
       return sendJson(res, 500, { error: 'internal_error' });
     }
   });
   app.once('close', () => {
-    void socialEventStore.close?.().catch((error) => console.error('social event listener close failed', error));
+    if (!options.requestMetrics) requestMetrics.stop();
+    void socialEventStore.close?.().catch((error) => log('error', 'social_event_listener_close_failed', errorFields(error)));
   });
   return app;
 }
@@ -401,8 +423,8 @@ async function startProductionServer(): Promise<void> {
     environment: process.env.RAILWAY_ENVIRONMENT_NAME ?? 'production',
   }));
   const productionBillingStore = new BillingStore(storeVerifiersFromEnv());
-  console.log(JSON.stringify({ level: 'info', event: 'billing_configured', purchasesEnabled: productionBillingStore.purchasesEnabled }));
-  const logInfo = (event: string, fields: object) => console.log(JSON.stringify({ level: 'info', event, ...fields }));
+  log('info', 'billing_configured', { purchasesEnabled: productionBillingStore.purchasesEnabled });
+  const logInfo = (event: string, fields: object) => log('info', event, { ...fields });
 
   // Each job runs once now and then on its interval. A failure in a cleanup
   // that must succeed before serving aborts startup; later failures are logged.
@@ -439,7 +461,7 @@ async function startProductionServer(): Promise<void> {
     billingStore: productionBillingStore,
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
-    logger: (event) => logInfo('http_request', event),
+    logger: (event) => log(requestLogLevel(event), 'http_request', { ...event }),
     rateLimitStore: productionRateLimitStore,
     socialRateLimitStore: productionSocialRateLimitStore,
     socialActivityStore: productionSocialActivityStore,
@@ -459,7 +481,7 @@ async function startProductionServer(): Promise<void> {
   const siteMonitor = new SiteMonitor({
     urls: [publicAppUrl.href, new URL('privacy.html', publicAppUrl).href],
     report: (summary) => reportOperationalError('web_app_down', summary),
-    log: (entry) => console.log(JSON.stringify(entry)),
+    log: ({ level, event, ...fields }) => log(level === 'warn' ? 'warn' : 'info', String(event), fields),
   });
   const timers = [
     scheduleMaintenance(AUTH_CLEANUP_INTERVAL_MS, 'auth_record_cleanup_failed', cleanAuthRecords),
@@ -478,7 +500,7 @@ async function startProductionServer(): Promise<void> {
     timers,
     beforeClose: () => {
       void flushErrorAlerts();
-      void productionSocialEventStore.close().catch((error) => console.error(JSON.stringify({ level: 'error', event: 'social_event_listener_shutdown_failed', message: errorMessage(error) })));
+      void productionSocialEventStore.close().catch((error) => log('error', 'social_event_listener_shutdown_failed', { message: errorMessage(error) }));
     },
     closeResources: async () => {
       await productionSocialEventStore.close();
@@ -495,7 +517,7 @@ async function startProductionServer(): Promise<void> {
 
 if (isMainModule) {
   void startProductionServer().catch(async (error) => {
-    console.error(JSON.stringify({ level: 'error', event: 'startup_failed', message: errorMessage(error) }));
+    log('error', 'startup_failed', { message: errorMessage(error) });
     process.exitCode = 1;
     try { await closeDatabase(); } catch { /* startup failure is already logged */ }
   });

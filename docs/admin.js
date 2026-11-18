@@ -97,7 +97,7 @@
     }
   }
 
-  async function api(method, path, body) {
+  async function request(method, path, body) {
     const headers = { Authorization: `Bearer ${session.token}` };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -108,6 +108,63 @@
     const json = await response.json().catch(() => ({}));
     if (!response.ok) throw new ApiError(response.status, json.error);
     return json;
+  }
+
+  // Staff changes need the password re-entered every 15 minutes. When the
+  // backend asks, confirm it here and send the change again once.
+  async function api(method, path, body) {
+    try {
+      return await request(method, path, body);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.code !== 'reauth_required') throw error;
+      if (!(await confirmPassword())) throw new ApiError(403, 'reauth_cancelled');
+      return request(method, path, body);
+    }
+  }
+
+  /** A password dialog; resolves true once the backend accepts it, false if closed. */
+  function confirmPassword() {
+    return new Promise((resolve) => {
+      const input = el('input', { class: 'input', type: 'password', id: 'reauthPassword', autocomplete: 'current-password', 'aria-label': 'Password', required: true });
+      const error = el('p', { class: 'error-text', role: 'alert' });
+      const submit = el('button', { type: 'submit', class: 'button button-primary', text: 'Confirm' });
+      const cancel = el('button', { type: 'button', class: 'button', value: 'cancel', text: 'Cancel' });
+      const form = el('form', { class: 'dialog-body', novalidate: true }, [
+        el('h2', { class: 'card-title', id: 'reauthTitle', text: 'Confirm it’s you' }),
+        el('p', { class: 'card-description', text: 'Enter your Rider Comms password to make staff changes for the next 15 minutes.' }),
+        input,
+        error,
+        el('div', { class: 'actions' }, [cancel, submit]),
+      ]);
+      const dialog = el('dialog', { class: 'dialog', 'aria-labelledby': 'reauthTitle' }, [form]);
+      let accepted = false;
+      cancel.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', () => { dialog.remove(); resolve(accepted); });
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!input.value) {
+          error.textContent = 'Enter your password.';
+          return;
+        }
+        submit.disabled = true;
+        error.textContent = '';
+        try {
+          await request('POST', '/auth/reauthenticate', { password: input.value });
+          accepted = true;
+          dialog.close();
+        } catch (failure) {
+          submit.disabled = false;
+          input.value = '';
+          input.focus();
+          error.textContent = failure instanceof ApiError && failure.status === 401 ? 'That password isn’t right.'
+            : failure instanceof ApiError && failure.status === 429 ? 'Too many tries. Wait a minute, then try again.'
+            : 'Could not reach the server. Try again.';
+        }
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      input.focus();
+    });
   }
 
   function el(tag, props = {}, children = []) {
@@ -729,6 +786,7 @@
     if (error.code === 'already_resolved') return 'Someone already resolved this report. Refresh to see the latest queue.';
     if (error.code === 'forbidden_target') return 'You cannot suspend yourself or another admin.';
     if (error.code === 'not_suspended') return 'This rider is not suspended.';
+    if (error.code === 'reauth_cancelled') return 'Not changed: your password is needed for staff changes.';
     if (error.status === 403) return 'Your account is no longer staff.';
     return `Failed: ${error.code || error.message}`;
   }
@@ -1053,8 +1111,31 @@
     ]);
   }
 
+  const SECURITY_EVENT_LABELS = {
+    account_created: 'Created the account', login: 'Signed in', login_failed: 'Wrong password', signed_out: 'Signed out',
+    session_revoked: 'Signed out a device', password_reset: 'Reset the password', reauthenticated: 'Confirmed password', reauth_failed: 'Wrong password when confirming',
+  };
+  const SECURITY_EVENT_TONES = { login_failed: 'warning', reauth_failed: 'warning', password_reset: 'accent' };
+
+  function signInHistory(events) {
+    if (!events) return [];
+    return [
+      el('h2', { class: 'section-title', text: 'Staff sign-ins' }),
+      el('div', { class: 'card reports' }, events.length
+        ? [el('ul', { class: 'list' }, events.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
+          person(riderLabel(event.riderId).name, [SECURITY_EVENT_LABELS[event.event] || event.event, event.device].filter(Boolean).join(' · '), event.riderId),
+          el('span', { class: 'trail' }, [SECURITY_EVENT_TONES[event.event] ? badge(event.event === 'password_reset' ? 'Reset' : 'Failed', SECURITY_EVENT_TONES[event.event]) : null, el('div', {}, [timeEl(event.createdAt)])]),
+        ])))]
+        : [emptyState('lock', 'No sign-ins yet', 'Staff sign-ins, wrong passwords and resets will be listed here.')]),
+    ];
+  }
+
   async function renderStaff() {
-    const { staff } = await api('GET', '/admin/staff');
+    const [{ staff }, events] = await Promise.all([
+      api('GET', '/admin/staff'),
+      api('GET', '/admin/security-events?staff=1&limit=20').then((body) => body.events).catch(() => null),
+    ]);
+    await loadNames((events ?? []).map((event) => event.riderId));
     const counts = staff.reduce((total, member) => ({ ...total, [member.role]: (total[member.role] ?? 0) + 1 }), {});
     const name = (member) => member.displayName || member.handle || member.riderId;
     const sub = (member) => [member.handle, member.email].filter(Boolean).join(' · ') || member.riderId;
@@ -1078,6 +1159,7 @@
           el('td', {}, [staffActions(member)]),
         ]))),
       ])])]),
+      ...signInHistory(events),
       el('h2', { class: 'section-title', text: 'Roles' }),
       roleMatrix(),
     );
@@ -1121,8 +1203,50 @@
     return el('span', { class: 'badge', dataset: { tone: STATE_TONES[state], state }, text: label });
   }
 
+  function formatMs(ms) {
+    return ms >= 1000 ? `${(ms / 1000).toFixed(ms >= 10_000 ? 0 : 1)} s` : `${ms} ms`;
+  }
+  function formatRate(rate) {
+    if (!rate) return '0%';
+    return rate < 0.001 ? '<0.1%' : `${(rate * 100).toFixed(rate < 0.1 ? 1 : 0)}%`;
+  }
+
+  /** Requests, errors and response times over the last hour, from the replica that answered. */
+  function trafficSection(metrics) {
+    if (!metrics) return [];
+    const { totals, database } = metrics;
+    const routeTable = (title, routes) => el('section', { class: 'card table-card' }, [
+      el('div', { class: 'card-header' }, [el('h3', { class: 'card-title', text: title })]),
+      routes.length
+        ? el('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': title }, [el('table', { class: 'table' }, [
+          el('thead', {}, [el('tr', {}, [el('th', { text: 'Route' }), el('th', { class: 'num', text: 'Requests' }), el('th', { class: 'num', text: 'Errors' }), el('th', { class: 'num', text: 'Median' }), el('th', { class: 'num', text: 'p95' })])]),
+          el('tbody', {}, routes.map((route) => el('tr', { dataset: { route: route.route } }, [
+            el('td', {}, [el('code', { class: 'route', text: route.route })]),
+            el('td', { class: 'num', text: numberFormat.format(route.count) }),
+            el('td', { class: route.errorRate > 0.01 ? 'num danger-text' : 'num', text: formatRate(route.errorRate) }),
+            el('td', { class: 'num', text: formatMs(route.p50Ms) }),
+            el('td', { class: route.p95Ms > 1000 ? 'num warning-text' : 'num', text: formatMs(route.p95Ms) }),
+          ]))),
+        ])])
+        : el('p', { class: 'card-description pad', text: 'Not enough requests yet.' }),
+    ]);
+    const uptimeHours = metrics.uptimeSeconds / 3600;
+    const uptime = uptimeHours >= 24 ? `${Math.floor(uptimeHours / 24)}d ${Math.floor(uptimeHours % 24)}h` : uptimeHours >= 1 ? `${Math.floor(uptimeHours)}h ${Math.floor((metrics.uptimeSeconds % 3600) / 60)}m` : `${Math.max(1, Math.floor(metrics.uptimeSeconds / 60))}m`;
+    return [
+      el('h2', { class: 'section-title', text: `Traffic · last ${metrics.windowMinutes} minutes` }),
+      el('div', { class: 'kpis traffic-kpis' }, [
+        kpiCard({ label: 'Requests', value: formatNumber(totals.count), foot: `${formatNumber(Math.round(totals.count / Math.max(1, metrics.perMinute.length)))} a minute` }),
+        kpiCard({ label: 'Server errors', value: formatRate(totals.errorRate), foot: `${formatRate(totals.clientErrorRate)} refused (4xx)` }),
+        kpiCard({ label: 'Response time p95', value: formatMs(totals.p95Ms), foot: `Median ${formatMs(totals.p50Ms)}` }),
+        kpiCard({ label: 'Database connections', value: database ? `${database.total - database.idle} / ${database.max}` : '—', foot: database ? (database.waiting ? `${database.waiting} waiting` : 'In use / limit') : 'Not connected' }),
+      ]),
+      el('div', { class: 'panels' }, [routeTable('Busiest routes', metrics.routes.slice(0, 8)), routeTable('Slowest routes', metrics.slowest)]),
+      el('p', { class: 'page-subtitle', text: `Server ${metrics.replica} · up ${uptime} · memory ${metrics.process.rssMb} MB${metrics.process.eventLoopDelayP99Ms !== null ? ` · event-loop delay p99 ${metrics.process.eventLoopDelayP99Ms} ms` : ''}. Each server counts its own requests.` }),
+    ];
+  }
+
   async function renderSystem() {
-    const [health, ready, system] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null)]);
+    const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null), api('GET', '/admin/metrics').catch(() => null)]);
     const row = (name, description, result) => el('li', { class: 'status-row' }, [
       el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
       el('span', { class: 'status-value' }, [
@@ -1139,6 +1263,7 @@
         row('Database', 'Postgres reachable and migrations applied', ready),
       ])]),
       ...(setup.length ? [el('h2', { class: 'section-title', text: 'Setup' }), el('section', { class: 'card' }, [el('ul', { class: 'status-list' }, setup)])] : []),
+      ...trafficSection(metrics),
       el('h2', { class: 'section-title', text: 'Runbooks' }),
       el('section', { class: 'card' }, [el('ul', { class: 'link-list' }, [
         runbook('MODERATION.md', 'Moderation and this dashboard'),

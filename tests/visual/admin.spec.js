@@ -65,12 +65,13 @@ const ROLE_PERMISSIONS = {
 };
 
 /** Minimal in-memory moderation backend. */
-async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin' } = {}) {
+async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false } = {}) {
   const state = {
     reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended }],
     actions: [],
     posts: [],
     riderQueries: [],
+    reauthenticated: !reauth,
     // Each test gets its own riders, so verifying one doesn't leak into the next.
     riders: RIDERS.map((rider) => ({ ...rider })),
     staff: [
@@ -95,6 +96,32 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     if ((url.pathname.startsWith('/moderation') || url.pathname.startsWith('/admin')) && !admin) return json(403, { error: 'admin_required' });
     if (url.pathname === '/admin/me') return json(200, { riderId: ADMIN_ID, role, permissions: ROLE_PERMISSIONS[role] });
+    if (url.pathname === '/auth/reauthenticate') {
+      const { password } = request.postDataJSON();
+      if (password !== 'right-password') return json(401, { error: 'invalid_credentials' });
+      state.reauthenticated = true;
+      return json(200, { reauthenticated: true, validForMs: 900000 });
+    }
+    // Like the backend: only staff changes need a recent password.
+    if (request.method() === 'POST' && /^\/(moderation|admin\/staff)/.test(url.pathname) && !state.reauthenticated) return json(403, { error: 'reauth_required', windowMs: 900000 });
+    if (url.pathname === '/admin/metrics') {
+      const route = (name, count, errorRate, p50Ms, p95Ms) => ({ route: name, count, errorRate, clientErrorRate: 0, avgMs: p50Ms, p50Ms, p95Ms, p99Ms: p95Ms });
+      return json(200, {
+        windowMinutes: 60, replica: 'replica-a1', uptimeSeconds: 7_500,
+        totals: route('all', 1_240, 0.004, 25, 250),
+        routes: [route('GET /live/ride/:id', 820, 0, 10, 50), route('POST /rides', 40, 0.025, 100, 2_500)],
+        slowest: [route('POST /rides', 40, 0.025, 100, 2_500)],
+        perMinute: [{ minute: 0, count: 600, serverErrors: 2 }, { minute: 60_000, count: 640, serverErrors: 3 }],
+        process: { rssMb: 180, heapUsedMb: 90, eventLoopDelayP99Ms: 12 },
+        database: { total: 6, idle: 4, waiting: 0, max: 20 },
+      });
+    }
+    if (url.pathname === '/admin/security-events') {
+      return json(200, { events: [
+        { id: 'e1', riderId: 'rider_maya', event: 'login_failed', sessionId: null, device: 'iPhone', createdAt: Date.now() - 60_000 },
+        { id: 'e2', riderId: ADMIN_ID, event: 'login', sessionId: 's1', device: 'Mac', createdAt: Date.now() - 120_000 },
+      ] });
+    }
     if (url.pathname === '/admin/staff' && request.method() === 'GET') return json(200, { staff: state.staff });
     if (url.pathname === '/admin/staff' && request.method() === 'POST') {
       const body = request.postDataJSON();
@@ -455,6 +482,58 @@ test.describe('staff dashboard', () => {
     await page.route(`${API}/admin/overview`, (route) => route.fulfill({ status: 403, headers: { 'Access-Control-Allow-Origin': '*' }, contentType: 'application/json', body: JSON.stringify({ error: 'permission_required', permission: 'view_overview' }) }));
     await page.goto('/admin.html');
     await expect(page.locator('.empty-title')).toHaveText('Your role doesn’t include this page');
+  });
+
+  test('staff confirm their password before a change, then it goes through', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { reauth: true });
+    await page.goto('/admin.html#moderation');
+    const card = page.locator('.report[data-report-id="report-1"]');
+    await card.locator('textarea').fill('Checked the chat history.');
+
+    await card.getByRole('button', { name: 'Dismiss' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Confirm it’s you' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(card.locator('.error-text')).toHaveText('Not changed: your password is needed for staff changes.');
+    expect(state.posts).toHaveLength(0);
+
+    await card.getByRole('button', { name: 'Dismiss' }).click();
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.locator('.error-text')).toHaveText('Enter your password.');
+    await dialog.getByLabel('Password').fill('wrong');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.locator('.error-text')).toHaveText('That password isn’t right.');
+    await dialog.getByLabel('Password').fill('right-password');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('.empty-title')).toHaveText('No open reports');
+    expect(state.posts).toEqual([{ path: '/moderation/reports/report-1/resolve', body: { resolution: 'dismiss', note: 'Checked the chat history.' } }]);
+  });
+
+  test('system view shows the last hour of traffic', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.section-title', { hasText: 'Traffic' })).toHaveText('Traffic · last 60 minutes');
+    const tiles = page.locator('.traffic-kpis .kpi');
+    await expect(tiles.nth(0)).toContainText('1,240');
+    await expect(tiles.nth(1)).toContainText('0.4%');
+    await expect(tiles.nth(2)).toContainText('250 ms');
+    await expect(tiles.nth(3)).toContainText('2 / 20');
+    await expect(page.locator('tr[data-route="POST /rides"]').first()).toContainText('2.5 s');
+    await expect(page.locator('.page-subtitle', { hasText: 'replica-a1' })).toContainText('up 2h 5m');
+  });
+
+  test('the staff page lists recent staff sign-ins', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#staff');
+    const rows = page.locator('[data-security-event]');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('Wrong password · iPhone');
+    await expect(rows.nth(0).locator('.badge')).toHaveText('Failed');
+    await expect(rows.nth(1)).toContainText('You');
   });
 
   test('system view reports API and database health', async ({ page }) => {

@@ -128,6 +128,6 @@ describe('route edge cases', { skip: !hasDatabase && 'DATABASE_URL not set' }, (
     failLogger = true;
     assert.equal((await fetch(`${ctx.baseUrl()}/config`)).status, 200);
     await new Promise((resolve) => setImmediate(resolve));
-    assert.ok(errors.mock.calls.some((call) => call.arguments[0] === 'request logger failed'));
+    assert.ok(errors.mock.calls.some((call) => String(call.arguments[0]).includes('"event":"request_logger_failed"')));
   });
 });

@@ -1021,4 +1021,27 @@ export const MIGRATIONS: Migration[] = [
         CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove', 'staff_grant', 'staff_revoke'));
     `,
   },
+  {
+    // Account security history (sign-ins, failed passwords, resets, revoked
+    // devices) for riders and staff, kept 180 days (authStore cleanup), and
+    // the time each session last re-entered its password, which staff
+    // actions require within the last 15 minutes.
+    name: '0058_security_events_and_reauth',
+    sql: `
+      CREATE TABLE IF NOT EXISTS security_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        rider_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        event TEXT NOT NULL CHECK (event IN (
+          'account_created', 'login', 'login_failed', 'signed_out', 'session_revoked',
+          'password_reset', 'reauthenticated', 'reauth_failed'
+        )),
+        session_id TEXT,
+        device TEXT,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS security_events_rider_idx ON security_events (rider_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS security_events_created_idx ON security_events (created_at);
+      ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS reauthenticated_at TIMESTAMPTZ;
+    `,
+  },
 ];

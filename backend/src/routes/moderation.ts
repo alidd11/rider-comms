@@ -2,7 +2,7 @@ import { MAX_MODERATION_NOTE_LENGTH, REPORT_RESOLUTIONS, REPORT_STATUSES } from 
 import type { ReportResolution, ReportStatus } from '../moderationStore.ts';
 import { readJsonBody, sendJson } from '../serverHttp.ts';
 import { roleCan } from '../staffRoles.ts';
-import { NOT_HANDLED, ejectFromVoice, voiceMembershipsOf } from './context.ts';
+import { NOT_HANDLED, ejectFromVoice, refuseWithoutRecentReauth, voiceMembershipsOf } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown> {
@@ -17,6 +17,7 @@ export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown
       : req.method === 'POST' && s[1] === 'riders' && s[3] === 'verify-email' ? 'verify_email'
       : 'moderate';
     if (!roleCan(role, permission)) return sendJson(res, 403, { error: 'permission_required', permission });
+    if (req.method === 'POST' && (await refuseWithoutRecentReauth(ctx))) return;
     const limitParam = url.searchParams.get('limit');
     const limit = limitParam === null ? undefined : Number(limitParam);
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 200)) {

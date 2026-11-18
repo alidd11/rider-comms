@@ -28,6 +28,16 @@ log as `staff_grant` or `staff_revoke`.
 The role is re-read from the database on every request, and each action
 checks its own permission. Moderators can't suspend themselves or an admin.
 
+Every staff change (report decisions, suspensions, Social post decisions,
+verifying email, staff roles) needs the password re-entered on that session
+within the last 15 minutes. The dashboard asks for it when needed
+(`POST /auth/reauthenticate`); otherwise the change gets 403 `reauth_required`.
+
+Sign-ins, wrong passwords, password resets, sign-outs and revoked devices are
+kept for 180 days in `security_events`. Riders see their own with
+`GET /auth/security-events`; admins see staff sign-ins on the Staff page and
+anyone's with `GET /admin/security-events?riderId=…` (`staff=1` for staff only).
+
 ## The staff dashboard
 
 Open **https://alidd11.github.io/rider-comms/admin.html**. Before that, sign in to the Rider Comms app in the same browser with an admin account; the dashboard reuses that sign-in. The old `moderation.html` address redirects to the dashboard's Moderation tab.
