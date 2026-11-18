@@ -99,11 +99,13 @@ function RouteOverview({
   riderLocation,
   onClose,
   onGuideToStart,
+  onNavigateFullRoute,
 }: {
   route: CuratedRoute | null;
   riderLocation: RiderCoordinate | null;
   onClose: () => void;
   onGuideToStart: (route: CuratedRoute) => void;
+  onNavigateFullRoute: (route: CuratedRoute) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [imageFailed, setImageFailed] = React.useState(false);
@@ -163,10 +165,24 @@ function RouteOverview({
           <View style={styles.overviewBody}>
             <View style={styles.metaStrip}>
               <MetaItem icon="navigate-outline" value={`${route.distanceMiles} mi`} label="Route" />
-              <MetaItem icon="time-outline" value={`${route.estimatedDurationMinutes} min`} label="Ride time*" />
+              <MetaItem icon="time-outline" value={`${route.estimatedDurationMinutes} min`} label="Travel time*" />
               <MetaItem icon="speedometer-outline" value={route.difficulty} label="Difficulty" />
               {approach ? <MetaItem icon="locate-outline" value={approach.replace(' from you', '')} label="To start" /> : null}
             </View>
+
+            <Pressable
+              style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}
+              onPress={() => {
+                onClose();
+                onNavigateFullRoute(route);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Navigate the complete ${route.name} itinerary in Rider Comms`}
+            >
+              <Ionicons name="navigate" size={19} color={colors.accentText} />
+              <Text style={styles.primaryButtonText}>Navigate full route</Text>
+            </Pressable>
+            <Text style={styles.estimateNote}>Through the start, {route.waypoints.length} planned {route.waypoints.length === 1 ? 'stop' : 'stops'} and the finish, in order.</Text>
 
             <View style={styles.tracePanel}>
               <View style={styles.traceCopy}>
@@ -178,13 +194,26 @@ function RouteOverview({
               <RouteTrace route={route} width={156} height={88} />
             </View>
 
+            <View style={styles.itinerary}>
+              <Text style={styles.sectionTitle}>Route itinerary</Text>
+              {[route.start, ...route.waypoints, route.end].map((point, index, points) => (
+                <View key={`${index}-${point.lat}-${point.lon}`} style={styles.itineraryRow}>
+                  <View style={styles.itineraryIndex}><Text style={styles.itineraryIndexText}>{index === 0 ? 'S' : index === points.length - 1 ? 'F' : index}</Text></View>
+                  <View style={styles.itineraryCopy}>
+                    <Text style={styles.itineraryLabel}>{point.label}</Text>
+                    <Text style={styles.itineraryType}>{index === 0 ? 'Start' : index === points.length - 1 ? 'Finish' : `Stop ${index} of ${route.waypoints.length}`}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
             <Text style={styles.overviewDescription}>{route.description}</Text>
             <View style={styles.riderNote}>
-              <MaterialCommunityIcons name="motorbike" size={22} color={colors.accent} />
+              <MaterialCommunityIcons name="map-marker-path" size={22} color={colors.accent} />
               <Text style={styles.riderNoteText}>{route.riderNote}</Text>
             </View>
 
-            <Text style={styles.sectionTitle}>Why ride it</Text>
+            <Text style={styles.sectionTitle}>Highlights</Text>
             <View style={styles.tagRow}>
               <View style={styles.highlightTag}><Text style={styles.highlightText}>{ROAD_TYPE_LABELS[route.roadType]}</Text></View>
               {route.highlights.map((highlight) => (
@@ -192,7 +221,7 @@ function RouteOverview({
               ))}
             </View>
 
-            <Text style={styles.sectionTitle}>Plan before you ride</Text>
+            <Text style={styles.sectionTitle}>Before you go</Text>
             <View style={styles.noticeList}>
               {route.safetyNotices.map((notice) => (
                 <View key={notice} style={styles.noticeRow}>
@@ -203,16 +232,16 @@ function RouteOverview({
             </View>
 
             <Pressable
-              style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}
+              style={({ pressed }) => [styles.secondaryButton, pressed && pressedFeedback]}
               onPress={() => {
                 onClose();
                 onGuideToStart(route);
               }}
               accessibilityRole="button"
-              accessibilityLabel={`Guide me to the start of ${route.name} in Rider Comms`}
+              accessibilityLabel={`Navigate only to the start of ${route.name}`}
             >
-              <Ionicons name="navigate" size={19} color={colors.accentText} />
-              <Text style={styles.primaryButtonText}>Guide me to the start</Text>
+              <Ionicons name="flag-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.secondaryButtonText}>Directions to starting point</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.secondaryButton, pressed && pressedFeedback]}
@@ -222,7 +251,7 @@ function RouteOverview({
               <MaterialCommunityIcons name="map-marker-path" size={19} color={colors.textPrimary} />
               <Text style={styles.secondaryButtonText}>Preview in Google Maps</Text>
             </Pressable>
-            <Text style={styles.estimateNote}>*Ride time is an estimate without stops or traffic.{route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; confirm each stop before riding.' : ''}</Text>
+            <Text style={styles.estimateNote}>*Travel time is an estimate without stops or traffic.{route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; confirm each stop before riding.' : ''}</Text>
 
             <View style={styles.sourceBlock}>
               <Text style={styles.sectionTitle}>Sources & image rights</Text>
@@ -334,12 +363,14 @@ export function CuratedRouteBrowser({
   category,
   query,
   onGuideToStart,
+  onNavigateFullRoute,
 }: {
   rideWindow: RideWindow;
   riderLocation: RiderCoordinate | null;
   category: RouteCategory;
   query: string;
   onGuideToStart: (route: CuratedRoute) => void;
+  onNavigateFullRoute: (route: CuratedRoute) => void;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
   const [selectedRoute, setSelectedRoute] = React.useState<CuratedRoute | null>(null);
@@ -386,6 +417,7 @@ export function CuratedRouteBrowser({
         riderLocation={riderLocation}
         onClose={() => setSelectedRoute(null)}
         onGuideToStart={onGuideToStart}
+        onNavigateFullRoute={onNavigateFullRoute}
       />
     </>
   );
