@@ -72,10 +72,12 @@ export interface RouteAvoidance {
   ferries?: boolean;
   /** A stop on the way (petrol, a café): the route goes through it. */
   via?: RouteCoordinate;
+  /** Ordered curated-route stops. Mutually exclusive with legacy `via`. */
+  waypoints?: RouteCoordinate[];
 }
 
 /** Reads `{ highways, tolls, ferries }` from a request body; anything else counts as false. */
-export function routeAvoidance(value: unknown): Omit<RouteAvoidance, 'via'> {
+export function routeAvoidance(value: unknown): Omit<RouteAvoidance, 'via' | 'waypoints'> {
   if (!value || Array.isArray(value) || typeof value !== 'object') return {};
   const candidate = value as { highways?: unknown; tolls?: unknown; ferries?: unknown };
   return { highways: candidate.highways === true, tolls: candidate.tolls === true, ferries: candidate.ferries === true };
@@ -242,8 +244,11 @@ export async function fetchGoogleDrivingRoute(
     options.avoid?.ferries ? 'ferries' : null,
   ].filter((value): value is string => value !== null);
   if (avoid.length) params.set('avoid', avoid.join('|'));
-  const via = options.avoid?.via;
-  if (via && isCoordinate(via)) params.set('waypoints', `${via.lat},${via.lon}`);
+  const waypoints = options.avoid?.waypoints ?? (options.avoid?.via ? [options.avoid.via] : []);
+  if (waypoints.length > 20 || waypoints.some((point) => !isCoordinate(point))) {
+    throw new DirectionsProviderError('directions_invalid_request');
+  }
+  if (waypoints.length) params.set('waypoints', waypoints.map((point) => `${point.lat},${point.lon}`).join('|'));
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -386,14 +391,18 @@ export async function fetchGoogleRoutes(
   if (!apiKey) throw new DirectionsProviderError('directions_not_configured');
 
   const point = (coordinate: RouteCoordinate) => ({ location: { latLng: { latitude: coordinate.lat, longitude: coordinate.lon } } });
+  const waypoints = options.avoid?.waypoints ?? (options.avoid?.via ? [options.avoid.via] : []);
+  if (waypoints.length > 20 || waypoints.some((coordinate) => !isCoordinate(coordinate))) {
+    throw new DirectionsProviderError('directions_invalid_request');
+  }
   const body = {
     origin: point(origin),
     destination: point(destination),
     travelMode: 'DRIVE',
     routingPreference: 'TRAFFIC_AWARE',
     // Google offers no alternatives for a trip with a stop.
-    computeAlternativeRoutes: !options.avoid?.via,
-    ...(options.avoid?.via && isCoordinate(options.avoid.via) ? { intermediates: [point(options.avoid.via)] } : {}),
+    computeAlternativeRoutes: !waypoints.length,
+    ...(waypoints.length ? { intermediates: waypoints.map(point) } : {}),
     routeModifiers: {
       avoidHighways: options.avoid?.highways === true,
       avoidTolls: options.avoid?.tolls === true,
