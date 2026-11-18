@@ -1021,4 +1021,56 @@ export const MIGRATIONS: Migration[] = [
         CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove', 'staff_grant', 'staff_revoke'));
     `,
   },
+  {
+    // Account security history (sign-ins, failed passwords, resets, revoked
+    // devices) for riders and staff, kept 180 days (authStore cleanup), and
+    // the time each session last re-entered its password, which staff
+    // actions require within the last 15 minutes.
+    name: '0058_security_events_and_reauth',
+    sql: `
+      CREATE TABLE IF NOT EXISTS security_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        rider_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        event TEXT NOT NULL CHECK (event IN (
+          'account_created', 'login', 'login_failed', 'signed_out', 'session_revoked',
+          'password_reset', 'reauthenticated', 'reauth_failed'
+        )),
+        session_id TEXT,
+        device TEXT,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS security_events_rider_idx ON security_events (rider_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS security_events_created_idx ON security_events (created_at);
+      ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS reauthenticated_at TIMESTAMPTZ;
+    `,
+  },
+  {
+    // Staff exporting a rider's data (a data access request) is recorded, and
+    // recurring jobs are claimed per interval so one replica runs each (jobLease.ts).
+    name: '0059_data_export_action_and_job_runs',
+    sql: `
+      CREATE TABLE IF NOT EXISTS job_runs (
+        job TEXT PRIMARY KEY,
+        last_run_at BIGINT NOT NULL
+      );
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove', 'staff_grant', 'staff_revoke', 'data_export'));
+    `,
+  },
+  {
+    // Staff tools: suspensions that end on their own, moderators claiming a
+    // report so two don't work the same one, and support's account actions.
+    name: '0060_staff_tools',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_until BIGINT;
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS claimed_by TEXT;
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS claimed_at BIGINT;
+      CREATE INDEX IF NOT EXISTS users_suspended_until_idx ON users (suspended_until) WHERE suspended_until IS NOT NULL;
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent'));
+    `,
+  },
 ];

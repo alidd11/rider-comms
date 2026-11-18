@@ -8,7 +8,11 @@ function captureConsole(t: { after: (fn: () => void) => void }) {
   const log = mock.method(console, 'log', (line: string) => { lines.push(line); });
   const error = mock.method(console, 'error', (line: string) => { lines.push(line); });
   t.after(() => { log.mock.restore(); error.mock.restore(); });
-  return () => lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+  // Every line also carries ts, service, commit and replica (log.ts); compare the rest.
+  return () => lines.map((line) => {
+    const { ts: _ts, service: _service, commit: _commit, replica: _replica, ...rest } = JSON.parse(line) as Record<string, unknown>;
+    return rest;
+  });
 }
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));

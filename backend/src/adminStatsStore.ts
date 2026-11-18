@@ -69,6 +69,8 @@ export interface AdminRiderSummary {
   /** Dashboard role: 'admin' for admins, a granted role, or null. */
   staffRole: StaffRole | null;
   suspended: boolean;
+  /** When a timed suspension ends; null when not suspended or indefinite. */
+  suspendedUntil: number | null;
   displayName: string | null;
   handle: string | null;
   friends: number;
@@ -319,6 +321,12 @@ export class AdminStatsStore {
     return result;
   }
 
+  /** One rider, by exact ID, in the same shape as a search result. */
+  async riderSummary(riderId: string): Promise<AdminRiderSummary | null> {
+    const matches = await this.searchRiders(riderId, MAX_RIDER_SEARCH_RESULTS);
+    return matches.find((rider) => rider.riderId === riderId) ?? null;
+  }
+
   /** Staff rider lookup by username, email, display name or handle (case-insensitive substring) or exact rider ID. */
   async searchRiders(query: string, limit = 20): Promise<AdminRiderSummary[]> {
     await ensureMigrated();
@@ -327,7 +335,7 @@ export class AdminStatsStore {
     const pattern = `%${trimmed.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
     const { rows } = await getPool().query(
       `SELECT u.id, u.username, u.email, u.email_verified_at IS NOT NULL AS email_verified,
-              u.created_at, u.is_admin, u.suspended_at IS NOT NULL AS suspended,
+              u.created_at, u.is_admin, u.suspended_at IS NOT NULL AS suspended, u.suspended_until,
               p.display_name, p.handle, act.last_seen_at, sr_role.role AS staff_role,
               (SELECT count(*) FROM friendships fr WHERE fr.rider_id = u.id) AS friends,
               (SELECT count(*) FROM safety_reports sr WHERE sr.reported_rider_id = u.id) AS reports_against,
@@ -352,6 +360,7 @@ export class AdminStatsStore {
       isAdmin: row.is_admin === true,
       staffRole: row.is_admin === true ? 'admin' : (row.staff_role ?? null),
       suspended: row.suspended === true,
+      suspendedUntil: row.suspended_until === null || row.suspended_until === undefined ? null : Number(row.suspended_until),
       displayName: row.display_name ?? null,
       handle: row.handle ?? null,
       friends: count(row.friends),

@@ -20,7 +20,7 @@ export const REPORT_STATUSES = ['open', 'dismissed', 'actioned'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export const REPORT_RESOLUTIONS = ['dismiss', 'suspend'] as const;
 export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
-export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke';
+export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke' | 'data_export' | 'sign_out_everywhere' | 'password_reset_sent';
 export const MAX_MODERATION_NOTE_LENGTH = 1000;
 
 export interface QueuedSafetyReport extends SafetyReport {
@@ -30,7 +30,27 @@ export interface QueuedSafetyReport extends SafetyReport {
   /** All reports ever filed against this rider, including this one. */
   reportsAgainstRider: number;
   reportedRiderSuspended: boolean;
+  /** When the rider's suspension ends on its own; null if it doesn't. */
+  reportedRiderSuspendedUntil: number | null;
+  /** The moderator working this report, while their claim is fresh. */
+  claimedBy: string | null;
+  claimedAt: number | null;
 }
+
+/** A moderator's claim on a report lapses after this long. */
+export const REPORT_CLAIM_TTL_MS = 30 * 60_000;
+/** Longest timed suspension; anything longer is indefinite. */
+export const MAX_SUSPENSION_DAYS = 365;
+/** The audit log's author for automatic actions (a timed suspension ending). */
+export const SYSTEM_ACTOR = 'system';
+
+export type SuspendResult =
+  | { ok: true; action: ModerationAction; resolvedReportIds: string[] }
+  | { ok: false; error: 'not_found' | 'forbidden_target' | 'already_suspended' };
+
+export type ClaimResult =
+  | { ok: true; claimedBy: string | null; claimedAt: number | null }
+  | { ok: false; error: 'not_found' | 'already_resolved' | 'claimed_by_other'; claimedBy?: string };
 
 export interface ModerationAction {
   id: string;
@@ -81,6 +101,9 @@ interface QueuedReportRow {
   resolved_by: string | null;
   reports_against_rider: string | number;
   reported_rider_suspended: boolean;
+  reported_rider_suspended_until: string | number | null;
+  claimed_by: string | null;
+  claimed_at: string | number | null;
 }
 
 interface ModerationActionRow {
@@ -108,6 +131,17 @@ function toModerationAction(row: ModerationActionRow): ModerationAction {
 /** Blocks and safety reports, persisted in Postgres (see db.ts) and routed
  * to a staffed moderation workflow before user content launches. */
 export interface BlockedRiderSummary { riderId: string; displayName: string; handle: string; blockedAt: number }
+
+export interface SafetyReportSummary extends SafetyReport {
+  status: ReportStatus;
+  resolvedAt: number | null;
+  resolvedBy: string | null;
+}
+
+/** The audit note for a suspension says how long it lasts. */
+export function suspensionNote(note: string, until: number | null): string {
+  return until === null ? note : `Until ${new Date(until).toISOString().slice(0, 16).replace('T', ' ')} UTC: ${note}`;
+}
 
 export class ModerationStore {
   private async lockPair(client: PoolClient, a: string, b: string): Promise<void> {
@@ -290,13 +324,16 @@ export class ModerationStore {
               report.created_at, report.status, report.resolved_at, report.resolved_by,
               (SELECT count(*) FROM safety_reports other WHERE other.reported_rider_id = report.reported_rider_id)
                 AS reports_against_rider,
-              COALESCE(u.suspended_at IS NOT NULL, FALSE) AS reported_rider_suspended
+              COALESCE(u.suspended_at IS NOT NULL, FALSE) AS reported_rider_suspended,
+              u.suspended_until AS reported_rider_suspended_until,
+              CASE WHEN report.claimed_at > $3 THEN report.claimed_by END AS claimed_by,
+              CASE WHEN report.claimed_at > $3 THEN report.claimed_at END AS claimed_at
        FROM safety_reports report
        LEFT JOIN users u ON u.id = report.reported_rider_id
        WHERE report.status = $1
        ORDER BY report.created_at ${status === 'open' ? 'ASC' : 'DESC'}, report.id
        LIMIT $2`,
-      [status, limit],
+      [status, limit, Date.now() - REPORT_CLAIM_TTL_MS],
     );
     return rows.map((row) => ({
       id: row.id,
@@ -310,7 +347,120 @@ export class ModerationStore {
       resolvedBy: row.resolved_by,
       reportsAgainstRider: Number(row.reports_against_rider),
       reportedRiderSuspended: row.reported_rider_suspended,
+      reportedRiderSuspendedUntil: row.reported_rider_suspended_until === null ? null : Number(row.reported_rider_suspended_until),
+      claimedBy: row.claimed_by ?? null,
+      claimedAt: row.claimed_at === null || row.claimed_at === undefined ? null : Number(row.claimed_at),
     }));
+  }
+
+  /**
+   * A moderator takes a report so others see it's being handled, or lets it
+   * go. A claim lapses after REPORT_CLAIM_TTL_MS; anyone may take a lapsed one.
+   */
+  async claimReport(reportId: string, staffId: string, release: boolean, now = Date.now()): Promise<ClaimResult> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      const { rows } = await client.query<{ status: ReportStatus; claimed_by: string | null; claimed_at: string | null }>(
+        'SELECT status, claimed_by, claimed_at FROM safety_reports WHERE id = $1 FOR UPDATE',
+        [reportId],
+      );
+      const report = rows[0];
+      if (!report) return { ok: false, error: 'not_found' };
+      if (report.status !== 'open') return { ok: false, error: 'already_resolved' };
+      const fresh = report.claimed_by !== null && Number(report.claimed_at) > now - REPORT_CLAIM_TTL_MS;
+      if (fresh && report.claimed_by !== staffId) return { ok: false, error: 'claimed_by_other', claimedBy: report.claimed_by! };
+      if (release) {
+        await client.query('UPDATE safety_reports SET claimed_by = NULL, claimed_at = NULL WHERE id = $1', [reportId]);
+        return { ok: true, claimedBy: null, claimedAt: null };
+      }
+      await client.query('UPDATE safety_reports SET claimed_by = $2, claimed_at = $3 WHERE id = $1', [reportId, staffId, now]);
+      return { ok: true, claimedBy: staffId, claimedAt: now };
+    });
+  }
+
+  /**
+   * Suspends a rider in the same transaction as the caller's change: sign-in
+   * refused, every session and notification device removed. `until` makes it
+   * end on its own (liftExpiredSuspensions). Null when allowed.
+   */
+  private async applySuspension(client: PoolClient, riderId: string, moderatorId: string, now: number, until: number | null): Promise<'not_found' | 'forbidden_target' | null> {
+    const target = await client.query<{ is_admin: boolean }>('SELECT is_admin FROM users WHERE id = $1 FOR UPDATE', [riderId]);
+    if (!target.rows[0]) return 'not_found';
+    if (riderId === moderatorId || target.rows[0].is_admin === true) return 'forbidden_target';
+    await client.query(
+      'UPDATE users SET suspended_at = COALESCE(suspended_at, $2), suspended_until = $3 WHERE id = $1',
+      [riderId, now, until],
+    );
+    await client.query('DELETE FROM account_sessions WHERE user_id = $1', [riderId]);
+    await client.query('DELETE FROM push_subscriptions WHERE rider_id = $1', [riderId]);
+    return null;
+  }
+
+  /** Suspends a rider without a report (what staff saw elsewhere), closing open reports against them. */
+  async suspendRider(riderId: string, moderatorId: string, note: string, until: number | null, now = Date.now()): Promise<SuspendResult> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      const current = await client.query<{ suspended_at: string | null }>('SELECT suspended_at FROM users WHERE id = $1', [riderId]);
+      if (current.rows[0] && current.rows[0].suspended_at !== null) return { ok: false, error: 'already_suspended' };
+      const refused = await this.applySuspension(client, riderId, moderatorId, now, until);
+      if (refused) return { ok: false, error: refused };
+      const resolved = await client.query<{ id: string }>(
+        `UPDATE safety_reports SET status = 'actioned', resolved_at = $2, resolved_by = $3
+         WHERE status = 'open' AND reported_rider_id = $1 RETURNING id`,
+        [riderId, now, moderatorId],
+      );
+      const action = await this.recordAction(client, moderatorId, riderId, null, 'suspend', suspensionNote(note, until), now);
+      return { ok: true, action, resolvedReportIds: resolved.rows.map((row) => row.id).sort() };
+    });
+  }
+
+  /** Ends timed suspensions that have run out; each is recorded as an unsuspension by the system. */
+  async liftExpiredSuspensions(now = Date.now()): Promise<string[]> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      const { rows } = await client.query<{ id: string }>(
+        `UPDATE users SET suspended_at = NULL, suspended_until = NULL
+         WHERE suspended_until IS NOT NULL AND suspended_until <= $1 RETURNING id`,
+        [now],
+      );
+      for (const row of rows) await this.recordAction(client, SYSTEM_ACTOR, row.id, null, 'unsuspend', 'Timed suspension ended', now);
+      return rows.map((row) => row.id).sort();
+    });
+  }
+
+  /** Signs a rider out on every device (a lost phone, a shared account), with the reason. */
+  async signOutEverywhere(riderId: string, staffId: string, note: string, now = Date.now()): Promise<{ ok: true; action: ModerationAction; sessions: number } | { ok: false; error: 'not_found' }> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      const exists = await client.query('SELECT 1 FROM users WHERE id = $1', [riderId]);
+      if (!exists.rowCount) return { ok: false, error: 'not_found' };
+      const removed = await client.query('DELETE FROM account_sessions WHERE user_id = $1', [riderId]);
+      await client.query('DELETE FROM push_subscriptions WHERE rider_id = $1', [riderId]);
+      const action = await this.recordAction(client, staffId, riderId, null, 'sign_out_everywhere', note, now);
+      return { ok: true, action, sessions: removed.rowCount ?? 0 };
+    });
+  }
+
+  /** Records that staff sent a rider a password reset email. */
+  async recordPasswordResetSent(riderId: string, staffId: string, note: string, now = Date.now()): Promise<ModerationAction> {
+    await ensureMigrated();
+    return withTransaction((client) => this.recordAction(client, staffId, riderId, null, 'password_reset_sent', note, now));
+  }
+
+  /** Reports about a rider, and by them, newest first. */
+  async reportsForRider(riderId: string, limit = 50): Promise<{ against: SafetyReportSummary[]; filed: SafetyReportSummary[] }> {
+    await ensureMigrated();
+    const query = (column: 'reported_rider_id' | 'reporter_id') => getPool().query<{ id: string; reporter_id: string; reported_rider_id: string; reason: ReportReason; details: string; created_at: string; status: ReportStatus; resolved_at: string | null; resolved_by: string | null }>(
+      `SELECT id, reporter_id, reported_rider_id, reason, details, created_at, status, resolved_at, resolved_by
+       FROM safety_reports WHERE ${column} = $1 ORDER BY created_at DESC, id LIMIT $2`,
+      [riderId, limit],
+    );
+    const shape = (row: { id: string; reporter_id: string; reported_rider_id: string; reason: ReportReason; details: string; created_at: string; status: ReportStatus; resolved_at: string | null; resolved_by: string | null }): SafetyReportSummary => ({
+      id: row.id, reporterId: row.reporter_id, reportedRiderId: row.reported_rider_id, reason: row.reason, details: row.details,
+      createdAt: Number(row.created_at), status: row.status, resolvedAt: row.resolved_at === null ? null : Number(row.resolved_at), resolvedBy: row.resolved_by,
+    });
+    const [against, filed] = await Promise.all([query('reported_rider_id'), query('reporter_id')]);
+    return { against: against.rows.map(shape), filed: filed.rows.map(shape) };
   }
 
   /**
@@ -326,6 +476,7 @@ export class ModerationStore {
     resolution: ReportResolution,
     note: string,
     now = Date.now(),
+    suspendUntil: number | null = null,
   ): Promise<ResolveReportResult> {
     await ensureMigrated();
     return withTransaction(async (client) => {
@@ -342,13 +493,9 @@ export class ModerationStore {
       }
       const targetRiderId = report.reported_rider_id;
       if (resolution === 'suspend') {
-        const target = await client.query<{ is_admin: boolean }>('SELECT is_admin FROM users WHERE id = $1 FOR UPDATE', [targetRiderId]);
-        if (targetRiderId === moderatorId || target.rows[0]?.is_admin === true) {
-          return { ok: false, error: 'forbidden_target' };
-        }
-        await client.query('UPDATE users SET suspended_at = $2 WHERE id = $1 AND suspended_at IS NULL', [targetRiderId, now]);
-        await client.query('DELETE FROM account_sessions WHERE user_id = $1', [targetRiderId]);
-        await client.query('DELETE FROM push_subscriptions WHERE rider_id = $1', [targetRiderId]);
+        const refused = await this.applySuspension(client, targetRiderId, moderatorId, now, suspendUntil);
+        // A guest rider with no account row can still be reported; there is nothing to sign out.
+        if (refused === 'forbidden_target') return { ok: false, error: 'forbidden_target' };
       }
       const resolved = await client.query<{ id: string }>(
         resolution === 'suspend'
@@ -358,7 +505,7 @@ export class ModerationStore {
              WHERE id = $1 RETURNING id`,
         resolution === 'suspend' ? [reportId, now, moderatorId, targetRiderId] : [reportId, now, moderatorId],
       );
-      const action = await this.recordAction(client, moderatorId, targetRiderId, reportId, resolution, note, now);
+      const action = await this.recordAction(client, moderatorId, targetRiderId, reportId, resolution, resolution === 'suspend' ? suspensionNote(note, suspendUntil) : note, now);
       return { ok: true, action, resolvedReportIds: resolved.rows.map((row) => row.id).sort() };
     });
   }
@@ -376,7 +523,7 @@ export class ModerationStore {
       if (rows[0].suspended_at === null) {
         return { ok: false, error: 'not_suspended' };
       }
-      await client.query('UPDATE users SET suspended_at = NULL WHERE id = $1', [riderId]);
+      await client.query('UPDATE users SET suspended_at = NULL, suspended_until = NULL WHERE id = $1', [riderId]);
       const action = await this.recordAction(client, moderatorId, riderId, null, 'unsuspend', note, now);
       return { ok: true, action };
     });
@@ -470,6 +617,12 @@ export class ModerationStore {
       const action = await this.recordAction(client, adminId, riderId, null, 'staff_revoke', `${removed.rows[0].role}: ${note}`, now);
       return { ok: true, action };
     });
+  }
+
+  /** Records that staff exported a rider's data, and why. */
+  async recordDataExport(riderId: string, staffId: string, note: string, now = Date.now()): Promise<ModerationAction> {
+    await ensureMigrated();
+    return withTransaction((client) => this.recordAction(client, staffId, riderId, null, 'data_export', note, now));
   }
 
   /** The moderation audit log, newest first, optionally for one rider. */

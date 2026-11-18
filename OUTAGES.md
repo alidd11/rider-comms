@@ -37,6 +37,8 @@ nothing waits forever on another company's server.
 
 **You:**
 1. Open the Railway project. Check the backend service's deploy and runtime logs, and whether the Postgres service is running.
+   Every log line is JSON with `ts`, `level`, `event`, `commit` and `replica`; each request is one `http_request` line with its `requestId`, `route`, `status`, `durationMs` and, once signed in, `riderId`. Search for `level:error` or a `requestId` a rider reports. Requests slower than 2 s are logged as `warn`.
+   The dashboard's System page shows the last hour of requests, error rate, response times per route and database connections for the replica that answers.
 2. If a deploy caused it, redeploy the previous build from Railway's deployments list.
 3. If Postgres is unhealthy or its volume is full, follow `BACKUP_RESTORE.md`.
 

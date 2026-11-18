@@ -18,6 +18,7 @@ export const STAFF_PERMISSIONS = [
   'view_riders',
   'moderate',
   'verify_email',
+  'account_help',
   'view_audit',
   'manage_staff',
 ] as const;
@@ -27,8 +28,9 @@ const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
   admin: STAFF_PERMISSIONS,
   // Reports, hidden posts, suspensions; looks riders up and reads the log.
   moderator: ['view_overview', 'view_system', 'view_riders', 'moderate', 'view_audit'],
-  // Account help: looks riders up and verifies email, but cannot suspend.
-  support: ['view_overview', 'view_system', 'view_riders', 'verify_email', 'view_audit'],
+  // Account help: looks riders up, verifies email, sends password resets,
+  // signs out lost devices and sees sign-in history; cannot suspend or see reports.
+  support: ['view_overview', 'view_system', 'view_riders', 'verify_email', 'account_help', 'view_audit'],
   // Numbers only: no rider details, reports or notes.
   analyst: ['view_overview', 'view_system'],
 };

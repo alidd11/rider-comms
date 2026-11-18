@@ -11,6 +11,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { errorFields, log } from './log.ts';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 // Signup, resend and password reset wait for the send. A hung Resend request
@@ -78,7 +79,7 @@ async function sendEmail(
   const from = process.env.RESEND_FROM_EMAIL;
   const recipient = recipientId(email);
   if (!apiKey || !from) {
-    console.warn(`[rider-comms] Email delivery is not configured; skipped recipient ${recipient}.`);
+    log('warn', 'email_not_configured', { recipient, message: `Email delivery is not configured; skipped recipient ${recipient}.` });
     return false;
   }
   try {
@@ -90,7 +91,7 @@ async function sendEmail(
     });
     if (!response.ok) {
       const reason = await resendErrorReason(response);
-      console.error(`[rider-comms] Resend returned HTTP ${response.status} for recipient ${recipient}${reason ? ` (${reason})` : ''}.`);
+      log('error', 'email_refused', { recipient, status: response.status, message: `Resend returned HTTP ${response.status} for recipient ${recipient}${reason ? ` (${reason})` : ''}.` });
       if (response.status === 401 || response.status === 403) {
         delivery.lastRefusedAt = Date.now();
         delivery.lastRefusal = reason || `HTTP ${response.status}`;
@@ -100,7 +101,7 @@ async function sendEmail(
     delivery.lastSentAt = Date.now();
     return true;
   } catch (error) {
-    console.error(`[rider-comms] Resend request failed for recipient ${recipient}.`, error);
+    log('error', 'email_failed', { recipient, ...errorFields(error) });
     return false;
   }
 }
@@ -123,7 +124,7 @@ export async function sendVerificationEmail(
     verifyUrl.searchParams.set('verifyToken', token);
     verifyUrlString = verifyUrl.toString();
   } catch (error) {
-    console.error('[rider-comms] Invalid PUBLIC_APP_URL — skipping verification email', error);
+    log('error', 'email_link_invalid', { kind: 'verification', ...errorFields(error) });
     return false;
   }
   const text = [
@@ -152,7 +153,7 @@ export async function sendPasswordResetEmail(
     resetUrl.searchParams.set('resetToken', token);
     resetUrlString = resetUrl.toString();
   } catch (error) {
-    console.error('[rider-comms] Invalid PUBLIC_APP_URL — skipping password reset email', error);
+    log('error', 'email_link_invalid', { kind: 'password_reset', ...errorFields(error) });
     return false;
   }
   const text = [

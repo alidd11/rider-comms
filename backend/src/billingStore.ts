@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { log } from './log.ts';
 import type { PoolClient } from 'pg';
 import { higherTier } from '@rider-comms/shared';
 import type { BillingPlatform, BillingStatus, BillingSubscription, PaidZoneTier, ZoneTier } from '@rider-comms/shared';
@@ -198,7 +199,7 @@ export class BillingStore {
         await this.refresh(row.platform, row.original_id);
       } catch (error) {
         failed += 1;
-        console.error(JSON.stringify({ level: 'error', event: 'billing_refresh_failed', platform: row.platform, message: error instanceof Error ? error.message : String(error) }));
+        log('error', 'billing_refresh_failed', { platform: row.platform, message: error instanceof Error ? error.message : String(error) });
       }
     }
     return { checked: rows.length, failed };

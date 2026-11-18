@@ -1,10 +1,12 @@
+import { exportRiderData } from '../accountExport.ts';
 import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
+import { getPool } from '../db.ts';
 import { emailDeliveryStatus } from '../email.ts';
 import { MAX_MODERATION_NOTE_LENGTH } from '../moderationStore.ts';
 import { readJsonBody, sendJson } from '../serverHttp.ts';
 import { GRANTABLE_STAFF_ROLES, isGrantableStaffRole, permissionsFor, roleCan } from '../staffRoles.ts';
 import type { StaffPermission } from '../staffRoles.ts';
-import { NOT_HANDLED } from './context.ts';
+import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 /** Staff dashboard. The caller's role is re-read from Postgres on every request. */
@@ -32,6 +34,11 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       email: emailDeliveryStatus(),
     });
   }
+  // Request rates, errors and response times on the replica that answers.
+  if (req.method === 'GET' && url.pathname === '/admin/metrics') {
+    if (lacks('view_system')) return refuse('view_system');
+    return sendJson(res, 200, ctx.requestMetrics.snapshot(process.env.DATABASE_URL ? getPool() : null));
+  }
   if (req.method === 'GET' && url.pathname === '/admin/riders') {
     if (lacks('view_riders')) return refuse('view_riders');
     const query = url.searchParams.get('q') ?? '';
@@ -44,10 +51,57 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     return sendJson(res, 200, { riders: await adminStatsStore.searchRiders(query, limit) });
   }
 
+  // Sign-ins, failed passwords, resets and revoked devices; staff only, or one rider.
+  if (req.method === 'GET' && url.pathname === '/admin/security-events') {
+    if (lacks('manage_staff')) return refuse('manage_staff');
+    const limit = Number(url.searchParams.get('limit') ?? 100);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 200' });
+    const riderId = url.searchParams.get('riderId')?.trim() || undefined;
+    return sendJson(res, 200, { events: await authStore.listSecurityEvents({ riderId, staffOnly: url.searchParams.get('staff') === '1', limit }) });
+  }
+  // One rider, everything staff may see about them: what each role sees
+  // depends on its permissions (reports for moderators, devices and sign-ins
+  // for account help, notes for those who can read the audit log).
+  if (req.method === 'GET' && s[1] === 'riders' && s[2] && s.length === 3) {
+    if (lacks('view_riders')) return refuse('view_riders');
+    const riderId = decodeURIComponent(s[2]);
+    const rider = await adminStatsStore.riderSummary(riderId);
+    if (!rider) return sendJson(res, 404, { error: 'not_found' });
+    const [reports, actions, devices, securityEvents] = await Promise.all([
+      roleCan(role, 'moderate') ? moderationStore.reportsForRider(riderId) : null,
+      roleCan(role, 'view_audit') ? moderationStore.listActions(riderId, 50) : null,
+      roleCan(role, 'account_help') ? authStore.listSessions(riderId, '') : null,
+      roleCan(role, 'account_help') ? authStore.listSecurityEvents({ riderId, limit: 50 }) : null,
+    ]);
+    return sendJson(res, 200, {
+      rider,
+      reportsAgainst: reports?.against ?? null,
+      reportsFiled: reports?.filed ?? null,
+      actions,
+      devices: devices?.map(({ current: _current, ...device }) => device) ?? null,
+      securityEvents,
+    });
+  }
+  // A data access request answered by staff: needs a reason and is recorded.
+  if (req.method === 'POST' && s[1] === 'riders' && s[2] && s[3] === 'export' && s.length === 4) {
+    if (lacks('manage_staff')) return refuse('manage_staff');
+    if (await refuseWithoutRecentReauth(ctx)) return;
+    const body = await readJsonBody(req);
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+      return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    const riderId = decodeURIComponent(s[2]);
+    const data = await exportRiderData(riderId);
+    if (!data) return sendJson(res, 404, { error: 'not_found' });
+    await moderationStore.recordDataExport(riderId, actorId, note);
+    return sendJson(res, 200, data);
+  }
   if (s[1] === 'staff') {
     if (lacks('manage_staff')) return refuse('manage_staff');
     if (req.method === 'GET' && s.length === 2) return sendJson(res, 200, { staff: await moderationStore.listStaff() });
     if (req.method !== 'POST') return sendJson(res, 404, { error: 'not_found' });
+    if (await refuseWithoutRecentReauth(ctx)) return;
     const body = await readJsonBody(req);
     const note = typeof body.note === 'string' ? body.note.trim() : '';
     if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {

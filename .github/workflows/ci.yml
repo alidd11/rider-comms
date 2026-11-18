@@ -114,13 +114,18 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install visual-test browser
         # Browsers come from Playwright's CDN; their system libraries come from
-        # the Ubuntu mirror, which has been unreachable from runners at times.
-        # Bound that part so an outage can't eat the whole job, then carry on:
-        # the runner image already has most of what the browsers need.
+        # the Ubuntu mirror, which is unreachable from runners at times. Retry
+        # that part, then make sure both browsers really start: when WebKit's
+        # libraries are missing (libevent, for one) every WebKit test fails at
+        # launch, so stop here with the reason instead of 15 minutes later.
         run: |
           npx playwright install chromium webkit
-          timeout 480 sudo -E env "PATH=$PATH" npx playwright install-deps chromium webkit \
-            || echo "::warning::Playwright system dependencies could not be installed (apt mirror unavailable?)"
+          for attempt in 1 2 3; do
+            if timeout 300 sudo -E env "PATH=$PATH" npx playwright install-deps chromium webkit; then break; fi
+            echo "::warning::Playwright system dependencies: attempt $attempt failed (apt mirror unavailable?)"
+            sleep 20
+          done
+          node -e "const pw = require('@playwright/test'); (async () => { for (const type of [pw.chromium, pw.webkit]) await (await type.launch()).close(); })().catch((error) => { console.error('::error::A test browser cannot start (missing system libraries?): ' + (error.message.split('\\n').find((line) => line.includes('error while loading')) || error.message.split('\\n')[0])); process.exit(1); });"
       - name: Run PWA visual smoke audit
         run: npm run test:pwa:visual
       - name: Verify Android bundle

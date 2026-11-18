@@ -1,13 +1,14 @@
 // Process plumbing for the production entry point: recurring maintenance
 // jobs, graceful shutdown and last-resort crash handling. Kept apart from
 // server.ts so each piece can be exercised without real timers or signals.
+import { log } from './log.ts';
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
 function logError(event: string, error: unknown): void {
-  console.error(JSON.stringify({ level: 'error', event, message: errorMessage(error) }));
+  log('error', event, { message: errorMessage(error) });
 }
 
 /** Runs one maintenance pass, logging (never throwing) a failure. */
@@ -42,9 +43,9 @@ export function createShutdown(options: ShutdownOptions): (signal: NodeJS.Signal
     stopping = true;
     for (const timer of options.timers) clearInterval(timer);
     options.beforeClose();
-    console.log(JSON.stringify({ level: 'info', event: 'shutdown_started', signal }));
+    log('info', 'shutdown_started', { signal });
     const forceExit = setTimeout(() => {
-      console.error(JSON.stringify({ level: 'error', event: 'shutdown_timeout', signal }));
+      log('error', 'shutdown_timeout', { signal });
       options.exit(1);
     }, options.forceExitAfterMs ?? 10_000);
     forceExit.unref();
@@ -55,7 +56,7 @@ export function createShutdown(options: ShutdownOptions): (signal: NodeJS.Signal
       }
       try {
         await options.closeResources();
-        console.log(JSON.stringify({ level: 'info', event: 'shutdown_complete', signal }));
+        log('info', 'shutdown_complete', { signal });
       } catch (resourceError) {
         logError('database_shutdown_failed', resourceError);
         options.setExitCode(1);
@@ -81,11 +82,11 @@ export interface CrashHandlerOptions {
 export function installCrashHandlers(target: Pick<NodeJS.EventEmitter, 'on'>, options: CrashHandlerOptions): void {
   target.on('unhandledRejection', (reason: unknown) => {
     const message = errorMessage(reason);
-    console.error(JSON.stringify({ level: 'error', event: 'unhandled_rejection', message, stack: reason instanceof Error ? reason.stack : undefined }));
+    log('error', 'unhandled_rejection', { message, stack: reason instanceof Error ? reason.stack : undefined });
     options.report('unhandled_rejection', message);
   });
   target.on('uncaughtException', (error: Error) => {
-    console.error(JSON.stringify({ level: 'fatal', event: 'uncaught_exception', message: error.message, stack: error.stack }));
+    log('fatal', 'uncaught_exception', { message: error.message, stack: error.stack });
     options.report('uncaught_exception', error.message);
     // Give the alert email a few seconds, then exit whatever happens.
     void options.flush().finally(() => options.exit(1));

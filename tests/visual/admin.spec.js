@@ -58,19 +58,20 @@ async function signIn(page) {
 }
 
 const ROLE_PERMISSIONS = {
-  admin: ['view_overview', 'view_system', 'view_riders', 'moderate', 'verify_email', 'view_audit', 'manage_staff'],
+  admin: ['view_overview', 'view_system', 'view_riders', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff'],
   moderator: ['view_overview', 'view_system', 'view_riders', 'moderate', 'view_audit'],
-  support: ['view_overview', 'view_system', 'view_riders', 'verify_email', 'view_audit'],
+  support: ['view_overview', 'view_system', 'view_riders', 'verify_email', 'account_help', 'view_audit'],
   analyst: ['view_overview', 'view_system'],
 };
 
 /** Minimal in-memory moderation backend. */
-async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin' } = {}) {
+async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false } = {}) {
   const state = {
     reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended }],
     actions: [],
     posts: [],
     riderQueries: [],
+    reauthenticated: !reauth,
     // Each test gets its own riders, so verifying one doesn't leak into the next.
     riders: RIDERS.map((rider) => ({ ...rider })),
     staff: [
@@ -95,6 +96,32 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     if ((url.pathname.startsWith('/moderation') || url.pathname.startsWith('/admin')) && !admin) return json(403, { error: 'admin_required' });
     if (url.pathname === '/admin/me') return json(200, { riderId: ADMIN_ID, role, permissions: ROLE_PERMISSIONS[role] });
+    if (url.pathname === '/auth/reauthenticate') {
+      const { password } = request.postDataJSON();
+      if (password !== 'right-password') return json(401, { error: 'invalid_credentials' });
+      state.reauthenticated = true;
+      return json(200, { reauthenticated: true, validForMs: 900000 });
+    }
+    // Like the backend: only staff changes need a recent password.
+    if (request.method() === 'POST' && /^\/(moderation|admin\/staff)/.test(url.pathname) && !state.reauthenticated) return json(403, { error: 'reauth_required', windowMs: 900000 });
+    if (url.pathname === '/admin/metrics') {
+      const route = (name, count, errorRate, p50Ms, p95Ms) => ({ route: name, count, errorRate, clientErrorRate: 0, avgMs: p50Ms, p50Ms, p95Ms, p99Ms: p95Ms });
+      return json(200, {
+        windowMinutes: 60, replica: 'replica-a1', uptimeSeconds: 7_500,
+        totals: route('all', 1_240, 0.004, 25, 250),
+        routes: [route('GET /live/ride/:id', 820, 0, 10, 50), route('POST /rides', 40, 0.025, 100, 2_500)],
+        slowest: [route('POST /rides', 40, 0.025, 100, 2_500)],
+        perMinute: [{ minute: 0, count: 600, serverErrors: 2 }, { minute: 60_000, count: 640, serverErrors: 3 }],
+        process: { rssMb: 180, heapUsedMb: 90, eventLoopDelayP99Ms: 12 },
+        database: { total: 6, idle: 4, waiting: 0, max: 20 },
+      });
+    }
+    if (url.pathname === '/admin/security-events') {
+      return json(200, { events: [
+        { id: 'e1', riderId: 'rider_maya', event: 'login_failed', sessionId: null, device: 'iPhone', createdAt: Date.now() - 60_000 },
+        { id: 'e2', riderId: ADMIN_ID, event: 'login', sessionId: 's1', device: 'Mac', createdAt: Date.now() - 120_000 },
+      ] });
+    }
     if (url.pathname === '/admin/staff' && request.method() === 'GET') return json(200, { staff: state.staff });
     if (url.pathname === '/admin/staff' && request.method() === 'POST') {
       const body = request.postDataJSON();
@@ -113,6 +140,38 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       return json(200, { ok: true });
     }
     if (url.pathname === '/admin/overview') return json(200, OVERVIEW);
+    const riderDetail = url.pathname.match(/^\/admin\/riders\/(rider_[a-z0-9]+)$/);
+    if (riderDetail && request.method() === 'GET') {
+      const rider = state.riders.find((candidate) => candidate.riderId === riderDetail[1]);
+      if (!rider) return json(404, { error: 'not_found' });
+      const can = (permission) => ROLE_PERMISSIONS[role].includes(permission);
+      return json(200, {
+        rider,
+        reportsAgainst: can('moderate') ? [{ ...OPEN_REPORT, status: 'open', resolvedAt: null, resolvedBy: null }] : null,
+        reportsFiled: can('moderate') ? [] : null,
+        actions: can('view_audit') ? state.actions.filter((action) => action.targetRiderId === rider.riderId) : null,
+        devices: can('account_help') ? [{ id: 'd1', deviceName: 'iPhone', createdAt: new Date(Date.now() - 86_400_000).toISOString(), lastSeenAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 86_400_000).toISOString() }] : null,
+        securityEvents: can('account_help') ? [{ id: 's1', riderId: rider.riderId, event: 'login_failed', sessionId: null, device: 'iPhone', createdAt: Date.now() - 120_000 }] : null,
+      });
+    }
+    const riderAction = url.pathname.match(/^\/moderation\/riders\/([^/]+)\/(suspend|sign-out|password-reset)$/);
+    if (riderAction) {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      const rider = state.riders.find((candidate) => candidate.riderId === riderAction[1]);
+      if (riderAction[2] === 'suspend' && rider) rider.suspended = true;
+      if (riderAction[2] === 'sign-out') return json(200, { ok: true, sessions: 2 });
+      if (riderAction[2] === 'password-reset') return json(200, { ok: true, emailDelivery: { configured: true } });
+      return json(200, { ok: true, resolvedReportIds: [] });
+    }
+    const claim = url.pathname.match(/^\/moderation\/reports\/([^/]+)\/claim$/);
+    if (claim) {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      const report = state.reports.find((candidate) => candidate.id === decodeURIComponent(claim[1]));
+      report.claimedBy = body.release ? null : ADMIN_ID;
+      return json(200, { ok: true, claimedBy: report.claimedBy, claimedAt: Date.now() });
+    }
     if (url.pathname === '/admin/riders') {
       state.riderQueries.push(url.searchParams.get('q'));
       return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : state.riders });
@@ -159,6 +218,11 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       if (body.resolution === 'suspend') report.reportedRiderSuspended = true;
       state.actions.unshift({ id: `a${state.actions.length}`, moderatorId: ADMIN_ID, targetRiderId: report.reportedRiderId, reportId: report.id, action: body.resolution, note: body.note, createdAt: Date.now() });
       return json(200, { ok: true });
+    }
+    const exportMatch = url.pathname.match(/^\/admin\/riders\/([^/]+)\/export$/);
+    if (exportMatch) {
+      state.posts.push({ path: url.pathname, body: request.postDataJSON() });
+      return json(200, { format: 'rider-comms-data-export', version: 1, account: { rider_id: decodeURIComponent(exportMatch[1]) } });
     }
     if (url.pathname.endsWith('/verify-email')) {
       const rider = state.riders.find((candidate) => url.pathname.includes(candidate.riderId));
@@ -260,7 +324,7 @@ test.describe('staff dashboard', () => {
     page.once('dialog', (dialog) => dialog.accept());
     await card.getByRole('button', { name: 'Suspend rider' }).click();
     await expect(page.locator('.empty-title')).toHaveText('No open reports');
-    expect(state.posts[0]).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Repeated threats in messages.' } });
+    expect(state.posts[0]).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Repeated threats in messages.', days: 7 } });
 
     await page.getByRole('button', { name: 'Actioned' }).click();
     const actioned = page.locator('.report[data-report-id="report-1"]');
@@ -397,7 +461,7 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
 
-    await expect(page.locator('.matrix tbody tr')).toHaveCount(7);
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(8);
     await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
   });
 
@@ -447,6 +511,7 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#riders');
     await expect(page.locator('#nav [data-view]:visible')).toHaveText(['Overview', 'Riders', 'Audit log', 'System']);
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
   });
 
   test('a page the role lacks says so', async ({ page }) => {
@@ -455,6 +520,143 @@ test.describe('staff dashboard', () => {
     await page.route(`${API}/admin/overview`, (route) => route.fulfill({ status: 403, headers: { 'Access-Control-Allow-Origin': '*' }, contentType: 'application/json', body: JSON.stringify({ error: 'permission_required', permission: 'view_overview' }) }));
     await page.goto('/admin.html');
     await expect(page.locator('.empty-title')).toHaveText('Your role doesn’t include this page');
+  });
+
+  test('staff confirm their password before a change, then it goes through', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { reauth: true });
+    await page.goto('/admin.html#moderation');
+    const card = page.locator('.report[data-report-id="report-1"]');
+    await card.locator('textarea').fill('Checked the chat history.');
+
+    await card.getByRole('button', { name: 'Dismiss' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Confirm it’s you' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(card.locator('.error-text')).toHaveText('Not changed: your password is needed for staff changes.');
+    expect(state.posts).toHaveLength(0);
+
+    await card.getByRole('button', { name: 'Dismiss' }).click();
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.locator('.error-text')).toHaveText('Enter your password.');
+    await dialog.getByLabel('Password').fill('wrong');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.locator('.error-text')).toHaveText('That password isn’t right.');
+    await dialog.getByLabel('Password').fill('right-password');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('.empty-title')).toHaveText('No open reports');
+    expect(state.posts).toEqual([{ path: '/moderation/reports/report-1/resolve', body: { resolution: 'dismiss', note: 'Checked the chat history.' } }]);
+  });
+
+  test('admins export a rider\'s data with a reason', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    const maya = page.locator('[data-rider-id="rider_maya"]:visible');
+    page.once('dialog', (dialog) => dialog.accept('Access request, ticket 42'));
+    const download = page.waitForEvent('download');
+    await maya.getByRole('button', { name: "Export maya's data" }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^rider-comms-data-rider_maya-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(state.posts.at(-1)).toEqual({ path: '/admin/riders/rider_maya/export', body: { note: 'Access request, ticket 42' } });
+  });
+
+  test('a rider\'s page gathers their record, and a moderator suspends from it for a set time', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    await page.locator('[data-rider-id="rider_maya"]:visible a.person-link').click();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
+    await expect(page.locator('.rider-header h1')).toHaveText('Maya');
+    await expect(page.locator('.facts')).toContainText('maya@example.com');
+    for (const title of ['Reports about them', 'Reports they filed', 'Staff history', 'Signed-in devices', 'Sign-in history']) {
+      await expect(page.locator('.section-title', { hasText: title })).toBeVisible();
+    }
+    await expect(page.locator('#nav [data-view="riders"]')).toHaveAttribute('aria-current', 'page');
+
+    await page.locator('.rider-actions').getByRole('button', { name: 'Suspend' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Suspend Maya?' });
+    await dialog.getByRole('button', { name: 'Suspend' }).click();
+    await expect(dialog.locator('.error-text')).toHaveText('Write a reason first. Every staff change is recorded with it.');
+    await dialog.getByRole('button', { name: 'Spam or scam messages.' }).click();
+    await dialog.getByLabel('How long').selectOption('30');
+    await dialog.getByRole('button', { name: 'Suspend' }).click();
+    await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/riders/rider_maya/suspend', body: { note: 'Spam or scam messages.', days: 30 } });
+    await expect(page.locator('.rider-actions').getByRole('button', { name: 'Unsuspend' })).toBeVisible();
+
+    await page.locator('.back-link').click();
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+  });
+
+  test('support staff reset a password and sign a rider out everywhere from their page', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { role: 'support' });
+    await page.goto('/admin.html#rider/rider_maya');
+    const actions = page.locator('.rider-actions');
+    await expect(actions.getByRole('button', { name: 'Suspend' })).toHaveCount(0);
+    await expect(page.locator('.section-title', { hasText: 'Reports about them' })).toHaveCount(0);
+    await expect(page.locator('.section-title', { hasText: 'Sign-in history' })).toBeVisible();
+
+    await actions.getByRole('button', { name: 'Send password reset' }).click();
+    const reset = page.getByRole('dialog', { name: /password reset link/ });
+    await reset.getByRole('button', { name: 'Forgot password; identity confirmed.' }).click();
+    await reset.getByRole('button', { name: 'Send link' }).click();
+    await expect(page.locator('.flash')).toHaveText('Password reset link sent.');
+    expect(state.posts.at(-1)).toEqual({ path: '/moderation/riders/rider_maya/password-reset', body: { note: 'Forgot password; identity confirmed.' } });
+
+    await actions.getByRole('button', { name: 'Sign out everywhere' }).click();
+    const out = page.getByRole('dialog', { name: /every device/ });
+    await out.getByRole('textbox').fill('Lost phone at the meet');
+    await out.getByRole('button', { name: 'Sign out everywhere' }).click();
+    await expect(page.locator('.flash')).toHaveText('Signed out of 2 devices.');
+
+    await actions.getByRole('button', { name: 'Send password reset' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('moderators take a report, see how long it waited, and suspend for the chosen length', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const card = page.locator('.report[data-report-id="report-1"]');
+    await expect(card.locator('.badge', { hasText: /^Waiting/ })).toBeVisible();
+    await card.getByRole('button', { name: 'Take this report' }).click();
+    await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/reports/report-1/claim', body: {} });
+    await expect(card.getByRole('button', { name: /You’re handling this/ })).toBeVisible();
+
+    await card.getByRole('button', { name: 'Harassment of other riders.' }).click();
+    await expect(card.locator('textarea')).toHaveValue('Harassment of other riders.');
+    await card.getByLabel('Suspension length for report report-1').selectOption('');
+    page.once('dialog', (dialog) => dialog.accept());
+    await card.getByRole('button', { name: 'Suspend rider' }).click();
+    await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Harassment of other riders.' } });
+  });
+
+  test('system view shows the last hour of traffic', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.section-title', { hasText: 'Traffic' })).toHaveText('Traffic · last 60 minutes');
+    const tiles = page.locator('.traffic-kpis .kpi');
+    await expect(tiles.nth(0)).toContainText('1,240');
+    await expect(tiles.nth(1)).toContainText('0.4%');
+    await expect(tiles.nth(2)).toContainText('250 ms');
+    await expect(tiles.nth(3)).toContainText('2 / 20');
+    await expect(page.locator('tr[data-route="POST /rides"]').first()).toContainText('2.5 s');
+    await expect(page.locator('.page-subtitle', { hasText: 'replica-a1' })).toContainText('up 2h 5m');
+  });
+
+  test('the staff page lists recent staff sign-ins', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#staff');
+    const rows = page.locator('[data-security-event]');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('Wrong password · iPhone');
+    await expect(rows.nth(0).locator('.badge')).toHaveText('Failed');
+    await expect(rows.nth(1)).toContainText('You');
   });
 
   test('system view reports API and database health', async ({ page }) => {
@@ -501,7 +703,7 @@ test('staff dashboard views have no automatically detectable accessibility viola
   test.skip(!AXE_PROJECTS.has(testInfo.project.name), 'Audited once per colour scheme');
   await signIn(page);
   await mockModerationApi(page);
-  for (const view of ['overview', 'moderation', 'riders', 'audit', 'staff', 'system']) {
+  for (const view of ['overview', 'moderation', 'riders', 'audit', 'staff', 'system', 'rider/rider_maya']) {
     await page.goto(`/admin.html#${view}`);
     await expect(page.locator('main')).toBeVisible();
     await expectNoAxeViolations(page, view);

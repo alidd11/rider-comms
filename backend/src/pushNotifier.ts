@@ -1,4 +1,5 @@
 import type { RiderProfile } from '@rider-comms/shared';
+import { log } from './log.ts';
 import { sendExpoPush } from './expoPush.ts';
 import type { PushStore, PushSubscriptionRecord } from './pushStore.ts';
 import { sendWebPush, type FetchLike } from './webPush.ts';
@@ -59,7 +60,7 @@ export class PushNotifier {
       const gone = await this.deliver(devices, event, content);
       await this.options.store.removeAddresses(gone);
     } catch (error) {
-      console.error(JSON.stringify({ level: 'error', event: 'push_failed', riderId, kind: event, message: error instanceof Error ? error.message : String(error) }));
+      log('error', 'push_failed', { riderId, kind: event, message: error instanceof Error ? error.message : String(error) });
     }
   }
 
