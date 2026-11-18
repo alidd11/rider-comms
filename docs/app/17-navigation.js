@@ -1170,6 +1170,11 @@
     if (!next || navCurrentAccuracyMeters == null
       || navCurrentAccuracyMeters < 0 || navCurrentAccuracyMeters > CURATED_STOP_MAX_GPS_ACCURACY_M
       || metersBetween(here, next) > CURATED_STOP_REACHED_RADIUS_M) return;
+    // Do not count an earlier stop as passed if a nearby later stop is
+    // actually closer to this GPS fix. Small waypoint gaps can overlap
+    // the arrival tolerance; avoid silently skipping the itinerary.
+    const nextDistance = metersBetween(here, next);
+    if (navCuratedStops.slice(1).some((later) => metersBetween(here, later) < nextDistance)) return;
     navCuratedStops.shift();
     const reached = `Passed ${next.label || 'the planned stop'}.`;
     setNavStatusNotice(reached, { tone: 'info', clearAfterMs: 5000 });
