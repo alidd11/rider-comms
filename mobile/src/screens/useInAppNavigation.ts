@@ -585,7 +585,9 @@ export function useInAppNavigation(
   /** Start the *complete* curated itinerary, including the start checkpoint,
    * not a route to its first coordinate. No external navigation handoff. */
   const startCuratedNavigation = React.useCallback(async (route: CuratedRoute): Promise<void> => {
-    const origin = currentLocation ?? await requestCurrentLocation(true);
+    // A fresh location fix is required before deciding whether the first
+    // checkpoint has already been reached.
+    const origin = await requestCurrentLocation(true);
     if (!origin) return;
     const pending = initialCuratedStops(route, origin);
     const destination = { lat: route.end.lat, lon: route.end.lon, label: route.name };
@@ -604,7 +606,7 @@ export function useInAppNavigation(
     } finally {
       setNavigationLoading(false);
     }
-  }, [applyInAppRoute, client, currentLocation, requestCurrentLocation, setNavigationStop, setNavigationTarget, setSelectedHazardId, setSelectedPlace, updateCuratedStops]);
+  }, [applyInAppRoute, client, requestCurrentLocation, setNavigationStop, setNavigationTarget, setSelectedHazardId, setSelectedPlace, updateCuratedStops]);
 
   React.useEffect(() => {
     if (!activeRoute || !currentNavigationStep || navigationMuted) return;
