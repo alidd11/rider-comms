@@ -1809,7 +1809,28 @@
       heroImage.src = heroImageSrc;
     }
     const previousFocus = document.activeElement;
-    const onKeyDown = (event) => { if (event.key === 'Escape') close(); };
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close();
+        return;
+      }
+      // The route details are a modal dialog: Tab and Shift+Tab must not
+      // escape into the inactive Routes page beneath them.
+      if (event.key !== 'Tab' || !backdrop.isConnected) return;
+      const focusable = [...backdrop.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+        .filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && (document.activeElement === first || !backdrop.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !backdrop.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     const close = () => { backdrop.remove(); document.removeEventListener('keydown', onKeyDown); previousFocus?.focus?.(); };
     document.addEventListener('keydown', onKeyDown);
     backdrop.querySelector('.route-detail-close').addEventListener('click', close);
