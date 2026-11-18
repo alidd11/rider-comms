@@ -600,7 +600,7 @@ export function useInAppNavigation(
       setNavigationTarget(null);
       setSelectedHazardId(null);
     } catch {
-      Alert.alert('Couldn’t plan the scenic route', 'Rider Comms could not calculate the full journey through every planned stop. Check road conditions or try again.');
+      Alert.alert('Couldn’t plan the scenic route', 'Couldn’t calculate the full route through every planned stop. Check road conditions and try again.');
     } finally {
       setNavigationLoading(false);
     }
