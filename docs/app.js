@@ -7833,10 +7833,19 @@
     const destination = { lat: location.lat(), lng: location.lng() };
     // When already at the start, do not route the rider around it again.
     // Match native's first-checkpoint handling using the current GPS fix.
-    const remainingStops = plannedStops.length
-      && metersBetween(origin, plannedStops[0]) <= CURATED_STOP_REACHED_RADIUS_M
-      ? plannedStops.slice(1)
-      : plannedStops;
+    const accuracyMeters = Number(position.coords.accuracy);
+    const startDistance = plannedStops.length ? metersBetween(origin, plannedStops[0]) : Infinity;
+    // Coarse GPS can put someone inside the 140 m arrival circle before they
+    // reach the start. Only skip it when the full reported uncertainty fits
+    // inside that circle, and no later checkpoint is actually closer.
+    const atStart = plannedStops.length > 0
+      && position.coords.accuracy != null
+      && Number.isFinite(accuracyMeters)
+      && accuracyMeters >= 0
+      && accuracyMeters <= CURATED_STOP_MAX_GPS_ACCURACY_M
+      && startDistance + accuracyMeters <= CURATED_STOP_REACHED_RADIUS_M
+      && !plannedStops.slice(1).some((later) => metersBetween(origin, later) < startDistance);
+    const remainingStops = atStart ? plannedStops.slice(1) : plannedStops;
     getDirectionsService().route(
       // A new navigation selection must not inherit a fuel stop left over
       // from a previous journey. Only reroutes preserve existing stops.
