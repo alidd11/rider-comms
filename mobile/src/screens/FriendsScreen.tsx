@@ -18,6 +18,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { openRiderSafetyMenu } from '../safety/riderSafetyActions';
 import type { PublicRiderProfile, RideMemberLocation } from '../api/client';
+import { SkeletonRows } from '../components/SkeletonRows';
 
 const FRIEND_RIDE_LOCATION_STALE_MS = 20_000;
 
@@ -653,13 +654,7 @@ export function FriendsScreen(): React.JSX.Element {
         )}
 
         {loading && friends.length === 0 ? (
-          <View
-            style={styles.emptyState}
-            accessibilityLabel="Loading friends"
-            accessibilityLiveRegion="polite"
-          >
-            <ActivityIndicator color={colors.accent} />
-          </View>
+          <SkeletonRows label="Loading friends" />
         ) : friends.length === 0 && hidesEmptyPrompt ? null : friends.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={28} color={colors.textMuted} />

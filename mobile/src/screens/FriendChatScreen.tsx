@@ -33,6 +33,7 @@ import { useSettings } from '../settings/SettingsContext';
 import { navigationProviderLabel } from '../navigationPreference';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { haptics } from '../haptics';
+import { SkeletonBubbles } from '../components/SkeletonRows';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
@@ -422,7 +423,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           listRef.current?.scrollToEnd({ animated: true });
         }}
         ListEmptyComponent={loading ? (
-          <View style={styles.chatEmpty}><ActivityIndicator color={colors.accent} /><Text style={styles.chatEmptyText}>Loading conversation…</Text></View>
+          <SkeletonBubbles label="Loading conversation" />
         ) : (
           <View style={styles.chatEmpty}>
             <Ionicons name="chatbubble-ellipses-outline" size={34} color={colors.textMuted} />
