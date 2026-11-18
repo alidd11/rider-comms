@@ -281,11 +281,13 @@ function CuratedRouteCard({
   width,
   index,
   onPress,
+  approach,
 }: {
   route: CuratedRoute;
   width: number;
   index: number;
   onPress: () => void;
+  approach: string | null;
 }) {
   const [imageFailed, setImageFailed] = React.useState(false);
   const [highResolutionReady, setHighResolutionReady] = React.useState(false);
@@ -342,6 +344,7 @@ function CuratedRouteCard({
       <View style={styles.cardBody}>
         <Text style={styles.cardTitle} numberOfLines={2}>{route.name}</Text>
         <Text style={styles.cardRegion} numberOfLines={1}>{route.region}</Text>
+        {approach ? <Text style={styles.cardApproach}>{approach === 'Start is here' ? 'At route start' : `Approx. ${approach.replace(' from you', ' to start')} · straight line`}</Text> : null}
         <View style={styles.cardStats}>
           <View style={styles.cardStatItem}><Ionicons name="navigate-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.distanceMiles} mi</Text></View>
           <View style={styles.cardStatItem}><Ionicons name="speedometer-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.difficulty[0].toUpperCase() + route.difficulty.slice(1)}</Text></View>
@@ -390,7 +393,7 @@ export function CuratedRouteBrowser({
     <>
       <View style={styles.cardGrid}>
         {routes.map((route, index) => (
-          <CuratedRouteCard key={route.id} route={route} width={cardWidth} index={index} onPress={() => setSelectedRoute(route)} />
+          <CuratedRouteCard key={route.id} route={route} width={cardWidth} index={index} approach={category === 'near' && riderLocation ? formatApproachDistance(distanceMilesToRouteStart(route, riderLocation)) : null} onPress={() => setSelectedRoute(route)} />
         ))}
       </View>
       {routes.length === 0 ? (
