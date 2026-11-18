@@ -133,6 +133,12 @@
     const empty = $('#friendEmpty');
     $('#requestSection').hidden = !hasRequests;
     $('#friendSection').hidden = !hasVisibleFriends;
+    // A short list leaves the screen bare: offer a way to grow it.
+    const invite = $('#friendInvite');
+    if (invite) {
+      invite.hidden = !hasVisibleFriends || query !== '' || state.friends.length >= 4;
+      $('#friendInviteHandle').textContent = state.profile?.handle ?? '';
+    }
     // Pending requests already fill the screen; the "build your circle"
     // prompt is for a genuinely empty list.
     empty.hidden = hasVisibleFriends || (hasRequests && !query) || (!hasFriends && friendsLoadState !== 'ready');

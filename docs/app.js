@@ -1526,6 +1526,12 @@
     const empty = $('#friendEmpty');
     $('#requestSection').hidden = !hasRequests;
     $('#friendSection').hidden = !hasVisibleFriends;
+    // A short list leaves the screen bare: offer a way to grow it.
+    const invite = $('#friendInvite');
+    if (invite) {
+      invite.hidden = !hasVisibleFriends || query !== '' || state.friends.length >= 4;
+      $('#friendInviteHandle').textContent = state.profile?.handle ?? '';
+    }
     // Pending requests already fill the screen; the "build your circle"
     // prompt is for a genuinely empty list.
     empty.hidden = hasVisibleFriends || (hasRequests && !query) || (!hasFriends && friendsLoadState !== 'ready');
@@ -1870,6 +1876,7 @@
     if (!activeChat) return;
     const messages = $('#chatMessages');
     let previousDay = '';
+    let previous = null;
     messages.innerHTML = chatMessages.map((message) => {
       // A day label before the first message of each day, so times from
       // different days never read as one out-of-order conversation.
@@ -1877,6 +1884,11 @@
       const dayLabel = day && day !== previousDay ? `<p class="chat-day" role="separator">${escapeHtml(day)}</p>` : '';
       previousDay = day || previousDay;
       const mine = message.fromRiderId === state.profile.riderId;
+      // A message straight after another from the same rider (same day,
+      // within five minutes) sits tight under it, as in Messages.
+      const follows = Boolean(previous && !dayLabel && previous.fromRiderId === message.fromRiderId
+        && Math.abs(message.createdAt - previous.createdAt) < 5 * 60_000);
+      previous = message;
       const failed = mine && message.status === 'failed';
       const status = message.status === 'pending'
         ? '<small>Sending…</small>'
@@ -1888,7 +1900,7 @@
       const body = `<span>${escapeHtml(message.text)}</span><time>${escapeHtml(formatMessageTime(message.createdAt))}</time>${status}`;
       return dayLabel + (failed
         ? `<button class="chat-bubble-row mine" data-retry-message="${escapeHtml(message.id)}" aria-label="Message failed. Retry sending."><span class="chat-bubble failed">${body}</span></button>`
-        : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`);
+        : `<div class="chat-bubble-row${mine ? ' mine' : ''}${follows ? ' follows' : ''}"><div class="chat-bubble">${body}</div></div>`);
     }).join('');
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
     $('#chatLoading').hidden = !(chatLoading && chatShowingLoading && chatMessages.length === 0);
@@ -2954,6 +2966,19 @@
     const key = rideHistoryKey();
     if (!key) return;
     try { localStorage.setItem(key, JSON.stringify(withRideHistoryEntry(loadRideHistory(), entry))); } catch { /* Private browsing. */ }
+  }
+  /** The menu's ride stats: totals over the rides kept on this device
+   * (native: menuRideStats in MenuScreen). */
+  function renderMenuRideStats() {
+    if (!$('#appMenuStats')) return;
+    const history = loadRideHistory();
+    const unit = state.unit === 'km' ? 'km' : 'mi';
+    const minutes = Math.round(history.reduce((sum, entry) => sum + entry.durationMs, 0) / 60_000);
+    const metres = history.reduce((sum, entry) => sum + (entry.distanceMeters ?? 0), 0);
+    $('#appMenuStatRides').textContent = String(history.length);
+    $('#appMenuStatTime').textContent = minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    $('#appMenuStatDistance').textContent = (metres / (unit === 'km' ? 1000 : 1609.344)).toFixed(metres > 0 ? 1 : 0);
+    $('#appMenuStatDistanceUnit').textContent = unit === 'km' ? 'Kilometres' : 'Miles';
   }
   function renderRecentRides() {
     const card = $('#recentRides');
@@ -8604,6 +8629,7 @@
   }
 
   function openAppMenu() {
+    renderMenuRideStats();
     if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
       return;
@@ -8770,6 +8796,17 @@
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
+    $('#friendInviteAdd')?.addEventListener('click', () => {
+      $('#addFriendForm').hidden = false;
+      $('#friendId').focus();
+    });
+    $('#friendInviteShare')?.addEventListener('click', async () => {
+      const text = `Add me on Rider Comms: ${state.profile.handle}`;
+      try {
+        if (navigator.share) await navigator.share({ text });
+        else { await navigator.clipboard.writeText(state.profile.handle); haptic('success'); showToast('Handle copied.'); }
+      } catch { /* Share sheet dismissed. */ }
+    });
     $('#friendEmptyAdd')?.addEventListener('click', () => {
       $('#addFriendForm').hidden = false;
       $('#friendId').focus();

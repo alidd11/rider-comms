@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=116">
+  <link rel="stylesheet" href="app.css?v=117">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -363,6 +363,7 @@
           <p id="friendsError" class="chat-error friends-error" role="alert" hidden><span></span><button id="friendsRetry" type="button" aria-label="Retry loading friends">Retry</button></p>
           <section id="requestSection" hidden><div class="section-heading"><h2>Requests</h2><span id="requestsCountBadge" class="count-badge">0</span></div><div id="requestList" class="people-list"></div></section>
           <section id="friendSection" hidden><div class="section-heading"><h2>Your friends</h2></div><div id="friendList" class="people-list"></div></section>
+          <aside id="friendInvite" class="friend-invite" hidden><span class="friend-invite-icon" aria-hidden="true"><svg><use href="#i-friends"/></svg></span><div><strong>Ride with more friends</strong><p>Share your handle <b id="friendInviteHandle"></b> so riders can add you, or add theirs.</p></div><div class="friend-invite-actions"><button id="friendInviteShare" class="button primary" type="button">Share handle</button><button id="friendInviteAdd" class="button secondary" type="button">Add a rider</button></div></aside>
           <div id="friendEmpty" class="empty-state network-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2 id="friendEmptyTitle">No friends yet</h2><p id="friendEmptyCopy">Use the add button above to connect by handle or Rider ID.</p><button id="friendEmptyAdd" class="button primary" type="button">Add a rider</button></div>
         </div>
       </section>
@@ -382,6 +383,11 @@
     <div class="app-menu-profile">
       <div id="appMenuAvatar" class="avatar avatar-lg" data-avatar aria-hidden="true"></div>
       <div class="app-menu-profile-copy"><strong id="appMenuName"></strong><span id="appMenuHandle"></span><button id="appMenuViewProfile" class="app-menu-profile-button" type="button">View profile</button></div>
+    </div>
+    <div id="appMenuStats" class="app-menu-stats" aria-label="Your recent rides">
+      <div><strong id="appMenuStatRides">0</strong><span>Rides</span></div>
+      <div><strong id="appMenuStatTime">0 min</strong><span>Ride time</span></div>
+      <div><strong id="appMenuStatDistance">0</strong><span id="appMenuStatDistanceUnit">mi</span></div>
     </div>
     <div class="app-menu-list">
       <button type="button" data-menu-nav="ride"><svg><use href="#i-bike"/></svg><span>Ride</span><small id="appMenuRide" class="app-menu-live" hidden><span class="live-dot"></span>Live</small></button>
@@ -437,6 +443,6 @@
   <script src="navigation-camera.js?v=3" defer></script>
   <script src="navigation-puck.js?v=2" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=121" defer></script>
+  <script src="app.js?v=122" defer></script>
 </body>
 </html>

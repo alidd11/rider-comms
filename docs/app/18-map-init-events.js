@@ -206,6 +206,7 @@
   }
 
   function openAppMenu() {
+    renderMenuRideStats();
     if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
       return;
@@ -372,6 +373,17 @@
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
+    $('#friendInviteAdd')?.addEventListener('click', () => {
+      $('#addFriendForm').hidden = false;
+      $('#friendId').focus();
+    });
+    $('#friendInviteShare')?.addEventListener('click', async () => {
+      const text = `Add me on Rider Comms: ${state.profile.handle}`;
+      try {
+        if (navigator.share) await navigator.share({ text });
+        else { await navigator.clipboard.writeText(state.profile.handle); haptic('success'); showToast('Handle copied.'); }
+      } catch { /* Share sheet dismissed. */ }
+    });
     $('#friendEmptyAdd')?.addEventListener('click', () => {
       $('#addFriendForm').hidden = false;
       $('#friendId').focus();
