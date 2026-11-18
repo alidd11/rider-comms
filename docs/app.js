@@ -7824,7 +7824,9 @@
   async function startInAppNavigation(location, label, plannedStops = []) {
     let position;
     try {
-      position = await currentPosition();
+      // A curated start cannot be acknowledged from a cached position.
+      // Ordinary point-to-point navigation retains its established behaviour.
+      position = await currentPosition({ maximumAge: plannedStops.length ? 0 : 15000 });
     } catch {
       showToast('Location access is needed to start navigation.');
       return;
