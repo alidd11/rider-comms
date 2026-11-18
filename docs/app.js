@@ -7816,14 +7816,20 @@
     }
     const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
     const destination = { lat: location.lat(), lng: location.lng() };
+    // When already at the start, do not route the rider around it again.
+    // Match native's first-checkpoint handling using the current GPS fix.
+    const remainingStops = plannedStops.length
+      && metersBetween(origin, plannedStops[0]) <= CURATED_STOP_REACHED_RADIUS_M
+      ? plannedStops.slice(1)
+      : plannedStops;
     getDirectionsService().route(
-      navigationRouteRequest(origin, destination, plannedStops),
+      navigationRouteRequest(origin, destination, remainingStops),
       (result, status) => {
         if (status !== 'OK' || !result) {
           showToast('Couldn’t calculate the complete route. Try again.');
           return;
         }
-        navCuratedStops = [...plannedStops];
+        navCuratedStops = [...remainingStops];
         applyRoute(result, destination, label);
       }
     );
