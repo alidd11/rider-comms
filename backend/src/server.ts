@@ -85,6 +85,7 @@ const SOCIAL_STATE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const SOCIAL_MEDIA_SWEEP_INTERVAL_MS = 5 * 60_000;
 const RETENTION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const BILLING_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+const SUSPENSION_EXPIRY_INTERVAL_MS = 5 * 60_000;
 
 export interface ApiServerOptions {
   allowedOrigins?: readonly string[];
@@ -138,7 +139,7 @@ export interface CreateAppOptions extends ApiServerOptions {
   hideoutStore?: HideoutStore;
   authStore?: AuthStore;
   moderationStore?: ModerationStore;
-  adminStatsStore?: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'increment' | 'recordMilestone'>;
+  adminStatsStore?: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'riderSummary' | 'increment' | 'recordMilestone'>;
   hazardStore?: HazardStore;
   scenicRouteStore?: ScenicRouteStore;
 }
@@ -405,6 +406,7 @@ async function startProductionServer(): Promise<void> {
   const productionSocialEventStore = new SocialEventStore();
   const productionRetentionStore = new RetentionStore();
   const productionAdminStatsStore = new AdminStatsStore();
+  const productionModerationStore = new ModerationStore();
   const productionSocialPostStore = new SocialPostStore();
   const productionSocialMedia = socialMediaServiceFromEnv();
   configureErrorAlerts(new ErrorAlerter({
@@ -442,6 +444,11 @@ async function startProductionServer(): Promise<void> {
   };
   // Daily active-rider snapshot for the staff dashboard (aggregate count only).
   const recordActiveRiders = () => productionAdminStatsStore.recordActiveRiders();
+  const liftSuspensions = async () => {
+    const lifted = await productionModerationStore.liftExpiredSuspensions();
+    for (const riderId of lifted) productionAuthStore.forgetRider(riderId);
+    if (lifted.length) logInfo('suspensions_lifted', { count: lifted.length });
+  };
   for (const job of [cleanAuthRecords, cleanRateLimits, cleanSocialRates, cleanSocialState, sweepRetention]) await job();
   void runMaintenance('billing_sweep_failed', sweepBilling);
   void runMaintenance('active_riders_snapshot_failed', recordActiveRiders);
@@ -449,6 +456,7 @@ async function startProductionServer(): Promise<void> {
   const app = createApp({
     authStore: productionAuthStore,
     billingStore: productionBillingStore,
+    moderationStore: productionModerationStore,
     allowedOrigins,
     trustProxy: process.env.TRUST_PROXY === 'true',
     logger: (event) => log(requestLogLevel(event), 'http_request', { ...event }),
@@ -482,6 +490,7 @@ async function startProductionServer(): Promise<void> {
     scheduleMaintenance(BILLING_SWEEP_INTERVAL_MS, 'billing_sweep_failed', onceAcrossReplicas('billing_sweep', BILLING_SWEEP_INTERVAL_MS, sweepBilling)),
     scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'active_riders_snapshot_failed', onceAcrossReplicas('active_riders_snapshot', RETENTION_SWEEP_INTERVAL_MS, recordActiveRiders)),
     scheduleMaintenance(SITE_CHECK_INTERVAL_MS, 'site_check_failed', onceAcrossReplicas('site_check', SITE_CHECK_INTERVAL_MS, () => siteMonitor.check())),
+    scheduleMaintenance(SUSPENSION_EXPIRY_INTERVAL_MS, 'suspension_expiry_failed', onceAcrossReplicas('suspension_expiry', SUSPENSION_EXPIRY_INTERVAL_MS, liftSuspensions)),
     scheduleMaintenance(SOCIAL_MEDIA_SWEEP_INTERVAL_MS, 'social_media_sweep_failed', onceAcrossReplicas('social_media_sweep', SOCIAL_MEDIA_SWEEP_INTERVAL_MS, sweepSocialMedia)),
   ];
 

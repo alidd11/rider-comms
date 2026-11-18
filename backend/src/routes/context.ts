@@ -85,7 +85,7 @@ export interface RouteDeps {
   hideoutStore: HideoutStore;
   authStore: AuthStore;
   moderationStore: ModerationStore;
-  adminStatsStore: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'increment' | 'recordMilestone'>;
+  adminStatsStore: Pick<AdminStatsStore, 'overview' | 'searchRiders' | 'riderSummary' | 'increment' | 'recordMilestone'>;
   hazardStore: HazardStore;
   scenicRouteStore: ScenicRouteStore;
   billingStore: Pick<BillingStore, 'status' | 'verifyPurchase' | 'refresh'>;

@@ -1058,4 +1058,19 @@ export const MIGRATIONS: Migration[] = [
         CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove', 'staff_grant', 'staff_revoke', 'data_export'));
     `,
   },
+  {
+    // Staff tools: suspensions that end on their own, moderators claiming a
+    // report so two don't work the same one, and support's account actions.
+    name: '0060_staff_tools',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_until BIGINT;
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS claimed_by TEXT;
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS claimed_at BIGINT;
+      CREATE INDEX IF NOT EXISTS users_suspended_until_idx ON users (suspended_until) WHERE suspended_until IS NOT NULL;
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent'));
+    `,
+  },
 ];

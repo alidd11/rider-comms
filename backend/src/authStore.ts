@@ -286,8 +286,8 @@ export class AuthStore {
     if (!isValidUsername(username) || typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) return { error: 'invalid_credentials' };
     await ensureMigrated();
     const pool = getPool();
-    const { rows } = await pool.query<{ id: string; password_hash: string; password_algorithm: string; email_verified_at: Date | null; suspended_at: string | number | null; terms_version: string | null }>(
-      'SELECT id, password_hash, password_algorithm, email_verified_at, suspended_at, terms_version FROM users WHERE lower(username) = lower($1)',
+    const { rows } = await pool.query<{ id: string; password_hash: string; password_algorithm: string; email_verified_at: Date | null; suspended_at: string | number | null; suspended_until: string | number | null; terms_version: string | null }>(
+      'SELECT id, password_hash, password_algorithm, email_verified_at, suspended_at, suspended_until, terms_version FROM users WHERE lower(username) = lower($1)',
       [username]
     );
     const row = rows[0];
@@ -300,7 +300,9 @@ export class AuthStore {
     if (!row || !passwordMatches) return { error: 'invalid_credentials' };
     // Checked only after the password matches, so suspension status is never
     // revealed to someone who doesn't hold the account's credentials.
-    if (row.suspended_at !== null) return { error: 'account_suspended' };
+    // A timed suspension that has run out no longer blocks sign-in, even
+    // before the maintenance job lifts it (moderationStore.liftExpiredSuspensions).
+    if (row.suspended_at !== null && (row.suspended_until === null || Number(row.suspended_until) > Date.now())) return { error: 'account_suspended' };
     if (row.password_algorithm !== PASSWORD_ALGORITHM) {
       await pool.query(
         'UPDATE users SET password_hash = $1, password_algorithm = $2 WHERE id = $3',
@@ -471,6 +473,16 @@ export class AuthStore {
 
   async can(riderId: string, permission: StaffPermission): Promise<boolean> {
     return roleCan(await this.staffRole(riderId), permission);
+  }
+
+  /** Staff send a rider the usual password reset email; false when the rider has no email. */
+  async sendPasswordResetFor(riderId: string): Promise<boolean> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<{ email: string | null }>('SELECT email FROM users WHERE id = $1', [riderId]);
+    const email = rows[0]?.email;
+    if (!email) return false;
+    await this.requestPasswordReset(email);
+    return true;
   }
 
   /**

@@ -59,6 +59,29 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     const riderId = url.searchParams.get('riderId')?.trim() || undefined;
     return sendJson(res, 200, { events: await authStore.listSecurityEvents({ riderId, staffOnly: url.searchParams.get('staff') === '1', limit }) });
   }
+  // One rider, everything staff may see about them: what each role sees
+  // depends on its permissions (reports for moderators, devices and sign-ins
+  // for account help, notes for those who can read the audit log).
+  if (req.method === 'GET' && s[1] === 'riders' && s[2] && s.length === 3) {
+    if (lacks('view_riders')) return refuse('view_riders');
+    const riderId = decodeURIComponent(s[2]);
+    const rider = await adminStatsStore.riderSummary(riderId);
+    if (!rider) return sendJson(res, 404, { error: 'not_found' });
+    const [reports, actions, devices, securityEvents] = await Promise.all([
+      roleCan(role, 'moderate') ? moderationStore.reportsForRider(riderId) : null,
+      roleCan(role, 'view_audit') ? moderationStore.listActions(riderId, 50) : null,
+      roleCan(role, 'account_help') ? authStore.listSessions(riderId, '') : null,
+      roleCan(role, 'account_help') ? authStore.listSecurityEvents({ riderId, limit: 50 }) : null,
+    ]);
+    return sendJson(res, 200, {
+      rider,
+      reportsAgainst: reports?.against ?? null,
+      reportsFiled: reports?.filed ?? null,
+      actions,
+      devices: devices?.map(({ current: _current, ...device }) => device) ?? null,
+      securityEvents,
+    });
+  }
   // A data access request answered by staff: needs a reason and is recorded.
   if (req.method === 'POST' && s[1] === 'riders' && s[2] && s[3] === 'export' && s.length === 4) {
     if (lacks('manage_staff')) return refuse('manage_staff');
