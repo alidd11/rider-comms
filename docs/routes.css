@@ -138,3 +138,8 @@ html.pwa-standalone .route-detail{max-height:92%}
 .route-detail-photo{min-height:255px}
 @media(min-width:700px){.route-detail-photo{min-height:285px}}
 @media(prefers-reduced-motion:reduce){.curated-route-card:active{transform:none}}
+
+/* Proximity sorting is not a driving-distance quote: show its approximate
+   straight-line origin-distance and explain unavailable location permission. */
+.curated-route-card .route-quick-stats .route-approach{display:inline-flex!important;color:var(--accent-ink);flex-basis:auto}
+.route-location-prompt{grid-column:1/-1;margin:0;padding:12px;border-radius:var(--radius-md);background:var(--surface-hover);color:var(--text-secondary);font-size:.82rem;line-height:1.5}
