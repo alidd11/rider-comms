@@ -211,7 +211,7 @@ export function useInAppNavigation(
   }, []);
   // A petrol stop comes before the remaining curated stops, without replacing
   // the itinerary. This is the backend's ordered `waypoints` contract.
-  const routeStops = (): [NavigationStop | null, CuratedNavigationStop[]] => [navigationStopRef.current, curatedStopsRef.current];
+  const routeStops = React.useCallback((): [NavigationStop | null, CuratedNavigationStop[]] => [navigationStopRef.current, curatedStopsRef.current], []);
   // Where the rider is and how long is left there, from the latest fix, for
   // the faster-route check.
   const latestRouteProgress = React.useRef<{ route: InAppNavigationRoute; here: { lat: number; lon: number }; remainingSeconds: number } | null>(null);
@@ -461,13 +461,18 @@ export function useInAppNavigation(
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
     if (rerouting) navRerouting.current = true;
     try {
-      const nextRoute = await client.getDrivingRoute(origin, target, routeAvoidanceRef.current, ...routeStops());
-      if (!rerouting) updateCuratedStops([]);
+      const [via, pending] = routeStops();
+      const nextRoute = await client.getDrivingRoute(origin, target, routeAvoidanceRef.current,
+        rerouting ? via : undefined, rerouting ? pending : []);
+      if (!rerouting) {
+        updateCuratedStops([]);
+        setNavigationStop(null);
+      }
       applyInAppRoute(nextRoute, origin, target, rerouting);
     } finally {
       if (rerouting) navRerouting.current = false;
     }
-  }, [applyInAppRoute, client, updateCuratedStops]);
+  }, [applyInAppRoute, client, routeStops, setNavigationStop, updateCuratedStops]);
 
   // Like Waze: every few minutes, ask for the way from here with live
   // traffic, and switch when it saves enough (shared fasterRouteSavingSeconds),
@@ -494,7 +499,7 @@ export function useInAppNavigation(
         .finally(() => { checking = false; });
     }, FASTER_ROUTE_CHECK_MS);
     return () => clearInterval(timer);
-  }, [applyInAppRoute, client, navigatingTo]);
+  }, [applyInAppRoute, client, navigatingTo, routeStops]);
 
   /** Petrol (or a café) along the rest of the route, ordered by what each
    * adds (shared routeAheadPath and stopsOnTheWay). */
@@ -531,7 +536,7 @@ export function useInAppNavigation(
     } finally {
       navRerouting.current = false;
     }
-  }, [applyInAppRoute, client, currentLocation, navigationDestination, setNavigationStop]);
+  }, [applyInAppRoute, client, currentLocation, navigationDestination, routeStops, setNavigationStop]);
 
   /** Switches to another of the offered ways there, before setting off. */
   const chooseRoute = React.useCallback((index: number) => {
