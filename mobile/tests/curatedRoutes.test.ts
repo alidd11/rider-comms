@@ -132,6 +132,17 @@ describe('curated route catalogue', () => {
     })).map(({ credit: _credit, ...route }: Record<string, unknown>) => route);
 
     assert.deepEqual(pwaComparable, nativeComparable);
+
+    // Coordinates already matched; the PWA must also speak the same human-
+    // readable checkpoint names as the native ordered itinerary.
+    const labelsMatch = pwaSource.match(/const itineraryLabels = (\\{[\\s\\S]*?\\});/);
+    assert.ok(labelsMatch, 'PWA itinerary labels were not found');
+    const webLabels = JSON.parse(labelsMatch[1]);
+    const nativeLabels = Object.fromEntries(CURATED_ROUTES.map((route) => [
+      route.id,
+      { start: route.start.label, waypoints: route.waypoints.map((point) => point.label), end: route.end.label },
+    ]));
+    assert.deepEqual(webLabels, nativeLabels);
   });
 
   it('filters without mutating the catalogue', () => {
