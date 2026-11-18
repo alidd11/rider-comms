@@ -170,9 +170,10 @@ function RouteOverview({
 
             <View style={styles.tracePanel}>
               <View style={styles.traceCopy}>
-                <Text style={styles.sectionTitle}>Route shape</Text>
+                <Text style={styles.sectionTitle}>Waypoint sketch</Text>
                 <Text style={styles.traceText}>{route.start.label} → {route.end.label}</Text>
                 <Text style={styles.traceTextMuted}>{route.waypoints.length ? `${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}` : 'Direct route'}</Text>
+                <Text style={styles.traceTextMuted}>Illustration, not road geometry</Text>
               </View>
               <RouteTrace route={route} width={156} height={88} />
             </View>
@@ -221,7 +222,7 @@ function RouteOverview({
               <MaterialCommunityIcons name="map-marker-path" size={19} color={colors.textPrimary} />
               <Text style={styles.secondaryButtonText}>Open full route in Maps</Text>
             </Pressable>
-            <Text style={styles.estimateNote}>*Ride time is an estimate without stops or traffic.</Text>
+            <Text style={styles.estimateNote}>*Ride time is an estimate without stops or traffic.{route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; check the route before riding.' : ''}</Text>
 
             <View style={styles.sourceBlock}>
               <Text style={styles.sectionTitle}>Sources & image rights</Text>
