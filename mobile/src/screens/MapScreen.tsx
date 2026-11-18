@@ -208,12 +208,10 @@ export function MapScreen(): React.JSX.Element {
   // (PWA: isDarkOutside at map start). Re-checked each minute so the map
   // turns dark mid-ride. Without a fix, the time zone gives the longitude.
   const darkOutside = useDarkOutside(currentLocation);
-  // Parked map status (PWA: renderMapChrome) and the riding HUD's speed.
-  const mapStatusText = activeRide
-    ? 'In a group ride'
-    : publicLive
-      ? `Live on Nearby${ridersInZone.length ? ` · ${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby` : ''}`
-      : 'Nearby off';
+  // The Go live button says whether you're live and how many riders are
+  // near (PWA: renderMapChrome), and the riding HUD's speed.
+  const nearbyCount = ridersInZone.length;
+  const liveLabel = publicLive ? (nearbyCount ? `Live · ${nearbyCount} nearby` : 'Live') : 'Go live';
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
 
   const hasCurrentLocation = currentLocation !== null;
@@ -781,26 +779,13 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !lockedForSafety && !activeRoute && !error && (
-        <View
-          style={[styles.mapStatusChip, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}
-          accessible
-          accessibilityRole="text"
-          accessibilityLabel={mapStatusText}
-          testID="map-status-chip"
-        >
-          <View style={[styles.mapStatusDot, activeRide ? styles.mapStatusDotRide : publicLive ? styles.mapStatusDotLive : null]} />
-          <Text style={styles.mapStatusText} numberOfLines={1}>{mapStatusText}</Text>
-        </View>
-      )}
-
       {segment === 'public' && regroup && !activeRoute && !selectedDestination && !selectedHazard && (
         <RegroupChip
           point={regroup}
           from={currentLocation}
           unitSystem={unitSystem}
-          // Under the Nearby status chip, which hides while riding.
-          top={insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm + (lockedForSafety || error ? 0 : 38)}
+          // Under the avatar and menu row.
+          top={insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm}
           onPress={showRegroupPoint}
         />
       )}
@@ -846,7 +831,7 @@ export function MapScreen(): React.JSX.Element {
             onPress={() => void handleNearbyToggle()}
             accessibilityRole="switch"
             accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
-            accessibilityLabel={publicLive ? 'Leave nearby' : 'Go live nearby'}
+            accessibilityLabel={publicLive ? `Leave nearby${nearbyCount ? `, ${nearbyCount} ${nearbyCount === 1 ? 'rider' : 'riders'} nearby` : ''}` : 'Go live nearby'}
             accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shows you to nearby riders and turns on Nearby Voice'}
             disabled={nearbyTogglePending}
             testID="go-live-button"
@@ -854,8 +839,11 @@ export function MapScreen(): React.JSX.Element {
             {nearbyTogglePending ? (
               <ActivityIndicator color={publicLive ? '#04210F' : '#04161D'} />
             ) : (
-              <NearbyRidersIcon size={26} color={publicLive ? '#04210F' : '#04161D'} />
+              <NearbyRidersIcon size={24} color={publicLive ? '#04210F' : '#04161D'} />
             )}
+            <Text style={[styles.mapLiveLabel, publicLive && styles.mapLiveLabelActive]} numberOfLines={1} maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} importantForAccessibility="no">
+              {liveLabel}
+            </Text>
           </Pressable>
         </View>
       )}
