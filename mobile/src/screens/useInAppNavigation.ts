@@ -62,6 +62,8 @@ import {
 import { bearingDegrees } from './mapMarkers';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { DEFAULT_ROUTE_AVOIDANCE, type RouteAvoidance } from '../routeOptionsPreference';
+import type { CuratedRoute } from '../routes/curatedRoutes';
+import { advanceCuratedStops, initialCuratedStops, type CuratedNavigationStop } from '../routes/curatedNavigation';
 
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
 /** Shown briefly after a successful reroute; styled as information, not a warning. */
@@ -114,6 +116,8 @@ export interface InAppNavigation {
   navigationArrival: NavigationArrival | null;
   dismissNavigationArrival: () => void;
   startInAppNavigation: (target: NavigationTarget) => Promise<void>;
+  startCuratedNavigation: (route: CuratedRoute) => Promise<void>;
+  curatedRemainingStops: CuratedNavigationStop[];
   stopFollowingRoute: () => void;
   resumeFollowingRoute: () => void;
   /** The ways there, labelled; empty with only one, or once rerouted. */
@@ -199,7 +203,15 @@ export function useInAppNavigation(
     setNavigationStopState(stop);
   }, []);
   // The stop, as the last argument of a route request, only when there is one.
-  const withStop = (): [NavigationStop] | [] => (navigationStopRef.current ? [navigationStopRef.current] : []);
+  const curatedStopsRef = React.useRef<CuratedNavigationStop[]>([]);
+  const [curatedRemainingStops, setCuratedRemainingStops] = React.useState<CuratedNavigationStop[]>([]);
+  const updateCuratedStops = React.useCallback((stops: CuratedNavigationStop[]) => {
+    curatedStopsRef.current = stops;
+    setCuratedRemainingStops(stops);
+  }, []);
+  // A petrol stop comes before the remaining curated stops, without replacing
+  // the itinerary. This is the backend's ordered `waypoints` contract.
+  const routeStops = (): [NavigationStop | null, CuratedNavigationStop[]] => [navigationStopRef.current, curatedStopsRef.current];
   // Where the rider is and how long is left there, from the latest fix, for
   // the faster-route check.
   const latestRouteProgress = React.useRef<{ route: InAppNavigationRoute; here: { lat: number; lon: number }; remainingSeconds: number } | null>(null);
@@ -407,6 +419,7 @@ export function useInAppNavigation(
     setNavigationNotice(arrived ? 'You’ve arrived.' : null);
     setRouteOptions([]);
     setNavigationStop(null);
+    updateCuratedStops([]);
     const trip = tripRef.current;
     tripRef.current = null;
     setNavigationArrival(arrived && trip ? {
@@ -418,7 +431,7 @@ export function useInAppNavigation(
     void stopNavigationPrompt().finally(() => {
       if (arrived && !navigationMutedRef.current) speakNavigationPrompt('You’ve arrived.');
     });
-  }, [mapRef, setNavigationStop]);
+  }, [mapRef, setNavigationStop, updateCuratedStops]);
 
   const applyInAppRoute = React.useCallback((nextRoute: InAppNavigationRoute, origin: { lat: number; lon: number }, target: NavigationTarget, rerouting: boolean, notice: string = ROUTE_UPDATED_NOTICE) => {
     // The ways there, offered before setting off; a reroute offers none.
@@ -448,11 +461,13 @@ export function useInAppNavigation(
   const requestInAppRoute = React.useCallback(async (origin: { lat: number; lon: number }, target: NavigationTarget, rerouting = false) => {
     if (rerouting) navRerouting.current = true;
     try {
-      applyInAppRoute(await client.getDrivingRoute(origin, target, routeAvoidanceRef.current, ...withStop()), origin, target, rerouting);
+      const nextRoute = await client.getDrivingRoute(origin, target, routeAvoidanceRef.current, ...routeStops());
+      if (!rerouting) updateCuratedStops([]);
+      applyInAppRoute(nextRoute, origin, target, rerouting);
     } finally {
       if (rerouting) navRerouting.current = false;
     }
-  }, [applyInAppRoute, client]);
+  }, [applyInAppRoute, client, updateCuratedStops]);
 
   // Like Waze: every few minutes, ask for the way from here with live
   // traffic, and switch when it saves enough (shared fasterRouteSavingSeconds),
@@ -465,7 +480,7 @@ export function useInAppNavigation(
       const progress = latestRouteProgress.current;
       if (checking || navRerouting.current || !progress) return;
       checking = true;
-      void client.getDrivingRoute(progress.here, navigatingTo, routeAvoidanceRef.current, ...withStop())
+      void client.getDrivingRoute(progress.here, navigatingTo, routeAvoidanceRef.current, ...routeStops())
         .then((candidate) => {
           const latest = latestRouteProgress.current;
           if (!latest || latest.route !== progress.route || navRerouting.current) return;
@@ -504,7 +519,7 @@ export function useInAppNavigation(
     setNavigationStop({ lat: place.lat, lon: place.lon, label: place.name });
     try {
       navRerouting.current = true;
-      const route = await client.getDrivingRoute(here, target, routeAvoidanceRef.current, ...withStop());
+      const route = await client.getDrivingRoute(here, target, routeAvoidanceRef.current, ...routeStops());
       const added = `Stop added: ${place.name}.`;
       applyInAppRoute(route, here, target, true, added);
       if (!navigationMutedRef.current) speakNavigationPrompt(added);
@@ -561,6 +576,30 @@ export function useInAppNavigation(
       setNavigationLoading(false);
     }
   }, [currentLocation, requestCurrentLocation, requestInAppRoute, setNavigationTarget, setSelectedHazardId, setSelectedPlace]);
+
+  /** Start the *complete* curated itinerary, including the start checkpoint,
+   * not a route to its first coordinate. No external navigation handoff. */
+  const startCuratedNavigation = React.useCallback(async (route: CuratedRoute): Promise<void> => {
+    const origin = currentLocation ?? await requestCurrentLocation(true);
+    if (!origin) return;
+    const pending = initialCuratedStops(route, origin);
+    const destination = { lat: route.end.lat, lon: route.end.lon, label: route.name };
+    setNavigationLoading(true);
+    setNavigationNotice(null);
+    try {
+      const calculated = await client.getDrivingRoute(origin, destination, routeAvoidanceRef.current, undefined, pending);
+      setNavigationStop(null);
+      updateCuratedStops(pending);
+      applyInAppRoute(calculated, origin, destination, false);
+      setSelectedPlace(null);
+      setNavigationTarget(null);
+      setSelectedHazardId(null);
+    } catch {
+      Alert.alert('Couldn’t plan the scenic route', 'Rider Comms could not calculate the full journey through every planned stop. Check road conditions or try again.');
+    } finally {
+      setNavigationLoading(false);
+    }
+  }, [applyInAppRoute, client, currentLocation, requestCurrentLocation, setNavigationStop, setNavigationTarget, setSelectedHazardId, setSelectedPlace, updateCuratedStops]);
 
   React.useEffect(() => {
     if (!activeRoute || !currentNavigationStep || navigationMuted) return;
@@ -716,6 +755,16 @@ export function useInAppNavigation(
           remainingSeconds: effectiveStep.durationSeconds * stepLeft
             + activeRoute.steps.slice(effectiveIndex + 1).reduce((sum, step) => sum + step.durationSeconds, 0),
         };
+        // Complete scenic checkpoints strictly in order on accurate fixes.
+        // Missed turns and reroutes retain every unfinished point, rather
+        // than silently changing the curated road sequence.
+        const checkpoint = advanceCuratedStops(curatedStopsRef.current, raw, position.coords.accuracy);
+        if (checkpoint.reached) {
+          updateCuratedStops(checkpoint.remaining);
+          const reached = `Passed ${checkpoint.reached.label}.`;
+          setNavigationNotice(reached);
+          if (!navigationMutedRef.current) speakNavigationPrompt(reached);
+        }
         // At the stop: say so, and route straight on from here.
         const stop = navigationStopRef.current;
         if (stop && metersBetween(raw, stop) <= NAV_STOP_REACHED_RADIUS_M) {
@@ -806,7 +855,7 @@ export function useInAppNavigation(
     // so muting or advancing a step doesn't tear down and re-subscribe the
     // GPS watcher.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRoute, currentLocationAccuracyRef, finishInAppNavigation, focusNavigationCamera, navigationDestination, requestInAppRoute, setCurrentLocation, unitSystem]);
+  }, [activeRoute, currentLocationAccuracyRef, finishInAppNavigation, focusNavigationCamera, navigationDestination, requestInAppRoute, setCurrentLocation, unitSystem, updateCuratedStops]);
 
   const dismissNavigationArrival = React.useCallback(() => setNavigationArrival(null), []);
 
@@ -838,6 +887,8 @@ export function useInAppNavigation(
     navigationArrival,
     dismissNavigationArrival,
     startInAppNavigation,
+    startCuratedNavigation,
+    curatedRemainingStops,
     stopFollowingRoute,
     resumeFollowingRoute,
     /** The ways there, labelled (shared routeChoices); empty once rerouted. */
