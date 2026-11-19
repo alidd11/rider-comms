@@ -106,6 +106,8 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('POST', '/messages', 'Messages', 'rider', 'Send a message'),
   e('POST', '/messages/read', 'Messages', 'rider', 'Mark messages read'),
   e('GET', '/messages/unread-count', 'Messages', 'rider', 'Unread message count'),
+  e('POST', '/messages/typing', 'Messages', 'rider', 'Tell a friend you are typing'),
+  e('DELETE', '/messages/{messageId}', 'Messages', 'rider', 'Delete a message you sent'),
   e('POST', '/hideouts', 'Friends', 'rider', 'Create a hideout'),
   e('DELETE', '/hideouts/{hideoutId}', 'Friends', 'rider', 'Delete a hideout'),
   e('GET', '/blocks', 'Safety', 'rider', 'Blocked riders'),

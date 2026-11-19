@@ -26,3 +26,14 @@ test('a message follows the one before only from the same rider, the same day, w
   expect(messageFollows(a, { fromRiderId: 'b', createdAt: 60_000 }, false)).toBe(false);
   expect(messageFollows(a, { fromRiderId: 'a', createdAt: 6 * 60_000 }, false)).toBe(false);
 });
+
+test('typing is sent at most every three seconds and shown until the friend sends a message', () => {
+  const { peerIsTyping, shouldSendTyping } = jest.requireActual('../../src/chat/typing') as typeof import('../../src/chat/typing');
+  expect(shouldSendTyping(0, 10_000)).toBe(true);
+  expect(shouldSendTyping(10_000, 12_000)).toBe(false);
+  expect(shouldSendTyping(10_000, 13_000)).toBe(true);
+  expect(peerIsTyping(0, 1_000)).toBe(false);
+  expect(peerIsTyping(10_000, 12_000)).toBe(true);
+  expect(peerIsTyping(10_000, 16_500)).toBe(false);
+  expect(peerIsTyping(10_000, 12_000, 11_000)).toBe(false);
+});

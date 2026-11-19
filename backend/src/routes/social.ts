@@ -139,6 +139,21 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
     });
     return sendJson(res, 201, message);
   }
+  if (req.method === 'POST' && url.pathname === '/messages/typing') {
+    const body = await readJsonBody(req);
+    if (typeof body.toRiderId !== 'string' || !body.toRiderId.trim()) return sendJson(res, 400, { error: 'toRiderId is required' });
+    const other = body.toRiderId.trim();
+    if (await moderationStore.isBlockedBetween(actorId, other)) return sendJson(res, 403, { error: 'blocked' });
+    if (!(await friendStore.isFriendOf(actorId, other))) return sendJson(res, 403, { error: 'not_friends' });
+    await messageStore.signalTyping(actorId, other);
+    return sendJson(res, 200, {});
+  }
+  const deleteMatch = req.method === 'DELETE' ? /^\/messages\/([A-Za-z0-9-]{1,64})$/.exec(url.pathname) : null;
+  if (deleteMatch) {
+    return (await messageStore.deleteOwn(actorId, deleteMatch[1]!))
+      ? sendJson(res, 200, {})
+      : sendJson(res, 404, { error: 'not_found' });
+  }
   if (req.method === 'GET' && url.pathname === '/messages') {
     const other = url.searchParams.get('withRiderId');
     if (!other) return sendJson(res, 400, { error: 'withRiderId is required' });

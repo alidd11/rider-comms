@@ -1875,6 +1875,7 @@
   function renderChat() {
     if (!activeChat) return;
     const messages = $('#chatMessages');
+    if (chatMessages.at(-1)?.fromRiderId === activeChat?.riderId) hideFriendTyping();
     let previousDay = '';
     let previous = null;
     messages.innerHTML = chatMessages.map((message) => {
@@ -1900,7 +1901,7 @@
       const body = `<span>${escapeHtml(message.text)}</span><time>${escapeHtml(formatMessageTime(message.createdAt))}</time>${status}`;
       return dayLabel + (failed
         ? `<button class="chat-bubble-row mine" data-retry-message="${escapeHtml(message.id)}" aria-label="Message failed. Retry sending."><span class="chat-bubble failed">${body}</span></button>`
-        : `<div class="chat-bubble-row${mine ? ' mine' : ''}${follows ? ' follows' : ''}"><div class="chat-bubble">${body}</div></div>`);
+        : `<div class="chat-bubble-row${mine ? ' mine' : ''}${follows ? ' follows' : ''}" data-message-id="${escapeHtml(message.id)}"${mine && message.status !== 'pending' ? ' data-mine' : ''}><div class="chat-bubble">${body}</div></div>`);
     }).join('');
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
     $('#chatLoading').hidden = !(chatLoading && chatShowingLoading && chatMessages.length === 0);
@@ -2020,8 +2021,73 @@
     void loadChatHideouts();
   }
 
+  // "Typing…": sent at most every few seconds while the rider types, shown
+  // for a few seconds when the friend's signal arrives (native:
+  // FriendChatScreen, the same timings).
+  const TYPING_SEND_INTERVAL_MS = 3_000;
+  const TYPING_SHOW_MS = 6_000;
+  let lastTypingSentAt = 0;
+  let typingHideTimer = null;
+  function noteChatTyping() {
+    if (!activeChat || Date.now() - lastTypingSentAt < TYPING_SEND_INTERVAL_MS) return;
+    lastTypingSentAt = Date.now();
+    void apiFetch('POST', '/messages/typing', { toRiderId: activeChat.riderId }).catch(() => {});
+  }
+  function showFriendTyping(riderId) {
+    if (!activeChat || activeChat.riderId !== riderId) return;
+    $('#chatTypingText').textContent = `${activeChat.displayName || 'Your friend'} is typing…`;
+    $('#chatTyping').hidden = false;
+    clearTimeout(typingHideTimer);
+    typingHideTimer = setTimeout(hideFriendTyping, TYPING_SHOW_MS);
+  }
+  function hideFriendTyping() {
+    clearTimeout(typingHideTimer);
+    const typing = $('#chatTyping');
+    if (typing) typing.hidden = true;
+  }
+
+  // Long-press (or right-click) a bubble for Copy, and Delete on your own.
+  let bubbleMenuMessageId = null;
+  function openBubbleMenu(row, x, y) {
+    const menu = $('#chatBubbleMenu');
+    bubbleMenuMessageId = row.dataset.messageId;
+    $('[data-bubble-action="delete"]', menu).hidden = !row.hasAttribute('data-mine');
+    menu.hidden = false;
+    const width = menu.offsetWidth || 160;
+    menu.style.left = `${Math.max(12, Math.min(window.innerWidth - width - 12, x - width / 2))}px`;
+    menu.style.top = `${Math.max(12, y - 64)}px`;
+    haptic('select');
+    $('button:not([hidden])', menu)?.focus();
+  }
+  function closeBubbleMenu() {
+    $('#chatBubbleMenu').hidden = true;
+    bubbleMenuMessageId = null;
+  }
+  async function runBubbleAction(action) {
+    const id = bubbleMenuMessageId;
+    closeBubbleMenu();
+    const message = chatMessages.find((entry) => entry.id === id);
+    if (!message) return;
+    if (action === 'copy') {
+      try { await navigator.clipboard.writeText(message.text); haptic('success'); showToast('Message copied.'); } catch { showToast('Couldn’t copy the message.'); }
+      return;
+    }
+    if (action === 'delete') {
+      try {
+        await apiFetch('DELETE', `/messages/${encodeURIComponent(id)}`);
+        chatMessages = chatMessages.filter((entry) => entry.id !== id);
+        renderChat();
+        showToast('Message deleted.');
+      } catch {
+        showToast('Couldn’t delete the message. Try again.');
+      }
+    }
+  }
+
   function closeChat({ restoreFocus = true } = {}) {
     if (!activeChat) return;
+    hideFriendTyping();
+    closeBubbleMenu();
     activeChat = null;
     chatMessages = [];
     chatNextCursor = null;
@@ -2282,6 +2348,7 @@
             }
             if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed') chatDirty = true;
             if (peerProfileDirty) friendProfileDirtyRiderIds.add(event.actorRiderId);
+            if (event.type === 'typing') showFriendTyping(event.actorRiderId);
             if (event.type === 'social_refresh' && event.entityId === 'profile' && event.actorRiderId === state.profile.riderId) {
               selfProfileDirty = true;
             }
@@ -8803,6 +8870,32 @@
         if (window.scrollY > 0) window.scrollTo(0, 0);
       });
     });
+    $('#chatInput').addEventListener('input', noteChatTyping);
+    let bubblePressTimer = null;
+    $('#chatMessages').addEventListener('contextmenu', (event) => {
+      const row = event.target.closest?.('[data-message-id]');
+      if (!row) return;
+      event.preventDefault();
+      openBubbleMenu(row, event.clientX, event.clientY);
+    });
+    $('#chatMessages').addEventListener('pointerdown', (event) => {
+      const row = event.target.closest?.('[data-message-id]');
+      if (!row || event.pointerType === 'mouse') return;
+      clearTimeout(bubblePressTimer);
+      bubblePressTimer = setTimeout(() => openBubbleMenu(row, event.clientX, event.clientY), 450);
+    });
+    ['pointerup', 'pointercancel', 'pointermove'].forEach((type) => $('#chatMessages').addEventListener(type, (event) => {
+      if (type === 'pointermove' && Math.abs(event.movementY) < 4) return;
+      clearTimeout(bubblePressTimer);
+    }));
+    $('#chatBubbleMenu').addEventListener('click', (event) => {
+      const action = event.target.closest?.('[data-bubble-action]')?.dataset.bubbleAction;
+      if (action) void runBubbleAction(action);
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (!$('#chatBubbleMenu').hidden && !event.target.closest?.('#chatBubbleMenu')) closeBubbleMenu();
+    });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !$('#chatBubbleMenu').hidden) closeBubbleMenu(); });
     $('#chatInput').addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });
