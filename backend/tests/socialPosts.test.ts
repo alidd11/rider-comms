@@ -252,14 +252,14 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     // Force a real PostgreSQL error in the second insert.
     await getPool().query(`
       CREATE FUNCTION social_test_reject_staff_report() RETURNS trigger
-      LANGUAGE plpgsql AS $
+      LANGUAGE plpgsql AS $$
       BEGIN
         IF NEW.reporter_id = 'social_b' THEN
           RAISE EXCEPTION 'intentional_social_staff_queue_failure';
         END IF;
         RETURN NEW;
       END;
-      $;
+      $$;
       CREATE TRIGGER social_test_reject_staff_report
         BEFORE INSERT ON safety_reports
         FOR EACH ROW EXECUTE FUNCTION social_test_reject_staff_report();
