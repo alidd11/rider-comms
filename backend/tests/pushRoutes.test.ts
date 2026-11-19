@@ -81,6 +81,7 @@ describe('push notification devices and triggers', { skip: !hasDatabase && 'DATA
     assert.equal(sent[0]?.riderId, 'push-jo');
     assert.equal(sent[0]?.event, 'friend_request');
     assert.equal(sent[0]?.content.route, '#friends');
+    assert.equal(sent[0]?.content.requestId, request.id);
     assert.match(sent[0]!.content.body, /^Sam \(/);
 
     assert.equal((await postJson(ctx, 'push-jo', `/friends/requests/${request.id}/accept`, {})).status, 200);

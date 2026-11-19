@@ -128,8 +128,10 @@ test('the notifier honours each preference and removes devices that are gone', a
   const fetchImpl: FetchLike = async (url, init) => {
     calls.push(url);
     if (url === EXPO_PUSH_URL) {
-      const messages = JSON.parse(String(init.body)) as Array<{ data: { route: string } }>;
+      const messages = JSON.parse(String(init.body)) as Array<{ data: { route: string }; categoryId?: string }>;
       assert.equal(messages[0]!.data.route, '#chat:sam');
+      // The phone shows Reply on a message.
+      assert.equal(messages[0]!.categoryId, 'message');
       return { status: 200, text: async () => JSON.stringify({ data: [{ status: 'ok' }] }) };
     }
     // The browser's subscription has expired.
@@ -158,6 +160,19 @@ test('the notifier honours each preference and removes devices that are gone', a
   const regroupNotifier = new PushNotifier({ store: store as never, getProfile: async () => prefs, fetchImpl: regroupFetch });
   await regroupNotifier.notify('r', 'regroup', { title: 'Regroup point', body: 'Regroup at Esso.', route: '#map', tag: 'regroup:x' });
   assert.ok(calls.length > 0);
+
+  // A friend request carries its id and the Accept/Decline buttons to the phone;
+  // a regroup point has no buttons.
+  prefs = { notifyInvites: true, notifyChat: true };
+  const expoBodies: Array<{ data: Record<string, string>; categoryId?: string }> = [];
+  const phoneOnly = fakeStore([expo]);
+  const requestNotifier = new PushNotifier({ store: phoneOnly.store as never, getProfile: async () => prefs, fetchImpl: async (_url, init) => {
+    expoBodies.push(...(JSON.parse(String(init.body)) as typeof expoBodies));
+    return { status: 200, text: async () => JSON.stringify({ data: [{ status: 'ok' }] }) };
+  } });
+  await requestNotifier.notify('r', 'friend_request', { title: 'New friend request', body: 'x', route: '#friends', tag: 't', requestId: 'req-1' });
+  await requestNotifier.notify('r', 'regroup', { title: 'Regroup point', body: 'y', route: '#map', tag: 'g' });
+  assert.deepEqual(expoBodies.map((m) => [m.categoryId, m.data.requestId]), [['friend_request', 'req-1'], [undefined, undefined]]);
 
   // A failure never escapes into the request that triggered it.
   prefs = { notifyInvites: true, notifyChat: true };
