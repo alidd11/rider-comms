@@ -2938,7 +2938,7 @@ html.map-day .nav-end-button{background:rgb(11 18 22/.06);border-color:rgb(11 18
 .chat-bubble-row.follows .chat-bubble{border-top-left-radius:6px}
 .chat-bubble-row.mine.follows .chat-bubble{border-top-left-radius:18px;border-top-right-radius:6px}
 .chat-composer textarea{border-radius:22px;padding-inline:16px}
-.chat-composer button{border-radius:50%}
+.chat-composer button,.chat-composer .icon-button{border-radius:50%}
 @media(prefers-reduced-motion:reduce){.screen,.friend-row,.roster-row,.request-row,.app-menu-list button{animation:none}}
 .app-menu-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 6px}
 .app-menu-stats>div{display:grid;gap:2px;padding:12px 12px 11px;border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-card)}
