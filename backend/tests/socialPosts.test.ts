@@ -233,6 +233,10 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal((await report('social_b')).status, 404);
     const queue = await getPool().query(`SELECT details FROM safety_reports WHERE reporter_id = 'social_b'`);
     assert.match(String(queue.rows[0]?.details), new RegExp(`Rider Social post ${post.id}: selling things`));
+    const socialReports = await getPool().query('SELECT reporter_id, reason FROM social_post_reports WHERE post_id = $1', [post.id]);
+    assert.equal(socialReports.rows.length, 1, 'post report and staff queue commit together');
+    assert.equal(socialReports.rows[0]?.reporter_id, 'social_b');
+    assert.equal(queue.rows.length, 1, 'one staff report for one accepted post report');
     for (let i = 1; i < REPORTS_TO_HIDE; i += 1) assert.equal((await report(`social_r${i}`, { reason: 'other' })).status, 202);
     assert.deepEqual((await feed(ctx, 'social_c')).posts, [], 'hidden for everyone else');
     const own = await feed(ctx, 'social_a');
