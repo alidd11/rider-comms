@@ -254,3 +254,39 @@ test('PWA guidance looks like Google Maps: coloured banner, End in the trip card
   await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
   await expect(page.locator('#navRecentreBtn')).toBeHidden();
 });
+
+test('PWA trip card opens while parked with the turns left, Share ETA, Add stop and End', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__shared = [];
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async (data) => { window.__shared.push(data); } });
+  });
+  await startNavigationHome(page);
+  const toggle = page.locator('#navTripToggle');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(page.locator('#navTripDetails')).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  const turns = page.locator('#navTripTurns li');
+  await expect(turns).toHaveCount(2);
+  await expect(turns.first()).toContainText('Turn left onto High Street');
+  await expect(turns.last()).toContainText('Arrive at Home');
+  // The controls on the map step aside while the card is open.
+  await expect(page.locator('#navSpeedBadge')).toBeHidden();
+
+  await page.locator('#navTripShare').click();
+  await expect.poll(() => page.evaluate(() => window.__shared.length)).toBe(1);
+  const [{ text }] = await page.evaluate(() => window.__shared);
+  expect(text).toMatch(/^On my way to Home\. Arriving about .+, .+ to go\. Sent from Rider Comms\.$/);
+
+  await page.locator('#navTripAddStop').click();
+  await expect(page.locator('#navTripDetails')).toBeHidden();
+  await expect(page.locator('#navSpeedBadge')).toBeVisible();
+  await expect(page.locator('#sheetTitle')).toHaveText('On the way');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+
+  await toggle.click();
+  await page.locator('#navTripEnd').click();
+  await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
+  await expect(page.locator('#navTripDetails')).toBeHidden();
+});

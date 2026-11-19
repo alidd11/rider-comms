@@ -2,7 +2,7 @@
 // #navSummary and the navigation control dock). MapScreen owns the state;
 // these only draw it.
 import * as React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { InAppNavigationRoute } from '../api/directions';
 import type { NavigationRouteHazard } from '../navigationRoadEvents';
@@ -184,6 +184,7 @@ export function NavigationTripSummary({
   onChooseRoute,
   trafficText = '',
   onEnd,
+  tripDetails,
 }: {
   bottomPadding: number;
   arrivalLabel: string;
@@ -199,14 +200,72 @@ export function NavigationTripSummary({
   trafficText?: string;
   /** End sits at the left of the trip card, away from the turn, as in Google Maps. */
   onEnd: () => void;
+  /**
+   * The card's expanded half (PWA: #navTripDetails): the turns left, Add
+   * stop and Share ETA. Pass it only while parked; Ride Safe leaves it out,
+   * which also folds the card away.
+   */
+  tripDetails?: {
+    upcomingSteps: readonly Step[];
+    destinationLabel: string;
+    onAddStop: () => void;
+    onShareEta: () => void;
+  };
 }): React.JSX.Element {
   const { night: isNight, palette } = useNavigationPalette();
+  const [expanded, setExpanded] = React.useState(false);
+  const open = expanded && Boolean(tripDetails);
+  React.useEffect(() => { if (!tripDetails) setExpanded(false); }, [tripDetails]);
   const label = [styles.navigationSummaryLabel, isNight && night.mutedText];
   const value = [styles.navigationSummaryValue, isNight && night.primaryText];
   const divider = [styles.navigationSummaryDivider, isNight && night.divider];
   return (
     <View testID="navigation-summary" style={[styles.navigationSummary, isNight && night.card, { paddingBottom: bottomPadding }]} onLayout={measured(onHeight)}>
-      <View style={[styles.navigationSummaryHandle, isNight && night.handle]} />
+      {tripDetails ? (
+        <Pressable
+          testID="navigation-trip-toggle"
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={open ? 'Hide trip details' : 'Show trip details'}
+          hitSlop={{ top: 8, bottom: 8, left: 40, right: 40 }}
+          onPress={() => { haptics.select(); setExpanded((value) => !value); }}
+          style={styles.navigationSummaryHandleButton}
+        >
+          <View style={[styles.navigationSummaryHandle, isNight && night.handle]} />
+        </Pressable>
+      ) : (
+        <View style={[styles.navigationSummaryHandle, isNight && night.handle]} />
+      )}
+      {open && tripDetails ? (
+        <View testID="navigation-trip-details" style={styles.navigationTripDetails}>
+          <View style={styles.navigationTripActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Add stop" onPress={() => { setExpanded(false); tripDetails.onAddStop(); }} style={({ pressed }) => [styles.navigationTripAction, isNight && night.endButton, pressed && pressedFeedback]}>
+              <Ionicons name="add" size={22} color={palette.textPrimary} />
+              <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationTripActionText, isNight && night.primaryText]}>Add stop</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Share ETA" onPress={tripDetails.onShareEta} style={({ pressed }) => [styles.navigationTripAction, isNight && night.endButton, pressed && pressedFeedback]}>
+              <Ionicons name="share-outline" size={22} color={palette.textPrimary} />
+              <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationTripActionText, isNight && night.primaryText]}>Share ETA</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="End navigation from trip details" onPress={() => { haptics.tap(); onEnd(); }} style={({ pressed }) => [styles.navigationTripAction, isNight && night.endButton, pressed && pressedFeedback]}>
+              <Ionicons name="close" size={22} color={palette.danger} />
+              <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationTripActionText, { color: palette.danger }]}>End</Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.navigationTripHeading, isNight && night.mutedText]} accessibilityRole="header">Turns</Text>
+          <ScrollView style={styles.navigationTripTurns} nestedScrollEnabled>
+            {tripDetails.upcomingSteps.map((item, index) => (
+              <View key={`${index}-${item.instruction}`} style={[styles.navigationTripTurn, index > 0 && styles.navigationTripTurnDivided]}>
+                <Text style={[styles.navigationTripTurnText, isNight && night.primaryText]}>{item.instruction}</Text>
+                <Text style={[styles.navigationTripTurnDistance, isNight && night.mutedText]}>{formatNavigationDistance(item.distanceMeters, unitSystem)}</Text>
+              </View>
+            ))}
+            <View style={[styles.navigationTripTurn, tripDetails.upcomingSteps.length > 0 && styles.navigationTripTurnDivided]}>
+              <Text style={[styles.navigationTripTurnText, styles.navigationTripArrive, isNight && night.primaryText]}>Arrive at {tripDetails.destinationLabel || 'your destination'}</Text>
+            </View>
+          </ScrollView>
+        </View>
+      ) : null}
       {routeChoices.length > 1 && onChooseRoute ? (
         <View style={styles.navigationRouteChoices} accessibilityRole="radiogroup" accessibilityLabel="Routes" testID="navigation-route-choices">
           {routeChoices.map((choice) => {

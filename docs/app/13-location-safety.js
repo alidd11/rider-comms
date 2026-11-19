@@ -173,6 +173,7 @@
     if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
     if (locked && activeChat) closeChat({ restoreFocus: false });
     if (locked) closeAppMenu({ restoreFocus: false });
+    if (locked) setNavTripDetailsOpen(false);
   }
 
   function stopMovementSafetyTracking() {

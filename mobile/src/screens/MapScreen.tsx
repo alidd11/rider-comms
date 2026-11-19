@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { AccessibilityInfo, ActivityIndicator, BackHandler, View, Text, Pressable, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, BackHandler, View, Text, Pressable, Alert, Linking, Share, useColorScheme, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -51,7 +51,7 @@ import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
@@ -424,6 +424,16 @@ export function MapScreen(): React.JSX.Element {
     : `Open in ${navigationProviderLabel(navigationProvider)}`;
 
   const navigationArrivalLabel = new Date(Date.now() + remainingNavigationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // The trip card's expanded half: parked only (Ride Safe leaves it out).
+  const tripDetails = React.useMemo(() => (activeRoute && !lockedForSafety ? {
+    upcomingSteps: activeRoute.steps.slice(navigationStepIndex + 1),
+    destinationLabel: navigationDestination?.label ?? '',
+    onAddStop: () => setStopsSheetOpen(true),
+    onShareEta: () => {
+      const message = navigationEtaShareText(navigationDestination?.label ?? '', navigationArrivalLabel, remainingNavigationMeters, unitSystem);
+      void Share.share({ message }).then(() => haptics.success()).catch(() => undefined);
+    },
+  } : undefined), [activeRoute, lockedForSafety, navigationStepIndex, navigationDestination, navigationArrivalLabel, remainingNavigationMeters, unitSystem]);
   useNavigationLiveActivity(
     activeRoute && currentNavigationStep
       ? {
@@ -1012,6 +1022,7 @@ export function MapScreen(): React.JSX.Element {
             onChooseRoute={chooseRoute}
             trafficText={activeRoute ? routeTrafficDelayText(activeRoute.durationSeconds, activeRoute.typicalDurationSeconds) : ''}
             onEnd={() => finishInAppNavigation(false)}
+            tripDetails={tripDetails}
           />
         </NavigationNightContext.Provider>
       )}

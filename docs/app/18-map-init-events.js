@@ -474,6 +474,10 @@
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
     $('#endNavBtn').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripToggle').addEventListener('click', () => { haptic('select'); setNavTripDetailsOpen($('#navTripDetails').hidden); });
+    $('#navTripEnd').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripShare').addEventListener('click', () => void shareNavigationEta());
+    $('#navTripAddStop').addEventListener('click', () => { setNavTripDetailsOpen(false); openSheet('stopsOnTheWay'); });
   }
 
   // --- Auth screen -----------------------------------------------------

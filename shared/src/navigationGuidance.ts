@@ -368,3 +368,17 @@ export function stopsOnTheWay<T extends { travelSeconds?: number }>(
     })
     .sort((a, b) => (a.detourSeconds ?? Infinity) - (b.detourSeconds ?? Infinity));
 }
+
+/**
+ * The message "Share ETA" sends while navigating: where you're going, when
+ * you'll arrive and how far is left. Arrival is the formatted clock time.
+ */
+export function navigationEtaShareText(
+  destination: string,
+  arrivalLabel: string,
+  remainingMeters: number,
+  unit: 'mi' | 'km',
+): string {
+  const place = destination.trim() || 'my destination';
+  return `On my way to ${place}. Arriving about ${arrivalLabel}, ${formatNavigationDistance(remainingMeters, unit)} to go. Sent from Rider Comms.`;
+}

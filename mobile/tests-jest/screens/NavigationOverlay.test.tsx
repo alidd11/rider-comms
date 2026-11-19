@@ -99,3 +99,35 @@ test('the petrol-on-the-way button shows only where reporting is allowed', async
   await view.rerender(controls(false));
   expect(view.queryByLabelText('Find petrol and stops on the way')).toBeNull();
 });
+
+test('the trip card opens while parked with the turns left, Add stop, Share ETA and End', async () => {
+  const onAddStop = jest.fn();
+  const onShareEta = jest.fn();
+  const onEnd = jest.fn();
+  const details = { upcomingSteps: [step('Turn left onto High Street', 'turn-left')], destinationLabel: 'Home', onAddStop, onShareEta };
+  const summary = (tripDetails?: typeof details) => (
+    <NavigationTripSummary bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1740} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} onEnd={onEnd} tripDetails={tripDetails} />
+  );
+  const view = await render(summary(details));
+  expect(view.queryByTestId('navigation-trip-details')).toBeNull();
+  await fireEvent.press(view.getByLabelText('Show trip details'));
+  expect(view.getByText('Turn left onto High Street')).toBeTruthy();
+  expect(view.getByText('Arrive at Home')).toBeTruthy();
+  await fireEvent.press(view.getByLabelText('Share ETA'));
+  expect(onShareEta).toHaveBeenCalledTimes(1);
+  await fireEvent.press(view.getByLabelText('End navigation from trip details'));
+  expect(onEnd).toHaveBeenCalledTimes(1);
+  await fireEvent.press(view.getByLabelText('Add stop'));
+  expect(onAddStop).toHaveBeenCalledTimes(1);
+  expect(view.queryByTestId('navigation-trip-details')).toBeNull();
+
+  // Ride Safe leaves the details out: the handle is no longer a button and the card folds away.
+  await fireEvent.press(view.getByLabelText('Show trip details'));
+  expect(view.getByTestId('navigation-trip-details')).toBeTruthy();
+  await view.rerender(summary(undefined));
+  expect(view.queryByTestId('navigation-trip-details')).toBeNull();
+  expect(view.queryByLabelText('Show trip details')).toBeNull();
+  await view.rerender(summary({ ...details, upcomingSteps: [], destinationLabel: '' }));
+  await fireEvent.press(view.getByLabelText('Show trip details'));
+  expect(view.getByText('Arrive at your destination')).toBeTruthy();
+});
