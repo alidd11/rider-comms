@@ -226,7 +226,8 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
   const socialPostStore = options.socialPostStore ?? new SocialPostStore();
   const socialMedia = options.socialMedia === undefined ? socialMediaServiceFromEnv() : options.socialMedia;
   // Posting has its own switch, separate from the beta and from storage being set up.
-  const socialPostingEnabled = socialMedia !== null &&
+  // Posting also needs the unsafe-content check (socialMediaScanner.ts).
+  const socialPostingEnabled = socialMedia !== null && Boolean(socialMedia.scan) &&
     (options.socialPostingEnabled ?? isSocialPostingEnabled(process.env.SOCIAL_POSTING_ENABLED));
   const pushStore = options.pushStore ?? new PushStore();
   const pushNotifier = options.pushNotifier ?? new PushNotifier({

@@ -1450,6 +1450,7 @@
     return [
       setting('Email delivery', emailState, emailLabel, emailDesc),
       setting('Social media storage', system.socialMediaStorage ? 'ok' : 'down', system.socialMediaStorage ? 'On' : 'Off', system.socialMediaStorage ? 'Photos and videos are stored privately' : 'Set the SOCIAL_MEDIA_S3_* variables on the backend'),
+      setting('Social content check', system.socialMediaScanning ? 'ok' : 'down', system.socialMediaScanning ? 'On' : 'Off', system.socialMediaScanning ? 'Google SafeSearch checks every photo and Reel' : 'Set a Google key with Cloud Vision API allowed'),
       setting('Social posting', system.socialPosting ? 'ok' : 'warn', system.socialPosting ? 'On' : 'Off', system.socialPosting ? 'Riders can post to Rider Social' : 'Posting is switched off'),
     ];
   }

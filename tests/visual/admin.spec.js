@@ -188,7 +188,7 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : state.riders });
     }
     if (url.pathname === '/admin/system') {
-      return json(200, { socialMediaStorage: false, socialPosting: true, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
+      return json(200, { socialMediaStorage: false, socialMediaScanning: true, socialPosting: true, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
     }
     if (url.pathname === `/riders/${ADMIN_ID}/profile`) return json(200, { riderId: ADMIN_ID, displayName: 'Ali', handle: '@ali' });
     if (url.pathname === '/health') return json(200, { ok: true });
@@ -716,7 +716,9 @@ test.describe('staff dashboard', () => {
     await expect(rows.nth(2).locator('.badge')).toHaveText('Restricted');
     await expect(rows.nth(2).locator('.badge')).toHaveAttribute('data-state', 'warn');
     await expect(rows.nth(3).locator('.badge')).toHaveText('Off');
+    await expect(rows.nth(4)).toContainText('Social content check');
     await expect(rows.nth(4).locator('.badge')).toHaveText('On');
+    await expect(rows.nth(5).locator('.badge')).toHaveText('On');
     await expect(page.locator('#sidebarFooter')).toContainText('Signed in as Ali · @ali');
     await expect(page.locator('#sidebarFooter .badge')).toHaveText('Admin');
   });
