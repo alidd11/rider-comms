@@ -207,7 +207,9 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
   // The first token mint is deliberately failed above before any LiveKit
   // Room exists. Rider Comms must self-recover through the reconnect scheduler
   // rather than requiring the rider to toggle Nearby off/on again.
-  await expect.poll(() => voiceTokenRequests, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
+  // The scheduler's first retry waits 2 s after the failed mint; a slow
+  // WebKit runner has taken longer than 5 s to get there.
+  await expect.poll(() => voiceTokenRequests, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
 
   const localVoiceButton = page.locator('#voiceStatusBtn');
   await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening hands-free');
