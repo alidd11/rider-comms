@@ -139,6 +139,14 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
         connections: [{ peerId: PEER_ID, token: 'speaker-livekit-token', url: 'wss://voice.example.test' }],
         refreshAfterMs: 20_000,
       };
+    } else if (url.pathname === '/social/events') {
+      // Mirror the long-poll API contract. Returning {} here leaves cursor
+      // unset and makes the app repeatedly reload social state with no wait,
+      // starving this WebKit voice test before its first token request.
+      if (url.searchParams.get('waitMs') !== '0') {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      body = { events: [], cursor: url.searchParams.get('after') || 'MA', hasMore: false };
     } else if (url.pathname === '/hazards/nearby') body = { hazards: [] };
     else if (url.pathname === '/rides/current') body = { ride: null };
     else if (url.pathname === '/config') body = { googleMapsApiKey: '' };
