@@ -237,6 +237,10 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal(socialReports.rows.length, 1, 'post report and staff queue commit together');
     assert.equal(socialReports.rows[0]?.reporter_id, 'social_b');
     assert.equal(queue.rows.length, 1, 'one staff report for one accepted post report');
+    assert.equal(await new SocialPostStore().report('social_b', post.id, 'spam'), null,
+      'duplicate direct-store reports are rejected');
+    const queueAfterDuplicate = await getPool().query('SELECT id FROM safety_reports WHERE reporter_id = $1', ['social_b']);
+    assert.equal(queueAfterDuplicate.rows.length, 1, 'duplicate direct-store reports do not enqueue again');
     for (let i = 1; i < REPORTS_TO_HIDE; i += 1) assert.equal((await report(`social_r${i}`, { reason: 'other' })).status, 202);
     assert.deepEqual((await feed(ctx, 'social_c')).posts, [], 'hidden for everyone else');
     const own = await feed(ctx, 'social_a');
