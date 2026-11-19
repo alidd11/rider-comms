@@ -247,6 +247,48 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.deepEqual(own.posts.map((p) => [p.id, p.hidden]), [[post.id, true]], 'its author still sees it, marked hidden');
   });
 
+  it('rolls back both report tables when staff queue insertion fails', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    // Force a real PostgreSQL error in the second insert.
+    await getPool().query(`
+      CREATE FUNCTION social_test_reject_staff_report() RETURNS trigger
+      LANGUAGE plpgsql AS $
+      BEGIN
+        IF NEW.reporter_id = 'social_b' THEN
+          RAISE EXCEPTION 'intentional_social_staff_queue_failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $;
+      CREATE TRIGGER social_test_reject_staff_report
+        BEFORE INSERT ON safety_reports
+        FOR EACH ROW EXECUTE FUNCTION social_test_reject_staff_report();
+    `);
+    try {
+      await assert.rejects(
+        new SocialPostStore().report('social_b', post.id, 'spam'),
+        /intentional_social_staff_queue_failure/,
+      );
+      const reports = await getPool().query(
+        'SELECT id FROM social_post_reports WHERE post_id = $1', [post.id],
+      );
+      assert.equal(reports.rows.length, 0, 'failed staff insert rolls back Social report');
+      const staff = await getPool().query(
+        'SELECT id FROM safety_reports WHERE reporter_id = $1', ['social_b'],
+      );
+      assert.equal(staff.rows.length, 0, 'failed staff insert leaves no safety report');
+      assert.deepEqual((await feed(ctx, 'social_b')).posts.map((p) => p.id), [post.id],
+        'failed report must not revoke viewer access');
+    } finally {
+      await getPool().query(`
+        DROP TRIGGER IF EXISTS social_test_reject_staff_report ON safety_reports;
+        DROP FUNCTION IF EXISTS social_test_reject_staff_report();
+      `);
+    }
+    assert.ok(await new SocialPostStore().report('social_b', post.id, 'spam'),
+      'a subsequent report succeeds after the staff queue recovers');
+  });
+
   it('leaves out posts by suspended riders', async () => {
     await photoPost(ctx, 'social_a');
     await getPool().query(`INSERT INTO users (id, username, password_hash, suspended_at) VALUES ('social_a', 'social_a', 'x', 1)`);
