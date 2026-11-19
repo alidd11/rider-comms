@@ -298,11 +298,13 @@ export class SocialPostStore {
         [reporterId, postId],
       );
       if (!post.rows[0]) return null;
-      await client.query(
+      const inserted = await client.query(
         `INSERT INTO social_post_reports (post_id, reporter_id, reason, created_at)
-         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING post_id`,
         [postId, reporterId, reason, now],
       );
+      // A duplicate report must not create another staff-queue entry.
+      if (!inserted.rows[0]) return null;
       // Keep the existing staff safety queue and the post-level report atomic.
       // If either insert fails, neither report nor the visibility change commits.
       await client.query(
