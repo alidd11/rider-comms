@@ -8,6 +8,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing, elevation, pressedFeedback } from '../theme';
+import { useSettings } from '../settings/SettingsContext';
+import { FriendInviteCard } from '../components/FriendInviteCard';
 import { styles } from './FriendsScreen.styles';
 import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
@@ -546,6 +548,7 @@ export function FriendsScreen(): React.JSX.Element {
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  const { handle: myHandle } = useSettings();
   // Pending requests already fill the screen; the "build your circle"
   // prompt is for a genuinely empty list (and a search still says so).
   const hidesEmptyPrompt = incomingRequests.length + outgoingRequests.length > 0 && !query.trim();
@@ -691,6 +694,10 @@ export function FriendsScreen(): React.JSX.Element {
             ) : null}
           </View>
         )}
+        {/* A short list leaves the screen bare: offer a way to grow it (PWA: #friendInvite). */}
+        {friends.length > 0 && friends.length < 4 && !query.trim() ? (
+          <FriendInviteCard handle={myHandle} onAdd={() => setAddOpen(true)} />
+        ) : null}
       </ScrollView>
 
       <View style={{ paddingBottom: insets.bottom }}>

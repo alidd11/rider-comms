@@ -180,19 +180,27 @@ test('ride join baseline matches the approved compact-card hierarchy in day and 
     expect(visual.heroWidth).toBeLessThanOrEqual(visual.viewportWidth - 36);
     expect(visual.heroHeight).toBeGreaterThanOrEqual(130);
     expect(visual.heroHeight).toBeLessThanOrEqual(215);
-    expect(visual.heroRadius).toBeLessThanOrEqual(4);
+    // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(visual.heroRadius).toBeGreaterThanOrEqual(8);
+    expect(visual.heroRadius).toBeLessThanOrEqual(16);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(8);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
-    expect(visual.joinRadius).toBeLessThanOrEqual(4);
+    // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(visual.joinRadius).toBeGreaterThanOrEqual(8);
+    expect(visual.joinRadius).toBeLessThanOrEqual(16);
     expect(visual.railHeight).toBeLessThanOrEqual(40);
-    expect(visual.railRadius).toBeLessThanOrEqual(4);
+    // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(visual.railRadius).toBeGreaterThanOrEqual(8);
+    expect(visual.railRadius).toBeLessThanOrEqual(16);
     expect(visual.railGap).toBe(0);
     expect(visual.slotHeight).toBeLessThanOrEqual(40);
     expect(visual.slotRadius).toBe(0);
     expect(visual.buttonHeight).toBeLessThanOrEqual(44);
     expect(visual.startHeight).toBeLessThanOrEqual(170);
     expect(visual.startButtonHeight).toBeGreaterThanOrEqual(44);
-    expect(visual.startRadius).toBeLessThanOrEqual(4);
+    // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(visual.startRadius).toBeGreaterThanOrEqual(8);
+    expect(visual.startRadius).toBeLessThanOrEqual(16);
     expect(visual.startBottom).toBeLessThanOrEqual(visual.viewportHeight + 2);
 
     await page.screenshot({
@@ -402,7 +410,9 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
     };
   });
   expect(reportShape.sheetRadius).toBeLessThanOrEqual(8);
-  expect(reportShape.tileRadius).toBeLessThanOrEqual(4);
+  // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(reportShape.tileRadius).toBeGreaterThanOrEqual(8);
+    expect(reportShape.tileRadius).toBeLessThanOrEqual(16);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-report-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
 
@@ -425,7 +435,9 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       viewportWidth: window.innerWidth,
     };
   });
-  expect(rideGeometry.heroRadius).toBeLessThanOrEqual(4);
+  // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(rideGeometry.heroRadius).toBeGreaterThanOrEqual(8);
+    expect(rideGeometry.heroRadius).toBeLessThanOrEqual(16);
   expect(rideGeometry.hero.height).toBeGreaterThanOrEqual(130);
   expect(rideGeometry.hero.height).toBeLessThanOrEqual(215);
   expect(rideGeometry.hero.width).toBeLessThan(rideGeometry.viewportWidth - 30);
@@ -608,9 +620,10 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(dmGeometry.planWidth).toBe(40);
   expect(dmGeometry.safetyWidth).toBe(40);
   expect(dmGeometry.inputHeight).toBeGreaterThanOrEqual(44);
-  expect(dmGeometry.inputRadius).toBeLessThanOrEqual(8);
+  // The composer is a pill, as in Messages.
+  expect(dmGeometry.inputRadius).toBeGreaterThanOrEqual(18);
   expect(dmGeometry.sendWidth).toBe(44);
-  expect(dmGeometry.sendRadius).toBeLessThanOrEqual(8);
+  expect(dmGeometry.sendRadius).toBeGreaterThanOrEqual(20);
   expect(dmGeometry.composerHeight).toBeLessThanOrEqual(82);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-dm-final.png'), fullPage: true });
   await page.locator('#chatBack').click();

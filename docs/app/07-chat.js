@@ -195,6 +195,7 @@
     if (!activeChat) return;
     const messages = $('#chatMessages');
     let previousDay = '';
+    let previous = null;
     messages.innerHTML = chatMessages.map((message) => {
       // A day label before the first message of each day, so times from
       // different days never read as one out-of-order conversation.
@@ -202,6 +203,11 @@
       const dayLabel = day && day !== previousDay ? `<p class="chat-day" role="separator">${escapeHtml(day)}</p>` : '';
       previousDay = day || previousDay;
       const mine = message.fromRiderId === state.profile.riderId;
+      // A message straight after another from the same rider (same day,
+      // within five minutes) sits tight under it, as in Messages.
+      const follows = Boolean(previous && !dayLabel && previous.fromRiderId === message.fromRiderId
+        && Math.abs(message.createdAt - previous.createdAt) < 5 * 60_000);
+      previous = message;
       const failed = mine && message.status === 'failed';
       const status = message.status === 'pending'
         ? '<small>Sending…</small>'
@@ -213,7 +219,7 @@
       const body = `<span>${escapeHtml(message.text)}</span><time>${escapeHtml(formatMessageTime(message.createdAt))}</time>${status}`;
       return dayLabel + (failed
         ? `<button class="chat-bubble-row mine" data-retry-message="${escapeHtml(message.id)}" aria-label="Message failed. Retry sending."><span class="chat-bubble failed">${body}</span></button>`
-        : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`);
+        : `<div class="chat-bubble-row${mine ? ' mine' : ''}${follows ? ' follows' : ''}"><div class="chat-bubble">${body}</div></div>`);
     }).join('');
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
     $('#chatLoading').hidden = !(chatLoading && chatShowingLoading && chatMessages.length === 0);

@@ -34,6 +34,7 @@ import { navigationProviderLabel } from '../navigationPreference';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { haptics } from '../haptics';
 import { SkeletonBubbles } from '../components/SkeletonRows';
+import { messageFollows } from '../chat/messageGrouping';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
@@ -55,18 +56,20 @@ function MessageBubble({
   currentRiderId,
   onRetry,
   readByPeer,
+  follows = false,
 }: {
   message: LocalMessage;
   currentRiderId: string;
   onRetry: (id: string) => void;
   readByPeer: boolean;
+  follows?: boolean;
 }): React.JSX.Element {
   const mine = message.fromRiderId === currentRiderId;
   const failed = mine && message.status === 'failed';
 
   const bubble = (
     <View style={styles.bubbleColumn}>
-      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, failed && styles.bubbleFailed]}>
+      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, follows && (mine ? styles.bubbleFollowsMine : styles.bubbleFollowsTheirs), failed && styles.bubbleFailed]}>
         <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{message.text}</Text>
         <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>{formatTime(message.createdAt)}</Text>
       </View>
@@ -77,7 +80,7 @@ function MessageBubble({
   );
 
   return (
-    <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
+    <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs, follows && styles.bubbleRowFollows]}>
       {failed ? <Pressable accessibilityRole="button" accessibilityHint="Not sent. Double-tap to retry." onPress={() => onRetry(message.id)}>{bubble}</Pressable> : bubble}
     </View>
   );
@@ -392,14 +395,17 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         ref={listRef}
         data={messages}
         keyExtractor={(m) => m.id}
-        renderItem={({ item, index }) => (
-          <>
-            {startsNewDay(item.createdAt, messages[index - 1]?.createdAt) ? (
-              <Text style={styles.dayLabel} accessibilityRole="header">{formatMessageDay(item.createdAt)}</Text>
-            ) : null}
-            <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} />
-          </>
-        )}
+        renderItem={({ item, index }) => {
+          const newDay = startsNewDay(item.createdAt, messages[index - 1]?.createdAt);
+          return (
+            <>
+              {newDay ? (
+                <Text style={styles.dayLabel} accessibilityRole="header">{formatMessageDay(item.createdAt)}</Text>
+              ) : null}
+              <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} follows={messageFollows(messages[index - 1], item, newDay)} />
+            </>
+          );
+        }}
         ListHeaderComponent={nextCursor ? (
           <Pressable
             accessibilityRole="button"

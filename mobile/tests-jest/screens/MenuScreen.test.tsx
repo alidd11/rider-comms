@@ -13,10 +13,10 @@ let mockUnread = 0;
 let mockClient = { getSocialBootstrap: () => mockSocialBootstrap() };
 
 jest.mock('../../src/auth/AuthContext', () => ({
-  useAuth: () => ({ client: mockClient }),
+  useAuth: () => ({ client: mockClient, riderId: 'rider_menu' }),
 }));
 jest.mock('../../src/settings/SettingsContext', () => ({
-  useSettings: () => ({ avatarId: 'helmet-teal', displayName: 'Ali', handle: '@ali', zoneTier: 'free' }),
+  useSettings: () => ({ avatarId: 'helmet-teal', displayName: 'Ali', handle: '@ali', zoneTier: 'free', unitSystem: 'mi' }),
 }));
 jest.mock('../../src/ride/RideContext', () => ({ useRide: () => ({ activeRide: mockActiveRide }) }));
 jest.mock('../../src/friends/FriendsContext', () => ({
@@ -133,4 +133,15 @@ test('the rows go where they say, with Live and new counts', async () => {
   expect(nav.replace).toHaveBeenCalledWith('SettingsPage', { page: 'myProfile' });
   await fireEvent.press(screen.getByLabelText('Close menu'));
   expect(nav.goBack).toHaveBeenCalled();
+});
+
+test('the ride stats total the rides kept on this device', () => {
+  const { menuRideStats } = jest.requireActual('../../src/screens/MenuScreen') as typeof import('../../src/screens/MenuScreen');
+  expect(menuRideStats([], 'mi')).toEqual({ rides: '0', time: '0m', distance: '0', distanceLabel: 'Miles' });
+  const history = [
+    { endedAt: 2, durationMs: 5_400_000, riders: 3, distanceMeters: 86_000 },
+    { endedAt: 1, durationMs: 900_000, riders: 1, distanceMeters: null },
+  ];
+  expect(menuRideStats(history, 'km')).toEqual({ rides: '2', time: '1h 45m', distance: '86.0', distanceLabel: 'Kilometres' });
+  expect(menuRideStats(history.slice(1), 'mi').time).toBe('15m');
 });

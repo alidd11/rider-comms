@@ -458,6 +458,9 @@ test('PWA voice search: the mic fills the search box, and stays hidden without s
     return { body: { suggestions: [{ id: 'place-ace', name: 'Ace Cafe London', address: 'North Circular Road, London' }] } };
   });
   await page.goto('/');
+  // Wait for the app before tapping: under load the tap landed before the
+  // search bar's handler was attached, and the search screen never opened.
+  await expect(page.locator('#mapDrawer')).toBeVisible();
   await page.locator('#mapSearchSlot').click();
   const mic = page.locator('#searchScreenVoice');
   await expect(mic).toBeVisible();
