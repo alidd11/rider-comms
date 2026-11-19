@@ -35,7 +35,7 @@ import { useFriends } from '../friends/FriendsContext';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
 import { HazardDetailCard } from '../components/HazardDetailCard';
-import { useNavigationLiveActivity } from './useNavigationLiveActivity';
+import { useNavigationLiveActivity, useRideLiveActivity } from './useNavigationLiveActivity';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -434,6 +434,9 @@ export function MapScreen(): React.JSX.Element {
       void Share.share({ message }).then(() => haptics.success()).catch(() => undefined);
     },
   } : undefined), [activeRoute, lockedForSafety, navigationStepIndex, navigationDestination, navigationArrivalLabel, remainingNavigationMeters, unitSystem]);
+  useRideLiveActivity(activeRide && !activeRoute
+    ? { riderCount: roster.length, code: activeRide.code, regroupLabel: regroup?.label }
+    : null);
   useNavigationLiveActivity(
     activeRoute && currentNavigationStep
       ? {

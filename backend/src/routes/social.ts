@@ -63,6 +63,7 @@ export async function handleSocialRoutes(ctx: RouteContext): Promise<unknown> {
         body: `${from.displayName} (${from.handle}) wants to be friends.`,
         route: '#friends',
         tag: `friend-request-${r.request.id}`,
+        requestId: r.request.id,
       });
     }
     return r.ok

@@ -51,9 +51,48 @@ export async function pushEnabledOnDevice(riderId: string): Promise<boolean> {
   return (await pushPermission()) === 'granted' && Boolean(await AsyncStorage.getItem(tokenKey(riderId)));
 }
 
+/**
+ * The buttons on a notification, by the category the server sends
+ * (backend/src/pushNotifier.ts PUSH_CATEGORY): Reply on a message, Accept and
+ * Decline on a friend request. They work without opening the app.
+ */
+export const NOTIFICATION_CATEGORIES = {
+  message: [
+    { identifier: 'reply', buttonTitle: 'Reply', textInput: { submitButtonTitle: 'Send', placeholder: 'Message' }, options: { opensAppToForeground: false } },
+  ],
+  friend_request: [
+    { identifier: 'accept', buttonTitle: 'Accept', options: { opensAppToForeground: false } },
+    { identifier: 'decline', buttonTitle: 'Decline', options: { opensAppToForeground: false, isDestructive: true } },
+  ],
+} as const;
+
+export async function registerNotificationCategories(): Promise<void> {
+  await Promise.all(Object.entries(NOTIFICATION_CATEGORIES).map(([id, actions]) =>
+    Notifications.setNotificationCategoryAsync(id, actions as unknown as Notifications.NotificationAction[]).catch(() => null)));
+}
+
+export type NotificationQuickAction =
+  | { kind: 'reply'; riderId: string; text: string }
+  | { kind: 'accept' | 'decline'; requestId: string };
+
+/** A button pressed on a notification, or null for a plain tap. */
+export function notificationQuickAction(actionIdentifier: string, data: unknown, userText?: string): NotificationQuickAction | null {
+  const fields = data && typeof data === 'object' ? data as { route?: unknown; requestId?: unknown } : {};
+  if (actionIdentifier === 'reply') {
+    const route = notificationRoute(data);
+    const text = (userText ?? '').trim();
+    return route?.screen === 'chat' && text ? { kind: 'reply', riderId: route.riderId, text: text.slice(0, 1000) } : null;
+  }
+  if ((actionIdentifier === 'accept' || actionIdentifier === 'decline') && typeof fields.requestId === 'string' && fields.requestId) {
+    return { kind: actionIdentifier, requestId: fields.requestId };
+  }
+  return null;
+}
+
 async function deviceToken(): Promise<string> {
   const id = projectId();
   if (!id) throw new PushNotConfiguredError();
+  await registerNotificationCategories();
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Friend requests and messages',

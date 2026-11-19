@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { listSignature, useListLayoutAnimation } from '../components/useListLayoutAnimation';
 import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -558,6 +559,11 @@ export function FriendsScreen(): React.JSX.Element {
     return friends.filter((friend) => [friend.displayName, friend.handle, friend.riderId]
       .some((value) => value.toLocaleLowerCase().includes(normalized)));
   }, [friends, query]);
+  useListLayoutAnimation(listSignature([
+    ...incomingRequests.map((request) => `in:${request.id}`),
+    ...outgoingRequests.map((request) => `out:${request.id}`),
+    ...filteredFriends.map((friend) => `${activityByRider[friend.riderId]?.online ? 'on' : 'off'}:${friend.riderId}`),
+  ]));
   const unreadByRider = React.useMemo(
     () => Object.fromEntries(conversations.map((conversation) => [conversation.friend.riderId, conversation.unreadCount])),
     [conversations],
