@@ -270,7 +270,7 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
         /intentional_social_staff_queue_failure/,
       );
       const reports = await getPool().query(
-        'SELECT id FROM social_post_reports WHERE post_id = $1', [post.id],
+        'SELECT post_id FROM social_post_reports WHERE post_id = $1', [post.id],
       );
       assert.equal(reports.rows.length, 0, 'failed staff insert rolls back Social report');
       const staff = await getPool().query(
