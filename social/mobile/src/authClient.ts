@@ -149,6 +149,8 @@ export function accountErrorMessage(error: unknown): string {
     media_busy: 'Lots of videos are being processed. Try again in a minute.',
     media_processing_failed: 'That video couldn’t be processed. Try again.',
     media_storage_unavailable: 'Posting isn’t working right now. Try again soon.',
+    media_rejected: 'That photo or video can’t be posted. It looks like it breaks the community rules.',
+    media_scan_unavailable: 'Posting isn’t working right now. Try again soon.',
     social_media_not_configured: 'Posting isn’t switched on yet.',
     invalid_media_for_post: 'A post is up to 6 photos, or one video as a Reel.',
     caption_too_long: 'That caption is too long.',

@@ -11,6 +11,8 @@ import type { VideoContainer } from '../socialMediaProcessor.ts';
 import { parseByteRange, signedMediaPath, verifyMediaSignature } from '../socialMediaService.ts';
 import type { MediaLinkViewer, MediaVariant, SocialMediaService } from '../socialMediaService.ts';
 import { createProcessedObjectKey } from '../socialPrivateObjectTransport.ts';
+import { MediaScanUnavailableError } from '../socialMediaScanner.ts';
+import { log } from '../log.ts';
 import { InvalidSocialCursorError, isSocialId, MAX_POST_CAPTION } from '../socialPostStore.ts';
 import type { SocialFeedPage, SocialPost, SocialPostStore } from '../socialPostStore.ts';
 import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
@@ -107,6 +109,17 @@ export async function handleSocialMediaRoute(
   body.pipe(res);
 }
 
+/**
+ * The unsafe-content check, before anything is stored. Fails closed: with no
+ * scanner the upload is refused (posting is also off then).
+ */
+async function scanRejects(socialMedia: SocialMediaService, images: Buffer[], riderId: string): Promise<boolean> {
+  if (!socialMedia.scan) throw new MediaScanUnavailableError();
+  if ((await socialMedia.scan(images)) === 'allowed') return false;
+  log('info', 'social_media_rejected', { riderId });
+  return true;
+}
+
 type SocialPostContext = RouteContext & { socialPostStore: SocialPostStore; socialMedia: SocialMediaService | null };
 
 /** Rider Social posting, feeds and reports. Only reached by an entitled rider. */
@@ -148,6 +161,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
       if (intent.kind === 'image') {
         const { readFile } = await import('node:fs/promises');
         const image = await socialMedia.processImage(await readFile(staged.path));
+        if (await scanRejects(socialMedia, [image.bytes], actorId)) return sendJson(res, 422, { error: 'media_rejected' });
         await socialPostStore.reserveMediaKeys([fileKey]);
         await socialMedia.storage.putProcessed(fileKey, image.bytes, 'image/jpeg');
         const id = await socialPostStore.addMedia(actorId, {
@@ -156,6 +170,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
         return sendJson(res, 201, { media: { id, kind: 'image', width: image.width, height: image.height, durationMs: null } });
       }
       const video = await socialMedia.processVideo(staged.path, VIDEO_CONTAINERS[intent.mime] ?? 'mov');
+      if (await scanRejects(socialMedia, [video.poster, ...video.frames], actorId)) return sendJson(res, 422, { error: 'media_rejected' });
       const posterKey = createProcessedObjectKey('jpg');
       await socialPostStore.reserveMediaKeys([fileKey, posterKey]);
       await socialMedia.storage.putProcessed(fileKey, video.bytes, 'video/mp4');
@@ -169,6 +184,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
         const status = error.code === 'media_busy' ? 503 : error.code === 'media_processing_failed' ? 500 : 422;
         return sendJson(res, status, { error: error.code });
       }
+      if (error instanceof MediaScanUnavailableError) return sendJson(res, 503, { error: 'media_scan_unavailable' });
       if (error instanceof Error && error.message === 'social_media_storage_unavailable') {
         return sendJson(res, 502, { error: 'media_storage_unavailable' });
       }

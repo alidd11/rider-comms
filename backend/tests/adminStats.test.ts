@@ -246,6 +246,7 @@ describe('admin dashboard API', { skip: !hasDatabase && 'DATABASE_URL not set; s
     const body = await response.json() as { socialMediaStorage: unknown; socialPosting: unknown; email: { configured: unknown } };
     assert.equal(typeof body.socialMediaStorage, 'boolean');
     assert.equal(typeof body.socialPosting, 'boolean');
+    assert.equal(typeof (body as { socialMediaScanning?: unknown }).socialMediaScanning, 'boolean');
     assert.equal(typeof body.email.configured, 'boolean');
   });
 

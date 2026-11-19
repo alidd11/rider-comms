@@ -82,6 +82,9 @@ describe('Rider Social video processing', () => {
     assert.equal(video.bytes.includes(Buffer.from('secret ride')), false);
     assert.equal(video.bytes.includes(Buffer.from('+51.5074')), false);
     assert.equal((await sharp(video.poster).metadata()).format, 'jpeg');
+    // Frames from through the clip, for the content check.
+    assert.equal(video.frames.length, 3);
+    for (const frame of video.frames) assert.equal((await sharp(frame).metadata()).format, 'jpeg');
     const out = join(dir, 'check.mp4');
     await writeFile(out, video.bytes);
     let probe = '';

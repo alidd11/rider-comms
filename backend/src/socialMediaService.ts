@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { processSocialImage, processSocialVideo } from './socialMediaProcessor.ts';
 import type { ProcessedImage, ProcessedVideo, VideoContainer } from './socialMediaProcessor.ts';
 import { readSocialS3Config, SocialPrivateObjectTransport } from './socialPrivateObjectTransport.ts';
+import { mediaScannerFromEnv, type MediaScanner } from './socialMediaScanner.ts';
 
 /**
  * Rider Social media plumbing: the private store, the processors and
@@ -19,6 +20,8 @@ export interface SocialMediaService {
   urlSecret: Buffer;
   processImage(bytes: Buffer): Promise<ProcessedImage>;
   processVideo(path: string, container: VideoContainer): Promise<ProcessedVideo>;
+  /** The unsafe-content check. Without it, posting stays off. */
+  scan?: MediaScanner;
 }
 
 export type MediaVariant = 'file' | 'poster';
@@ -52,6 +55,7 @@ export function socialMediaServiceFromEnv(env: Record<string, string | undefined
       : createHmac('sha256', config.secretAccessKey).update('rider-social-media-url-v1').digest(),
     processImage: processSocialImage,
     processVideo: (path, container) => processSocialVideo(path, container),
+    scan: mediaScannerFromEnv(env) ?? undefined,
   };
 }
 

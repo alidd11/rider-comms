@@ -23,7 +23,15 @@ export class SocialMediaProcessingError extends Error {
 }
 
 export interface ProcessedImage { bytes: Buffer; width: number; height: number }
-export interface ProcessedVideo extends ProcessedImage { poster: Buffer; durationMs: number }
+export interface ProcessedVideo extends ProcessedImage {
+  poster: Buffer;
+  durationMs: number;
+  /** Frames from through the video, for the unsafe-content check. */
+  frames: Buffer[];
+}
+
+/** Where, through a Reel, frames are taken for the content check. */
+export const VIDEO_SCAN_POINTS = [0.25, 0.5, 0.75] as const;
 
 /** Longest side of a stored photo, and of a Reel's frame. */
 export const IMAGE_MAX_EDGE = 2048;
@@ -148,7 +156,19 @@ export async function processSocialVideo(
       ], PROBE_TIMEOUT_MS);
       if (frame.code !== 0) throw new SocialMediaProcessingError('media_processing_failed');
       const posterBytes = await sharp(await readFile(poster)).jpeg({ quality: 80 }).toBuffer({ resolveWithObject: true });
+      const seconds = Math.min(duration, maxSeconds);
+      const frames: Buffer[] = [];
+      for (const [index, point] of VIDEO_SCAN_POINTS.entries()) {
+        const framePath = join(work, `scan-${index}.jpg`);
+        const sample = await run([
+          '-hide_banner', '-nostdin', '-protocol_whitelist', 'file', '-ss', (seconds * point).toFixed(2),
+          '-f', 'mp4', '-i', output, '-frames:v', '1', '-q:v', '4', '-y', framePath,
+        ], PROBE_TIMEOUT_MS);
+        // A very short clip can end before a seek point; the poster still covers it.
+        if (sample.code === 0) frames.push(await readFile(framePath).catch(() => Buffer.alloc(0)));
+      }
       return {
+        frames: frames.filter((frame) => frame.length > 0),
         bytes: await readFile(output),
         poster: posterBytes.data,
         width: posterBytes.info.width,

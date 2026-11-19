@@ -30,6 +30,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     if (lacks('view_system')) return refuse('view_system');
     return sendJson(res, 200, {
       socialMediaStorage: ctx.socialMedia !== null,
+      socialMediaScanning: Boolean(ctx.socialMedia?.scan),
       socialPosting: ctx.socialPostingEnabled,
       email: emailDeliveryStatus(),
     });
