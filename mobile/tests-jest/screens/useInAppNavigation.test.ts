@@ -852,6 +852,82 @@ test('adding a fuel stop keeps it ahead of the unfinished scenic itinerary', asy
   expect(result.current.curatedRemainingStops).toEqual([]);
 });
 
+/** A single provider leg ending at the scenic finish exposes premature arrival. */
+const SCENIC_SINGLE_STEP_ROUTE: InAppNavigationRoute = {
+  ...ROUTE,
+  steps: [{
+    ...ROUTE.steps[0]!,
+    end: ROUTE.steps[ROUTE.steps.length - 1]!.end,
+    coordinates: ROUTE.coordinates,
+    distanceMeters: ROUTE.distanceMeters,
+    durationSeconds: ROUTE.durationSeconds,
+  }],
+};
+
+test('reaching the finish before the scenic checkpoints re-routes through them instead of arriving', async () => {
+  const client = { getDrivingRoute: jest.fn(async () => SCENIC_SINGLE_STEP_ROUTE) };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.504, -0.097, 0, 0, 5);
+
+  expect(result.current.navigationArrival).toBeNull();
+  expect(result.current.activeRoute).not.toBeNull();
+  expect(result.current.curatedRemainingStops.map((stop) => stop.label)).toEqual(['First viewpoint', 'Second viewpoint']);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith(
+    { lat: 51.504, lon: -0.097 },
+    { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
+    { highways: false, tolls: false, ferries: false },
+    null,
+    SCENIC_ROUTE.waypoints,
+  );
+});
+
+test('uncertain GPS at the finish neither ends a scenic journey nor triggers a recovery request', async () => {
+  const client = { getDrivingRoute: jest.fn(async () => SCENIC_SINGLE_STEP_ROUTE) };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.504, -0.097, 0, 0, 120);
+
+  expect(result.current.activeRoute).not.toBeNull();
+  expect(result.current.curatedRemainingStops).toHaveLength(2);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(1);
+});
+
+test('failed finish recovery retains scenic stops and does not retry every GPS fix', async () => {
+  const client = {
+    getDrivingRoute: jest.fn().mockResolvedValueOnce(SCENIC_SINGLE_STEP_ROUTE)
+      .mockRejectedValue(new Error('temporarily unavailable')),
+  };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.504, -0.097, 0, 0, 5);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
+  expect(result.current.navigationArrival).toBeNull();
+  expect(result.current.curatedRemainingStops).toHaveLength(2);
+  expect(result.current.navigationNotice).toBe('Couldn’t restore the remaining planned stops. Continue with caution.');
+
+  await sendFix(51.504, -0.097, 0, 0, 5);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
+  await act(async () => { jest.advanceTimersByTime(30_001); });
+  await sendFix(51.504, -0.097, 0, 0, 5);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(3);
+});
+
+test('scenic navigation completes normally after all planned checkpoints are reached', async () => {
+  const client = { getDrivingRoute: jest.fn(async () => SCENIC_SINGLE_STEP_ROUTE) };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.501, -0.1, 0, 0, 5);
+  await sendFix(51.502, -0.1, 0, 0, 5);
+  expect(result.current.curatedRemainingStops).toHaveLength(0);
+
+  await sendFix(51.504, -0.097, 0, 0, 5);
+  expect(result.current.activeRoute).toBeNull();
+  expect(result.current.navigationArrival?.label).toBe(SCENIC_ROUTE.name);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(1);
+});
+
 test('curated navigation does not start without a fresh location fix', async () => {
   const requestCurrentLocation = jest.fn(async () => null);
   const { result, props } = await renderNavigation({ requestCurrentLocation });
