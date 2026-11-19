@@ -1,5 +1,6 @@
 import { DynamicColorIOS, Platform, PlatformColor, useColorScheme } from 'react-native';
 import palette from '@rider-comms/shared/src/brandPalette.json';
+import { BRAND_RADII } from '@rider-comms/shared';
 
 /**
  * One product identity translated between two lighting conditions. The
@@ -59,12 +60,13 @@ export const spacing = {
   xxl: 48,
 } as const;
 
+/** Corners from shared/src/brand.ts (BRAND_RADII), as on the web (--radius-*). */
 export const radii = {
-  sm: 3,
-  md: 4,
-  lg: 4,
-  xl: 8,
-  pill: 999,
+  sm: 8,
+  md: BRAND_RADII.control,
+  lg: BRAND_RADII.card,
+  xl: 20,
+  pill: BRAND_RADII.pill,
 } as const;
 
 /**

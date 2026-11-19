@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   eyebrow: {
     flexShrink: 0,
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     lineHeight: 13,
     fontWeight: '800',
     letterSpacing: 0.8,

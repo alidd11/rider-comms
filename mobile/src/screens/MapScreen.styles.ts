@@ -27,7 +27,7 @@ export const styles = StyleSheet.create({
   menuHint: { position: 'absolute', right: -3, bottom: -3, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderWidth: 2, borderColor: colors.surface },
   menuButtonPressed: { opacity: 0.7 },
   menuBadge: { position: 'absolute', top: -2, right: -4, minWidth: 20, minHeight: 20, paddingHorizontal: 5, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.surface },
-  menuBadgeText: { fontSize: 11, fontWeight: '800', color: colors.accentText },
+  menuBadgeText: { fontSize: 12, fontWeight: '800', color: colors.accentText },
   queuedReports: {
     position: 'absolute',
     left: spacing.md,
@@ -147,7 +147,7 @@ export const styles = StyleSheet.create({
     elevation: 6,
   },
   hudSpeedValue: { fontSize: 28, fontWeight: '900', color: colors.textPrimary, lineHeight: 30 },
-  hudSpeedUnit: { fontSize: 11, fontWeight: '700', color: colors.textSecondary },
+  hudSpeedUnit: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
   hudActions: { position: 'absolute', left: spacing.md, right: spacing.md, zIndex: 10, flexDirection: 'row', gap: 10 },
   hudButton: {
     flex: 1,
@@ -431,7 +431,7 @@ export const styles = StyleSheet.create({
   navigationSpeedBadgeUnit: {
     marginTop: 1,
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     lineHeight: 13,
     fontWeight: '800',
     textTransform: 'uppercase',
