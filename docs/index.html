@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=118">
+  <link rel="stylesheet" href="app.css?v=119">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -303,7 +303,17 @@
           </div>
           <div id="navRouteChoices" class="nav-route-choices" role="radiogroup" aria-label="Routes" hidden></div>
           <button id="navRecentreBtn" class="nav-recentre" type="button" hidden><svg aria-hidden="true"><use href="#i-locate"/></svg>Re-centre</button>
+          <div id="navTripDetails" class="nav-trip-details" role="region" aria-label="Trip details" hidden>
+            <div class="nav-trip-actions">
+              <button id="navTripAddStop" class="nav-trip-action" type="button"><svg aria-hidden="true"><use href="#i-plus"/></svg><span>Add stop</span></button>
+              <button id="navTripShare" class="nav-trip-action" type="button"><svg aria-hidden="true"><use href="#i-share"/></svg><span>Share ETA</span></button>
+              <button id="navTripEnd" class="nav-trip-action danger" type="button"><svg aria-hidden="true"><use href="#i-close"/></svg><span>End</span></button>
+            </div>
+            <h2 class="nav-trip-heading">Turns</h2>
+            <ol id="navTripTurns" class="nav-trip-turns"></ol>
+          </div>
           <div id="navSummary" class="nav-summary" hidden>
+            <button id="navTripToggle" class="nav-trip-toggle" type="button" aria-expanded="false" aria-controls="navTripDetails" aria-label="Show trip details"></button>
             <button id="endNavBtn" class="icon-button nav-end-button" aria-label="End navigation"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
             <div class="nav-summary-eta"><strong id="navArrival"></strong><span>arrival</span></div>
             <div class="nav-summary-stat"><strong id="navEta"></strong><span>left</span><em id="navTraffic" class="nav-traffic" hidden></em></div>
@@ -441,10 +451,10 @@
   <script src="avatar-system.js?v=1" defer></script>
   <script src="navigation-road-events.js?v=1" defer></script>
   <script src="position-interpolation.js?v=1" defer></script>
-  <script src="navigation-guidance.js?v=1" defer></script>
+  <script src="navigation-guidance.js?v=2" defer></script>
   <script src="navigation-camera.js?v=3" defer></script>
   <script src="navigation-puck.js?v=2" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=123" defer></script>
+  <script src="app.js?v=124" defer></script>
 </body>
 </html>

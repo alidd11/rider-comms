@@ -11,7 +11,7 @@ import {
   navigationSpeedUnit,
   navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
-import { fasterRouteAnnouncement, fasterRouteSavingSeconds, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
+import { fasterRouteAnnouncement, fasterRouteSavingSeconds, navigationEtaShareText, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
 
 describe('navigation guidance presentation', () => {
   it('formats metric and imperial distances consistently for navigation', () => {
@@ -180,5 +180,18 @@ describe('navigationInstructionRoad', () => {
     const stops = stopsOnTheWay([{ id: 'a', travelSeconds: 1500 }, { id: 'b' }, { id: 'c', travelSeconds: 1230 }, { id: 'd', travelSeconds: 1000 }], 1200);
     assert.deepEqual(stops.map((stop) => [stop.place.id, stop.text]), [['d', 'On the way'], ['c', 'On the way'], ['a', '+5 min'], ['b', '']]);
     assert.deepEqual(stopsOnTheWay([{ id: 'a', travelSeconds: 10 }], null).map((stop) => stop.text), ['']);
+  });
+});
+
+describe('navigationEtaShareText', () => {
+  it('names the place, the arrival time and what is left', () => {
+    assert.equal(
+      navigationEtaShareText('Box Hill', '4:35 pm', 12_400, 'mi'),
+      'On my way to Box Hill. Arriving about 4:35 pm, 7.7 mi to go. Sent from Rider Comms.',
+    );
+    assert.equal(
+      navigationEtaShareText('  ', '16:35', 900, 'km'),
+      'On my way to my destination. Arriving about 16:35, 900 m to go. Sent from Rider Comms.',
+    );
   });
 });

@@ -18,6 +18,7 @@ import {
   routeChoices,
   routeTrafficDelayText,
   stopsOnTheWay,
+  navigationEtaShareText,
   routeTwistiness,
 } from '../shared/src/navigationGuidance.ts';
 
@@ -162,4 +163,8 @@ for (const saving of [180, 360, 3700]) assert.equal(browser.fasterRouteAnnouncem
   for (const remaining of [1200, null, Number.NaN]) {
     assert.deepEqual(browser.stopsOnTheWay(places, remaining), stopsOnTheWay(places, remaining));
   }
+}
+
+for (const [destination, arrival, metres, unit] of [['Box Hill', '4:35 pm', 12_400, 'mi'], ['  ', '16:35', 900, 'km'], ['Café', '9:05 am', 40, 'mi']]) {
+  assert.equal(browser.navigationEtaShareText(destination, arrival, metres, unit), navigationEtaShareText(destination, arrival, metres, unit));
 }

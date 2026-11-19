@@ -5565,6 +5565,7 @@
     if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
     if (locked && activeChat) closeChat({ restoreFocus: false });
     if (locked) closeAppMenu({ restoreFocus: false });
+    if (locked) setNavTripDetailsOpen(false);
   }
 
   function stopMovementSafetyTracking() {
@@ -7292,6 +7293,7 @@
   }
 
   let navRemainingSeconds = null;
+  let navRemainingMeters = null;
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -7583,6 +7585,8 @@
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     navRemainingSeconds = remainingSeconds;
+    navRemainingMeters = remainingMeters;
+    if (!$('#navTripDetails').hidden) renderNavTripTurns();
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
     renderNavigationRoadAhead();
@@ -8090,6 +8094,41 @@
 
   let navStatusNoticeTimer;
 
+  // The trip card (Google Maps' swipe-up sheet): the turns left, Add stop,
+  // Share ETA and End. Parked only: Ride Safe closes it and hides the handle.
+  function renderNavTripTurns() {
+    const list = $('#navTripTurns');
+    if (!list) return;
+    const upcoming = navSteps.slice(navStepIndex + 1);
+    const rows = upcoming.map((step) => `<li><span>${escapeHtml(stripHtml(step.instructions))}</span><em>${escapeHtml(formatNavDistance(step.distance.value))}</em></li>`);
+    rows.push(`<li class="arrive"><span>Arrive at ${escapeHtml(navDestination?.label || 'your destination')}</span></li>`);
+    list.innerHTML = rows.join('');
+  }
+
+  function setNavTripDetailsOpen(open) {
+    const details = $('#navTripDetails');
+    const toggle = $('#navTripToggle');
+    if (!details || !toggle) return;
+    const show = open && navSteps.length > 0 && !syncMovementSafetyBanner();
+    if (show) renderNavTripTurns();
+    details.hidden = !show;
+    $('#app').classList.toggle('nav-trip-open', show);
+    toggle.setAttribute('aria-expanded', String(show));
+    toggle.setAttribute('aria-label', show ? 'Hide trip details' : 'Show trip details');
+  }
+
+  async function shareNavigationEta() {
+    if (!Number.isFinite(navRemainingSeconds)) return;
+    const text = navigationGuidance.navigationEtaShareText(navDestination?.label || '', formatArrivalTime(navRemainingSeconds), navRemainingMeters || 0, state.unit);
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else { await navigator.clipboard.writeText(text); showToast('ETA copied. Paste it to share.'); }
+      haptic('success');
+    } catch (error) {
+      if (error?.name !== 'AbortError') showToast('Couldn’t share your ETA. Try again.');
+    }
+  }
+
   /** `info` notices (a successful reroute) are styled neutrally and clear
    * themselves; warnings stay until the problem is resolved. */
   function setNavStatusNotice(message, { tone = 'warning', clearAfterMs = 0 } = {}) {
@@ -8468,6 +8507,8 @@
     $('#navBanner').hidden = true;
     $('#navSpeedBadge').hidden = true;
     $('#navSummary').hidden = true;
+    setNavTripDetailsOpen(false);
+    navRemainingMeters = null;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     void keepScreenOnForNavigation(false);
@@ -8975,6 +9016,10 @@
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
     $('#endNavBtn').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripToggle').addEventListener('click', () => { haptic('select'); setNavTripDetailsOpen($('#navTripDetails').hidden); });
+    $('#navTripEnd').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripShare').addEventListener('click', () => void shareNavigationEta());
+    $('#navTripAddStop').addEventListener('click', () => { setNavTripDetailsOpen(false); openSheet('stopsOnTheWay'); });
   }
 
   // --- Auth screen -----------------------------------------------------
