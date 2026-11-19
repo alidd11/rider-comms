@@ -61,6 +61,7 @@ export const styles = StyleSheet.create({
   bubbleMine: { backgroundColor: colors.accent, borderBottomRightRadius: 6 },
   bubbleTheirs: { backgroundColor: colors.surface, borderBottomLeftRadius: 6 },
   bubbleRowFollows: { marginTop: -4 },
+  typingLabel: { ...type.caption, color: colors.textMuted, fontWeight: '700', paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
   bubbleFollowsMine: { borderTopRightRadius: 6 },
   bubbleFollowsTheirs: { borderTopLeftRadius: 6 },
   bubbleFailed: { opacity: 0.6, borderWidth: 1, borderColor: colors.danger },

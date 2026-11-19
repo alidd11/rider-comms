@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=117">
+  <link rel="stylesheet" href="app.css?v=118">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -417,9 +417,11 @@
     <main id="chatThread" class="chat-thread" role="log" aria-live="polite" aria-label="Conversation">
       <button id="chatLoadOlder" class="button tertiary chat-load-older" type="button" hidden>Load older messages</button>
       <div id="chatMessages"></div>
+      <p id="chatTyping" class="chat-typing" aria-live="polite" hidden><span class="chat-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="chatTypingText">Typing…</span></p>
       <p id="chatLoading" class="support-copy chat-loading" role="status" hidden>Loading conversation…</p>
       <div id="chatEmpty" class="empty-state chat-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2>Start a private conversation</h2><p id="chatEmptyCopy">Messages in this thread are only available to you and your friend.</p></div>
     </main>
+    <div id="chatBubbleMenu" class="chat-bubble-menu" role="menu" hidden><button type="button" role="menuitem" data-bubble-action="copy">Copy</button><button type="button" role="menuitem" data-bubble-action="delete" class="danger">Delete</button></div>
     <form id="chatComposer" class="chat-composer">
       <label class="sr-only" for="chatInput">Message</label>
       <textarea id="chatInput" maxlength="1000" rows="1" placeholder="Message" enterkeyhint="send"></textarea>
@@ -443,6 +445,6 @@
   <script src="navigation-camera.js?v=3" defer></script>
   <script src="navigation-puck.js?v=2" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=122" defer></script>
+  <script src="app.js?v=123" defer></script>
 </body>
 </html>

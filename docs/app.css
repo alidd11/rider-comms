@@ -2956,3 +2956,16 @@ html.map-day .nav-end-button{background:rgb(11 18 22/.06);border-color:rgb(11 18
 .friend-invite p{margin:4px 0 0;color:var(--text-secondary);font-size:.875rem;line-height:1.4}
 .friend-invite-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .friend-invite-actions .button{min-height:46px}
+.chat-typing{display:flex;align-items:center;gap:8px;margin:2px 0 6px;color:var(--text-muted);font-size:.8125rem;font-weight:650}
+.chat-typing[hidden]{display:none}
+.chat-typing-dots{display:inline-flex;gap:3px;padding:8px 10px;border-radius:14px;background:var(--surface)}
+.chat-typing-dots i{width:6px;height:6px;border-radius:50%;background:var(--text-muted);animation:typing-dot 1s ease-in-out infinite}
+.chat-typing-dots i:nth-child(2){animation-delay:.15s}.chat-typing-dots i:nth-child(3){animation-delay:.3s}
+@keyframes typing-dot{0%,80%,100%{opacity:.35;transform:none}40%{opacity:1;transform:translateY(-2px)}}
+.chat-bubble-menu{position:fixed;z-index:80;display:flex;gap:2px;padding:4px;border-radius:14px;background:var(--surface-raised);box-shadow:var(--shadow-lg)}
+.chat-bubble-menu[hidden]{display:none}
+.chat-bubble-menu button{min-height:44px;padding:0 16px;border:0;border-radius:10px;background:transparent;color:var(--text);font:700 .9375rem/1 Inter,sans-serif}
+.chat-bubble-menu button.danger{color:var(--danger)}
+.chat-bubble-menu button[hidden]{display:none}
+.chat-bubble-row{-webkit-touch-callout:none;user-select:none}
+@media(prefers-reduced-motion:reduce){.chat-typing-dots i{animation:none}}

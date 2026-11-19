@@ -35,6 +35,8 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import { haptics } from '../haptics';
 import { SkeletonBubbles } from '../components/SkeletonRows';
 import { messageFollows } from '../chat/messageGrouping';
+import * as Clipboard from 'expo-clipboard';
+import { peerIsTyping, shouldSendTyping, TYPING_SHOW_MS } from '../chat/typing';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
@@ -57,12 +59,14 @@ function MessageBubble({
   onRetry,
   readByPeer,
   follows = false,
+  onLongPress,
 }: {
   message: LocalMessage;
   currentRiderId: string;
   onRetry: (id: string) => void;
   readByPeer: boolean;
   follows?: boolean;
+  onLongPress?: (message: LocalMessage) => void;
 }): React.JSX.Element {
   const mine = message.fromRiderId === currentRiderId;
   const failed = mine && message.status === 'failed';
@@ -81,7 +85,16 @@ function MessageBubble({
 
   return (
     <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs, follows && styles.bubbleRowFollows]}>
-      {failed ? <Pressable accessibilityRole="button" accessibilityHint="Not sent. Double-tap to retry." onPress={() => onRetry(message.id)}>{bubble}</Pressable> : bubble}
+      {failed ? <Pressable accessibilityRole="button" accessibilityHint="Not sent. Double-tap to retry." onPress={() => onRetry(message.id)}>{bubble}</Pressable> : (
+        <Pressable
+          accessibilityRole="text"
+          accessibilityHint="Long-press for Copy and Delete."
+          accessibilityActions={[{ name: 'longpress', label: 'Message options' }]}
+          onAccessibilityAction={() => onLongPress?.(message)}
+          onLongPress={() => onLongPress?.(message)}
+          delayLongPress={350}
+        >{bubble}</Pressable>
+      )}
     </View>
   );
 }
@@ -131,7 +144,7 @@ export function FriendChatScreen(props: Props): React.JSX.Element {
 function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Element {
   const { riderId, displayName, avatarId } = route.params;
   const { riderId: currentRiderId, client } = useAuth();
-  const { refresh: refreshFriends, refreshMessages, socialRevision } = useFriends();
+  const { refresh: refreshFriends, refreshMessages, socialRevision, typingAtByRider } = useFriends();
   const { navigationProvider } = useSettings();
   const insets = useSafeAreaInsets();
 
@@ -148,6 +161,44 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const focusedRef = React.useRef(false);
   const hasLoadedOlderRef = React.useRef(false);
   const preserveViewportOnNextContentChange = React.useRef(false);
+  const lastTypingSentAt = React.useRef(0);
+  const [now, setNow] = React.useState(() => Date.now());
+  const peerTypingAt = typingAtByRider[riderId] ?? 0;
+  const lastMessage = messages[messages.length - 1];
+  const peerTyping = peerIsTyping(peerTypingAt, now, lastMessage?.fromRiderId === riderId ? lastMessage.createdAt : 0);
+  // Re-render once the "typing…" window runs out.
+  React.useEffect(() => {
+    setNow(Date.now());
+    if (!peerTypingAt) return undefined;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, peerTypingAt + TYPING_SHOW_MS - Date.now()) + 50);
+    return () => clearTimeout(timer);
+  }, [peerTypingAt]);
+
+  const handleDraftChange = React.useCallback((text: string) => {
+    setDraft(text);
+    if (!text.trim() || conversationUnavailable) return;
+    const at = Date.now();
+    if (!shouldSendTyping(lastTypingSentAt.current, at)) return;
+    lastTypingSentAt.current = at;
+    void client.sendTyping(riderId).catch(() => undefined);
+  }, [client, conversationUnavailable, riderId]);
+
+  const handleMessageOptions = React.useCallback((message: LocalMessage) => {
+    haptics.select();
+    const mine = message.fromRiderId === currentRiderId && !message.status;
+    const copy = { text: 'Copy', onPress: () => { void Clipboard.setStringAsync(message.text).then(() => haptics.success()); } };
+    const remove = {
+      text: 'Delete',
+      style: 'destructive' as const,
+      onPress: () => {
+        void client.deleteMessage(message.id).then(() => {
+          setMessages((current) => current.filter((entry) => entry.id !== message.id));
+          void refreshMessages();
+        }).catch(() => setError('Couldn’t delete the message. Try again.'));
+      },
+    };
+    Alert.alert('Message', undefined, mine ? [copy, remove, { text: 'Cancel', style: 'cancel' }] : [copy, { text: 'Cancel', style: 'cancel' }]);
+  }, [client, currentRiderId, refreshMessages]);
 
   const [hideouts, setHideouts] = React.useState<Hideout[]>([]);
   const [planOpen, setPlanOpen] = React.useState(false);
@@ -402,7 +453,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
               {newDay ? (
                 <Text style={styles.dayLabel} accessibilityRole="header">{formatMessageDay(item.createdAt)}</Text>
               ) : null}
-              <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} follows={messageFollows(messages[index - 1], item, newDay)} />
+              <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} follows={messageFollows(messages[index - 1], item, newDay)} onLongPress={handleMessageOptions} />
             </>
           );
         }}
@@ -439,13 +490,16 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         )}
       />
 
+      {peerTyping ? (
+        <Text style={styles.typingLabel} accessibilityLiveRegion="polite">{displayName} is typing…</Text>
+      ) : null}
       <View style={styles.composer}>
         <TextInput
           style={styles.composerInput}
           placeholder="Message"
           placeholderTextColor={colors.textMuted}
           value={draft}
-          onChangeText={setDraft}
+          onChangeText={handleDraftChange}
           editable={!conversationUnavailable}
           accessibilityState={{ disabled: conversationUnavailable }}
           multiline

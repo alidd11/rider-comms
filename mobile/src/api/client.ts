@@ -196,6 +196,8 @@ export class RiderCommsClient {
     return this.request('GET', `/conversations?${query.toString()}`);
   }
   getUnreadMessageCount(): Promise<{ unreadCount: number }> { return this.request('GET', '/messages/unread-count'); }
+  sendTyping(toRiderId: string): Promise<Record<string, never>> { return this.request('POST', '/messages/typing', { toRiderId }); }
+  deleteMessage(messageId: string): Promise<Record<string, never>> { return this.request('DELETE', `/messages/${encodeURIComponent(messageId)}`); }
   markMessagesRead(withRiderId: string): Promise<{ readThroughSeq: number }> { return this.request('POST', '/messages/read', { withRiderId }); }
   getSocialEvents(options: { after?: string; limit?: number; waitMs?: number } = {}): Promise<SocialEventPage> {
     const waitMs = options.waitMs ?? 25_000;

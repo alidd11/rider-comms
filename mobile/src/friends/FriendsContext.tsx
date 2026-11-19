@@ -25,6 +25,8 @@ interface FriendsContextValue {
   unreadMessageCount: number;
   socialRevision: number;
   friendProfileRevision: number;
+  /** When each friend last signalled "typing" to this rider (ms since epoch). */
+  typingAtByRider: Readonly<Record<string, number>>;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -111,6 +113,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
   const [unreadMessageCount, setUnreadMessageCount] = React.useState(0);
   const [socialRevision, setSocialRevision] = React.useState(0);
   const [friendProfileRevision, setFriendProfileRevision] = React.useState(0);
+  const [typingAtByRider, setTypingAtByRider] = React.useState<Record<string, number>>({});
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -209,6 +212,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
           let revisionDirty = false;
           let friendProfileDirty = false;
           let selfProfileDirty = false;
+          const typingAt: Record<string, number> = {};
 
           while (true) {
             for (const event of page.events) {
@@ -216,6 +220,9 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
               messagesDirty ||= socialEventNeedsMessageRefresh(event);
               revisionDirty ||= socialEventInvalidatesOpenChat(event);
               friendProfileDirty ||= socialEventInvalidatesFriendProfile(event, ME);
+              if (event.type === 'typing' && event.actorRiderId !== ME) typingAt[event.actorRiderId] = Date.now();
+              // A message from a friend ends their "typing…".
+              if (event.type === 'message' && event.actorRiderId !== ME) typingAt[event.actorRiderId] = 0;
               selfProfileDirty ||= event.type === 'social_refresh'
                 && event.entityId === 'profile'
                 && event.actorRiderId === ME;
@@ -225,6 +232,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
             page = await client.getSocialEvents({ after: cursor, waitMs: 0, limit: 100 });
           }
 
+          if (Object.keys(typingAt).length > 0) setTypingAtByRider((current) => ({ ...current, ...typingAt }));
           if (networkDirty) await refreshNetwork();
           if (messagesDirty) await refreshMessages();
           if (selfProfileDirty) await refreshProfile();
@@ -345,6 +353,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       unreadMessageCount,
       socialRevision,
       friendProfileRevision,
+      typingAtByRider,
       loading,
       error,
       refresh,
@@ -365,6 +374,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }): Re
       unreadMessageCount,
       socialRevision,
       friendProfileRevision,
+      typingAtByRider,
       loading,
       error,
       refresh,
