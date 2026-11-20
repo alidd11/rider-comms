@@ -2,7 +2,7 @@ import * as React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { RidingHud } from '../../src/screens/RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
-import { ArrivalCard, DestinationCard } from '../../src/screens/MapPlaceCards';
+import { ArrivalCard, DestinationCard, RoutePreviewSheet } from '../../src/screens/MapPlaceCards';
 import { ROUTE_UPDATED_NOTICE } from '../../src/screens/useInAppNavigation';
 
 jest.mock('../../src/screens/useInAppNavigation', () => ({ ROUTE_UPDATED_NOTICE: 'Route updated.' }));
@@ -132,4 +132,46 @@ test('place cards: arrival, and a destination with the host’s regroup action',
 
   await card.rerender(<DestinationCard {...props} isHost={false} />);
   expect(card.queryByText('Regroup here')).toBeNull();
+});
+
+test('the route preview lists the ways there, chooses one on a tap, and starts or closes', async () => {
+  const route = (durationSeconds: number, distanceMeters: number, summary?: string, typicalDurationSeconds?: number) => ({
+    coordinates: [], steps: [], durationSeconds, distanceMeters, ...(summary ? { summary } : {}), ...(typicalDurationSeconds ? { typicalDurationSeconds } : {}),
+  });
+  const preview = {
+    target: { lat: 51.5, lon: -0.1, label: 'Home' },
+    routes: [route(23 * 60, 17_700, 'A41', 15 * 60), route(29 * 60, 24_100)],
+    choices: [
+      { index: 0, label: 'Fastest' as const, text: 'Fastest · 23 min', time: '23 min', tag: 'Fastest' },
+      { index: 1, label: 'Twisty' as const, text: 'Twisty · 29 min · +6 min', time: '29 min', tag: 'Twisty · +6 min' },
+    ],
+    index: 0,
+  };
+  const onChoose = jest.fn();
+  const onStart = jest.fn();
+  const onClose = jest.fn();
+  const view = await render(<RoutePreviewSheet bottom={0} preview={preview} unitSystem="mi" onChoose={onChoose} onStart={onStart} onClose={onClose} />);
+  expect(view.getByText('Home')).toBeTruthy();
+  expect(view.getByText('Fastest · +8 min traffic')).toBeTruthy();
+  expect(view.getByText('Twisty · +6 min')).toBeTruthy();
+  expect(view.getByText(/^Arrive .+ · 11 mi · via A41$/)).toBeTruthy();
+  expect(view.getByText(/^Arrive .+ · 15 mi$/)).toBeTruthy();
+  const fastest = view.getByTestId('route-preview-row-0');
+  expect(fastest.props.accessibilityState).toEqual({ selected: true });
+  expect(fastest.props.accessibilityLabel).toMatch(/^Fastest · 23 min, arrive .+, 11 mi, via A41, \+8 min traffic$/);
+
+  // The chosen one again does nothing; another one is chosen.
+  await fireEvent.press(fastest);
+  expect(onChoose).not.toHaveBeenCalled();
+  await fireEvent.press(view.getByTestId('route-preview-row-1'));
+  expect(onChoose).toHaveBeenCalledWith(1);
+
+  await fireEvent.press(view.getByRole('button', { name: 'Start route to Home' }));
+  expect(onStart).toHaveBeenCalled();
+  await fireEvent.press(view.getByRole('button', { name: 'Back to the place' }));
+  expect(onClose).toHaveBeenCalled();
+
+  // A place with no name still reads as somewhere.
+  await view.rerender(<RoutePreviewSheet bottom={0} preview={{ ...preview, target: { lat: 51.5, lon: -0.1 } }} unitSystem="mi" onChoose={onChoose} onStart={onStart} onClose={onClose} />);
+  expect(view.getByText('Selected place')).toBeTruthy();
 });

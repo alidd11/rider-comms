@@ -182,7 +182,7 @@ async function sendFix(lat: number, lon: number, speed: number | null = 8, headi
 async function startNavigation(overrides: Partial<Props> = {}) {
   const rendered = await renderNavigation(overrides);
   await act(async () => {
-    await rendered.result.current.startInAppNavigation(DESTINATION);
+    await rendered.result.current.startInAppNavigation(DESTINATION, { preview: false });
   });
   return rendered;
 }
@@ -381,25 +381,52 @@ test('muting silences prompts and stops speech without re-subscribing GPS', asyn
   expect(mockWatchNavigationLocation).toHaveBeenCalledTimes(1);
 });
 
-test('offers the other ways there before setting off, and switches on a tap', async () => {
+test('shows the ways there before Start, and starts the one chosen', async () => {
   const twisty: InAppNavigationRoute = { ...ROUTE, durationSeconds: 400, steps: ROUTE.steps.slice(1) };
-  const client = { getDrivingRoute: jest.fn(async () => ({ ...ROUTE, alternatives: [{ ...twisty, alternatives: [] }] })) };
-  const { result } = await startNavigation({ client: client as never });
-  expect(result.current.routeChoices.map((choice) => choice.label)).toEqual(['Fastest', 'Alternative']);
-  expect(result.current.chosenRouteIndex).toBe(0);
-  expect(result.current.activeRoute).not.toHaveProperty('alternatives');
+  const client = { getDrivingRoute: jest.fn(async () => ({ ...twisty, alternatives: [{ ...ROUTE, alternatives: [] }] })) };
+  const rendered = await renderNavigation({ client: client as never });
+  const { result } = rendered;
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
 
-  await act(async () => { result.current.chooseRoute(1); });
-  expect(result.current.chosenRouteIndex).toBe(1);
+  // No guidance yet: the preview, on the fastest way (Google's second here).
+  expect(result.current.activeRoute).toBeNull();
+  const preview = result.current.routePreview!;
+  expect(preview.target).toBe(DESTINATION);
+  expect(preview.choices.map((choice) => choice.label)).toEqual(['Alternative', 'Fastest']);
+  expect(preview.index).toBe(1);
+  expect(preview.routes.every((route) => !('alternatives' in route))).toBe(true);
+  expect(mockWatchNavigationLocation).not.toHaveBeenCalled();
+
+  await act(async () => { result.current.chooseRoutePreview(0); });
+  expect(result.current.routePreview?.index).toBe(0);
+  // One that doesn't exist changes nothing.
+  await act(async () => { result.current.chooseRoutePreview(5); });
+  expect(result.current.routePreview?.index).toBe(0);
+
+  await act(async () => { result.current.startRoutePreview(); });
+  expect(result.current.routePreview).toBeNull();
   expect(result.current.activeRoute?.steps).toEqual(twisty.steps);
+  expect(result.current.activeRoute).not.toHaveProperty('alternatives');
   expect(result.current.navigationStepIndex).toBe(0);
-  // The same one again, or one that doesn't exist, changes nothing.
+  // Nothing to start once it has gone.
   const current = result.current.activeRoute;
-  await act(async () => { result.current.chooseRoute(1); result.current.chooseRoute(5); });
+  await act(async () => { result.current.startRoutePreview(); });
   expect(result.current.activeRoute).toBe(current);
+});
 
-  await act(async () => { result.current.finishInAppNavigation(); });
-  expect(result.current.routeChoices).toEqual([]);
+test('closing the route preview starts nothing; without a preview the fastest starts at once', async () => {
+  const slower: InAppNavigationRoute = { ...ROUTE, durationSeconds: 900 };
+  const client = { getDrivingRoute: jest.fn(async () => ({ ...slower, alternatives: [ROUTE] })) };
+  const { result } = await renderNavigation({ client: client as never });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  expect(result.current.routePreview).not.toBeNull();
+  await act(async () => { result.current.closeRoutePreview(); });
+  expect(result.current.routePreview).toBeNull();
+  expect(result.current.activeRoute).toBeNull();
+
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION, { preview: false }); });
+  expect(result.current.routePreview).toBeNull();
+  expect(result.current.activeRoute?.durationSeconds).toBe(ROUTE.durationSeconds);
 });
 
 test('switches to a faster route found in live traffic, and says so', async () => {
@@ -500,7 +527,7 @@ test('reroutes only after staying off route for the grace period', async () => {
   expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5005, lon: -0.097 }, DESTINATION, { highways: false, tolls: false, ferries: false });
   expect(result.current.activeRoute).toStrictEqual(rerouted);
   // A reroute takes Google's best way; it doesn't offer choices mid-ride.
-  expect(result.current.routeChoices).toEqual([]);
+  expect(result.current.routePreview).toBeNull();
   expect(result.current.navigationStepIndex).toBe(0);
   expect(result.current.navigationNotice).toBe('Route updated.');
   // The new route restarts the GPS feed, but the prompt audio session stays up.

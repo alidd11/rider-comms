@@ -51,6 +51,7 @@ async function startNavigationHome(page) {
   await page.waitForFunction(() => Boolean(window.google?.maps?.LatLng && window.__riderCommsTestMap));
   await provideRoute(page);
   await page.locator('[data-saved-place="home"]').click();
+  await page.locator('#routePreviewStart').click();
   await expect(page.locator('#app')).toHaveClass(/nav-mode/);
 }
 
@@ -80,11 +81,12 @@ test('PWA says how far a long road goes when navigation starts', async ({ page }
     { from: [51.68, -0.1], to: [51.69, -0.1], instructions: 'Turn <b>left</b> onto High Street', maneuver: 'turn-left', meters: 900 },
   ]);
   await page.locator('[data-saved-place="home"]').click();
+  await page.locator('#routePreviewStart').click();
   await expect(page.locator('#app')).toHaveClass(/nav-mode/);
   await expect.poll(() => page.evaluate(() => window.__spoken)).toContain('Head north on the A1. Continue for 12 mi.');
 });
 
-test('PWA asks for live traffic, offers the other ways there while parked, and switches on a tap', async ({ page }) => {
+test('PWA shows the ways there before Start, with live traffic, and starts the one chosen', async ({ page }) => {
   await startNavigationHome(page);
   // Replace the route with two ways and live traffic, then start again.
   await page.locator('#endNavBtn').click();
@@ -112,30 +114,61 @@ test('PWA asks for live traffic, offers the other ways there while parked, and s
     window.__riderCommsTestRouteRequests = [];
   });
   await page.locator('[data-saved-place="home"]').click();
-  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+
+  // The ways there first, before any guidance (as in Google Maps and Waze).
+  const preview = page.locator('#routePreview');
+  await expect(preview).toBeVisible();
+  await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
+  await expect(page.locator('#mapDrawer')).toBeHidden();
+  await expect(page.locator('#routePreviewTitle')).toHaveText('Home');
 
   const request = await page.evaluate(() => window.__riderCommsTestRouteRequests[0]);
   expect(request.provideRouteAlternatives).toBe(true);
   expect(request.drivingOptions.trafficModel).toBe('bestguess');
   expect(Number.isNaN(Date.parse(request.drivingOptions.departureTime))).toBe(false);
 
-  const choices = page.locator('#navRouteChoices [role="radio"]');
-  await expect(choices).toHaveText(['Fastest · 23 min', 'Twisty · 29 min · +6 min']);
-  await expect(choices.first()).toHaveAttribute('aria-checked', 'true');
-  // Traffic is adding 8 minutes today; the arrival time counts it.
-  await expect(page.locator('#navTraffic')).toHaveText('+8 min traffic');
-  const minutes = async () => Number((await page.locator('#navEta').textContent()).replace(/\D+/g, ''));
-  const withTraffic = await minutes();
+  const rows = page.locator('#routePreviewList [role="radio"]');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.locator('strong')).toHaveText(['23 min', '29 min']);
+  await expect(rows.locator('.route-preview-tag')).toHaveText(['Fastest · +8 min traffic', 'Twisty · +6 min']);
+  await expect(rows.first()).toHaveAttribute('aria-checked', 'true');
+  await expect(rows.first().locator('.route-preview-meta')).toHaveText(/^Arrive .+ · 2(\.0)? mi$/);
+  // Every way is drawn: the chosen one in the accent colour, the other grey.
+  const lines = () => page.evaluate(() => window.__riderCommsTestOverlays
+    ?.filter((overlay) => overlay.options?.strokeColor && overlay.map)
+    .map((overlay) => [overlay.options.strokeColor, overlay.options.strokeWeight]));
+  await expect.poll(lines).toEqual(expect.arrayContaining([['#279fc8', 8], ['#8a98a0', 6]]));
 
-  await choices.nth(1).click();
-  await expect(page.locator('#navRouteChoices [role="radio"]').nth(1)).toHaveAttribute('aria-checked', 'true');
+  // Tapping the grey line chooses it, as does its row.
+  await page.evaluate(() => window.__riderCommsTestOverlays
+    .find((overlay) => overlay.map && overlay.options.strokeColor === '#8a98a0').trigger('click'));
+  await expect(rows.nth(1)).toHaveAttribute('aria-checked', 'true');
+  await rows.first().click();
+  await expect(rows.first()).toHaveAttribute('aria-checked', 'true');
+  // Choose the twisty way, then Start: guidance has no route buttons.
+  await rows.nth(1).click();
+  await expect(rows.nth(1)).toHaveAttribute('aria-checked', 'true');
+  await page.locator('#routePreviewStart').click();
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  await expect(preview).toBeHidden();
   await expect(page.locator('#navTraffic')).toBeHidden();
-  // Same road geometry, so the times left compare as 23 (15 plus 8 of
-  // traffic) to 29: the first counts today's traffic.
-  await expect.poll(async () => Math.abs(withTraffic / await minutes() - 23 / 29)).toBeLessThan(0.07);
-
+  const minutes = async () => Number((await page.locator('#navEta').textContent()).replace(/\D+/g, ''));
+  await expect.poll(minutes).toBeGreaterThan(0);
+  const twisty = await minutes();
   await page.locator('#endNavBtn').click();
-  await expect(page.locator('#navRouteChoices')).toBeHidden();
+
+  // The fastest way counts today's traffic, and the back button returns to the place.
+  await page.locator('[data-saved-place="home"]').click();
+  await expect(rows.first()).toHaveAttribute('aria-checked', 'true');
+  await page.locator('#routePreviewClose').click();
+  await expect(preview).toBeHidden();
+  await expect(page.locator('#destinationCard')).toBeVisible();
+  await page.locator('[data-start-in-app-navigation]').click();
+  await page.locator('#routePreviewStart').click();
+  await expect(page.locator('#navTraffic')).toHaveText('+8 min traffic');
+  // Same road geometry, so the times left compare as 23 (15 plus 8 of
+  // traffic) to 29: the fastest counts today's traffic.
+  await expect.poll(async () => Math.abs(await minutes() / twisty - 23 / 29)).toBeLessThan(0.07);
 });
 
 test('PWA switches to a faster route found in live traffic, and says so', async ({ page }) => {
@@ -158,6 +191,7 @@ test('PWA switches to a faster route found in live traffic, and says so', async 
   ];
   await provideRoute(page, slowSteps);
   await page.locator('[data-saved-place="home"]').click();
+  await page.locator('#routePreviewStart').click();
   await expect(page.locator('#app')).toHaveClass(/nav-mode/);
 
   // Five minutes on, a route that saves too little changes nothing...
@@ -198,6 +232,7 @@ test('PWA finds petrol along the rest of the route and routes through it', async
   await page.waitForFunction(() => Boolean(window.google?.maps?.LatLng && window.__riderCommsTestMap));
   await provideRoute(page);
   await page.locator('[data-saved-place="home"]').click();
+  await page.locator('#routePreviewStart').click();
   await expect(page.locator('#app')).toHaveClass(/nav-mode/);
 
   await page.locator('#navStopsBtn').click();
@@ -289,4 +324,32 @@ test('PWA trip card opens while parked with the turns left, Share ETA, Add stop 
   await page.locator('#navTripEnd').click();
   await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
   await expect(page.locator('#navTripDetails')).toBeHidden();
+});
+
+test('PWA starts the route on show when the rider moves off with the preview open', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.addInitScript(({ riderId, home }) => {
+    localStorage.setItem(`riderComms.savedPlaces:${riderId}`, JSON.stringify({ home }));
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ navigationProvider: 'in_app' }));
+  }, { riderId: RIDER_ID, home: HOME });
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.google?.maps?.LatLng && window.__riderCommsTestMap && window.gpsTest));
+  const fixes = (metresPerSecond) => page.evaluate((speed) => {
+    const base = Date.now() - 7000;
+    for (let i = 0; i <= 7; i++) window.gpsTest.success({
+      timestamp: base + i * 1000,
+      coords: { latitude: 51.5 + i * 0.0001 * speed, longitude: -0.1, accuracy: 5, speed },
+    });
+  }, metresPerSecond);
+  // Parked: the one-off fix navigation asks for comes back too.
+  await page.evaluate(() => {
+    navigator.geolocation.getCurrentPosition = (success) => success({ timestamp: Date.now(), coords: { latitude: 51.5, longitude: -0.1, accuracy: 5, speed: 0 } });
+  });
+  await provideRoute(page);
+  await page.locator('[data-saved-place="home"]').click();
+  await expect(page.locator('#routePreview')).toBeVisible();
+  await fixes(12);
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  await expect(page.locator('#routePreview')).toBeHidden();
+  await expect(page.locator('#app')).not.toHaveClass(/route-preview-mode/);
 });

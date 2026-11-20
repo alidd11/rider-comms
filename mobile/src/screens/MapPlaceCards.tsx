@@ -1,5 +1,6 @@
 // The cards that rise from the bottom of the map (PWA: #destinationCard):
-// a chosen place with its route, and "You’ve arrived" after a route.
+// a chosen place with its route, the ways there before Start, and
+// "You’ve arrived" after a route.
 import * as React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,8 +8,10 @@ import type { NavigationTarget } from '../navigationLinks';
 import { formatNavigationDistance, formatNavigationDuration } from '../navigationGuidance';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { colors, pressedFeedback } from '../theme';
+import { haptics } from '../haptics';
+import { routeTrafficDelayText } from '@rider-comms/shared';
 import { styles } from './MapScreen.styles';
-import type { NavigationArrival } from './useInAppNavigation';
+import type { NavigationArrival, RoutePreview } from './useInAppNavigation';
 
 export function ArrivalCard({ bottom, arrival, unitSystem, onDone }: {
   bottom: number;
@@ -138,6 +141,84 @@ export function DestinationCard({
           Couldn’t reach Rider Comms. Check your connection and try again.
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+function arrivalClock(seconds: number): string {
+  return new Date(Date.now() + seconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+/**
+ * The ways there before Start, as in Google Maps and Waze (PWA:
+ * #routePreview): one row per route with its time, tag (Fastest, Twisty,
+ * +6 min), arrival, distance and main road; the map draws them all, and a
+ * tap on a row or a line chooses it. Parked only: MapScreen starts the
+ * shown route itself if Ride Safe locks.
+ */
+export function RoutePreviewSheet({ bottom, preview, unitSystem, onChoose, onStart, onClose }: {
+  bottom: number;
+  preview: RoutePreview;
+  unitSystem: UnitSystem;
+  onChoose: (index: number) => void;
+  onStart: () => void;
+  onClose: () => void;
+}): React.JSX.Element {
+  const name = preview.target.label ?? 'Selected place';
+  return (
+    <View testID="route-preview" style={[styles.destinationCard, { bottom }]} accessibilityViewIsModal>
+      <View style={styles.destinationCardHead}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to the place"
+          style={({ pressed }) => [styles.destinationCardDismiss, pressed && pressedFeedback]}
+          onPress={onClose}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </Pressable>
+        <View style={styles.destinationCardCopy}>
+          <Text style={styles.destinationCardCoords}>Route to</Text>
+          <Text numberOfLines={1} accessibilityRole="header" style={styles.destinationCardTitle}>{name}</Text>
+        </View>
+      </View>
+      <View accessibilityRole="radiogroup" accessibilityLabel="Routes" style={styles.routePreviewList}>
+        {preview.choices.map((choice) => {
+          const route = preview.routes[choice.index]!;
+          const selected = choice.index === preview.index;
+          const arrive = `Arrive ${arrivalClock(route.durationSeconds)}`;
+          const distance = formatNavigationDistance(route.distanceMeters, unitSystem);
+          const via = route.summary ? `via ${route.summary}` : '';
+          const traffic = routeTrafficDelayText(route.durationSeconds, route.typicalDurationSeconds);
+          const tag = [choice.tag, traffic].filter(Boolean).join(' · ');
+          return (
+            <Pressable
+              key={choice.index}
+              testID={`route-preview-row-${choice.index}`}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              accessibilityLabel={[choice.text, arrive.toLowerCase(), distance, via, traffic].filter(Boolean).join(', ')}
+              onPress={() => { if (!selected) { haptics.select(); onChoose(choice.index); } }}
+              style={({ pressed }) => [styles.routePreviewRow, selected && styles.routePreviewRowSelected, pressed && pressedFeedback]}
+            >
+              <View style={styles.routePreviewRowTop}>
+                <Text style={styles.routePreviewTime}>{choice.time}</Text>
+                <Text numberOfLines={1} style={styles.routePreviewTag}>{tag}</Text>
+              </View>
+              <Text numberOfLines={1} style={styles.routePreviewMeta}>{[arrive, distance, via].filter(Boolean).join(' · ')}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Pressable
+        testID="route-preview-start"
+        style={({ pressed }) => [styles.destinationPrimaryAction, pressed && pressedFeedback]}
+        accessibilityRole="button"
+        accessibilityLabel={`Start route to ${name}`}
+        onPress={() => { haptics.tap(); onStart(); }}
+      >
+        <Ionicons name="navigate" size={18} color={colors.accentText} />
+        <Text style={styles.destinationPrimaryTitle}>Start</Text>
+      </Pressable>
     </View>
   );
 }

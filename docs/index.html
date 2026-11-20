@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=120">
+  <link rel="stylesheet" href="app.css?v=121">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -284,6 +284,14 @@
           <article id="riderCard" class="rider-card glass" hidden></article>
           <article id="hazardCard" class="rider-card glass" hidden></article>
           <article id="destinationCard" class="rider-card glass" hidden></article>
+          <section id="routePreview" class="route-preview" role="dialog" aria-labelledby="routePreviewTitle" hidden>
+            <div class="route-preview-head">
+              <button id="routePreviewClose" class="icon-button route-preview-close" type="button" aria-label="Back to the place"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+              <div class="route-preview-copy"><span>Route to</span><strong id="routePreviewTitle"></strong></div>
+            </div>
+            <div id="routePreviewList" class="route-preview-list" role="radiogroup" aria-label="Routes"></div>
+            <button id="routePreviewStart" class="button primary wide route-preview-start" type="button"><svg aria-hidden="true"><use href="#i-nav-arrow"/></svg><span>Start</span></button>
+          </section>
           <div id="navBanner" class="nav-banner" hidden>
             <div class="nav-banner-main">
               <span class="nav-maneuver-icon" id="navManeuverIcon"><svg id="navManeuverSvg" aria-hidden="true"><use href="#i-nav-straight"/></svg></span>
@@ -301,7 +309,6 @@
             <strong id="navSpeed">—</strong>
             <span id="navSpeedUnit">mph</span>
           </div>
-          <div id="navRouteChoices" class="nav-route-choices" role="radiogroup" aria-label="Routes" hidden></div>
           <button id="navRecentreBtn" class="nav-recentre" type="button" hidden><svg aria-hidden="true"><use href="#i-locate"/></svg>Re-centre</button>
           <div id="navTripDetails" class="nav-trip-details" role="region" aria-label="Trip details" hidden>
             <div class="nav-trip-actions">
@@ -451,10 +458,10 @@
   <script src="avatar-system.js?v=1" defer></script>
   <script src="navigation-road-events.js?v=1" defer></script>
   <script src="position-interpolation.js?v=1" defer></script>
-  <script src="navigation-guidance.js?v=2" defer></script>
+  <script src="navigation-guidance.js?v=3" defer></script>
   <script src="navigation-camera.js?v=3" defer></script>
   <script src="navigation-puck.js?v=2" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=125" defer></script>
+  <script src="app.js?v=126" defer></script>
 </body>
 </html>

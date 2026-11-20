@@ -5565,6 +5565,8 @@
     if (locked && activeChat) closeChat({ restoreFocus: false });
     if (locked) closeAppMenu({ restoreFocus: false });
     if (locked) setNavTripDetailsOpen(false);
+    // Moving with the route preview open: go, on the route it shows.
+    if (locked) startRoutePreview();
   }
 
   function stopMovementSafetyTracking() {
@@ -7382,10 +7384,6 @@
     };
   }
 
-  // The ways Google offered when navigation began (shared routeChoices),
-  // shown above the trip card while parked; a reroute clears them.
-  let navRouteResult = null;
-  let navRouteIndex = 0;
   // Google times each step in normal traffic: stretch them by today's delay
   // so the arrival time matches the route's live-traffic duration.
   let navTrafficScale = 1;
@@ -7394,27 +7392,133 @@
     return (leg?.duration_in_traffic?.value ?? leg?.duration?.value) || 0;
   }
 
-  function renderNavRouteChoices() {
-    const box = $('#navRouteChoices');
-    if (!box) return;
-    const routes = navRouteResult?.routes || [];
-    if (routes.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
+  // --- Route preview: the ways there before Start (Google Maps, Waze) ---
+  // Every route drawn (the chosen one in the accent colour, the rest grey,
+  // tap one to choose it), with a sheet listing time, arrival, distance, the
+  // main road, traffic and its tag. Parked only: with Ride Safe on, Start
+  // happens at once on the fastest way (native: RoutePreviewSheet).
+  let routePreview = null;
+  let routePreviewLines = [];
+
+  function routeChoiceSummaries(result) {
+    const routes = result?.routes || [];
     const choices = navigationGuidance.routeChoices(routes.map((route) => ({
       durationSeconds: routeLegSeconds(routeTrip(route)),
-      coordinates: (route.overview_path || []).map((point) => ({ lat: point.lat(), lon: point.lng() })),
+      coordinates: routePathOf(route).map((point) => ({ lat: point.lat, lon: point.lng })),
     })));
-    box.innerHTML = choices.map((choice) => `<button type="button" role="radio" aria-checked="${choice.index === navRouteIndex}" data-route-choice="${choice.index}">${escapeHtml(choice.text)}</button>`).join('');
-    box.hidden = false;
+    return choices.map((choice) => {
+      const leg = routeTrip(routes[choice.index]);
+      const seconds = routeLegSeconds(leg);
+      return {
+        ...choice,
+        arrival: formatArrivalTime(seconds),
+        distance: formatNavDistance(leg?.distance?.value || 0),
+        via: String(routes[choice.index]?.summary || '').trim(),
+        traffic: navigationGuidance.routeTrafficDelayText(seconds, leg?.duration?.value),
+      };
+    });
   }
 
-  $('#navRouteChoices')?.addEventListener('click', (event) => {
-    const button = event.target.closest?.('[data-route-choice]');
-    if (!button || !navRouteResult || !navDestination) return;
-    const index = Number(button.dataset.routeChoice);
-    if (index === navRouteIndex || !navRouteResult.routes[index]) return;
-    const { label, ...destination } = navDestination;
-    applyRoute(navRouteResult, destination, label, { preserveMute: true, routeIndex: index });
+  function routePathOf(route) {
+    const leg = routeTrip(route);
+    const steps = leg?.steps || [];
+    if (steps.length) return combineNavigationCameraPaths(...steps.map((step) => navigationStepPath(step)));
+    return (route?.overview_path || []).map((point) => ({ lat: point.lat(), lng: point.lng() }));
+  }
+
+  function fastestRouteIndex(result) {
+    return routeChoiceSummaries(result).find((choice) => choice.label === 'Fastest')?.index ?? 0;
+  }
+
+  function clearRoutePreviewLines() {
+    routePreviewLines.forEach((line) => line.setMap(null));
+    routePreviewLines = [];
+  }
+
+  function drawRoutePreviewLines() {
+    clearRoutePreviewLines();
+    if (!routePreview || !map) return;
+    const { result, index } = routePreview;
+    // The chosen route last, so it draws on top of the others.
+    const order = result.routes.map((_route, i) => i).sort((a, b) => (a === index) - (b === index));
+    routePreviewLines = order.map((i) => {
+      const chosen = i === index;
+      const line = trackMapOverlay(new google.maps.Polyline({
+        map,
+        path: routePathOf(result.routes[i]),
+        clickable: !chosen,
+        strokeColor: chosen ? '#279fc8' : '#8a98a0',
+        strokeOpacity: chosen ? 1 : 0.85,
+        strokeWeight: chosen ? 8 : 6,
+        zIndex: chosen ? 12 : 11,
+      }));
+      line.addListener?.('click', () => chooseRoutePreview(i));
+      return line;
+    });
+    const bounds = window.google?.maps?.LatLngBounds ? new google.maps.LatLngBounds() : null;
+    if (bounds && map.fitBounds) {
+      result.routes.forEach((route) => routePathOf(route).forEach((point) => bounds.extend(point)));
+      const sheet = $('#routePreview')?.getBoundingClientRect().height || 280;
+      map.fitBounds(bounds, { top: 80, right: 40, left: 40, bottom: sheet + 24 });
+    }
+  }
+
+  function renderRoutePreview() {
+    const panel = $('#routePreview');
+    if (!panel || !routePreview) return;
+    $('#routePreviewTitle').textContent = routePreview.label || 'Destination';
+    const choices = routeChoiceSummaries(routePreview.result);
+    $('#routePreviewList').innerHTML = choices.map((choice) => {
+      const meta = [`Arrive ${choice.arrival}`, choice.distance, choice.via ? `via ${choice.via}` : ''].filter(Boolean).join(' · ');
+      const tag = [choice.tag, choice.traffic].filter(Boolean).join(' · ');
+      const name = [choice.text, `arrive ${choice.arrival}`, choice.distance, choice.via ? `via ${choice.via}` : '', choice.traffic].filter(Boolean).join(', ');
+      return `<button type="button" class="route-preview-row" role="radio" aria-checked="${choice.index === routePreview.index}" aria-label="${escapeHtml(name)}" data-preview-route="${choice.index}"><strong>${escapeHtml(choice.time)}</strong><span class="route-preview-meta">${escapeHtml(meta)}</span><span class="route-preview-tag">${escapeHtml(tag)}</span></button>`;
+    }).join('');
+    $('#routePreviewList').hidden = choices.length < 2 && !choices[0];
+  }
+
+  function chooseRoutePreview(index) {
+    if (!routePreview || !routePreview.result.routes[index] || index === routePreview.index) return;
+    routePreview.index = index;
+    haptic('select');
+    renderRoutePreview();
+    drawRoutePreviewLines();
+  }
+
+  function showRoutePreview(result, destination, label) {
+    routePreview = { result, destination, label, index: fastestRouteIndex(result) };
+    hideDestinationCard();
+    $('#app').classList.add('route-preview-mode');
+    $('#routePreview').hidden = false;
+    renderRoutePreview();
+    drawRoutePreviewLines();
+    $('#routePreviewStart')?.focus();
+  }
+
+  function closeRoutePreview({ keepDestination = true } = {}) {
+    if (!routePreview) return;
+    const { destination, label } = routePreview;
+    routePreview = null;
+    clearRoutePreviewLines();
+    $('#routePreview').hidden = true;
+    $('#app').classList.remove('route-preview-mode');
+    if (keepDestination && window.google?.maps) showDestinationCard(new google.maps.LatLng(destination.lat, destination.lng), label);
+  }
+
+  function startRoutePreview() {
+    if (!routePreview) return;
+    const { result, destination, label, index } = routePreview;
+    closeRoutePreview({ keepDestination: false });
+    haptic('success');
+    applyRoute(result, destination, label, { routeIndex: index });
+  }
+
+  $('#routePreviewList')?.addEventListener('click', (event) => {
+    const row = event.target.closest?.('[data-preview-route]');
+    if (row) chooseRoutePreview(Number(row.dataset.previewRoute));
   });
+  $('#routePreviewStart')?.addEventListener('click', startRoutePreview);
+  $('#routePreviewClose')?.addEventListener('click', () => closeRoutePreview());
 
   function getDirectionsService() {
     if (!directionsService) directionsService = new google.maps.DirectionsService();
@@ -7967,7 +8071,10 @@
         navStop = null;
         navCuratedFinishReplanAt = null;
         navCuratedStops = [...remainingStops];
-        applyRoute(result, destination, label);
+        // The ways there first, as in Google Maps and Waze; a curated route
+        // has its own plan, and a moving rider (Ride Safe) gets the fastest.
+        if (!remainingStops.length && !syncMovementSafetyBanner()) showRoutePreview(result, destination, label);
+        else applyRoute(result, destination, label, { routeIndex: remainingStops.length ? 0 : fastestRouteIndex(result) });
       }
     );
   }
@@ -8007,9 +8114,6 @@
     stopNavigationCameraAnimation();
     getDirectionsRenderer().setDirections(result);
     getDirectionsRenderer().setRouteIndex?.(routeIndex);
-    // Choices are offered when navigation begins; a reroute doesn't offer them.
-    navRouteResult = routeNotice ? null : result;
-    navRouteIndex = routeIndex;
     navTrafficScale = leg.duration?.value > 0 && leg.duration_in_traffic?.value > 0 ? leg.duration_in_traffic.value / leg.duration.value : 1;
     const traffic = $('#navTraffic');
     if (traffic) {
@@ -8017,7 +8121,6 @@
       traffic.textContent = text;
       traffic.hidden = !text;
     }
-    renderNavRouteChoices();
     navSteps = leg.steps;
     const routePath = combineNavigationCameraPaths(...navSteps.map((step) => navigationStepPath(step)));
     renderNavigationRouteLine(routePath);
@@ -8539,12 +8642,10 @@
     void keepScreenOnForNavigation(false);
     clearInterval(fasterRouteTimer);
     fasterRouteTimer = null;
-    navRouteResult = null;
     navTrafficScale = 1;
     navStop = null;
     navCuratedStops = [];
     navCuratedFinishReplanAt = null;
-    renderNavRouteChoices();
     const traffic = $('#navTraffic');
     if (traffic) traffic.hidden = true;
     renderMapChrome();

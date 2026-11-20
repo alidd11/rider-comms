@@ -20,6 +20,8 @@ export interface InAppNavigationRoute {
   durationSeconds: number;
   /** The same trip in normal traffic, when known. */
   typicalDurationSeconds?: number;
+  /** The main road, as Google names it ("A41"), for the route preview. */
+  summary?: string;
   /** Other ways there, offered before the rider sets off. */
   alternatives?: InAppNavigationRoute[];
 }

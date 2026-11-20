@@ -23,6 +23,7 @@ describe('Google directions provider', () => {
       return new Response(JSON.stringify({
         status: 'OK',
         routes: [{
+          summary: 'A1',
           overview_polyline: { points: encodedPolyline },
           legs: [{
             distance: { value: 1200 },
@@ -52,6 +53,7 @@ describe('Google directions provider', () => {
     assert.equal(route.steps[0]?.maneuver, 'turn-left');
     assert.equal(route.distanceMeters, 1200);
     assert.equal(route.durationSeconds, 300);
+    assert.equal(route.summary, 'A1');
     assert.equal(route.coordinates.length, 3);
     assert.equal(route.steps[0]?.coordinates.length, 3);
     assert.equal(JSON.stringify(route).includes('server-secret'), false);
@@ -171,8 +173,8 @@ describe('Google Routes API provider', () => {
     const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
       request = { url: String(url), init };
       return new Response(JSON.stringify({ routes: [
-        routesRoute('300s', '200s'),
-        routesRoute('360s', '330s'),
+        { ...routesRoute('300s', '200s'), description: '  A41 and\nM25 ' },
+        { ...routesRoute('360s', '330s'), description: 'x'.repeat(120) },
         routesRoute('400s', '400s'),
         routesRoute('500s', '500s'),
       ] }), { status: 200 });
@@ -184,6 +186,7 @@ describe('Google Routes API provider', () => {
     const headers = request!.init!.headers as Record<string, string>;
     assert.equal(headers['X-Goog-Api-Key'], 'server-secret');
     assert.match(headers['X-Goog-FieldMask']!, /routes\.legs\.steps\.navigationInstruction/);
+    assert.match(headers['X-Goog-FieldMask']!, /routes\.description/);
     const body = JSON.parse(String(request!.init!.body));
     assert.equal(body.routingPreference, 'TRAFFIC_AWARE');
     assert.equal(body.computeAlternativeRoutes, true);
@@ -202,6 +205,10 @@ describe('Google Routes API provider', () => {
     // At most two alternatives, without nesting.
     assert.deepEqual(route.alternatives?.map((alt) => alt.durationSeconds), [360, 400]);
     assert.equal(route.alternatives?.[0]?.alternatives, undefined);
+    // The main road for the route preview, tidied and kept short.
+    assert.equal(route.summary, 'A41 and M25');
+    assert.equal(route.alternatives?.[0]?.summary?.length, 80);
+    assert.equal(route.alternatives?.[1]?.summary, undefined);
     assert.equal(JSON.stringify(route).includes('server-secret'), false);
   });
 

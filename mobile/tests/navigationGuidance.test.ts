@@ -137,13 +137,21 @@ describe('navigationInstructionRoad', () => {
       { durationSeconds: 1500, coordinates: straight },
     ]).map((choice) => choice.text), ['Fastest · 23 min', 'Twisty · 29 min · +6 min', 'Alternative · 25 min · +2 min']);
     // Only one route: just the fastest.
-    assert.deepEqual(routeChoices([{ durationSeconds: 600, coordinates: straight }]), [{ index: 0, label: 'Fastest', text: 'Fastest · 10 min' }]);
+    // The button shows the time big, with a short tag under it.
+    assert.deepEqual(routeChoices([
+      { durationSeconds: 1380, coordinates: straight },
+      { durationSeconds: 1740, coordinates: zigzag },
+      { durationSeconds: 1500, coordinates: straight },
+    ]).map((choice) => [choice.time, choice.tag]), [['23 min', 'Fastest'], ['29 min', 'Twisty · +6 min'], ['25 min', '+2 min']]);
+    // Only one route: just the fastest.
+    assert.deepEqual(routeChoices([{ durationSeconds: 600, coordinates: straight }]), [{ index: 0, label: 'Fastest', text: 'Fastest · 10 min', time: '10 min', tag: 'Fastest' }]);
     // The fastest is itself the twisty one: no separate Twisty label, and
     // under a minute longer says no extra time.
     assert.deepEqual(routeChoices([
       { durationSeconds: 1740, coordinates: zigzag },
       { durationSeconds: 1720, coordinates: zigzag },
     ]).map((choice) => choice.text), ['Alternative · 29 min', 'Fastest · 29 min']);
+    assert.equal(routeChoices([{ durationSeconds: 1740, coordinates: zigzag }, { durationSeconds: 1720, coordinates: zigzag }])[0]!.tag, 'Alternative');
     assert.deepEqual(routeChoices([]), []);
   });
 

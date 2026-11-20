@@ -2798,12 +2798,6 @@ html.map-day .nav-summary-stat{border-left-color:rgb(11 18 22/.1)}
 .recent-rides-list{margin:0;padding:8px 12px 14px;list-style:none;display:grid;gap:8px;color:var(--text-secondary);font-size:.86rem;line-height:1.4}
 /* The ways there, offered above the trip card while parked (native:
    NavigationTripSummary route choices). Ride Safe hides them on the move. */
-.nav-route-choices{position:absolute;z-index:12;left:max(12px,var(--safe-left));right:calc(max(14px,var(--safe-right)) + 66px);bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 12px);display:flex;gap:8px}
-.nav-route-choices[hidden],#app:not(.nav-mode) .nav-route-choices,#app.safety-locked .nav-route-choices{display:none}
-.nav-route-choices button{flex:1;min-width:0;min-height:48px;padding:6px 8px;border:1px solid rgb(255 255 255/.16);border-radius:var(--radius-md);background:#0d151a;color:var(--text);font:inherit;font-size:.875rem;font-weight:760;line-height:1.25;box-shadow:0 8px 20px rgb(0 0 0/.35)}
-.nav-route-choices button[aria-checked="true"]{border:2px solid var(--accent);color:var(--accent)}
-html.map-day .nav-route-choices button{background:#fff;color:#0b1216;border-color:rgb(11 18 22/.12)}
-html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--accent);color:var(--accent-ink-on-light)}
 .nav-traffic{font-style:normal;font-size:.8125rem;font-weight:800;color:var(--warning)}
 .nav-traffic[hidden]{display:none}
 /* Petrol, cafés or food on the way (native: StopsOnTheWaySheet). */
@@ -2818,10 +2812,9 @@ html.map-day .nav-route-choices button[aria-checked="true"]{border-color:var(--a
 .stop-list button em{font-style:normal;font-weight:800;color:var(--accent)}
 /* Short landscape screens: the navigation buttons don't fit as a column
    between the turn banner and the trip card, so they sit in a row above the
-   trip card, with the route choices to their left. */
+   trip card. */
 @media (orientation:landscape) and (max-height:520px){
   .nav-mode .map-actions{flex-direction:row;bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) + 10px)}
-  .nav-route-choices{right:calc(max(14px,var(--safe-right)) + 330px)}
 }
 /* Place badges: filled icons on a colour per kind of place, so Home, Work
    and Petrol read at a glance (as in Google Maps and Waze). Every colour
@@ -2990,3 +2983,23 @@ html.map-day .nav-trip-action.danger{color:#c62828}
 html.map-day .nav-trip-heading,html.map-day .nav-trip-turns em{color:#58666e}
 html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .nav-trip-open .map-actions,.nav-trip-open #navSpeedBadge,.nav-trip-open #navRecentreBtn{visibility:hidden}
+
+/* Route preview: the ways there before Start, as in Google Maps and Waze.
+   The map shows every route; this sheet lists them, with Start below. */
+.route-preview{position:absolute;z-index:10;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));bottom:12px;max-width:520px;margin-inline:auto;display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--border);border-radius:16px;background:var(--bg-elevated);color:var(--text);box-shadow:0 14px 36px rgb(0 0 0/.42)}
+.route-preview[hidden]{display:none}
+.route-preview-head{display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:10px}
+.route-preview-copy{min-width:0}
+.route-preview-close{width:40px;min-width:40px;height:40px;border-radius:20px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text-secondary)}
+.route-preview-close svg{width:16px;height:16px}
+.route-preview-copy span{display:block;color:var(--text-secondary);font-size:.8rem}
+.route-preview-copy strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem;font-weight:780}
+.route-preview-list{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow-y:auto}
+.route-preview-row{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"time tag" "meta meta";align-items:baseline;gap:2px 10px;min-height:56px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font:inherit;text-align:left}
+.route-preview-row[aria-checked="true"]{border:2px solid var(--accent);padding:8px 11px;background:var(--accent-soft)}
+.route-preview-row strong{grid-area:time;font-size:1.15rem;font-weight:820}
+.route-preview-tag{grid-area:tag;justify-self:end;color:var(--accent-ink);font-size:.8rem;font-weight:760;text-align:right}
+.route-preview-meta{grid-area:meta;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:.85rem}
+.route-preview-start{min-height:52px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:1.05rem}
+.route-preview-start svg{width:20px;height:20px}
+#app.route-preview-mode .map-header,#app.route-preview-mode #mapDrawer,#app.route-preview-mode .map-actions,#app.route-preview-mode #joinNearbyBtn,#app.route-preview-mode #ridePill,#app.route-preview-mode #poiChipRow,#app.route-preview-mode #destinationCard{display:none}

@@ -24,8 +24,16 @@ export interface DrivingRoute {
   durationSeconds: number;
   /** The same trip in normal traffic, when known: the gap is today's delay. */
   typicalDurationSeconds?: number;
+  /** The main road, as Google names it ("A41"), for the route preview. */
+  summary?: string;
   /** Up to two other ways there, for the rider to choose from. */
   alternatives?: DrivingRoute[];
+}
+
+/** Google's road name for a route, trimmed and short enough for a row. */
+function routeSummary(value: unknown): { summary?: string } {
+  const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+  return text ? { summary: text } : {};
 }
 
 export type DirectionsProviderErrorCode =
@@ -57,6 +65,7 @@ interface GoogleDirectionsStep {
 interface GoogleDirectionsResponse {
   status?: string;
   routes?: Array<{
+    summary?: string;
     overview_polyline?: { points?: string };
     legs?: Array<{
       distance?: { value?: number };
@@ -218,6 +227,7 @@ function parseGoogleResponse(payload: GoogleDirectionsResponse): DrivingRoute {
     durationSeconds: nonNegativeFinite(leg.duration?.value)
       ? leg.duration.value
       : steps.reduce((sum, step) => sum + step.durationSeconds, 0),
+    ...routeSummary(route.summary),
   };
 }
 
@@ -293,6 +303,7 @@ export async function fetchGoogleDrivingRoute(
 const ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 const ROUTES_FIELD_MASK = [
   'routes.distanceMeters',
+  'routes.description',
   'routes.duration',
   'routes.staticDuration',
   'routes.polyline.encodedPolyline',
@@ -315,6 +326,7 @@ interface RoutesStep {
 }
 interface RoutesRoute {
   distanceMeters?: number;
+  description?: string;
   duration?: string;
   staticDuration?: string;
   polyline?: { encodedPolyline?: string };
@@ -381,6 +393,7 @@ function parseRoutesRoute(route: RoutesRoute): DrivingRoute {
     distanceMeters: nonNegativeFinite(route.distanceMeters) ? route.distanceMeters : steps.reduce((sum, step) => sum + step.distanceMeters, 0),
     durationSeconds: Math.round(withTraffic),
     typicalDurationSeconds: Math.round(typical),
+    ...routeSummary(route.description),
   };
 }
 

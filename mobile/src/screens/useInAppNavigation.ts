@@ -99,6 +99,25 @@ export interface NavigationArrival {
   distanceMeters: number;
 }
 
+/** The ways there, shown before Start (RoutePreviewSheet). */
+/** Room under the trip for the route preview sheet (about three rows and Start). */
+const ROUTE_PREVIEW_SHEET_PADDING = 380;
+
+function withoutAlternatives(route: InAppNavigationRoute): InAppNavigationRoute {
+  if (!('alternatives' in route)) return route;
+  const { alternatives: _others, ...rest } = route;
+  return rest;
+}
+
+export interface RoutePreview {
+  target: NavigationTarget;
+  routes: InAppNavigationRoute[];
+  /** Shared routeChoices for routes: time, tag (Fastest, Twisty, +6 min). */
+  choices: RouteChoice[];
+  /** The one Start will follow. */
+  index: number;
+}
+
 export interface InAppNavigation {
   activeRoute: InAppNavigationRoute | null;
   navigationDestination: NavigationTarget | null;
@@ -126,16 +145,18 @@ export interface InAppNavigation {
   /** Set on arrival until the rider dismisses it or starts another route. */
   navigationArrival: NavigationArrival | null;
   dismissNavigationArrival: () => void;
-  startInAppNavigation: (target: NavigationTarget) => Promise<void>;
+  /** Plans the way there. Parked, it opens the route preview (the ways
+   * there, then Start); with `preview: false` it starts on the fastest. */
+  startInAppNavigation: (target: NavigationTarget, options?: { preview?: boolean }) => Promise<void>;
+  /** The ways there before Start, as in Google Maps and Waze. */
+  routePreview: RoutePreview | null;
+  chooseRoutePreview: (index: number) => void;
+  startRoutePreview: () => void;
+  closeRoutePreview: () => void;
   startCuratedNavigation: (route: CuratedRoute) => Promise<void>;
   curatedRemainingStops: CuratedNavigationStop[];
   stopFollowingRoute: () => void;
   resumeFollowingRoute: () => void;
-  /** The ways there, labelled; empty with only one, or once rerouted. */
-  routeChoices: RouteChoice[];
-  /** Which of routeChoices is being followed. */
-  chosenRouteIndex: number;
-  chooseRoute: (index: number) => void;
   /** The stop on the way the route goes through, if any. */
   navigationStop: NavigationStop | null;
   findStopsOnTheWay: (query: string) => Promise<StopOnTheWay<PlaceAlongRoute>[]>;
@@ -185,7 +206,7 @@ export function useInAppNavigation(
   const routeAvoidanceRef = React.useRef(routeAvoidance);
   routeAvoidanceRef.current = routeAvoidance;
   const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
-  const [routeOptions, setRouteOptions] = React.useState<InAppNavigationRoute[]>([]);
+  const [routePreview, setRoutePreview] = React.useState<(RoutePreview & { origin: { lat: number; lon: number } }) | null>(null);
   // The screen stays on while navigating, as in Google Maps, Waze and Apple
   // Maps: a rider glancing down mustn't find a locked phone (PWA: Screen
   // Wake Lock in 17-navigation.js).
@@ -270,7 +291,7 @@ export function useInAppNavigation(
 
   const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
 
-  const fitRoute = React.useCallback((nextRoute: InAppNavigationRoute) => {
+  const fitRoute = React.useCallback((nextRoute: Pick<InAppNavigationRoute, 'coordinates'>, bottomPadding?: number) => {
     if (!mapReady || nextRoute.coordinates.length < 2) return;
     navigationFollowingRef.current = false;
     setNavigationFollowing(false);
@@ -284,7 +305,7 @@ export function useInAppNavigation(
         edgePadding: {
           top: Math.max(170, insets.top + spacing.sm + navigationBannerHeight + 24),
           right: 64,
-          bottom: Math.max(180, navigationSummaryHeight + 24),
+          bottom: bottomPadding ?? Math.max(180, navigationSummaryHeight + 24),
           left: 64,
         },
         animated: true,
@@ -447,7 +468,6 @@ export function useInAppNavigation(
     setNavigationMuted(false);
     setNavigationSpeedMps(null);
     setNavigationNotice(arrived ? 'You’ve arrived.' : null);
-    setRouteOptions([]);
     setNavigationStop(null);
     updateCuratedStops([]);
     const trip = tripRef.current;
@@ -464,11 +484,8 @@ export function useInAppNavigation(
   }, [mapRef, setNavigationStop, updateCuratedStops]);
 
   const applyInAppRoute = React.useCallback((nextRoute: InAppNavigationRoute, origin: { lat: number; lon: number }, target: NavigationTarget, rerouting: boolean, notice: string = ROUTE_UPDATED_NOTICE) => {
-    // The ways there, offered before setting off; a reroute offers none.
-    const withoutAlternatives = ({ alternatives: _others, ...route }: InAppNavigationRoute): InAppNavigationRoute => route;
-    const alternatives = nextRoute.alternatives ?? [];
-    const chosen = nextRoute.alternatives ? withoutAlternatives(nextRoute) : nextRoute;
-    setRouteOptions(rerouting || alternatives.length === 0 ? [] : [chosen, ...alternatives.map(withoutAlternatives)]);
+    // The ways there were offered in the route preview; guidance follows one.
+    const chosen = withoutAlternatives(nextRoute);
     setActiveRoute(chosen);
     setNavigationDestination(target);
     setNavigationStepIndex(0);
@@ -569,32 +586,33 @@ export function useInAppNavigation(
     }
   }, [applyInAppRoute, currentLocation, getRouteThroughStops, navigationDestination, routeStops, setNavigationStop]);
 
-  /** Switches to another of the offered ways there, before setting off. */
-  const chooseRoute = React.useCallback((index: number) => {
-    const route = routeOptions[index];
-    if (!route || route === activeRoute) return;
-    setActiveRoute(route);
-    setNavigationStepIndex(0);
-    announcedNavigationStep.current = null;
-    navigationPromptProgress.current = null;
-    finalNavigationPrompt.current = null;
-    navOffRouteSince.current = null;
-    navigationFollowingRef.current = true;
-    setNavigationFollowing(true);
-    const here = currentLocation ?? route.steps[0]?.start;
-    if (here && route.steps[0]) focusNavigationCamera(here, route, 0);
-  }, [activeRoute, currentLocation, focusNavigationCamera, routeOptions]);
+  const clearPlaceCards = React.useCallback(() => {
+    setSelectedPlace(null);
+    setNavigationTarget(null);
+    setSelectedHazardId(null);
+  }, [setNavigationTarget, setSelectedHazardId, setSelectedPlace]);
 
-  const startInAppNavigation = React.useCallback(async (target: NavigationTarget): Promise<void> => {
-    const origin = currentLocation ?? await requestCurrentLocation(true);
-    if (!origin) return;
+  const startInAppNavigation = React.useCallback(async (target: NavigationTarget, { preview = true }: { preview?: boolean } = {}): Promise<void> => {
+    const fix = currentLocation ?? await requestCurrentLocation(true);
+    if (!fix) return;
+    const origin = { lat: fix.lat, lon: fix.lon };
     setNavigationLoading(true);
     setNavigationNotice(null);
     try {
-      await requestInAppRoute({ lat: origin.lat, lon: origin.lon }, target);
-      setSelectedPlace(null);
-      setNavigationTarget(null);
-      setSelectedHazardId(null);
+      const planned = await getRouteThroughStops(origin, target, null, []);
+      updateCuratedStops([]);
+      setNavigationStop(null);
+      const routes = [planned, ...(planned.alternatives ?? [])].map(withoutAlternatives);
+      const choices = routeChoices(routes);
+      const fastest = choices.find((choice) => choice.label === 'Fastest')?.index ?? 0;
+      if (preview) {
+        // The ways there first, with the whole trip in view above the sheet.
+        setRoutePreview({ origin, target, routes, choices, index: fastest });
+        fitRoute({ coordinates: routes.flatMap((route) => route.coordinates) }, ROUTE_PREVIEW_SHEET_PADDING);
+      } else {
+        applyInAppRoute(routes[fastest]!, origin, target, false);
+        clearPlaceCards();
+      }
     } catch (routeError) {
       const routeErrorCode = routeError instanceof ApiError
         && typeof routeError.body === 'object'
@@ -611,7 +629,21 @@ export function useInAppNavigation(
     } finally {
       setNavigationLoading(false);
     }
-  }, [currentLocation, requestCurrentLocation, requestInAppRoute, setNavigationTarget, setSelectedHazardId, setSelectedPlace]);
+  }, [applyInAppRoute, clearPlaceCards, currentLocation, fitRoute, getRouteThroughStops, requestCurrentLocation, setNavigationStop, updateCuratedStops]);
+
+  const chooseRoutePreview = React.useCallback((index: number) => {
+    setRoutePreview((current) => current && current.routes[index] ? { ...current, index } : current);
+  }, []);
+
+  const closeRoutePreview = React.useCallback(() => setRoutePreview(null), []);
+
+  const startRoutePreview = React.useCallback(() => {
+    if (!routePreview) return;
+    const { routes, index, origin, target } = routePreview;
+    setRoutePreview(null);
+    applyInAppRoute(routes[index]!, origin, target, false);
+    clearPlaceCards();
+  }, [applyInAppRoute, clearPlaceCards, routePreview]);
 
   /** Start the *complete* curated itinerary, including the start checkpoint,
    * not a route to its first coordinate. No external navigation handoff. */
@@ -969,10 +1001,10 @@ export function useInAppNavigation(
     curatedRemainingStops,
     stopFollowingRoute,
     resumeFollowingRoute,
-    /** The ways there, labelled (shared routeChoices); empty once rerouted. */
-    routeChoices: routeOptions.length > 1 ? routeChoices(routeOptions) : [],
-    chosenRouteIndex: activeRoute ? routeOptions.indexOf(activeRoute) : -1,
-    chooseRoute,
+    routePreview: routePreview ? { target: routePreview.target, routes: routePreview.routes, choices: routePreview.choices, index: routePreview.index } : null,
+    chooseRoutePreview,
+    startRoutePreview,
+    closeRoutePreview,
     navigationStop,
     findStopsOnTheWay,
     addNavigationStop,

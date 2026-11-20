@@ -13,7 +13,6 @@ import {
   navigationInstructionRoad,
   navigationSpeedUnit,
 } from '../navigationGuidance';
-import type { RouteChoice } from '@rider-comms/shared';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { colors, darkColors, lightColors, pressedFeedback } from '../theme';
 import { GLANCE_TEXT_MAX_SCALE, useNavigationPalette } from '../navigationTone';
@@ -179,9 +178,6 @@ export function NavigationTripSummary({
   remainingMeters,
   unitSystem,
   onHeight,
-  routeChoices = [],
-  chosenRouteIndex = -1,
-  onChooseRoute,
   trafficText = '',
   onEnd,
   tripDetails,
@@ -192,10 +188,6 @@ export function NavigationTripSummary({
   remainingMeters: number;
   unitSystem: UnitSystem;
   onHeight: React.Dispatch<React.SetStateAction<number>>;
-  /** Other ways there, offered while parked (PWA: #navRouteChoices). */
-  routeChoices?: RouteChoice[];
-  chosenRouteIndex?: number;
-  onChooseRoute?: (index: number) => void;
   /** "+8 min traffic" when today's traffic is adding time. */
   trafficText?: string;
   /** End sits at the left of the trip card, away from the turn, as in Google Maps. */
@@ -264,32 +256,6 @@ export function NavigationTripSummary({
               <Text style={[styles.navigationTripTurnText, styles.navigationTripArrive, isNight && night.primaryText]}>Arrive at {tripDetails.destinationLabel || 'your destination'}</Text>
             </View>
           </ScrollView>
-        </View>
-      ) : null}
-      {routeChoices.length > 1 && onChooseRoute ? (
-        <View style={styles.navigationRouteChoices} accessibilityRole="radiogroup" accessibilityLabel="Routes" testID="navigation-route-choices">
-          {routeChoices.map((choice) => {
-            const selected = choice.index === chosenRouteIndex;
-            return (
-              <Pressable
-                key={choice.index}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                accessibilityLabel={choice.text}
-                onPress={() => onChooseRoute(choice.index)}
-                style={({ pressed }) => [
-                  styles.navigationRouteChoice,
-                  isNight && night.card,
-                  selected && styles.navigationRouteChoiceSelected,
-                  pressed && styles.navigationRouteChoicePressed,
-                ]}
-              >
-                <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={2} style={[styles.navigationRouteChoiceText, isNight && night.primaryText, selected && styles.navigationRouteChoiceTextSelected]}>
-                  {choice.text}
-                </Text>
-              </Pressable>
-            );
-          })}
         </View>
       ) : null}
       <View style={styles.navigationSummaryContent}>

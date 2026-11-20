@@ -136,9 +136,12 @@
     return routes.map((route, index) => {
       const label = index === fastest ? 'Fastest' : index === twisty ? 'Twisty' : 'Alternative';
       const extra = route.durationSeconds - routes[fastest].durationSeconds;
-      const parts = [label, formatNavigationDuration(route.durationSeconds)];
-      if (index !== fastest && extra >= 60) parts.push(`+${formatNavigationDuration(extra)}`);
-      return { index, label, text: parts.join(' · ') };
+      const time = formatNavigationDuration(route.durationSeconds);
+      const more = index !== fastest && extra >= 60 ? `+${formatNavigationDuration(extra)}` : '';
+      const parts = [label, time, ...(more ? [more] : [])];
+      // An alternative's tag is just how much longer it takes, when it does.
+      const tag = label === 'Alternative' ? (more || label) : [label, ...(more ? [more] : [])].join(' · ');
+      return { index, label, text: parts.join(' · '), time, tag };
     });
   }
 

@@ -50,7 +50,7 @@ import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './Regro
 import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
-import { ArrivalCard, DestinationCard } from './MapPlaceCards';
+import { ArrivalCard, DestinationCard, RoutePreviewSheet } from './MapPlaceCards';
 import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
@@ -264,9 +264,10 @@ export function MapScreen(): React.JSX.Element {
     curatedRemainingStops,
     stopFollowingRoute,
     resumeFollowingRoute,
-    routeChoices: navigationRouteChoices,
-    chosenRouteIndex,
-    chooseRoute,
+    routePreview,
+    chooseRoutePreview,
+    startRoutePreview,
+    closeRoutePreview,
     findStopsOnTheWay,
     addNavigationStop,
   } = useInAppNavigation(
@@ -594,7 +595,8 @@ export function MapScreen(): React.JSX.Element {
 
   async function openDirections(target: NavigationTarget): Promise<void> {
     if (navigationProvider === 'in_app') {
-      await startInAppNavigation(target);
+      // Parked: the ways there first. On the move: straight onto the fastest.
+      await startInAppNavigation(target, { preview: !lockedForSafety });
       return;
     }
     const url = buildNavigationProviderUrl(target, navigationProvider);
@@ -625,7 +627,11 @@ export function MapScreen(): React.JSX.Element {
   // The drawer steps aside while navigating, while Ride Safe locks the
   // controls, and while a place or hazard card owns the bottom of the map.
   const friendsAttention = incomingRequests.length + unreadMessageCount;
-  const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard && !navigationArrival;
+  const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !routePreview && !selectedDestination && !selectedHazard && !navigationArrival;
+  // Moving off with the route preview open: go, on the route it shows.
+  React.useEffect(() => {
+    if (lockedForSafety && routePreview) startRoutePreview();
+  }, [lockedForSafety, routePreview, startRoutePreview]);
   const bottomInset = drawerVisible && drawerPeek > 0 ? drawerPeek : insets.bottom;
   // Bottom controls sit above the drawer, and above the ride bar while a
   // group ride is showing.
@@ -717,6 +723,25 @@ export function MapScreen(): React.JSX.Element {
                 pinColor={colors.accent}
               />
             )}
+            {/* The route preview: every way there, the chosen one blue and
+                on top, the others grey; a tap on a line chooses it. */}
+            {!activeRoute && routePreview ? [...routePreview.routes.keys()]
+              .sort((a, b) => Number(a === routePreview.index) - Number(b === routePreview.index))
+              .map((index) => {
+                const chosen = index === routePreview.index;
+                return (
+                  <Polyline
+                    key={`route-preview-${index}`}
+                    testID={`route-preview-line-${index}`}
+                    coordinates={routePreview.routes[index]!.coordinates.map((point) => ({ latitude: point.lat, longitude: point.lon }))}
+                    strokeColor={chosen ? '#4285F4' : '#8A98A0'}
+                    strokeWidth={chosen ? 8 : 6}
+                    zIndex={chosen ? 6 : 5}
+                    tappable={!chosen}
+                    onPress={() => chooseRoutePreview(index)}
+                  />
+                );
+              }) : null}
             {activeRoute && routeLineCoordinates && (
               <>
                 {curatedRemainingStops.map((stop, index) => (
@@ -775,7 +800,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !lockedForSafety && !activeRoute && (
+      {segment === 'public' && !lockedForSafety && !activeRoute && !routePreview && (
         <View style={[styles.searchSlot, styles.searchRow, { top: insets.top + spacing.sm }]}>
           {/* The menu (Ride, Friends, Routes, Settings, plan, help). Friend
               requests and unread messages show as a count on the avatar. */}
@@ -842,7 +867,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !selectedDestination && !activeRoute && !navigationArrival && (
+      {segment === 'public' && !selectedDestination && !activeRoute && !routePreview && !navigationArrival && (
         <View style={[styles.mapActions, { bottom: bottomBarOffset + (lockedForSafety ? HUD_ACTION_HEIGHT : BOTTOM_BAR_HEIGHT) + spacing.sm }]}>
           <Pressable
             style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
@@ -856,7 +881,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !selectedDestination && !activeRoute && !navigationArrival && !lockedForSafety && (
+      {segment === 'public' && !selectedDestination && !activeRoute && !routePreview && !navigationArrival && !lockedForSafety && (
         <View style={[styles.mapBottomBar, { bottom: bottomBarOffset }]} testID="map-bottom-bar">
           <Pressable
             style={({ pressed }) => [styles.mapHazardButton, pressed && styles.mapActionButtonPressed]}
@@ -955,7 +980,18 @@ export function MapScreen(): React.JSX.Element {
         />
       )}
 
-      {segment === 'public' && !activeRoute && selectedDestination && !selectedHazard && (
+      {segment === 'public' && !activeRoute && routePreview && (
+        <RoutePreviewSheet
+          bottom={insets.bottom + spacing.sm}
+          preview={routePreview}
+          unitSystem={unitSystem}
+          onChoose={chooseRoutePreview}
+          onStart={startRoutePreview}
+          onClose={closeRoutePreview}
+        />
+      )}
+
+      {segment === 'public' && !activeRoute && !routePreview && selectedDestination && !selectedHazard && (
         <DestinationCard
           bottom={insets.bottom + spacing.sm}
           destination={selectedDestination}
@@ -993,20 +1029,19 @@ export function MapScreen(): React.JSX.Element {
             onHeight={setNavigationBannerHeight}
           />
           {/* Bottom-left, as in Google Maps: Re-centre once the map has been
-              moved, otherwise the speedometer (hidden while route choices
-              are offered, which only happens parked). */}
+              moved, otherwise the speedometer. */}
           {!navigationFollowing ? (
             <NavigationRecentreButton
               bottom={navigationSummaryHeight + spacing.md}
               onPress={() => void centreOnCurrentLocation()}
             />
-          ) : lockedForSafety || navigationRouteChoices.length <= 1 ? (
+          ) : (
             <NavigationSpeedBadge
               bottom={navigationSummaryHeight + spacing.md}
               navigationSpeedMps={navigationSpeedMps}
               unitSystem={unitSystem}
             />
-          ) : null}
+          )}
           <NavigationTripSummary
             bottomPadding={Math.max(insets.bottom, spacing.sm)}
             arrivalLabel={navigationArrivalLabel}
@@ -1014,10 +1049,6 @@ export function MapScreen(): React.JSX.Element {
             remainingMeters={remainingNavigationMeters}
             unitSystem={unitSystem}
             onHeight={setNavigationSummaryHeight}
-            // Choosing a way is for when parked: Ride Safe hides it on the move.
-            routeChoices={lockedForSafety ? [] : navigationRouteChoices}
-            chosenRouteIndex={chosenRouteIndex}
-            onChooseRoute={chooseRoute}
             trafficText={activeRoute ? routeTrafficDelayText(activeRoute.durationSeconds, activeRoute.typicalDurationSeconds) : ''}
             onEnd={() => finishInAppNavigation(false)}
             tripDetails={tripDetails}
