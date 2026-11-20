@@ -76,6 +76,25 @@
     };
   }
 
+  /** The route still to ride: the point the rider has reached, then every
+   * point after it. The line behind the rider is dropped, as in Google and
+   * Apple Maps. A path too short to draw comes back empty. */
+  function navigationPathAhead(
+    index,
+    distanceAlongMeters,
+  ) {
+    const { points, cumulative } = index;
+    if (points.length < 2) return [];
+    if (!Number.isFinite(distanceAlongMeters)) return points.map((point) => ({ ...point }));
+    const start = navigationPathPointAt(index, Number(distanceAlongMeters));
+    if (!start) return [];
+    const ahead = [{ lat: start.lat, lon: start.lon }];
+    for (let i = 0; i < points.length; i += 1) {
+      if (cumulative[i] > Number(distanceAlongMeters)) ahead.push({ ...points[i] });
+    }
+    return ahead.length >= 2 ? ahead : [];
+  }
+
   /**
    * Projects a fix onto the route. `previousDistanceAlongMeters` (from the
    * last match) keeps the search near where the rider already was.
@@ -200,6 +219,21 @@
   /** A fix less certain than this can't tell on-route from off-route, so it
    * neither starts nor clears the off-route timer (tunnels, urban canyons). */
   const NAV_OFF_ROUTE_MAX_ACCURACY_M = 50;
+
+  /** How long a rider must stay off the route before it is recalculated. Slow
+   * riders get the full wait, so a car park or a junction doesn't reroute them;
+   * at speed it shortens to the time to ride about 75 m further, as Google Maps
+   * and Waze recalculate within seconds of a missed motorway exit. */
+  const NAV_OFF_ROUTE_GRACE_MAX_MS = 10_000;
+  const NAV_OFF_ROUTE_GRACE_MIN_MS = 4_000;
+  const NAV_OFF_ROUTE_GRACE_DISTANCE_M = 75;
+
+  function navigationOffRouteGraceMs(speedMps) {
+    const speed = Number(speedMps);
+    if (!Number.isFinite(speed) || speed <= 0) return NAV_OFF_ROUTE_GRACE_MAX_MS;
+    const ms = (NAV_OFF_ROUTE_GRACE_DISTANCE_M / speed) * 1000;
+    return Math.round(Math.max(NAV_OFF_ROUTE_GRACE_MIN_MS, Math.min(NAV_OFF_ROUTE_GRACE_MAX_MS, ms)));
+  }
 
   /**
    * Whether a raw fix shows the rider on the route, off it, or can't say.
@@ -379,11 +413,15 @@
     PUCK_MAX_PREDICTION_METERS,
     buildNavigationPathIndex,
     navigationPathPointAt,
+    navigationPathAhead,
     matchFixToPath,
     predictNavigationPuck,
     navigationFixAgeSeconds,
     NAV_OFF_ROUTE_RADIUS_M,
     NAV_OFF_ROUTE_MAX_ACCURACY_M,
+    NAV_OFF_ROUTE_GRACE_MAX_MS,
+    NAV_OFF_ROUTE_GRACE_MIN_MS,
+    navigationOffRouteGraceMs,
     navigationRouteStatus,
     PUCK_CONE_STEP_DEGREES,
     navigationPuckConeDegrees,

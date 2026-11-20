@@ -16,3 +16,4 @@ export * from './billing.ts';
 export * from './daylight.ts';
 export * from './navigationPuck.ts';
 export * from './avatars.ts';
+export * from './brand.ts';

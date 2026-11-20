@@ -122,6 +122,7 @@
     state.unit = state.profile.unitSystem;
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;
+    state.profile.bio = typeof profile.bio === 'string' ? profile.bio : '';
     state.profile.instagramVisibility = profile.instagramVisibility;
     state.profile.tiktokVisibility = profile.tiktokVisibility;
     state.profile.shareLocation = profile.shareLocation;
@@ -194,7 +195,7 @@
     } finally {
       button.disabled = false;
       button.removeAttribute('aria-busy');
-      button.textContent = 'Log in';
+      button.textContent = 'Sign in';
     }
   }
 

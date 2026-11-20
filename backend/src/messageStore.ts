@@ -94,6 +94,9 @@ function rowToConversation(row: ConversationRow): ConversationSummary {
  * insertion-order sequence numbers so pagination and unread counts remain
  * stable even when several messages share the same millisecond timestamp.
  */
+/** How often a typing rider tells the other rider, at most. */
+export const TYPING_EVENT_MIN_INTERVAL_MS = 3_000;
+
 export class MessageStore {
   async create(fromRiderId: string, toRiderId: string, text: string): Promise<DirectMessage> {
     await ensureMigrated();
@@ -111,6 +114,42 @@ export class MessageStore {
       );
       await appendSocialEventForRiders(client, [fromRiderId, toRiderId], 'message', fromRiderId, message.id, message.createdAt);
       return message;
+    });
+  }
+
+  /**
+   * Tells the recipient the sender is typing. At most one event per pair
+   * every TYPING_EVENT_MIN_INTERVAL_MS, so a fast typist doesn't flood the
+   * event log; returns whether one was written.
+   */
+  async signalTyping(fromRiderId: string, toRiderId: string, now = Date.now()): Promise<boolean> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      const { rows } = await client.query<{ recent: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM social_events
+            WHERE rider_id = $1 AND actor_id = $2 AND event_type = 'typing' AND created_at > $3
+         ) AS recent`,
+        [toRiderId, fromRiderId, now - TYPING_EVENT_MIN_INTERVAL_MS],
+      );
+      if (rows[0]?.recent) return false;
+      await appendSocialEventForRiders(client, [toRiderId], 'typing', fromRiderId, fromRiderId, now);
+      return true;
+    });
+  }
+
+  /** Deletes a message its sender wrote; both riders' chats refresh. */
+  async deleteOwn(riderId: string, messageId: string): Promise<boolean> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      const { rows } = await client.query<{ to_rider_id: string }>(
+        'DELETE FROM direct_messages WHERE id = $1 AND from_rider_id = $2 RETURNING to_rider_id',
+        [messageId, riderId],
+      );
+      const to = rows[0]?.to_rider_id;
+      if (!to) return false;
+      await appendSocialEventForRiders(client, [riderId, to], 'message', riderId, messageId);
+      return true;
     });
   }
 

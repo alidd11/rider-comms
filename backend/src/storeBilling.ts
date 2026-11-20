@@ -1,4 +1,5 @@
 import { createPrivateKey, createSign, sign as cryptoSign } from 'node:crypto';
+import { log } from './log.ts';
 import type { KeyObject } from 'node:crypto';
 import { tierForProductId } from '@rider-comms/shared';
 import type { BillingPlatform, PaidZoneTier } from '@rider-comms/shared';
@@ -283,7 +284,7 @@ export class GooglePlayVerifier implements StoreVerifier {
       // Acknowledged already (by the app) is fine; anything else is retried
       // on the next verify or sweep.
       if (!ack.ok && ack.status !== 400) {
-        console.error(JSON.stringify({ level: 'error', event: 'google_acknowledge_failed', status: ack.status }));
+        log('error', 'google_acknowledge_failed', { status: ack.status });
       }
     }
 

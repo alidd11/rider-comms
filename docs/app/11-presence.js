@@ -25,23 +25,21 @@
   let hudSpeedMps = null;
 
   /**
-   * The map's own chrome. Parked: a status chip under the search bar and a
-   * bottom bar with Report (small) and Go live (wide, labelled). Moving with
+   * The map's own chrome. Parked: a bottom bar with Report and a labelled
+   * Go live button that also counts riders nearby. Moving with
    * Ride Safe on (and not navigating, which has its own HUD): the riding
    * HUD replaces both, with speed, a group chip and two glove-sized buttons,
    * Mute and Hazard. The native MapScreen mirrors this.
    */
   function renderMapChrome() {
     const live = state.publicLive && state.profile.shareLocation;
-    const chip = $('#mapStatusChip');
-    if (chip) {
+    // Go live is an icon only; its colour says whether you're live, and its
+    // label tells screen readers how many riders are near. (A group ride has
+    // its own ride bar.)
+    const button = $('#joinNearbyBtn');
+    if (button) {
       const nearby = nearbyRiders.length;
-      chip.dataset.state = state.activeRide ? 'ride' : live ? 'live' : 'off';
-      $('#mapStatusText').textContent = state.activeRide
-        ? 'In a group ride'
-        : live
-          ? `Live on Nearby${nearby ? ` · ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}`
-          : 'Nearby off';
+      button.setAttribute('aria-label', live ? `Leave nearby${nearby ? `, ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}` : 'Go live nearby');
     }
     const hud = $('#ridingHud');
     if (!hud) return;

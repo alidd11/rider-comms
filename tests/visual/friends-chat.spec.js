@@ -403,3 +403,110 @@ test('PWA chat uses the body canvas and keeps its controls above the safe area',
   // No solid bar over the status bar on the map or chat.
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#chatScreen'), '::before').content)).toBe('none');
 });
+
+test('@viewport PWA puts the app back when iOS slides it up for a visible text box', async ({ page }) => {
+  await page.addInitScript(() => {
+    const listeners = { resize: new Set(), scroll: new Set() };
+    const viewport = {
+      height: window.innerHeight,
+      offsetTop: 0,
+      addEventListener(type, listener) { listeners[type]?.add(listener); },
+      removeEventListener(type, listener) { listeners[type]?.delete(listener); },
+    };
+    let rootScrollY = 0;
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport });
+    Object.defineProperty(window.navigator, 'standalone', { configurable: true, value: true });
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => rootScrollY });
+    // A real root pan moves the page's boxes up with it; model that so the
+    // app measures the field where WebKit has put it.
+    const pan = (value) => {
+      rootScrollY = value;
+      document.documentElement.style.transform = value ? `translateY(${-value}px)` : '';
+    };
+    window.scrollTo = (_x, y) => pan(typeof y === 'number' ? y : 0);
+    window.__setRiderTestRootScrollY = (value) => {
+      pan(value);
+      window.dispatchEvent(new Event('scroll'));
+    };
+    window.__setRiderTestVisualViewport = (height) => {
+      viewport.height = height;
+      listeners.resize.forEach((listener) => listener(new Event('resize')));
+    };
+  });
+  await mockAuthenticatedApi(page, 'stationary', () => null);
+  await page.goto('/#friends');
+  await page.locator('#addFriendToggle').click();
+  await page.locator('#friendId').focus();
+  // Keyboard opens and WebKit slides the whole app up, although the field sits
+  // near the top of the screen and would be visible anyway.
+  const fieldBottom = await page.locator('#friendId').evaluate((field) => field.getBoundingClientRect().bottom);
+  await page.evaluate((h) => window.__setRiderTestVisualViewport(h), Math.round(fieldBottom + 120));
+  await page.evaluate(() => window.__setRiderTestRootScrollY(180));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.locator('#friendId')).toBeFocused();
+
+  // After the keyboard closes, a slide WebKit leaves behind is undone too.
+  await page.evaluate(() => window.__setRiderTestRootScrollY(0));
+  await page.locator('#friendId').blur();
+  await page.evaluate(() => window.__setRiderTestRootScrollY(140));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('PWA chat shows when a friend is typing, and a long-press offers Copy and Delete', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
+  const typing = [];
+  const deleted = [];
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/messages' && request.method() === 'GET') return { body: { messages: [
+      { id: 'message-1', fromRiderId: 'rider_friend01', toRiderId: RIDER_ID, text: 'Meet at the petrol station?', createdAt: 1_700_000_000_000 },
+      { id: 'message-2', fromRiderId: RIDER_ID, toRiderId: 'rider_friend01', text: 'On my way', createdAt: 1_700_000_060_000 },
+    ], nextCursor: null, peerReadThroughMessageId: null } };
+    if (url.pathname === '/messages/typing') { typing.push(JSON.parse(request.postData() || '{}')); return { body: {} }; }
+    if (url.pathname.startsWith('/messages/message-') && request.method() === 'DELETE') { deleted.push(url.pathname); return { body: {} }; }
+    if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    return null;
+  });
+
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatMessages')).toContainText('On my way');
+
+  await page.locator('#chatInput').pressSequentially('Be there');
+  await expect.poll(() => typing).toEqual([{ toRiderId: 'rider_friend01' }]);
+
+  // The friend's bubble offers Copy only.
+  await page.locator('[data-message-id="message-1"] .chat-bubble').click({ button: 'right' });
+  await expect(page.locator('#chatBubbleMenu')).toBeVisible();
+  await expect(page.locator('[data-bubble-action="delete"]')).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#chatBubbleMenu')).toBeHidden();
+
+  // Your own bubble can be deleted.
+  await page.locator('[data-message-id="message-2"] .chat-bubble').click({ button: 'right' });
+  await page.locator('[data-bubble-action="delete"]').click();
+  await expect.poll(() => deleted).toEqual(['/messages/message-2']);
+  await expect(page.locator('#chatMessages')).not.toContainText('On my way');
+  await expect(page.locator('#chatMessages')).toContainText('Meet at the petrol station?');
+});
+
+test('PWA chat shows the friend typing when the signal arrives', async ({ page }) => {
+  let polls = 0;
+  await mockAuthenticatedApi(page, 'stationary', async ({ url }) => {
+    if (url.pathname === '/social/events' && url.searchParams.get('after') && url.searchParams.get('waitMs') !== '0') {
+      polls += 1;
+      if (polls >= 3) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return { body: { events: [{ cursor: `M${polls}`, type: 'typing', actorRiderId: 'rider_friend01', entityId: 'rider_friend01', createdAt: Date.now() }], cursor: `M${polls}`, hasMore: false } };
+      }
+    }
+    if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    return null;
+  });
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatScreen')).toBeVisible();
+  await expect(page.locator('#chatTyping')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#chatTyping')).toContainText('Maya is typing');
+});

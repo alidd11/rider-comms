@@ -74,6 +74,7 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             build > build.log 2>&1; then
+            grep -E 'Could not (GET|HEAD|resolve)|Received status code|status code [0-9]|SSL|timed out|Connection refused|Offline' build.log | head -n 20 || true
             tail -n 150 build.log
             errors="$(grep -E 'error:|fatal error|BUILD FAILED|The following build commands failed' build.log | sort -u | head -n 40)"
             echo "::error title=iOS build failed::${errors//$'\n'/%0A}"
@@ -192,6 +193,18 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      # Gradle's downloads (plugins, dependencies, its own distribution), kept
+      # between runs: the foojay toolchain plugin then comes from the cache
+      # instead of a Plugin Portal fetch that has failed on GitHub runners.
+      # Saved only after a successful build.
+      - name: Restore Gradle downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: gradle-${{ runner.os }}-
       - run: npm ci
       - name: Generate the native project
         working-directory: mobile
@@ -209,7 +222,33 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: https://backend-production-7fa0.up.railway.app
         run: |
-          if ! ./gradlew assembleRelease --no-daemon > build.log 2>&1; then
+          # Gradle occasionally fails before compilation when the Plugin Portal
+          # cannot resolve React Native's foojay toolchain plugin. Retry only
+          # that infrastructure failure; do not conceal Java/Kotlin failures.
+          # Gradle caches the miss, so retries refresh dependencies (without
+          # it each retry failed in seconds without asking the portal again),
+          # and they wait longer each time.
+          built=false
+          refresh=""
+          for attempt in 1 2 3 4; do
+            # The last try logs Gradle's HTTP exchanges, so a failure says why.
+            [ "$attempt" -eq 4 ] && refresh="$refresh --info"
+            if ./gradlew assembleRelease --no-daemon $refresh > build.log 2>&1; then
+              built=true
+              break
+            fi
+            if [ "$attempt" -lt 4 ] \
+              && grep -Fq "org.gradle.toolchains.foojay-resolver-convention" build.log \
+              && grep -Fq "was not found" build.log; then
+              portal="$(curl -sS -o /dev/null -w '%{http_code}' https://plugins.gradle.org/m2/org/gradle/toolchains/foojay-resolver-convention/org.gradle.toolchains.foojay-resolver-convention.gradle.plugin/1.0.0/org.gradle.toolchains.foojay-resolver-convention.gradle.plugin-1.0.0.pom || echo unreachable)"
+              echo "::warning::Gradle plugin resolution failed (Plugin Portal answered $portal); retrying Android build ($attempt/4)"
+              refresh="--refresh-dependencies"
+              sleep $((attempt * 30))
+            else
+              break
+            fi
+          done
+          if [ "$built" != true ]; then
             tail -n 150 build.log
             errors="$( (sed -n '/What went wrong/,/Try:/p' build.log; grep -E '^e: |error:' build.log) | head -n 40)"
             echo "::error title=Android build failed::${errors//$'\n'/%0A}"

@@ -4,17 +4,19 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RIDER_SOCIAL_URL } from '@rider-comms/shared';
 import { MenuScreen } from '../../src/screens/MenuScreen';
+import { ApiError } from '../../src/api/client';
 
 const mockSocialBootstrap = jest.fn<Promise<{ entitlement: string }>, []>();
 let mockActiveRide: object | null = null;
 let mockIncoming: unknown[] = [];
 let mockUnread = 0;
+let mockClient = { getSocialBootstrap: () => mockSocialBootstrap() };
 
 jest.mock('../../src/auth/AuthContext', () => ({
-  useAuth: () => ({ client: { getSocialBootstrap: () => mockSocialBootstrap() } }),
+  useAuth: () => ({ client: mockClient, riderId: 'rider_menu' }),
 }));
 jest.mock('../../src/settings/SettingsContext', () => ({
-  useSettings: () => ({ avatarId: 'helmet-teal', displayName: 'Ali', handle: '@ali', zoneTier: 'free' }),
+  useSettings: () => ({ avatarId: 'helmet-teal', displayName: 'Ali', handle: '@ali', zoneTier: 'free', unitSystem: 'mi' }),
 }));
 jest.mock('../../src/ride/RideContext', () => ({ useRide: () => ({ activeRide: mockActiveRide }) }));
 jest.mock('../../src/friends/FriendsContext', () => ({
@@ -39,6 +41,7 @@ async function renderMenu(nav = navigation()) {
 
 beforeEach(() => {
   mockSocialBootstrap.mockReset();
+  mockClient = { getSocialBootstrap: () => mockSocialBootstrap() };
   mockActiveRide = null;
   mockIncoming = [];
   mockUnread = 0;
@@ -55,6 +58,46 @@ test('lists Rider Social for a rider the server lets in, and opens it', async ()
 
 test('leaves Rider Social out when the server says no', async () => {
   mockSocialBootstrap.mockRejectedValue(new Error('social_beta_not_enabled'));
+  await renderMenu();
+  expect(screen.queryByLabelText(/Rider Social/)).toBeNull();
+});
+
+test('shows the last answer at once, keeps it offline and drops it on a refusal', async () => {
+  mockSocialBootstrap.mockResolvedValue({ entitlement: 'beta' });
+  await renderMenu();
+  await act(async () => { screen.unmount(); });
+
+  // Reopened while the check is still running: no flicker.
+  mockSocialBootstrap.mockReturnValue(new Promise(() => {}));
+  await renderMenu();
+  expect(screen.getByLabelText('Rider Social, Beta')).toBeTruthy();
+  await act(async () => { screen.unmount(); });
+
+  mockSocialBootstrap.mockRejectedValue(new TypeError('Network request failed'));
+  await renderMenu();
+  expect(screen.getByLabelText('Rider Social, Beta')).toBeTruthy();
+  await act(async () => { screen.unmount(); });
+
+  mockSocialBootstrap.mockRejectedValue(new ApiError(403, { error: 'social_beta_not_enabled' }));
+  await renderMenu();
+  expect(screen.queryByLabelText(/Rider Social/)).toBeNull();
+  await act(async () => { screen.unmount(); });
+
+  mockSocialBootstrap.mockReturnValue(new Promise(() => {}));
+  await renderMenu();
+  expect(screen.queryByLabelText(/Rider Social/)).toBeNull();
+});
+
+test('a refusal after the menu closed is still remembered', async () => {
+  mockSocialBootstrap.mockResolvedValue({ entitlement: 'beta' });
+  await renderMenu();
+  await act(async () => { screen.unmount(); });
+  let refuse: (error: unknown) => void = () => {};
+  mockSocialBootstrap.mockReturnValue(new Promise((_, reject) => { refuse = reject; }));
+  await renderMenu();
+  await act(async () => { screen.unmount(); });
+  await act(async () => { refuse(new ApiError(403, {})); });
+  mockSocialBootstrap.mockReturnValue(new Promise(() => {}));
   await renderMenu();
   expect(screen.queryByLabelText(/Rider Social/)).toBeNull();
 });
@@ -90,4 +133,15 @@ test('the rows go where they say, with Live and new counts', async () => {
   expect(nav.replace).toHaveBeenCalledWith('SettingsPage', { page: 'myProfile' });
   await fireEvent.press(screen.getByLabelText('Close menu'));
   expect(nav.goBack).toHaveBeenCalled();
+});
+
+test('the ride stats total the rides kept on this device', () => {
+  const { menuRideStats } = jest.requireActual('../../src/screens/MenuScreen') as typeof import('../../src/screens/MenuScreen');
+  expect(menuRideStats([], 'mi')).toEqual({ rides: '0', time: '0m', distance: '0', distanceLabel: 'Miles' });
+  const history = [
+    { endedAt: 2, durationMs: 5_400_000, riders: 3, distanceMeters: 86_000 },
+    { endedAt: 1, durationMs: 900_000, riders: 1, distanceMeters: null },
+  ];
+  expect(menuRideStats(history, 'km')).toEqual({ rides: '2', time: '1h 45m', distance: '86.0', distanceLabel: 'Kilometres' });
+  expect(menuRideStats(history.slice(1), 'mi').time).toBe('15m');
 });

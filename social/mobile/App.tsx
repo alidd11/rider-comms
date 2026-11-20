@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, ScrollView, StatusBar, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { C, s } from './src/styles';
+import { C, colorScheme, s } from './src/styles';
 import { rankForYou, rankFollowing, rankReels, rankClubs, rankEvents, rankMarketplace, explainReason, noViewer } from './src/recommendations';
 import type { Content, Viewer, Topic, RankReason } from './src/recommendations';
 import type { SocialPost } from './src/domain';
@@ -26,7 +26,8 @@ import { CommentsSheet } from './src/CommentsSheet';
 import type { CommentPreview } from './src/CommentsSheet';
 import { demoCreators, publicGallery } from './src/demoCreators';
 import { ProfileSummary } from './src/ProfileSummary';
-import { RiderBrandPage, RiderBrandHome, RiderBrandFeed } from './src/RiderBrandPage';
+import { RiderBrandPage, RiderBrandFeed } from './src/RiderBrandPage';
+import { BrandMark } from './src/BrandMark';
 import { RIDER_BRAND_ID, brandStories, brandReels } from './src/brandEditorial';
 import { ProfileEditor } from './src/ProfileEditor';
 import type { ProfileFields } from './src/profileFields';
@@ -147,8 +148,8 @@ function HomeEmpty({ onCreate, onReels, onMessages, live = false }: {
 }) {
   return <View testID="home-empty-onboarding" style={{
     marginHorizontal: 16, marginTop: 12, marginBottom: 10, padding: 20,
-    borderRadius: 22, backgroundColor: '#12171D', gap: 17,
-    borderWidth: 1, borderColor: '#232C33',
+    borderRadius: 22, backgroundColor: C.card, gap: 17,
+    borderWidth: 1, borderColor: C.border,
   }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
       <View style={{ width: 49, height: 49, borderRadius: 16,
@@ -197,12 +198,12 @@ function PreviewEmpty({ icon, heading, body, actionLabel, onAction, featured = f
   return (
     <View style={[s.empty, featured && {
       minHeight: 300, marginHorizontal: 15, marginTop: 13, paddingVertical: 39,
-      overflow: 'hidden', backgroundColor: '#12171D',
+      overflow: 'hidden', backgroundColor: C.card,
     }]}>
       {featured ? <View pointerEvents="none" style={{
         position: 'absolute', top: -88, right: -66,
         width: 225, height: 225, borderRadius: 113,
-        backgroundColor: '#193B35', opacity: 0.33,
+        backgroundColor: C.accentDark, opacity: 0.33,
       }}/> : null}
       <View style={{ width: featured ? 66 : 52, height: featured ? 66 : 52,
         borderRadius: featured ? 23 : 18, backgroundColor: C.accentDark,
@@ -243,10 +244,10 @@ function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next:
           aria-selected={tab.name === screen}
           accessibilityLabel={tab.name} style={s.tab} onPress={() => onNavigate(tab.name)}>
           {tab.name === 'Create' ? <View testID="social-create-tab-symbol" style={{
-            width: 49, height: 33, borderRadius: 11, backgroundColor: C.ink,
+            width: 49, height: 33, borderRadius: 11, backgroundColor: C.accent,
             alignItems: 'center', justifyContent: 'center',
           }}>
-            <Ionicons name="add" size={27} color={C.bg}/>
+            <Ionicons name="add" size={27} color={C.accentText}/>
           </View> : <Ionicons name={tab.name === screen ? tab.activeIcon : tab.icon} size={24}
             color={tab.name === screen ? C.ink : C.muted} />}
           <Text style={[s.tabLabel, tab.name === screen && { color: C.ink }]}>{tab.name}</Text>
@@ -262,7 +263,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const mediaHeight = Math.min(620, Math.max(330, Math.round(Math.min(screenWidth,620)*1.25)));
   const [screen, setScreen] = useState<Screen>('Home');
   const pageScrollEnabled = screen === 'Home' || screen === 'Clubs' || screen === 'Shop' || screen === 'Profile';
-  const [homeScope, setHomeScope] = useState<'for-you' | 'following'>('for-you');
   const [activePostMenu, setActivePostMenu] = useState<string | null>(null);
   const [expandedCaptionId, setExpandedCaptionId] = useState<string | null>(null);
   const [createMode, setCreateMode] = useState<'Post' | 'Story' | 'Reel'>('Post');
@@ -567,7 +567,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       <View style={s.feedActions}>
         <View style={[s.row,{gap:20}]}>
           <Pressable accessibilityRole="button" accessibilityLabel={liked.has(post.id) ? 'Unlike post' : 'Like post'} onPress={() => toggle(setLiked, post.id)}>
-            <Ionicons name={liked.has(post.id)?'heart':'heart-outline'} color={liked.has(post.id)?'#F18E99':C.ink} size={27}/>
+            <Ionicons name={liked.has(post.id)?'heart':'heart-outline'} color={liked.has(post.id)?C.danger:C.ink} size={27}/>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Open comments" onPress={() => openComments(post.id, post.heading)}><Ionicons name="chatbubble-outline" color={C.ink} size={25}/></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Share post" onPress={() => banner('Sharing is not live yet.')}><Ionicons name="paper-plane-outline" color={C.ink} size={25}/></Pressable>
@@ -600,7 +600,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     const creator = selectedCreator ? demoCreators[selectedCreator] : undefined;
     if (creator) return <View style={{ padding: 18, gap: 14 }}>
       <Pressable accessibilityRole="button" accessibilityLabel="Back to Home feed" onPress={() => setSelectedCreator(null)}>
-        <View style={s.row}><Ionicons name="arrow-back" size={22} color={C.ink}/><Text style={s.ghostText}>Feed</Text></View>
+        <View style={s.row}><Ionicons name="chevron-back" size={22} color={C.ink}/><Text style={s.ghostText}>Feed</Text></View>
       </Pressable>
       <View style={[s.card, s.pad, { gap: 15 }]}>
         <View style={s.row}>
@@ -640,8 +640,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         contentContainerStyle={s.storyRail}>
         <Pressable accessibilityRole="button" accessibilityLabel="Create story"
           style={s.storyItem} onPress={()=>{navigate('Create');setCreateMode('Story');}}>
-          <View style={[s.storyCircle, { borderColor: 'transparent' }]}>
-            <IdentityAvatar name={ownProfile?.displayName || identity.username} avatarId={ownProfile?.avatarId} size={54}/>
+          <View style={s.storyCircle}>
+            <IdentityAvatar name={ownProfile?.displayName || identity.username} avatarId={ownProfile?.avatarId} size={50}/>
             <View style={{ position: 'absolute', right: 0, bottom: 0, width: 21, height: 21,
               borderRadius: 11, borderWidth: 2, borderColor: C.bg, backgroundColor: C.ink,
               alignItems: 'center', justifyContent: 'center' }}>
@@ -655,16 +655,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           onPress={()=>setSelectedStory(story.id)} style={s.storyItem}>
           <View style={s.storyCircle}>{socialFixturesEnabled ? <Image source={{uri:story.imageUrl}}
             style={{width:54,height:54,borderRadius:27,backgroundColor:story.color}}/> :
-            <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: C.accentDark,
-              alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: C.accent, fontWeight: '900' }}>RC</Text>
-            </View>}</View>
+            <BrandMark size={54}/>}</View>
           <Text numberOfLines={1} style={[s.storyLabel, !socialFixturesEnabled && { fontSize: 10 }]}>{story.name}</Text>
         </Pressable>)}
       </ScrollView>
 
       {!socialFixturesEnabled ? <>
-        <LiveFeed client={client} riderId={identity.riderId} scope={homeScope} refreshKey={feedRefresh}
+        <LiveFeed client={client} riderId={identity.riderId} scope="for-you" refreshKey={feedRefresh}
           onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
           empty={<>
             <RiderBrandFeed onOpen={() => setBrandPageOpen(true)} />
@@ -673,7 +670,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               onReels={() => navigate('Reels')}
               onMessages={() => navigate('Messages')}/>
           </>}/>
-        <RiderBrandHome onOpen={() => setBrandPageOpen(true)} />
       </> : visiblePosts.length ? visiblePosts.map(({post,reason})=>renderPost(post,reason))
         : <HomeEmpty
             onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
@@ -699,7 +695,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     if (event) return (
       <>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to clubs and events" style={s.row} onPress={() => setSelectedEvent(null)}>
-          <Ionicons name="arrow-back" size={20} color={C.ink} /><Text style={s.ghostText}>Clubs & events</Text>
+          <Ionicons name="chevron-back" size={20} color={C.ink} /><Text style={s.ghostText}>Clubs & events</Text>
         </Pressable>
         <View style={s.card}>
           <View style={[s.media, { height: 175, backgroundColor: event.accent }]}>
@@ -724,7 +720,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     const club = demoClubs.find((item) => item.id === selectedClub);
     if (club) return (
       <>
-        <Pressable accessibilityRole="button" style={s.row} onPress={() => setSelectedClub(null)}><Ionicons name="arrow-back" size={20} color={C.ink} /><Text style={s.ghostText}>All clubs</Text></Pressable>
+        <Pressable accessibilityRole="button" style={s.row} onPress={() => setSelectedClub(null)}><Ionicons name="chevron-back" size={20} color={C.ink} /><Text style={s.ghostText}>All clubs</Text></Pressable>
         <View style={[s.card, s.pad, { gap: 15 }]}>
           <View style={{ height: 120, backgroundColor: club.accent, borderRadius: 14, justifyContent: 'center', alignItems: 'center' }}><Ionicons name="people" color="#ECFFF7" size={56} /></View>
           <Text style={s.title}>{club.name}</Text>
@@ -817,14 +813,6 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     if (settingsPage === 'feed') return <View testID="social-feed-preferences" style={{ gap: 18 }}>
       <SettingsHeader title="Feed preferences" backLabel="Back to settings" onBack={() => setSettingsPage('overview')}/>
       <Text style={s.body}>Choose what you see in your Home feed.</Text>
-        {!socialFixturesEnabled ? <View accessibilityRole="radiogroup" accessibilityLabel="Home feed" style={s.row}>
-          {([['for-you', 'Home'], ['following', 'Following']] as const).map(([value, label]) =>
-            <Pressable key={value} accessibilityRole="radio" aria-checked={homeScope === value} accessibilityState={{ checked: homeScope === value }}
-              onPress={() => setHomeScope(value)}
-              style={[s.ghost, { flex: 1, minHeight: 44, backgroundColor: homeScope === value ? C.accentDark : 'transparent' }]}>
-              <Text style={s.ghostText}>{label}</Text>
-            </Pressable>)}
-        </View> : null}
         {socialFixturesEnabled ? <>
         <View style={s.rowBetween}>
           <Text style={[s.body,{flex:1}]}>Personalised recommendations</Text>
@@ -840,12 +828,13 @@ function AuthenticatedSocialApp(): React.JSX.Element {
           {topics.map(({topic,label})=><Pill key={topic} label={label}
             selected={!hiddenTopics.has(topic)} onPress={()=>toggle(setHiddenTopics,topic)}/>)}
         </View>
-        </> : <Text style={s.small}>Following shows posts from your Rider Comms friends.</Text>}
+        </> : null}
     </View>;
     if (settingsPage === 'overview') return <SocialSettings username={identity.username}
       emailVerified={identity.emailVerified}
-      feedSummary={socialFixturesEnabled ? 'Recommendations and topics' : homeScope === 'following' ? 'Following' : 'Home'}
-      onOpenFeed={() => setSettingsPage('feed')}
+      // The live feed's For you and Following switch is on Home itself.
+      feedSummary={socialFixturesEnabled ? 'Recommendations and topics' : undefined}
+      onOpenFeed={socialFixturesEnabled ? () => setSettingsPage('feed') : undefined}
       onClose={() => setSettingsPage(null)}
       onClearDrafts={clearDeviceDrafts}
       onSignOut={logout}
@@ -891,7 +880,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         {profileTab === 'Saved' ? <View testID="profile-saved-reels" style={{ gap: 13, paddingVertical: 12 }}>
           <Text style={[s.sectionTitle, { fontSize: 20 }]}>Saved Reels</Text>
           <Text style={[s.small, { lineHeight: 19 }]}>
-            Only you can see these. They’re kept until you close the app.
+            Only you can see these. They clear when you close Social.
           </Text>
           {savedReelPreviews.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {savedReelPreviews.map(reel => <Pressable key={reel.id}
@@ -953,17 +942,17 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     <SafeAreaView nativeID="social-screen"
       edges={Platform.OS === 'web' ? [] : screen === 'Reels' && !story ? ['left', 'right'] : ['top', 'left', 'right']}
       style={s.safe}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={colorScheme === 'light' ? 'dark-content' : 'light-content'} />
       <View style={s.root}>
-        {!story && screen !== 'Reels' && screen !== 'Create' &&
-          !(screen === 'Profile' && (profileEditor || settingsPage)) ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
+        {/* Messages and Profile have their own title rows, so no top bar above them. */}
+        {!story && screen !== 'Reels' && screen !== 'Create' && screen !== 'Messages' && screen !== 'Profile' ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
           {screen === 'Home' ? <Pressable accessibilityRole="button"
             accessibilityLabel="Go to home"
             style={{ minHeight: 44, justifyContent: 'center' }}
             onPress={() => navigate('Home')}>
             <Text style={s.brandTitle}>Social<Text style={{ color: C.accent }}>.</Text></Text>
           </Pressable> : screen === 'Shop' || (screen === 'Clubs' && !socialFixturesEnabled) ?
-            <Text accessibilityRole="header" style={[s.cardHeading, { marginRight: 'auto' }]}>
+            <Text accessibilityRole="header" style={[s.title, { marginRight: 'auto' }]}>
               {screen === 'Shop' ? 'Shop' : 'Clubs & events'}
             </Text> : <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
           <View style={s.headerTools}>
@@ -973,7 +962,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
         </View> : null}
         {notice && screen !== 'Reels' ? (
           <Pressable style={s.notice} accessibilityRole="button" accessibilityLabel="Dismiss notice" onPress={() => setNotice(null)}>
-            <View style={s.rowBetween}><Text style={[s.body, { color: '#C4FFEC', flex: 1 }]}>{notice}</Text><Ionicons name="close" size={17} color={C.accent} /></View>
+            <View style={s.rowBetween}><Text style={[s.body, { color: C.ink, flex: 1 }]}>{notice}</Text><Ionicons name="close" size={17} color={C.accent} /></View>
           </Pressable>
         ) : null}
         {story ? (
@@ -1072,8 +1061,8 @@ class CreateRecoveryBoundary extends React.Component<
       <Pressable accessibilityRole="button" accessibilityLabel="Retry Create"
         onPress={() => this.setState({ failed: false })}
         style={{ minHeight: 46, paddingHorizontal: 26, borderRadius: 24,
-          backgroundColor: '#FFFFFF', justifyContent: 'center' }}>
-        <Text style={{ color: '#050709', fontWeight: '800' }}>Try again</Text>
+          backgroundColor: C.accent, justifyContent: 'center' }}>
+        <Text style={{ color: C.accentText, fontWeight: '800' }}>Try again</Text>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Return Home"
         onPress={this.props.onClose}
@@ -1103,22 +1092,22 @@ class SocialAppRecoveryBoundary extends React.Component<
   render() {
     if (!this.state.failed) return this.props.children;
     return <View testID="social-app-recovery" style={{
-      flex: 1, backgroundColor: '#080D13', justifyContent: 'center',
+      flex: 1, backgroundColor: C.bg, justifyContent: 'center',
       alignItems: 'center', gap: 17, paddingHorizontal: 28,
     }}>
-      <Ionicons name="alert-circle-outline" size={44} color="#FFFFFF"/>
-      <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800',
+      <Ionicons name="alert-circle-outline" size={44} color={C.ink}/>
+      <Text style={{ color: C.ink, fontSize: 22, fontWeight: '800',
         textAlign: 'center' }}>Social couldn't open this screen</Text>
-      <Text style={{ color: '#B4BBC4', fontSize: 14, lineHeight: 21,
+      <Text style={{ color: C.muted, fontSize: 14, lineHeight: 21,
         textAlign: 'center' }}>
         This screen encountered a problem. You can restart the Social app without
         deleting your account or local drafts.
       </Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Restart Social"
         onPress={() => this.setState({ failed: false })}
-        style={{ minHeight: 48, borderRadius: 25, backgroundColor: '#FFFFFF',
+        style={{ minHeight: 48, borderRadius: 25, backgroundColor: C.accent,
           paddingHorizontal: 26, justifyContent: 'center' }}>
-        <Text style={{ color: '#050709', fontWeight: '800' }}>Restart Social</Text>
+        <Text style={{ color: C.accentText, fontWeight: '800' }}>Restart Social</Text>
       </Pressable>
     </View>;
   }

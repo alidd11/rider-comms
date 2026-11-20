@@ -13,7 +13,10 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Polyline } from 'react-native-svg';
+import Svg, { Circle, Polyline as SvgPolyline } from 'react-native-svg';
+import MapView, { Marker, Polyline as MapPolyline } from 'react-native-maps';
+import { useAuth } from '../auth/AuthContext';
+import type { InAppNavigationRoute } from '../api/directions';
 import { colors, spacing, pressedFeedback } from '../theme';
 import { styles } from './CuratedRouteBrowser.styles';
 import { useSettings } from '../settings/SettingsContext';
@@ -35,6 +38,7 @@ import {
 } from './routeDiscovery';
 import { routeCardImageSource } from './routeCardAssets';
 import { routeCardImageUri, routeHeroImageUri } from './routeImages';
+import { hasUsableRoadPreview, roadPreviewDiffersFromReviewedDistance } from './routePreview';
 
 async function openExternalUrl(url: string, failureMessage: string): Promise<void> {
   try {
@@ -86,7 +90,7 @@ function RouteTrace({ route, width = 132, height = 76 }: { route: CuratedRoute; 
   return (
     <View style={[styles.routeTrace, { width, height }]}>
       <Svg width={width} height={height} accessibilityLabel={`Route shape for ${route.name}`}>
-        <Polyline points={points} fill="none" stroke={colors.accent} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+        <SvgPolyline points={points} fill="none" stroke={colors.accent} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
         <Circle cx={start[0]} cy={start[1]} r={4.5} fill={colors.textPrimary} />
         <Circle cx={end[0]} cy={end[1]} r={5.5} fill={colors.accent} />
       </Svg>
@@ -99,13 +103,20 @@ function RouteOverview({
   riderLocation,
   onClose,
   onGuideToStart,
+  onNavigateFullRoute,
 }: {
   route: CuratedRoute | null;
   riderLocation: RiderCoordinate | null;
   onClose: () => void;
   onGuideToStart: (route: CuratedRoute) => void;
+  onNavigateFullRoute: (route: CuratedRoute) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { client } = useAuth();
+  const { routeAvoidance } = useSettings();
+  const [roadPreview, setRoadPreview] = React.useState<InAppNavigationRoute | null>(null);
+  const [previewStatus, setPreviewStatus] = React.useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const previewMapRef = React.useRef<MapView | null>(null);
   const [imageFailed, setImageFailed] = React.useState(false);
   const heroImageUri = route ? routeHeroImageUri(route.image.uri) : '';
   const [showHeroImage, setShowHeroImage] = React.useState(false);
@@ -123,8 +134,39 @@ function RouteOverview({
     return () => { active = false; };
   }, [route?.id, heroImageUri]);
 
+  // Calculate on opening the detail only, never once per discovery card.
+  // Do not update a closed modal if the provider responds after selection changes.
+  React.useEffect(() => {
+    let active = true;
+    setRoadPreview(null);
+    setPreviewStatus('loading');
+    if (!route) return undefined;
+    void client.getDrivingRoute(
+      route.start,
+      route.end,
+      routeAvoidance,
+      undefined,
+      route.waypoints,
+    ).then((result) => {
+      if (!active) return;
+      if (!hasUsableRoadPreview(result)) {
+        setPreviewStatus('unavailable');
+        return;
+      }
+      setRoadPreview(result);
+      setPreviewStatus('ready');
+    }).catch(() => {
+      if (active) setPreviewStatus('unavailable');
+    });
+    return () => { active = false; };
+  }, [client, route, routeAvoidance.highways, routeAvoidance.tolls, routeAvoidance.ferries]);
+
   if (!route) return null;
 
+  const roadCoordinates = roadPreview?.coordinates.map(({ lat, lon }) => ({ latitude: lat, longitude: lon })) ?? [];
+  const distanceDiffers = roadPreview
+    ? roadPreviewDiffersFromReviewedDistance(route.distanceMiles, roadPreview.distanceMeters)
+    : false;
   const credit = `${route.image.author} · ${route.image.licenseName}`;
   const approach = riderLocation ? formatApproachDistance(distanceMilesToRouteStart(route, riderLocation)) : null;
 
@@ -163,27 +205,98 @@ function RouteOverview({
           <View style={styles.overviewBody}>
             <View style={styles.metaStrip}>
               <MetaItem icon="navigate-outline" value={`${route.distanceMiles} mi`} label="Route" />
-              <MetaItem icon="time-outline" value={`${route.estimatedDurationMinutes} min`} label="Ride time*" />
+              <MetaItem icon="time-outline" value={`${route.estimatedDurationMinutes} min`} label="Travel time*" />
               <MetaItem icon="speedometer-outline" value={route.difficulty} label="Difficulty" />
               {approach ? <MetaItem icon="locate-outline" value={approach.replace(' from you', '')} label="To start" /> : null}
             </View>
 
-            <View style={styles.tracePanel}>
-              <View style={styles.traceCopy}>
-                <Text style={styles.sectionTitle}>Route shape</Text>
-                <Text style={styles.traceText}>{route.start.label} → {route.end.label}</Text>
-                <Text style={styles.traceTextMuted}>{route.waypoints.length ? `${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}` : 'Direct route'}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}
+              onPress={() => {
+                onClose();
+                onNavigateFullRoute(route);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Navigate the complete ${route.name} itinerary in Rider Comms`}
+            >
+              <Ionicons name="navigate" size={19} color={colors.accentText} />
+              <Text style={styles.primaryButtonText}>Navigate full route</Text>
+            </Pressable>
+            <Text style={styles.estimateNote}>Through the start, {route.waypoints.length} planned {route.waypoints.length === 1 ? 'stop' : 'stops'} and the finish, in order.</Text>
+
+            {previewStatus === 'ready' && roadPreview && roadCoordinates.length >= 2 ? (
+              <View style={styles.roadPreviewPanel}>
+                <Text style={styles.sectionTitle}>Road-following preview</Text>
+                <View style={styles.roadPreviewMap} accessibilityLabel={`Map preview of ${route.name} following the calculated roads and planned stops`}>
+                  <MapView
+                    ref={previewMapRef}
+                    style={styles.roadPreviewMapFill}
+                    initialRegion={{
+                      latitude: route.start.lat, longitude: route.start.lon,
+                      latitudeDelta: 0.3, longitudeDelta: 0.3,
+                    }}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    rotateEnabled={false}
+                    pitchEnabled={false}
+                    toolbarEnabled={false}
+                    onMapReady={() => previewMapRef.current?.fitToCoordinates(roadCoordinates, {
+                      edgePadding: { top: 28, right: 28, bottom: 28, left: 28 },
+                      animated: false,
+                    })}
+                  >
+                    <MapPolyline coordinates={roadCoordinates} strokeColor="#4285F4" strokeWidth={5} />
+                    <Marker
+                      coordinate={{ latitude: route.start.lat, longitude: route.start.lon }}
+                      title={`Start: ${route.start.label}`}
+                      pinColor={colors.accent}
+                    />
+                    <Marker
+                      coordinate={{ latitude: route.end.lat, longitude: route.end.lon }}
+                      title={`Finish: ${route.end.label}`}
+                    />
+                  </MapView>
+                </View>
+                <Text style={styles.previewInfo}>
+                  {Math.round(roadPreview.distanceMeters / 1609.344)} mi · {Math.ceil(roadPreview.durationSeconds / 60)} min calculated drive · {route.waypoints.length} planned stops
+                </Text>
+                {distanceDiffers ? (
+                  <Text style={styles.previewWarning}>Calculated distance differs from the reviewed route. Check the roads before riding.</Text>
+                ) : null}
+                <Text style={styles.traceTextMuted}>Roads calculated through the planned stops. Traffic and road choices may change when navigation begins.</Text>
               </View>
-              <RouteTrace route={route} width={156} height={88} />
+            ) : (
+              <View style={styles.tracePanel}>
+                <View style={styles.traceCopy}>
+                  <Text style={styles.sectionTitle}>Waypoint sketch</Text>
+                  <Text style={styles.traceText}>{route.start.label} → {route.end.label}</Text>
+                  <Text style={styles.traceTextMuted}>{route.waypoints.length ? `${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}` : 'Direct route'}</Text>
+                  <Text style={styles.traceTextMuted}>{previewStatus === 'loading' ? 'Calculating a road preview…' : 'Road preview unavailable. Illustration only.'}</Text>
+                </View>
+                <RouteTrace route={route} width={156} height={88} />
+              </View>
+            )}
+
+            <View style={styles.itinerary}>
+              <Text style={styles.sectionTitle}>Route itinerary</Text>
+              {[route.start, ...route.waypoints, route.end].map((point, index, points) => (
+                <View key={`${index}-${point.lat}-${point.lon}`} style={styles.itineraryRow}>
+                  <View style={styles.itineraryIndex}><Text style={styles.itineraryIndexText}>{index === 0 ? 'S' : index === points.length - 1 ? 'F' : index}</Text></View>
+                  <View style={styles.itineraryCopy}>
+                    <Text style={styles.itineraryLabel}>{point.label}</Text>
+                    <Text style={styles.itineraryType}>{index === 0 ? 'Start' : index === points.length - 1 ? 'Finish' : `Stop ${index} of ${route.waypoints.length}`}</Text>
+                  </View>
+                </View>
+              ))}
             </View>
 
             <Text style={styles.overviewDescription}>{route.description}</Text>
             <View style={styles.riderNote}>
-              <MaterialCommunityIcons name="motorbike" size={22} color={colors.accent} />
+              <MaterialCommunityIcons name="map-marker-path" size={22} color={colors.accent} />
               <Text style={styles.riderNoteText}>{route.riderNote}</Text>
             </View>
 
-            <Text style={styles.sectionTitle}>Why ride it</Text>
+            <Text style={styles.sectionTitle}>Highlights</Text>
             <View style={styles.tagRow}>
               <View style={styles.highlightTag}><Text style={styles.highlightText}>{ROAD_TYPE_LABELS[route.roadType]}</Text></View>
               {route.highlights.map((highlight) => (
@@ -191,7 +304,7 @@ function RouteOverview({
               ))}
             </View>
 
-            <Text style={styles.sectionTitle}>Plan before you ride</Text>
+            <Text style={styles.sectionTitle}>Before you go</Text>
             <View style={styles.noticeList}>
               {route.safetyNotices.map((notice) => (
                 <View key={notice} style={styles.noticeRow}>
@@ -202,16 +315,16 @@ function RouteOverview({
             </View>
 
             <Pressable
-              style={({ pressed }) => [styles.primaryButton, pressed && pressedFeedback]}
+              style={({ pressed }) => [styles.secondaryButton, pressed && pressedFeedback]}
               onPress={() => {
                 onClose();
                 onGuideToStart(route);
               }}
               accessibilityRole="button"
-              accessibilityLabel={`Guide me to the start of ${route.name} in Rider Comms`}
+              accessibilityLabel={`Navigate only to the start of ${route.name}`}
             >
-              <Ionicons name="navigate" size={19} color={colors.accentText} />
-              <Text style={styles.primaryButtonText}>Guide me to the start</Text>
+              <Ionicons name="flag-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.secondaryButtonText}>Directions to starting point</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.secondaryButton, pressed && pressedFeedback]}
@@ -219,9 +332,9 @@ function RouteOverview({
               accessibilityRole="button"
             >
               <MaterialCommunityIcons name="map-marker-path" size={19} color={colors.textPrimary} />
-              <Text style={styles.secondaryButtonText}>Open full route in Maps</Text>
+              <Text style={styles.secondaryButtonText}>Preview in Google Maps</Text>
             </Pressable>
-            <Text style={styles.estimateNote}>*Ride time is an estimate without stops or traffic.</Text>
+            <Text style={styles.estimateNote}>*Travel time is an estimate without stops or traffic.{route.waypoints.length > 3 ? ' Google Maps may omit some waypoints on mobile; confirm each stop before riding.' : ''}</Text>
 
             <View style={styles.sourceBlock}>
               <Text style={styles.sectionTitle}>Sources & image rights</Text>
@@ -251,11 +364,13 @@ function CuratedRouteCard({
   width,
   index,
   onPress,
+  approach,
 }: {
   route: CuratedRoute;
   width: number;
   index: number;
   onPress: () => void;
+  approach: string | null;
 }) {
   const [imageFailed, setImageFailed] = React.useState(false);
   const [highResolutionReady, setHighResolutionReady] = React.useState(false);
@@ -310,8 +425,9 @@ function CuratedRouteCard({
         <View style={styles.cardImageShade} />
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{route.name}</Text>
+        <Text style={styles.cardTitle} numberOfLines={2}>{route.name}</Text>
         <Text style={styles.cardRegion} numberOfLines={1}>{route.region}</Text>
+        {approach ? <Text style={styles.cardApproach}>{approach === 'Start is here' ? 'At route start' : `Approx. ${approach.replace(' from you', ' to start')} · straight line`}</Text> : null}
         <View style={styles.cardStats}>
           <View style={styles.cardStatItem}><Ionicons name="navigate-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.distanceMiles} mi</Text></View>
           <View style={styles.cardStatItem}><Ionicons name="speedometer-outline" size={11} color={colors.textMuted} /><Text style={styles.cardStat}>{route.difficulty[0].toUpperCase() + route.difficulty.slice(1)}</Text></View>
@@ -333,12 +449,14 @@ export function CuratedRouteBrowser({
   category,
   query,
   onGuideToStart,
+  onNavigateFullRoute,
 }: {
   rideWindow: RideWindow;
   riderLocation: RiderCoordinate | null;
   category: RouteCategory;
   query: string;
   onGuideToStart: (route: CuratedRoute) => void;
+  onNavigateFullRoute: (route: CuratedRoute) => void;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
   const [selectedRoute, setSelectedRoute] = React.useState<CuratedRoute | null>(null);
@@ -358,7 +476,7 @@ export function CuratedRouteBrowser({
     <>
       <View style={styles.cardGrid}>
         {routes.map((route, index) => (
-          <CuratedRouteCard key={route.id} route={route} width={cardWidth} index={index} onPress={() => setSelectedRoute(route)} />
+          <CuratedRouteCard key={route.id} route={route} width={cardWidth} index={index} approach={category === 'near' && riderLocation ? formatApproachDistance(distanceMilesToRouteStart(route, riderLocation)) : null} onPress={() => setSelectedRoute(route)} />
         ))}
       </View>
       {routes.length === 0 ? (
@@ -385,6 +503,7 @@ export function CuratedRouteBrowser({
         riderLocation={riderLocation}
         onClose={() => setSelectedRoute(null)}
         onGuideToStart={onGuideToStart}
+        onNavigateFullRoute={onNavigateFullRoute}
       />
     </>
   );

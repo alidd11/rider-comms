@@ -71,6 +71,13 @@ export function ScenicRoutesScreen(): React.JSX.Element {
     }
   }, [riderLocation]);
 
+  const navigateFullRoute = React.useCallback((route: CuratedRoute) => {
+    navigation.navigate('Tabs', {
+      screen: 'Map',
+      params: { segment: 'public', at: Date.now(), curatedRouteId: route.id },
+    });
+  }, [navigation]);
+
   const guideToStart = React.useCallback((route: CuratedRoute) => {
     // Routes is a stack screen opened from the menu; the map lives in Tabs.
     navigation.navigate('Tabs', {
@@ -81,6 +88,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
         lat: route.start.lat,
         lon: route.start.lon,
         label: `${route.name} start`,
+        curatedRouteId: undefined,
       },
     });
   }, [navigation]);
@@ -159,6 +167,7 @@ export function ScenicRoutesScreen(): React.JSX.Element {
           category={category}
           query={query}
           onGuideToStart={guideToStart}
+          onNavigateFullRoute={navigateFullRoute}
         />
       </ScrollView>
     </View>
@@ -195,6 +204,6 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.accent },
   chipPressed: { opacity: 0.7 },
-  chipText: { ...type.body, color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
+  chipText: { ...type.body, color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
   chipTextActive: { color: colors.accentText },
 });

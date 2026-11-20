@@ -75,19 +75,25 @@ test('PWA map has compact Report and Go live buttons when parked and a glanceabl
   await mockAuthenticatedApi(page, 'recovering');
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
-  await expect(page.locator('#mapStatusText')).toHaveText('Nearby off');
+  // No separate status chip: the Go live button is the one place that says it.
+  await expect(page.locator('#mapStatusChip')).toHaveCount(0);
   const live = page.locator('#joinNearbyBtn');
   await expect(live).toBeVisible();
+  // An icon only, no words.
+  await expect(live).toHaveText('');
   await expect(live).toHaveAccessibleName('Go live nearby');
   const [liveBox, hazardBox, locateBox] = await Promise.all([live.boundingBox(), page.locator('#reportHazardBtn').boundingBox(), page.locator('#locateBtn').boundingBox()]);
   // One compact size for all three, above the touch minimum, so the map
   // stays the main thing: Report bottom-left, Go live bottom-right with
   // Centre on me above it.
-  for (const box of [liveBox, hazardBox, locateBox]) {
+  for (const box of [hazardBox, locateBox]) {
     expect(box.width).toBeGreaterThanOrEqual(48);
     expect(box.width).toBeLessThanOrEqual(56);
     expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(1);
   }
+  // Go live is the same square as the others.
+  expect(Math.abs(liveBox.height - hazardBox.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(liveBox.width - liveBox.height)).toBeLessThanOrEqual(1);
   expect(hazardBox.x).toBeLessThan(liveBox.x - 150);
   expect(Math.abs((locateBox.x + locateBox.width) - (liveBox.x + liveBox.width))).toBeLessThanOrEqual(2);
   expect(locateBox.y + locateBox.height).toBeLessThanOrEqual(liveBox.y);
@@ -208,18 +214,18 @@ test('PWA map drawer opens Group Ride and keeps saved-place and petrol shortcuts
   await expect(drawer).toHaveAttribute('data-state', 'open');
   await expect(handle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#mapDrawerRecent')).toContainText('Ace Cafe London');
-  // Pulled up, it reaches to just below the avatar and the Nearby chip,
+  // Pulled up, it reaches to just below the avatar,
   // leaving room under recent places for more. (A landscape phone is too
   // short for both: the open drawer keeps a usable minimum height there.)
   const viewport = page.viewportSize();
   if (viewport.height > viewport.width) await expect.poll(async () => {
     const [drawerTop, chipBottom] = await Promise.all([
       drawer.evaluate((element) => element.getBoundingClientRect().top),
-      page.locator('#mapStatusChip').evaluate((element) => element.getBoundingClientRect().bottom),
+      page.locator('.map-avatar-wrap').evaluate((element) => element.getBoundingClientRect().bottom),
     ]);
     return drawerTop - chipBottom;
   }).toBeLessThanOrEqual(40);
-  if (viewport.height > viewport.width) expect(await drawer.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThan(await page.locator('#mapStatusChip').evaluate((element) => element.getBoundingClientRect().bottom));
+  if (viewport.height > viewport.width) expect(await drawer.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThan(await page.locator('.map-avatar-wrap').evaluate((element) => element.getBoundingClientRect().bottom));
   await expect(page.locator('#ridePill')).toBeHidden();
 
   // A recent place puts it on the map; the drawer steps aside for its card
@@ -453,6 +459,9 @@ test('PWA voice search: the mic fills the search box, and stays hidden without s
     return { body: { suggestions: [{ id: 'place-ace', name: 'Ace Cafe London', address: 'North Circular Road, London' }] } };
   });
   await page.goto('/');
+  // Wait for the app before tapping: under load the tap landed before the
+  // search bar's handler was attached, and the search screen never opened.
+  await expect(page.locator('#mapDrawer')).toBeVisible();
   await page.locator('#mapSearchSlot').click();
   const mic = page.locator('#searchScreenVoice');
   await expect(mic).toBeVisible();

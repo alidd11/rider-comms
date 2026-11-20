@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { AccessibilityInfo, ActivityIndicator, BackHandler, View, Text, Pressable, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, BackHandler, View, Text, Pressable, Alert, Linking, Share, useColorScheme, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -35,7 +35,7 @@ import { useFriends } from '../friends/FriendsContext';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
 import { HazardDetailCard } from '../components/HazardDetailCard';
-import { useNavigationLiveActivity } from './useNavigationLiveActivity';
+import { useNavigationLiveActivity, useRideLiveActivity } from './useNavigationLiveActivity';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -48,10 +48,10 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
 import { RidingHud } from './RidingHud';
-import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
+import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
@@ -59,6 +59,8 @@ import { StopsOnTheWaySheet } from './StopsOnTheWaySheet';
 import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
 import { useInAppNavigation } from './useInAppNavigation';
+import { haptics } from '../haptics';
+import { CURATED_ROUTES } from '../routes/curatedRoutes';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
 const DEFAULT_REGION = {
@@ -208,12 +210,8 @@ export function MapScreen(): React.JSX.Element {
   // (PWA: isDarkOutside at map start). Re-checked each minute so the map
   // turns dark mid-ride. Without a fix, the time zone gives the longitude.
   const darkOutside = useDarkOutside(currentLocation);
-  // Parked map status (PWA: renderMapChrome) and the riding HUD's speed.
-  const mapStatusText = activeRide
-    ? 'In a group ride'
-    : publicLive
-      ? `Live on Nearby${ridersInZone.length ? ` · ${ridersInZone.length} ${ridersInZone.length === 1 ? 'rider' : 'riders'} nearby` : ''}`
-      : 'Nearby off';
+  // Riders near you, for the Go live button's spoken label (PWA: renderMapChrome).
+  const nearbyCount = ridersInZone.length;
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
 
   const hasCurrentLocation = currentLocation !== null;
@@ -254,6 +252,7 @@ export function MapScreen(): React.JSX.Element {
     navigationFollowing,
     navigationSpeedMps,
     navigationPuck,
+    navigationRouteLine,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,
@@ -261,6 +260,8 @@ export function MapScreen(): React.JSX.Element {
     navigationArrival,
     dismissNavigationArrival,
     startInAppNavigation,
+    startCuratedNavigation,
+    curatedRemainingStops,
     stopFollowingRoute,
     resumeFollowingRoute,
     routeChoices: navigationRouteChoices,
@@ -363,6 +364,19 @@ export function MapScreen(): React.JSX.Element {
   }, [route.params?.at, route.params?.label, route.params?.lat, route.params?.lon]);
 
   React.useEffect(() => {
+    const id = route.params?.curatedRouteId;
+    if (!id) return;
+    const curated = CURATED_ROUTES.find((item) => item.id === id);
+    // Consume the one-shot selection. Otherwise later Map tab presses could
+    // accidentally restart the previous scenic route.
+    navigation.setParams({ curatedRouteId: undefined });
+    if (curated) void startCuratedNavigation(curated);
+    else Alert.alert('Route unavailable', 'The selected scenic route is no longer in the reviewed catalogue.');
+    // A new selection supplies an `at` nonce even if the Map tab is already mounted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.at, route.params?.curatedRouteId]);
+
+  React.useEffect(() => {
     if (!mapReady || segment !== 'public') return;
     const target = navigationTarget ?? selectedPlace;
     if (target) focusCoordinate(target);
@@ -408,6 +422,19 @@ export function MapScreen(): React.JSX.Element {
     : `Open in ${navigationProviderLabel(navigationProvider)}`;
 
   const navigationArrivalLabel = new Date(Date.now() + remainingNavigationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // The trip card's expanded half: parked only (Ride Safe leaves it out).
+  const tripDetails = React.useMemo(() => (activeRoute && !lockedForSafety ? {
+    upcomingSteps: activeRoute.steps.slice(navigationStepIndex + 1),
+    destinationLabel: navigationDestination?.label ?? '',
+    onAddStop: () => setStopsSheetOpen(true),
+    onShareEta: () => {
+      const message = navigationEtaShareText(navigationDestination?.label ?? '', navigationArrivalLabel, remainingNavigationMeters, unitSystem);
+      void Share.share({ message }).then(() => haptics.success()).catch(() => undefined);
+    },
+  } : undefined), [activeRoute, lockedForSafety, navigationStepIndex, navigationDestination, navigationArrivalLabel, remainingNavigationMeters, unitSystem]);
+  useRideLiveActivity(activeRide && !activeRoute
+    ? { riderCount: roster.length, code: activeRide.code, regroupLabel: regroup?.label }
+    : null);
   useNavigationLiveActivity(
     activeRoute && currentNavigationStep
       ? {
@@ -482,6 +509,10 @@ export function MapScreen(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rideLocations, activeRide?.rideId]);
 
+  const routeLineCoordinates = React.useMemo(
+    () => navigationRouteLine?.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon })) ?? null,
+    [navigationRouteLine],
+  );
   const maneuverArrowPath = React.useMemo(() => {
     if (!activeRoute) return null;
     const arrow = navigationManeuverArrow(
@@ -686,15 +717,23 @@ export function MapScreen(): React.JSX.Element {
                 pinColor={colors.accent}
               />
             )}
-            {activeRoute && (
+            {activeRoute && routeLineCoordinates && (
               <>
+                {curatedRemainingStops.map((stop, index) => (
+                  <Marker
+                    key={`curated-stop-${index}-${stop.lat}-${stop.lon}`}
+                    coordinate={{ latitude: stop.lat, longitude: stop.lon }}
+                    title={`Planned stop ${index + 1}: ${stop.label}`}
+                    pinColor={colors.accent}
+                  />
+                ))}
                 <Polyline
-                  coordinates={activeRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon }))}
+                  coordinates={routeLineCoordinates}
                   strokeColor="#174EA6"
                   strokeWidth={10}
                 />
                 <Polyline
-                  coordinates={activeRoute.coordinates.map((coordinate) => ({ latitude: coordinate.lat, longitude: coordinate.lon }))}
+                  coordinates={routeLineCoordinates}
                   strokeColor="#4285F4"
                   strokeWidth={6}
                 />
@@ -781,26 +820,13 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !lockedForSafety && !activeRoute && !error && (
-        <View
-          style={[styles.mapStatusChip, { top: insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm }]}
-          accessible
-          accessibilityRole="text"
-          accessibilityLabel={mapStatusText}
-          testID="map-status-chip"
-        >
-          <View style={[styles.mapStatusDot, activeRide ? styles.mapStatusDotRide : publicLive ? styles.mapStatusDotLive : null]} />
-          <Text style={styles.mapStatusText} numberOfLines={1}>{mapStatusText}</Text>
-        </View>
-      )}
-
       {segment === 'public' && regroup && !activeRoute && !selectedDestination && !selectedHazard && (
         <RegroupChip
           point={regroup}
           from={currentLocation}
           unitSystem={unitSystem}
-          // Under the Nearby status chip, which hides while riding.
-          top={insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm + (lockedForSafety || error ? 0 : 38)}
+          // Under the avatar and menu row.
+          top={insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm}
           onPress={showRegroupPoint}
         />
       )}
@@ -843,10 +869,13 @@ export function MapScreen(): React.JSX.Element {
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.mapLiveButton, publicLive && styles.mapLiveButtonActive, pressed && styles.mapActionButtonPressed]}
-            onPress={() => void handleNearbyToggle()}
+            onPress={() => {
+              haptics.tap();
+              void handleNearbyToggle();
+            }}
             accessibilityRole="switch"
             accessibilityState={{ checked: publicLive, busy: nearbyTogglePending, disabled: nearbyTogglePending }}
-            accessibilityLabel={publicLive ? 'Leave nearby' : 'Go live nearby'}
+            accessibilityLabel={publicLive ? `Leave nearby${nearbyCount ? `, ${nearbyCount} ${nearbyCount === 1 ? 'rider' : 'riders'} nearby` : ''}` : 'Go live nearby'}
             accessibilityHint={publicLive ? 'Stops sharing your nearby presence' : 'Shows you to nearby riders and turns on Nearby Voice'}
             disabled={nearbyTogglePending}
             testID="go-live-button"
@@ -854,7 +883,7 @@ export function MapScreen(): React.JSX.Element {
             {nearbyTogglePending ? (
               <ActivityIndicator color={publicLive ? '#04210F' : '#04161D'} />
             ) : (
-              <NearbyRidersIcon size={26} color={publicLive ? '#04210F' : '#04161D'} />
+              <NearbyRidersIcon size={24} color={publicLive ? '#04210F' : '#04161D'} />
             )}
           </Pressable>
         </View>
@@ -962,13 +991,22 @@ export function MapScreen(): React.JSX.Element {
             roadAlerts={navigationRoadAlerts}
             notice={navigationNotice}
             onHeight={setNavigationBannerHeight}
-            onEnd={() => finishInAppNavigation(false)}
           />
-          <NavigationSpeedBadge
-            top={insets.top + spacing.sm + navigationBannerHeight + spacing.sm}
-            navigationSpeedMps={navigationSpeedMps}
-            unitSystem={unitSystem}
-          />
+          {/* Bottom-left, as in Google Maps: Re-centre once the map has been
+              moved, otherwise the speedometer (hidden while route choices
+              are offered, which only happens parked). */}
+          {!navigationFollowing ? (
+            <NavigationRecentreButton
+              bottom={navigationSummaryHeight + spacing.md}
+              onPress={() => void centreOnCurrentLocation()}
+            />
+          ) : lockedForSafety || navigationRouteChoices.length <= 1 ? (
+            <NavigationSpeedBadge
+              bottom={navigationSummaryHeight + spacing.md}
+              navigationSpeedMps={navigationSpeedMps}
+              unitSystem={unitSystem}
+            />
+          ) : null}
           <NavigationTripSummary
             bottomPadding={Math.max(insets.bottom, spacing.sm)}
             arrivalLabel={navigationArrivalLabel}
@@ -981,6 +1019,8 @@ export function MapScreen(): React.JSX.Element {
             chosenRouteIndex={chosenRouteIndex}
             onChooseRoute={chooseRoute}
             trafficText={activeRoute ? routeTrafficDelayText(activeRoute.durationSeconds, activeRoute.typicalDurationSeconds) : ''}
+            onEnd={() => finishInAppNavigation(false)}
+            tripDetails={tripDetails}
           />
         </NavigationNightContext.Provider>
       )}

@@ -1,8 +1,9 @@
-// Rider Comms staff dashboard: business overview, riders, moderation and
-// system health. Uses the PWA's own sign-in on this origin (same session
-// storage key), so staff sign in to the app in this browser first. The
-// backend re-checks admin status on every /admin and /moderation request;
-// this page only decides what to show.
+// Rider Comms staff dashboard: business overview, riders, moderation, the
+// audit log, staff roles and system health. Uses the PWA's own sign-in on
+// this origin (same session storage key), so staff sign in to the app in this
+// browser first. Each staff member has one role (admin, moderator, support or
+// analyst; backend/src/staffRoles.ts). The backend re-checks the role on
+// every /admin and /moderation request; this page only decides what to show.
 //
 // Rider-supplied text (names, report details, notes) is only ever inserted
 // with textContent, never parsed as HTML.
@@ -12,8 +13,34 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'riders', 'moderation', 'system'];
-  const VIEW_TITLES = { overview: 'Overview', riders: 'Riders', moderation: 'Moderation', system: 'System' };
+  const VIEWS = ['overview', 'riders', 'moderation', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', riders: 'Riders', moderation: 'Moderation', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', riders: 'view_riders', moderation: 'moderate', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  /** Ready-made reasons staff can start a note from; they can edit before saving. */
+  const NOTE_TEMPLATES = {
+    dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
+    suspend: ['Harassment of other riders.', 'Spam or scam messages.', 'Sexual content sent without consent.', 'Dangerous riding encouraged or shown.'],
+  };
+  const SUSPENSION_LENGTHS = [['1', '1 day'], ['7', '7 days'], ['30', '30 days'], ['', 'No end date']];
+  const ROLE_LABELS = { admin: 'Admin', moderator: 'Moderator', support: 'Support', analyst: 'Analyst' };
+  const ROLE_TONES = { admin: 'accent', moderator: 'warning', support: 'success', analyst: null };
+  // What each role can do, in words; mirrors backend/src/staffRoles.ts.
+  const ROLE_SUMMARIES = [
+    ['admin', 'Everything, including adding and removing staff. Set with ADMIN_RIDER_IDS on the backend.'],
+    ['moderator', 'Reports, hidden Social posts and suspensions. Can look riders up and read the audit log.'],
+    ['support', 'Account help: looks riders up, verifies email, sends password resets and signs out lost devices. Cannot suspend or see reports.'],
+    ['analyst', 'Overview and system status only. No rider details, reports or notes.'],
+  ];
+  const PERMISSION_LABELS = [
+    ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['view_system', 'System'],
+  ];
+  const ROLE_MATRIX = {
+    admin: ['view_overview', 'view_riders', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'view_system'],
+    moderator: ['view_overview', 'view_riders', 'moderate', 'view_audit', 'view_system'],
+    support: ['view_overview', 'view_riders', 'verify_email', 'account_help', 'view_audit', 'view_system'],
+    analyst: ['view_overview', 'view_system'],
+  };
   const REASON_LABELS = {
     harassment: 'Harassment',
     unsafe: 'Unsafe riding or behaviour',
@@ -21,7 +48,14 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset' };
+  const ACTION_GROUPS = [
+    ['all', 'All actions', null],
+    ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
+    ['social', 'Social posts', ['social_post_restore', 'social_post_remove']],
+    ['accounts', 'Accounts', ['verify_email', 'data_export', 'sign_out_everywhere', 'password_reset_sent']],
+    ['staff', 'Staff', ['staff_grant', 'staff_revoke']],
+  ];
 
   const pageEl = document.getElementById('page');
   const navEl = document.getElementById('nav');
@@ -29,10 +63,20 @@
   const reportCountEl = document.getElementById('navReportCount');
   const refreshMobile = document.getElementById('refreshMobile');
 
-  let view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+  // #rider/<id> opens one rider; every other hash is a section.
+  function parseHash(hash) {
+    const match = /^rider\/([A-Za-z0-9_-]{1,64})$/.exec(hash);
+    if (match) return { view: 'rider', riderId: match[1] };
+    return { view: VIEWS.includes(hash) && hash !== 'rider' ? hash : 'overview', riderId: null };
+  }
+  let { view, riderId: detailRiderId } = parseHash(location.hash.slice(1));
   let period = readPeriod();
   let moderationView = 'open';
   let riderQuery = '';
+  let auditGroup = 'all';
+  let auditRider = '';
+  let me = null;
+  const allowed = (permission) => Boolean(me?.permissions?.includes(permission));
   let overviewCache = null;
   let chartSeq = 0;
   const names = new Map();
@@ -65,7 +109,7 @@
     }
   }
 
-  async function api(method, path, body) {
+  async function request(method, path, body) {
     const headers = { Authorization: `Bearer ${session.token}` };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -76,6 +120,63 @@
     const json = await response.json().catch(() => ({}));
     if (!response.ok) throw new ApiError(response.status, json.error);
     return json;
+  }
+
+  // Staff changes need the password re-entered every 15 minutes. When the
+  // backend asks, confirm it here and send the change again once.
+  async function api(method, path, body) {
+    try {
+      return await request(method, path, body);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.code !== 'reauth_required') throw error;
+      if (!(await confirmPassword())) throw new ApiError(403, 'reauth_cancelled');
+      return request(method, path, body);
+    }
+  }
+
+  /** A password dialog; resolves true once the backend accepts it, false if closed. */
+  function confirmPassword() {
+    return new Promise((resolve) => {
+      const input = el('input', { class: 'input', type: 'password', id: 'reauthPassword', autocomplete: 'current-password', 'aria-label': 'Password', required: true });
+      const error = el('p', { class: 'error-text', role: 'alert' });
+      const submit = el('button', { type: 'submit', class: 'button button-primary', text: 'Confirm' });
+      const cancel = el('button', { type: 'button', class: 'button', value: 'cancel', text: 'Cancel' });
+      const form = el('form', { class: 'dialog-body', novalidate: true }, [
+        el('h2', { class: 'card-title', id: 'reauthTitle', text: 'Confirm it’s you' }),
+        el('p', { class: 'card-description', text: 'Enter your Rider Comms password to make staff changes for the next 15 minutes.' }),
+        input,
+        error,
+        el('div', { class: 'actions' }, [cancel, submit]),
+      ]);
+      const dialog = el('dialog', { class: 'dialog', 'aria-labelledby': 'reauthTitle' }, [form]);
+      let accepted = false;
+      cancel.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', () => { dialog.remove(); resolve(accepted); });
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!input.value) {
+          error.textContent = 'Enter your password.';
+          return;
+        }
+        submit.disabled = true;
+        error.textContent = '';
+        try {
+          await request('POST', '/auth/reauthenticate', { password: input.value });
+          accepted = true;
+          dialog.close();
+        } catch (failure) {
+          submit.disabled = false;
+          input.value = '';
+          input.focus();
+          error.textContent = failure instanceof ApiError && failure.status === 401 ? 'That password isn’t right.'
+            : failure instanceof ApiError && failure.status === 429 ? 'Too many tries. Wait a minute, then try again.'
+            : 'Could not reach the server. Try again.';
+        }
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      input.focus();
+    });
   }
 
   function el(tag, props = {}, children = []) {
@@ -161,14 +262,19 @@
   function avatar(name, key) {
     return el('span', { class: 'avatar', dataset: { hue: hashHue(key || name) }, 'aria-hidden': 'true', text: initials(name) });
   }
-  function person(name, sub, key) {
-    return el('div', { class: 'person' }, [
+  function person(name, sub, key, { link = true } = {}) {
+    const content = [
       avatar(name, key),
       el('div', { class: 'person-text' }, [
         el('div', { class: 'person-name', text: name }),
         sub ? el('div', { class: 'person-sub', text: sub }) : null,
       ]),
-    ]);
+    ];
+    // Anyone who can look riders up can open the rider's page from here.
+    const canOpen = link && typeof key === 'string' && /^rider_[A-Za-z0-9_-]+$/.test(key) && allowed('view_riders');
+    return canOpen
+      ? el('a', { class: 'person person-link', href: `#rider/${key}`, dataset: { riderLink: key } }, content)
+      : el('div', { class: 'person' }, content);
   }
   function badge(text, tone, plain = false) {
     return el('span', { class: plain ? 'badge plain' : 'badge', dataset: tone ? { tone } : {}, text });
@@ -602,7 +708,7 @@
   function riderBadges(rider) {
     return el('div', { class: 'badges' }, [
       rider.suspended ? badge('Suspended', 'danger') : null,
-      rider.isAdmin ? badge('Admin', 'accent') : null,
+      rider.staffRole ? badge(ROLE_LABELS[rider.staffRole] || rider.staffRole, ROLE_TONES[rider.staffRole]) : rider.isAdmin ? badge('Admin', 'accent') : null,
       rider.emailVerified ? null : badge('Unverified', 'warning'),
       !rider.suspended && rider.emailVerified ? badge('Active', 'success') : null,
     ]);
@@ -611,7 +717,7 @@
   // Until account emails can be delivered (Resend needs a verified domain),
   // staff can verify riders they know. The note goes in the audit log.
   function verifyEmailButton(rider) {
-    if (rider.emailVerified) return null;
+    if (rider.emailVerified || !allowed('verify_email')) return null;
     const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'verify-email' }, text: 'Verify email', 'aria-label': `Mark ${rider.username}'s email verified` });
     button.addEventListener('click', async () => {
       const note = window.prompt(`Mark ${rider.username}'s email as verified? Only do this for riders you know. Note for the audit log:`, 'Known rider; verification email not delivered.');
@@ -627,6 +733,36 @@
       } catch (error) {
         button.disabled = false;
         window.alert(error instanceof ApiError && error.code === 'already_verified' ? 'This rider is already verified.' : actionErrorMessage(error));
+      }
+    });
+    return button;
+  }
+
+  // Answering a data access request: admins download everything held about
+  // a rider. Needs a reason, which goes in the audit log.
+  function exportButton(rider) {
+    if (!allowed('manage_staff')) return null;
+    const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'export-data' }, text: 'Export data', 'aria-label': `Export ${rider.username}'s data` });
+    button.addEventListener('click', async () => {
+      const note = window.prompt(`Download everything held about ${rider.username}? Reason for the audit log (e.g. the access request it answers):`);
+      if (note === null) return;
+      if (!note.trim()) {
+        window.alert('A reason is required. Every export is recorded.');
+        return;
+      }
+      button.disabled = true;
+      try {
+        const data = await api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note: note.trim() });
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const link = el('a', { href: URL.createObjectURL(blob), download: `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json` });
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      } catch (error) {
+        window.alert(actionErrorMessage(error));
+      } finally {
+        button.disabled = false;
       }
     });
     return button;
@@ -649,7 +785,7 @@
       : [
         el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, riders.map((rider) => el('li', { class: 'list-row', dataset: { riderId: rider.riderId } }, [
           person(displayName(rider), [rider.handle, rider.email].filter(Boolean).join(' · '), rider.riderId),
-          el('div', { class: 'trail' }, [riderBadges(rider), verifyEmailButton(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
+          el('div', { class: 'trail' }, [riderBadges(rider), verifyEmailButton(rider), exportButton(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
         ])))]),
         el('div', { class: 'card table-card only-desktop' }, [el('div', { class: 'table-scroll' }, [el('table', { class: 'table' }, [
           el('thead', {}, [el('tr', {}, [
@@ -659,7 +795,7 @@
           el('tbody', {}, riders.map((rider) => el('tr', { dataset: { riderId: rider.riderId } }, [
             el('td', {}, [person(displayName(rider), [rider.handle, rider.riderId].filter(Boolean).join(' · '), rider.riderId)]),
             el('td', { class: 'muted', text: rider.email || '—' }),
-            el('td', {}, [riderBadges(rider), verifyEmailButton(rider)]),
+            el('td', {}, [riderBadges(rider), verifyEmailButton(rider), exportButton(rider)]),
             el('td', { class: 'muted' }, [timeEl(rider.createdAt)]),
             el('td', { class: 'muted' }, [timeEl(rider.lastSeenAt, 'Over 30 days')]),
             el('td', { class: 'num', text: numberFormat.format(rider.friends) }),
@@ -677,6 +813,7 @@
   // ------------------------------------------------------------ Moderation
 
   function riderLabel(riderId) {
+    if (riderId && riderId === session.riderId) return { name: 'You', sub: riderId };
     const profile = names.get(riderId);
     return profile ? { name: profile.displayName || 'Rider', sub: `${profile.handle ?? ''} · ${riderId}` } : { name: riderId, sub: null };
   }
@@ -696,6 +833,9 @@
     if (error.code === 'already_resolved') return 'Someone already resolved this report. Refresh to see the latest queue.';
     if (error.code === 'forbidden_target') return 'You cannot suspend yourself or another admin.';
     if (error.code === 'not_suspended') return 'This rider is not suspended.';
+    if (error.code === 'already_suspended') return 'This rider is already suspended.';
+    if (error.code === 'not_found') return 'That rider no longer exists.';
+    if (error.code === 'reauth_cancelled') return 'Not changed: your password is needed for staff changes.';
     if (error.status === 403) return 'Your account is no longer staff.';
     return `Failed: ${error.code || error.message}`;
   }
@@ -737,6 +877,30 @@
     return { source: match[1], details: details.slice(match[0].length) };
   }
 
+  /** How long an open report has waited; amber after 4 hours, red after a day. */
+  function waitingBadge(createdAt) {
+    const hours = (Date.now() - createdAt) / 3_600_000;
+    const text = hours < 1 ? 'Waiting under an hour' : hours < 48 ? `Waiting ${Math.floor(hours)}h` : `Waiting ${Math.floor(hours / 24)} days`;
+    return badge(text, hours >= 24 ? 'danger' : hours >= 4 ? 'warning' : null, hours < 4);
+  }
+
+  /** Take a report so other moderators see it's being handled, or let it go. */
+  function claimControl(report) {
+    const mine = report.claimedBy === session.riderId;
+    if (report.claimedBy && !mine) return badge(`Being handled by ${riderLabel(report.claimedBy).name}`, 'accent');
+    const button = el('button', { type: 'button', class: 'button button-small claim', dataset: { action: mine ? 'release' : 'claim' }, text: mine ? 'You’re handling this · Let go' : 'Take this report' });
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/claim`, mine ? { release: true } : {});
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.code !== 'claimed_by_other') window.alert(actionErrorMessage(error));
+      }
+      await render();
+    });
+    return button;
+  }
+
   function reportCard(report) {
     const { source, details } = splitReportSource(report.details);
     const card = el('article', { class: 'card report', dataset: { reportId: report.id } }, [
@@ -745,7 +909,8 @@
           badge(REASON_LABELS[report.reason] || report.reason, report.status === 'open' ? 'warning' : null),
           source ? badge(`From ${source}`, null, true) : null,
           report.reportsAgainstRider > 1 ? badge(`${report.reportsAgainstRider} reports against this rider`, null, true) : null,
-          report.reportedRiderSuspended ? badge('Suspended', 'danger') : null,
+          report.reportedRiderSuspended ? badge(report.reportedRiderSuspendedUntil ? `Suspended until ${formatUntil(report.reportedRiderSuspendedUntil)}` : 'Suspended', 'danger') : null,
+          report.status === 'open' ? waitingBadge(report.createdAt) : null,
         ]),
         el('span', { class: 'report-time' }, [timeEl(report.createdAt)]),
       ]),
@@ -755,15 +920,22 @@
         ? el('p', { class: 'report-meta' }, [`${report.status === 'dismissed' ? 'Dismissed' : 'Actioned'} `, timeEl(report.resolvedAt), ` by ${riderLabel(report.resolvedBy).name}`])
         : null,
     ]);
+    if (report.status === 'open') card.querySelector('.report-head .badges').append(claimControl(report));
     if (report.status === 'open' || report.reportedRiderSuspended) {
       const note = el('textarea', { class: 'note', maxlength: MAX_NOTE_LENGTH, 'aria-label': `Note for report ${report.id}`, placeholder: 'Note for the audit log (required)' });
       const actions = el('div', { class: 'actions' });
       if (report.status === 'open') {
         const dismiss = el('button', { type: 'button', class: 'button', dataset: { action: 'dismiss' }, text: 'Dismiss' });
         const suspend = el('button', { type: 'button', class: 'button button-danger', dataset: { action: 'suspend' }, text: 'Suspend rider' });
-        actions.append(dismiss, suspend);
+        const length = el('select', { class: 'input select', 'aria-label': `Suspension length for report ${report.id}` }, SUSPENSION_LENGTHS.map(([value, label]) => el('option', { value, text: label, selected: value === '7' })));
+        actions.append(dismiss, length, suspend);
         wireAction(card, dismiss, note, (text) => api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/resolve`, { resolution: 'dismiss', note: text }));
-        wireAction(card, suspend, note, (text) => api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/resolve`, { resolution: 'suspend', note: text }));
+        wireAction(card, suspend, note, (text) => api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/resolve`, { resolution: 'suspend', note: text, ...(length.value ? { days: Number(length.value) } : {}) }));
+        card.append(el('div', { class: 'chips', role: 'group', 'aria-label': 'Start the note from a reason' }, [...NOTE_TEMPLATES.dismiss, ...NOTE_TEMPLATES.suspend].map((text) => {
+          const chip = el('button', { type: 'button', class: 'chip', text });
+          chip.addEventListener('click', () => { note.value = text; note.focus(); });
+          return chip;
+        })));
       }
       if (report.reportedRiderSuspended) {
         const unsuspend = el('button', { type: 'button', class: 'button', dataset: { action: 'unsuspend' }, text: 'Unsuspend rider' });
@@ -818,19 +990,11 @@
   }
 
   async function renderModeration() {
-    const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned'], ['actions', 'Audit log']], moderationView, (next) => {
+    const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned']], moderationView, (next) => {
       moderationView = next;
       void render();
     }, 'Moderation queues');
     const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
-    if (moderationView === 'actions') {
-      const { actions } = await api('GET', '/moderation/actions?limit=100');
-      await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
-      pageEl.replaceChildren(header, el('div', { class: 'card reports' }, actions.length
-        ? [el('ul', { class: 'list' }, actions.map(actionCard))]
-        : [emptyState('inbox', 'No decisions yet', 'Dismissals, suspensions and unsuspensions will be listed here.')]));
-      return;
-    }
     if (moderationView === 'social') {
       let posts = [];
       try {
@@ -845,7 +1009,7 @@
       return;
     }
     const { reports } = await api('GET', `/moderation/reports?status=${moderationView}&limit=100`);
-    await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy]));
+    await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy]));
     if (moderationView === 'open') updateReportCount(reports.length);
     pageEl.replaceChildren(header, el('div', { class: 'reports' }, reports.length
       ? reports.map(reportCard)
@@ -855,6 +1019,406 @@
   function updateReportCount(count) {
     reportCountEl.hidden = !count;
     reportCountEl.textContent = count > 99 ? '99+' : String(count);
+  }
+
+  // ------------------------------------------------------------ Staff actions
+
+  /**
+   * A confirmation dialog for a staff change: what it does, a required
+   * reason (with ready-made starts), and for suspensions how long. Resolves
+   * { note, days } or null when cancelled.
+   */
+  function actionDialog({ title, description, confirmLabel, danger = false, templates = [], withLength = false }) {
+    return new Promise((resolve) => {
+      const note = el('textarea', { class: 'note', id: 'actionNote', maxlength: MAX_NOTE_LENGTH, 'aria-label': 'Reason for the audit log', placeholder: 'Reason for the audit log (required)' });
+      const length = withLength ? el('select', { class: 'input select', 'aria-label': 'How long' }, SUSPENSION_LENGTHS.map(([value, label]) => el('option', { value, text: label, selected: value === '7' }))) : null;
+      const chips = templates.length ? el('div', { class: 'chips', role: 'group', 'aria-label': 'Start from a reason' }, templates.map((text) => {
+        const chip = el('button', { type: 'button', class: 'chip', text });
+        chip.addEventListener('click', () => { note.value = text; note.focus(); });
+        return chip;
+      })) : null;
+      const error = el('p', { class: 'error-text', role: 'alert' });
+      const confirm = el('button', { type: 'submit', class: danger ? 'button button-danger' : 'button button-primary', text: confirmLabel });
+      const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel' });
+      const form = el('form', { class: 'dialog-body', novalidate: true }, [
+        el('h2', { class: 'card-title', id: 'actionTitle', text: title }),
+        description ? el('p', { class: 'card-description', text: description }) : null,
+        length ? el('label', { class: 'field-label' }, ['How long', length]) : null,
+        chips,
+        note,
+        error,
+        el('div', { class: 'actions' }, [cancel, confirm]),
+      ]);
+      const dialog = el('dialog', { class: 'dialog', 'aria-labelledby': 'actionTitle' }, [form]);
+      let result = null;
+      cancel.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', () => { dialog.remove(); resolve(result); });
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!note.value.trim()) {
+          error.textContent = 'Write a reason first. Every staff change is recorded with it.';
+          note.focus();
+          return;
+        }
+        result = { note: note.value.trim(), days: length && length.value ? Number(length.value) : null };
+        dialog.close();
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      (chips ? chips.querySelector('button') : note).focus();
+    });
+  }
+
+  function formatUntil(ms) {
+    return new Date(ms).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ------------------------------------------------------------ Rider
+
+  async function renderRiderDetail(riderId) {
+    const detail = await api('GET', `/admin/riders/${encodeURIComponent(riderId)}`).catch((error) => {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    });
+    if (!detail) {
+      pageEl.replaceChildren(pageHeader('Rider', null), el('div', { class: 'card' }, [emptyState('users', 'No such rider', 'They may have deleted their account.')]));
+      return;
+    }
+    const { rider } = detail;
+    await loadNames([
+      ...(detail.reportsAgainst ?? []).flatMap((report) => [report.reporterId, report.resolvedBy]),
+      ...(detail.reportsFiled ?? []).map((report) => report.reportedRiderId),
+      ...(detail.actions ?? []).map((action) => action.moderatorId),
+    ].filter((id) => id && id !== 'system'));
+    const name = rider.displayName || rider.username;
+    document.title = `${name} · Rider Comms staff`;
+
+    const run = async (button, dialogOptions, request, done) => {
+      const choice = await actionDialog(dialogOptions);
+      if (!choice) return;
+      button.disabled = true;
+      try {
+        const result = await request(choice);
+        await render();
+        if (done) done(result);
+      } catch (error) {
+        button.disabled = false;
+        flash(actionErrorMessage(error), 'danger');
+      }
+    };
+    const action = (label, { danger = false, show = true } = {}) => (show ? el('button', { type: 'button', class: danger ? 'button button-danger' : 'button', dataset: { action: label.toLowerCase().replace(/\s+/g, '-') }, text: label }) : null);
+    const isSelf = rider.riderId === session.riderId;
+    const suspend = action('Suspend', { danger: true, show: allowed('moderate') && !rider.suspended && !rider.isAdmin && !isSelf });
+    const unsuspend = action('Unsuspend', { show: allowed('moderate') && rider.suspended });
+    const verify = action('Verify email', { show: allowed('verify_email') && !rider.emailVerified });
+    const reset = action('Send password reset', { show: allowed('account_help') && Boolean(rider.email) });
+    const signOut = action('Sign out everywhere', { show: allowed('account_help') });
+    const exportData = action('Export data', { show: allowed('manage_staff') });
+    const path = (end) => `/moderation/riders/${encodeURIComponent(rider.riderId)}/${end}`;
+    suspend?.addEventListener('click', () => run(suspend, { title: `Suspend ${name}?`, description: 'They are signed out everywhere and can’t sign in until it ends or someone unsuspends them. Open reports against them close as actioned.', confirmLabel: 'Suspend', danger: true, templates: NOTE_TEMPLATES.suspend, withLength: true },
+      ({ note, days }) => api('POST', path('suspend'), days ? { note, days } : { note })));
+    unsuspend?.addEventListener('click', () => run(unsuspend, { title: `Unsuspend ${name}?`, description: 'They can sign in again straight away.', confirmLabel: 'Unsuspend', templates: ['Appeal accepted.', 'Suspended by mistake.'] },
+      ({ note }) => api('POST', path('unsuspend'), { note })));
+    verify?.addEventListener('click', () => run(verify, { title: `Mark ${name}’s email verified?`, description: 'Only for riders you have confirmed yourself, for example while verification emails can’t be delivered.', confirmLabel: 'Mark verified', templates: ['Known rider; verification email not delivered.'] },
+      ({ note }) => api('POST', path('verify-email'), { note })));
+    reset?.addEventListener('click', () => run(reset, { title: `Email ${name} a password reset link?`, description: `The link goes to ${rider.email} and works for one hour. Confirm who you’re talking to first.`, confirmLabel: 'Send link', templates: ['Forgot password; identity confirmed.'] },
+      ({ note }) => api('POST', path('password-reset'), { note }),
+      (result) => flash(result.emailDelivery?.configured === false ? 'Recorded, but email isn’t set up on the backend, so nothing was sent.' : 'Password reset link sent.', result.emailDelivery?.configured === false ? 'warning' : 'success')));
+    signOut?.addEventListener('click', () => run(signOut, { title: `Sign ${name} out on every device?`, description: 'Every app and browser they’re signed in on has to sign in again. Use it for a lost phone or a shared password.', confirmLabel: 'Sign out everywhere', danger: true, templates: ['Lost phone.', 'Password shared with someone else.'] },
+      ({ note }) => api('POST', path('sign-out'), { note }),
+      (result) => flash(`Signed out of ${result.sessions} ${result.sessions === 1 ? 'device' : 'devices'}.`, 'success')));
+    exportData?.addEventListener('click', () => run(exportData, { title: `Export everything held about ${name}?`, description: 'For a data access request. The file downloads to this computer; keep it safe.', confirmLabel: 'Export' },
+      ({ note }) => api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note }),
+      (data) => downloadJson(data, `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json`)));
+
+    const facts = [
+      ['Username', rider.username],
+      ['Email', rider.email ? `${rider.email}${rider.emailVerified ? '' : ' (not verified)'}` : '—'],
+      ['Rider ID', rider.riderId],
+      ['Joined', new Date(rider.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })],
+      ['Last active', formatRelative(rider.lastSeenAt) ?? 'Over 30 days ago'],
+      ['Friends', numberFormat.format(rider.friends)],
+      ['Reports against them', numberFormat.format(rider.reportsAgainst)],
+      ['Reports they filed', numberFormat.format(rider.reportsFiled)],
+      ...(rider.suspended ? [['Suspended', rider.suspendedUntil ? `Until ${formatUntil(rider.suspendedUntil)}` : 'No end date']] : []),
+    ];
+    const reportRow = (report, who) => el('li', { class: 'list-row', dataset: { reportId: report.id } }, [
+      person(`${REASON_LABELS[report.reason] || report.reason}`, [who, report.details].filter(Boolean).join(' · '), who === null ? null : report.reporterId, { link: false }),
+      el('span', { class: 'trail' }, [badge(report.status === 'open' ? 'Open' : report.status === 'actioned' ? 'Actioned' : 'Dismissed', report.status === 'open' ? 'warning' : report.status === 'actioned' ? 'danger' : null), el('div', {}, [timeEl(report.createdAt)])]),
+    ]);
+    const section = (title, items, empty) => items === null ? [] : [
+      el('h2', { class: 'section-title', text: title }),
+      el('div', { class: 'card reports' }, items.length ? [el('ul', { class: 'list' }, items)] : [emptyState('inbox', empty, null)]),
+    ];
+
+    pageEl.replaceChildren(
+      el('a', { class: 'back-link', href: '#riders', text: '← Riders' }),
+      el('div', { class: 'page-header rider-header' }, [
+        el('div', { class: 'person' }, [
+          avatar(name, rider.riderId),
+          el('div', { class: 'person-text' }, [
+            el('h1', { class: 'page-title', text: name }),
+            el('p', { class: 'page-subtitle', text: [rider.handle, rider.email].filter(Boolean).join(' · ') }),
+          ]),
+        ]),
+        el('div', { class: 'actions' }, [riderBadges(rider)]),
+      ]),
+      el('div', { class: 'rider-actions' }, [suspend, unsuspend, verify, reset, signOut, exportData].filter(Boolean)),
+      el('section', { class: 'card' }, [el('dl', { class: 'facts' }, facts.map(([label, value]) => el('div', { class: 'fact' }, [el('dt', { text: label }), el('dd', { text: value })])))]),
+      ...section('Reports about them', detail.reportsAgainst && detail.reportsAgainst.map((report) => reportRow(report, `From ${riderLabel(report.reporterId).name}`)), 'No reports about this rider.'),
+      ...section('Reports they filed', detail.reportsFiled && detail.reportsFiled.map((report) => reportRow(report, `About ${riderLabel(report.reportedRiderId).name}`)), 'They haven’t reported anyone.'),
+      ...section('Staff history', detail.actions && detail.actions.map(actionCard), 'No staff decisions about this rider.'),
+      ...section('Signed-in devices', detail.devices && detail.devices.map((device) => el('li', { class: 'list-row' }, [
+        person(device.deviceName || 'Unknown device', `Signed in ${new Date(device.createdAt).toLocaleDateString()}`, device.id, { link: false }),
+        el('span', { class: 'trail' }, [timeEl(Date.parse(device.lastSeenAt))]),
+      ])), 'Not signed in anywhere.'),
+      ...section('Sign-in history', detail.securityEvents && detail.securityEvents.map((event) => el('li', { class: 'list-row' }, [
+        person(SECURITY_EVENT_LABELS[event.event] || event.event, event.device, event.id, { link: false }),
+        el('span', { class: 'trail' }, [SECURITY_EVENT_TONES[event.event] ? badge(event.event === 'password_reset' ? 'Reset' : 'Failed', SECURITY_EVENT_TONES[event.event]) : null, el('div', {}, [timeEl(event.createdAt)])]),
+      ])), 'No sign-ins recorded yet.'),
+    );
+  }
+
+  function downloadJson(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const link = el('a', { href: URL.createObjectURL(blob), download: filename });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  /** A short message at the top of the page after an action. */
+  function flash(text, tone = 'success') {
+    document.querySelector('.flash')?.remove();
+    const node = el('div', { class: 'flash', role: 'status', dataset: { tone }, text });
+    pageEl.prepend(node);
+    setTimeout(() => node.remove(), 6000);
+  }
+
+  // ------------------------------------------------------------ Audit log
+
+  function csvCell(value) {
+    const text = String(value ?? '');
+    // Leading = + - @ would run as a formula in spreadsheet apps.
+    const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+    return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  }
+
+  function downloadAuditCsv(actions) {
+    const rows = [['When (UTC)', 'Action', 'Staff member', 'Staff rider ID', 'Rider', 'Rider ID', 'Report ID', 'Note']];
+    for (const action of actions) {
+      rows.push([
+        new Date(action.createdAt).toISOString(), ACTION_LABELS[action.action] || action.action,
+        riderLabel(action.moderatorId).name, action.moderatorId, riderLabel(action.targetRiderId).name, action.targetRiderId,
+        action.reportId ?? '', action.note,
+      ]);
+    }
+    const blob = new Blob([rows.map((row) => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const link = el('a', { href: URL.createObjectURL(blob), download: `rider-comms-audit-${new Date().toISOString().slice(0, 10)}.csv` });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  async function renderAudit() {
+    const query = auditRider ? `&riderId=${encodeURIComponent(auditRider)}` : '';
+    const { actions } = await api('GET', `/moderation/actions?limit=200${query}`);
+    await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
+    const group = ACTION_GROUPS.find(([id]) => id === auditGroup) ?? ACTION_GROUPS[0];
+    const shown = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
+
+    const filters = segmented(ACTION_GROUPS.map(([id, label]) => [id, label]), auditGroup, (next) => {
+      auditGroup = next;
+      void render();
+    }, 'Filter the audit log');
+    const form = el('form', { class: 'toolbar', role: 'search' });
+    const input = el('input', { class: 'input', type: 'search', placeholder: 'Rider ID, e.g. rider_ab12cd34', 'aria-label': 'Show actions for one rider', maxlength: 100, autocomplete: 'off' });
+    input.value = auditRider;
+    form.append(el('div', { class: 'search' }, [icon('search'), input]), el('button', { type: 'submit', class: 'button', text: 'Filter' }));
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      auditRider = input.value.trim();
+      void render();
+    });
+    const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
+    exportButton.addEventListener('click', () => downloadAuditCsv(shown));
+
+    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'}${auditRider ? ` for ${auditRider}` : ''}, newest first. Notes are kept for good.`;
+    pageEl.replaceChildren(
+      pageHeader('Audit log', subtitle, [exportButton]),
+      el('div', { class: 'audit-filters' }, [filters]),
+      form,
+      el('div', { class: 'card reports' }, shown.length
+        ? [el('ul', { class: 'list' }, shown.map(actionCard))]
+        : [emptyState('inbox', 'Nothing recorded', auditRider || group[2] ? 'No decisions match these filters.' : 'Every staff decision will be listed here with its note.')]),
+    );
+  }
+
+  // ------------------------------------------------------------ Staff
+
+  function roleBadge(role) {
+    return badge(ROLE_LABELS[role] || role, ROLE_TONES[role]);
+  }
+
+  function staffErrorMessage(error) {
+    if (!(error instanceof ApiError)) return 'Could not reach the server. Try again.';
+    return {
+      not_found: 'No rider has that handle or rider ID.',
+      is_admin: 'Admins are set with ADMIN_RIDER_IDS on the backend, not here.',
+      unchanged: 'They already have that role.',
+      suspended: 'This rider is suspended. Unsuspend them first.',
+      not_staff: 'This rider is not staff.',
+    }[error.code] || actionErrorMessage(error);
+  }
+
+  function roleSelect(value, label) {
+    const select = el('select', { class: 'input select', 'aria-label': label });
+    for (const role of ['moderator', 'support', 'analyst']) select.append(el('option', { value: role, text: ROLE_LABELS[role], selected: role === value }));
+    return select;
+  }
+
+  function addStaffForm() {
+    const rider = el('input', { class: 'input', name: 'rider', placeholder: 'Handle or rider ID', 'aria-label': 'Handle or rider ID', maxlength: 100, autocomplete: 'off', required: true });
+    const role = roleSelect('moderator', 'Role');
+    const note = el('input', { class: 'input', name: 'note', placeholder: 'Reason (goes in the audit log)', 'aria-label': 'Reason for the audit log', maxlength: MAX_NOTE_LENGTH, autocomplete: 'off', required: true });
+    const submit = el('button', { type: 'submit', class: 'button button-primary', text: 'Add to staff' });
+    const error = el('p', { class: 'error-text', role: 'alert' });
+    const form = el('form', { class: 'card staff-form', id: 'addStaffForm', novalidate: true }, [
+      el('div', { class: 'card-header' }, [el('div', {}, [el('h2', { class: 'card-title', text: 'Add a staff member' }), el('p', { class: 'card-description', text: 'They see the pages their role allows the next time they open this dashboard.' })])]),
+      el('div', { class: 'staff-form-fields' }, [rider, role, note, submit]),
+      error,
+    ]);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!rider.value.trim() || !note.value.trim()) {
+        error.textContent = 'Enter their handle or rider ID and a reason.';
+        return;
+      }
+      submit.disabled = true;
+      error.textContent = '';
+      try {
+        await api('POST', '/admin/staff', { rider: rider.value.trim(), role: role.value, note: note.value.trim() });
+        await render();
+      } catch (failure) {
+        submit.disabled = false;
+        error.textContent = staffErrorMessage(failure);
+      }
+    });
+    return form;
+  }
+
+  function staffActions(member) {
+    if (member.role === 'admin') return el('span', { class: 'muted', text: 'Set on the backend' });
+    const select = roleSelect(member.role, `Role for ${member.displayName || member.riderId}`);
+    const remove = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'remove-staff' }, text: 'Remove' });
+    const ask = (question) => {
+      const note = window.prompt(question);
+      if (note === null) return null;
+      if (!note.trim()) {
+        window.alert('A reason is required. Every staff change is recorded.');
+        return null;
+      }
+      return note.trim();
+    };
+    select.addEventListener('change', async () => {
+      const note = ask(`Change ${member.displayName || member.riderId} to ${ROLE_LABELS[select.value]}? Reason for the audit log:`);
+      if (note === null) {
+        select.value = member.role;
+        return;
+      }
+      try {
+        await api('POST', '/admin/staff', { rider: member.riderId, role: select.value, note });
+        await render();
+      } catch (error) {
+        select.value = member.role;
+        window.alert(staffErrorMessage(error));
+      }
+    });
+    remove.addEventListener('click', async () => {
+      const note = ask(`Remove ${member.displayName || member.riderId} from staff? Reason for the audit log:`);
+      if (note === null) return;
+      try {
+        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/remove`, { note });
+        await render();
+      } catch (error) {
+        window.alert(staffErrorMessage(error));
+      }
+    });
+    return el('div', { class: 'row-actions' }, [select, remove]);
+  }
+
+  function roleMatrix() {
+    const roles = Object.keys(ROLE_MATRIX);
+    return el('section', { class: 'card table-card' }, [
+      el('div', { class: 'card-header' }, [el('div', {}, [el('h2', { class: 'card-title', text: 'What each role can do' }), el('p', { class: 'card-description', text: 'Least privilege: give people the smallest role that covers their work.' })])]),
+      el('ul', { class: 'role-list' }, ROLE_SUMMARIES.map(([role, text]) => el('li', {}, [roleBadge(role), el('span', { text })]))),
+      el('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Permissions by role' }, [el('table', { class: 'table matrix' }, [
+        el('thead', {}, [el('tr', {}, [el('th', { text: 'Permission' }), ...roles.map((role) => el('th', { class: 'center', text: ROLE_LABELS[role] }))])]),
+        el('tbody', {}, PERMISSION_LABELS.map(([permission, label]) => el('tr', {}, [
+          el('td', { text: label }),
+          ...roles.map((role) => {
+            const yes = ROLE_MATRIX[role].includes(permission);
+            return el('td', { class: 'center', 'aria-label': `${ROLE_LABELS[role]}: ${yes ? 'yes' : 'no'}` }, [el('span', { class: yes ? 'check yes' : 'check', 'aria-hidden': 'true', text: yes ? '✓' : '–' })]);
+          }),
+        ]))),
+      ])]),
+    ]);
+  }
+
+  const SECURITY_EVENT_LABELS = {
+    account_created: 'Created the account', login: 'Signed in', login_failed: 'Wrong password', signed_out: 'Signed out',
+    session_revoked: 'Signed out a device', password_reset: 'Reset the password', reauthenticated: 'Confirmed password', reauth_failed: 'Wrong password when confirming',
+  };
+  const SECURITY_EVENT_TONES = { login_failed: 'warning', reauth_failed: 'warning', password_reset: 'accent' };
+
+  function signInHistory(events) {
+    if (!events) return [];
+    return [
+      el('h2', { class: 'section-title', text: 'Staff sign-ins' }),
+      el('div', { class: 'card reports' }, events.length
+        ? [el('ul', { class: 'list' }, events.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
+          person(riderLabel(event.riderId).name, [SECURITY_EVENT_LABELS[event.event] || event.event, event.device].filter(Boolean).join(' · '), event.riderId),
+          el('span', { class: 'trail' }, [SECURITY_EVENT_TONES[event.event] ? badge(event.event === 'password_reset' ? 'Reset' : 'Failed', SECURITY_EVENT_TONES[event.event]) : null, el('div', {}, [timeEl(event.createdAt)])]),
+        ])))]
+        : [emptyState('lock', 'No sign-ins yet', 'Staff sign-ins, wrong passwords and resets will be listed here.')]),
+    ];
+  }
+
+  async function renderStaff() {
+    const [{ staff }, events] = await Promise.all([
+      api('GET', '/admin/staff'),
+      api('GET', '/admin/security-events?staff=1&limit=20').then((body) => body.events).catch(() => null),
+    ]);
+    await loadNames((events ?? []).map((event) => event.riderId));
+    const counts = staff.reduce((total, member) => ({ ...total, [member.role]: (total[member.role] ?? 0) + 1 }), {});
+    const name = (member) => member.displayName || member.handle || member.riderId;
+    const sub = (member) => [member.handle, member.email].filter(Boolean).join(' · ') || member.riderId;
+    const granted = (member) => member.grantedAt ? el('span', {}, [timeEl(member.grantedAt), ` by ${riderLabel(member.grantedBy).name}`]) : el('span', { class: 'muted', text: 'ADMIN_RIDER_IDS' });
+    await loadNames(staff.map((member) => member.grantedBy).filter(Boolean));
+    pageEl.replaceChildren(
+      pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
+      addStaffForm(),
+      el('h2', { class: 'section-title', text: 'Team' }),
+      el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, staff.map((member) => el('li', { class: 'list-row staff-row', dataset: { riderId: member.riderId } }, [
+        person(name(member), sub(member), member.riderId),
+        el('div', { class: 'trail' }, [roleBadge(member.role), staffActions(member)]),
+      ])))]),
+      el('div', { class: 'card table-card only-desktop' }, [el('div', { class: 'table-scroll' }, [el('table', { class: 'table' }, [
+        el('thead', {}, [el('tr', {}, [el('th', { text: 'Member' }), el('th', { text: 'Role' }), el('th', { text: 'Added' }), el('th', { text: 'Last active' }), el('th', { text: 'Manage' })])]),
+        el('tbody', {}, staff.map((member) => el('tr', { dataset: { riderId: member.riderId } }, [
+          el('td', {}, [person(name(member), sub(member), member.riderId)]),
+          el('td', {}, [roleBadge(member.role)]),
+          el('td', { class: 'muted' }, [granted(member)]),
+          el('td', { class: 'muted' }, [timeEl(member.lastSeenAt, 'Over 30 days')]),
+          el('td', {}, [staffActions(member)]),
+        ]))),
+      ])])]),
+      ...signInHistory(events),
+      el('h2', { class: 'section-title', text: 'Roles' }),
+      roleMatrix(),
+    );
   }
 
   // ------------------------------------------------------------ System
@@ -869,13 +1433,85 @@
     }
   }
 
-  async function renderSystem() {
-    const [health, ready] = await Promise.all([probe('/health'), probe('/ready')]);
-    const row = (name, description, result) => el('li', { class: 'status-row' }, [
-      el('span', { class: 'status-dot', dataset: { state: result.ok ? 'ok' : 'down' } }),
-      el('div', {}, [el('div', { class: 'status-name', text: `${name} ${result.ok ? '· Operational' : '· Down'}` }), el('div', { class: 'status-desc', text: description })]),
-      el('span', { class: 'status-value', text: result.ms === null ? 'No response' : `${result.ms} ms` }),
+  // What the backend is set up to do. Email counts as restricted when Resend
+  // refused the account (e.g. no verified domain) after the last success.
+  function setupRows(system) {
+    if (!system) return [];
+    const email = system.email;
+    const restricted = email.configured && email.lastRefusedAt !== null && (email.lastSentAt === null || email.lastRefusedAt > email.lastSentAt);
+    const emailState = !email.configured ? 'down' : restricted ? 'warn' : 'ok';
+    const emailLabel = !email.configured ? 'Not set up' : restricted ? 'Restricted' : 'Working';
+    const emailDesc = !email.configured ? 'Set RESEND_API_KEY and RESEND_FROM_EMAIL on the backend'
+      : restricted ? `Resend refused: ${email.lastRefusal.replace(/^[a-z_]+: /, '')}` : email.lastSentAt ? `Last sent ${new Date(email.lastSentAt).toLocaleString()}` : 'Verification and reset emails';
+    const setting = (name, state, label, description) => el('li', { class: 'status-row' }, [
+      el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
+      el('span', { class: 'status-value' }, [statusBadge(state, label)]),
     ]);
+    return [
+      setting('Email delivery', emailState, emailLabel, emailDesc),
+      setting('Social media storage', system.socialMediaStorage ? 'ok' : 'down', system.socialMediaStorage ? 'On' : 'Off', system.socialMediaStorage ? 'Photos and videos are stored privately' : 'Set the SOCIAL_MEDIA_S3_* variables on the backend'),
+      setting('Social content check', system.socialMediaScanning ? 'ok' : 'down', system.socialMediaScanning ? 'On' : 'Off', system.socialMediaScanning ? 'Google SafeSearch checks every photo and Reel' : 'Set a Google key with Cloud Vision API allowed'),
+      setting('Social posting', system.socialPosting ? 'ok' : 'warn', system.socialPosting ? 'On' : 'Off', system.socialPosting ? 'Riders can post to Rider Social' : 'Posting is switched off'),
+    ];
+  }
+
+  const STATE_TONES = { ok: 'success', warn: 'warning', down: 'danger' };
+  function statusBadge(state, label) {
+    return el('span', { class: 'badge', dataset: { tone: STATE_TONES[state], state }, text: label });
+  }
+
+  function formatMs(ms) {
+    return ms >= 1000 ? `${(ms / 1000).toFixed(ms >= 10_000 ? 0 : 1)} s` : `${ms} ms`;
+  }
+  function formatRate(rate) {
+    if (!rate) return '0%';
+    return rate < 0.001 ? '<0.1%' : `${(rate * 100).toFixed(rate < 0.1 ? 1 : 0)}%`;
+  }
+
+  /** Requests, errors and response times over the last hour, from the replica that answered. */
+  function trafficSection(metrics) {
+    if (!metrics) return [];
+    const { totals, database } = metrics;
+    const routeTable = (title, routes) => el('section', { class: 'card table-card' }, [
+      el('div', { class: 'card-header' }, [el('h3', { class: 'card-title', text: title })]),
+      routes.length
+        ? el('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': title }, [el('table', { class: 'table' }, [
+          el('thead', {}, [el('tr', {}, [el('th', { text: 'Route' }), el('th', { class: 'num', text: 'Requests' }), el('th', { class: 'num', text: 'Errors' }), el('th', { class: 'num', text: 'Median' }), el('th', { class: 'num', text: 'p95' })])]),
+          el('tbody', {}, routes.map((route) => el('tr', { dataset: { route: route.route } }, [
+            el('td', {}, [el('code', { class: 'route', text: route.route })]),
+            el('td', { class: 'num', text: numberFormat.format(route.count) }),
+            el('td', { class: route.errorRate > 0.01 ? 'num danger-text' : 'num', text: formatRate(route.errorRate) }),
+            el('td', { class: 'num', text: formatMs(route.p50Ms) }),
+            el('td', { class: route.p95Ms > 1000 ? 'num warning-text' : 'num', text: formatMs(route.p95Ms) }),
+          ]))),
+        ])])
+        : el('p', { class: 'card-description pad', text: 'Not enough requests yet.' }),
+    ]);
+    const uptimeHours = metrics.uptimeSeconds / 3600;
+    const uptime = uptimeHours >= 24 ? `${Math.floor(uptimeHours / 24)}d ${Math.floor(uptimeHours % 24)}h` : uptimeHours >= 1 ? `${Math.floor(uptimeHours)}h ${Math.floor((metrics.uptimeSeconds % 3600) / 60)}m` : `${Math.max(1, Math.floor(metrics.uptimeSeconds / 60))}m`;
+    return [
+      el('h2', { class: 'section-title', text: `Traffic · last ${metrics.windowMinutes} minutes` }),
+      el('div', { class: 'kpis traffic-kpis' }, [
+        kpiCard({ label: 'Requests', value: formatNumber(totals.count), foot: `${formatNumber(Math.round(totals.count / Math.max(1, metrics.perMinute.length)))} a minute` }),
+        kpiCard({ label: 'Server errors', value: formatRate(totals.errorRate), foot: `${formatRate(totals.clientErrorRate)} refused (4xx)` }),
+        kpiCard({ label: 'Response time p95', value: formatMs(totals.p95Ms), foot: `Median ${formatMs(totals.p50Ms)}` }),
+        kpiCard({ label: 'Database connections', value: database ? `${database.total - database.idle} / ${database.max}` : '—', foot: database ? (database.waiting ? `${database.waiting} waiting` : 'In use / limit') : 'Not connected' }),
+      ]),
+      el('div', { class: 'panels' }, [routeTable('Busiest routes', metrics.routes.slice(0, 8)), routeTable('Slowest routes', metrics.slowest)]),
+      el('p', { class: 'page-subtitle', text: `Server ${metrics.replica} · up ${uptime} · memory ${metrics.process.rssMb} MB${metrics.process.eventLoopDelayP99Ms !== null ? ` · event-loop delay p99 ${metrics.process.eventLoopDelayP99Ms} ms` : ''}. Each server counts its own requests.` }),
+    ];
+  }
+
+  async function renderSystem() {
+    const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null), api('GET', '/admin/metrics').catch(() => null)]);
+    const row = (name, description, result) => el('li', { class: 'status-row' }, [
+      el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
+      el('span', { class: 'status-value' }, [
+        el('span', { class: 'status-ms', text: result.ms === null ? 'No response' : `${result.ms} ms` }),
+        statusBadge(result.ok ? 'ok' : 'down', result.ok ? 'Operational' : 'Down'),
+      ]),
+    ]);
+    const setup = setupRows(system);
     const runbook = (file, label) => el('li', {}, [el('a', { href: `https://github.com/alidd11/rider-comms/blob/main/${file}`, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: label }), icon('external')])]);
     pageEl.replaceChildren(
       pageHeader('System', `Checked ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} from this browser`),
@@ -883,6 +1519,8 @@
         row('API', 'Backend process is running', health),
         row('Database', 'Postgres reachable and migrations applied', ready),
       ])]),
+      ...(setup.length ? [el('h2', { class: 'section-title', text: 'Setup' }), el('section', { class: 'card' }, [el('ul', { class: 'status-list' }, setup)])] : []),
+      ...trafficSection(metrics),
       el('h2', { class: 'section-title', text: 'Runbooks' }),
       el('section', { class: 'card' }, [el('ul', { class: 'link-list' }, [
         runbook('MODERATION.md', 'Moderation and this dashboard'),
@@ -904,10 +1542,11 @@
 
   async function render() {
     for (const button of navEl.querySelectorAll('[data-view]')) {
-      if (button.dataset.view === view) button.setAttribute('aria-current', 'page');
+      if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
+    document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
     if (view === 'overview' && !overviewCache) pageEl.replaceChildren(...skeletonOverview());
     else if (view !== 'overview') pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
     setBusy(true);
@@ -921,12 +1560,20 @@
         renderRiders(riders);
       } else if (view === 'moderation') {
         await renderModeration();
+      } else if (view === 'audit') {
+        await renderAudit();
+      } else if (view === 'staff') {
+        await renderStaff();
+      } else if (view === 'rider') {
+        await renderRiderDetail(detailRiderId);
       } else {
         await renderSystem();
       }
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) {
-        notice('lock', 'This account is not staff', 'Ask an admin to add your rider ID to ADMIN_RIDER_IDS, then reload.');
+      if (error instanceof ApiError && error.code === 'permission_required') {
+        pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('lock', 'Your role doesn’t include this page', 'Ask an admin if you need it.')]));
+      } else if (error instanceof ApiError && error.status === 403) {
+        notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
       } else if (error instanceof ApiError && error.status === 401) {
         notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
       } else {
@@ -937,15 +1584,49 @@
     }
   }
 
-  function selectView(next) {
-    if (!VIEWS.includes(next)) return;
-    view = next;
-    if (location.hash !== `#${next}`) history.replaceState(null, '', `#${next}`);
+  function selectView(hash) {
+    const next = parseHash(hash);
+    if ((next.view === 'overview' && hash !== 'overview' && hash !== '') || (me && !allowed(VIEW_PERMISSIONS[next.view]))) return;
+    view = next.view;
+    detailRiderId = next.riderId;
+    const target = view === 'rider' ? `rider/${detailRiderId}` : view;
+    if (location.hash !== `#${target}`) history.pushState(null, '', `#${target}`);
     window.scrollTo(0, 0);
     void render();
   }
 
-  for (const button of navEl.querySelectorAll('[data-view]')) button.addEventListener('click', () => selectView(button.dataset.view));
+  // Phones: the sections are in a side menu. It closes on a choice, a tap
+  // outside or Escape, and gives focus back to the menu button.
+  const appEl = document.querySelector('.app');
+  const menuToggle = document.getElementById('menuToggle');
+  const menuBackdrop = document.getElementById('menuBackdrop');
+  function setMenu(open) {
+    appEl.classList.toggle('menu-open', open);
+    menuBackdrop.hidden = !open;
+    menuToggle.setAttribute('aria-expanded', String(open));
+    menuToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    if (open) (navEl.querySelector('[aria-current="page"]') || navEl.querySelector('[data-view]:not([hidden])'))?.focus();
+  }
+  menuToggle.addEventListener('click', () => {
+    const open = !appEl.classList.contains('menu-open');
+    setMenu(open);
+    if (!open) menuToggle.focus();
+  });
+  menuBackdrop.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
+  });
+  for (const button of navEl.querySelectorAll('[data-view]')) button.addEventListener('click', () => {
+    if (appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
+    selectView(button.dataset.view);
+  });
+  // Links to a rider (#rider/<id>) open their page.
+  pageEl.addEventListener('click', (event) => {
+    const link = event.target.closest?.('a[data-rider-link]');
+    if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    selectView(`rider/${link.dataset.riderLink}`);
+  });
   window.addEventListener('hashchange', () => selectView(location.hash.slice(1)));
   refreshMobile.addEventListener('click', () => void render());
   let resizeTimer;
@@ -961,6 +1642,28 @@
     return;
   }
   footerEl.textContent = `Signed in as ${session.riderId}`;
-  navEl.hidden = false;
-  void render();
+  const footerRole = el('span', { class: 'footer-role' });
+  api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
+    const name = profile?.displayName || profile?.handle;
+    if (name) footerEl.replaceChildren(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`, footerRole);
+  }).catch(() => {});
+
+  // The role decides which pages appear; the backend enforces it either way.
+  async function start() {
+    try {
+      me = await api('GET', '/admin/me');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
+      else if (error instanceof ApiError && error.status === 401) notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
+      else pageEl.replaceChildren(el('div', { class: 'card notice' }, [emptyState('wifiOff', 'Couldn’t reach the server', 'Check your connection, then reload.')]));
+      return;
+    }
+    for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
+    footerRole.replaceChildren(roleBadge(me.role));
+    if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
+    if (!allowed(VIEW_PERMISSIONS[view])) view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
+    navEl.hidden = false;
+    void render();
+  }
+  void start();
 })();

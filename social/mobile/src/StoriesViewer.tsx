@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ImageBackground, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { C } from './styles';
+import { CDark as C } from './styles';
 
 export type StoryPreview = {
   id: string;

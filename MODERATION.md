@@ -6,13 +6,57 @@ written to an audit log in the same database transaction.
 
 ## Who can moderate
 
-Moderators are admin accounts. Add a rider ID to `ADMIN_RIDER_IDS` on the
-backend and restart it: startup grants `users.is_admin` to the listed IDs.
-Removing an ID does **not** revoke an existing grant; demote someone
-explicitly with `UPDATE users SET is_admin = false WHERE id = '...'`.
+Dashboard access comes from a staff role (`backend/src/staffRoles.ts`).
+Riders have none until one is given:
 
-Admin status is re-read from the database on every moderation request.
-Moderators can't suspend themselves or another admin.
+| Role | Can |
+| --- | --- |
+| Admin | Everything, including adding and removing staff |
+| Moderator | Reports, hidden Social posts, suspensions; rider lookup; audit log |
+| Support | Rider lookup, verifying email, password reset emails, signing out every device, sign-in history; audit log. No reports or suspensions |
+| Analyst | Overview and System only. No rider details, reports or notes |
+
+Admins are set on the backend: add a rider ID to `ADMIN_RIDER_IDS` and
+restart it, and startup grants `users.is_admin` to the listed IDs. Removing
+an ID does **not** revoke an existing grant; demote someone explicitly with
+`UPDATE users SET is_admin = false WHERE id = '...'`.
+
+Admins give, change and remove the other roles on the dashboard's Staff page
+(stored in `staff_roles`). Each change needs a reason and goes in the audit
+log as `staff_grant` or `staff_revoke`.
+
+The role is re-read from the database on every request, and each action
+checks its own permission. Moderators can't suspend themselves or an admin.
+
+Every staff change (report decisions, suspensions, Social post decisions,
+verifying email, staff roles) needs the password re-entered on that session
+within the last 15 minutes. The dashboard asks for it when needed
+(`POST /auth/reauthenticate`); otherwise the change gets 403 `reauth_required`.
+
+Working the queue: **Take this report** shows other moderators who is on it
+(a claim lapses after 30 minutes). Each open report shows how long it has
+waited (amber after 4 hours, red after a day). Notes can start from a
+ready-made reason, and a suspension lasts 1, 7 or 30 days or has no end
+date; a timed one ends on its own (checked every 5 minutes, recorded as an
+unsuspension by `system`).
+
+Every rider has a page (click their name anywhere, or `#rider/<riderId>`)
+with their account, reports about and by them, staff history, signed-in
+devices and sign-in history, as far as the viewer's role allows
+(`GET /admin/riders/:riderId`). Its actions: suspend (with a length) or
+unsuspend (moderators), verify email, send a password reset link or sign
+out every device (support), export data (admins). Each needs a reason.
+
+Data access requests: riders download everything held about them with
+`GET /auth/export`. Admins can answer a request by email from the Riders
+page (Export data, `POST /admin/riders/:riderId/export` with a reason), which
+is recorded as `data_export`. The export leaves out password hashes, tokens,
+who reported the rider and staff notes about them.
+
+Sign-ins, wrong passwords, password resets, sign-outs and revoked devices are
+kept for 180 days in `security_events`. Riders see their own with
+`GET /auth/security-events`; admins see staff sign-ins on the Staff page and
+anyone's with `GET /admin/security-events?riderId=…` (`staff=1` for staff only).
 
 ## The staff dashboard
 
@@ -61,7 +105,7 @@ The dashboard is not linked from the app and asks search engines not to index it
 
 ## The API
 
-The dashboard is a thin layer over these endpoints, which also work directly (for example with `curl`). Two more, `GET /admin/overview` and `GET /admin/riders?q=…&limit=…` (up to 50), serve the Overview and Riders tabs.
+The dashboard is a thin layer over these endpoints, which also work directly (for example with `curl`). `GET /admin/me` returns the caller's role and permissions; `GET /admin/overview`, `GET /admin/riders?q=…&limit=…` (up to 50) and `GET /admin/system` serve the Overview, Riders and System pages. Admins manage staff with `GET /admin/staff`, `POST /admin/staff` (`{ rider, role, note }`, where `rider` is a rider ID or handle and `role` is moderator, support or analyst) and `POST /admin/staff/:riderId/remove` (`{ note }`). A staff member without the permission an endpoint needs gets 403 `permission_required`.
 
 
 All endpoints need an admin session (`Authorization: Bearer <token>` from

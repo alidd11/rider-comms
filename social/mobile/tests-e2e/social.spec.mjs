@@ -98,7 +98,7 @@ test('Home has one editorial feed while Reels owns For You and Following', async
   await expect(page.getByTestId('home-editorial-heading')).toHaveCount(0);
 
   await page.getByRole('tab', { name: 'Reels' }).click();
-  await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'For you videos' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
 });
 
@@ -186,6 +186,8 @@ test('profile edits save to the shared Rider Comms profile and survive reload', 
   await expect(page.getByText('Your name, bio and avatar are the same in Rider Comms.')).toBeVisible();
   await page.getByRole('textbox', { name: 'Display name' }).fill('Weekend Rider');
   await page.getByRole('textbox', { name: 'Bio' }).fill('Cars, motorcycles and Sunday rides.');
+  await expect(page.getByRole('radio', { name: 'Ridge avatar' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Change avatar' }).click();
   await page.getByRole('radio', { name: 'Ridge avatar' }).click();
   const saved = page.waitForRequest(request => request.method() === 'PUT' &&
     new URL(request.url()).pathname === '/riders/rider_abcd1234/profile');
@@ -202,6 +204,7 @@ test('profile edits save to the shared Rider Comms profile and survive reload', 
   let puts = 0;
   page.on('request', request => { if (request.method() === 'PUT') puts += 1; });
   await page.getByRole('button', { name: 'Edit profile' }).click();
+  await page.getByRole('button', { name: 'Change avatar' }).click();
   await expect(page.getByRole('radio', { name: 'Ridge avatar' })).toBeChecked();
   await page.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByTestId('profile-editor')).toHaveCount(0);
@@ -254,6 +257,26 @@ test('event detail includes only demo interest, not real RSVP', async ({ page })
 });
 
 
+test.describe('light mode', () => {
+  test.use({ colorScheme: 'light' });
+  test('Social follows the phone into light mode; Reels stay dark', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#social-bottom-tabs')).toBeVisible();
+    const colours = await page.evaluate(() => ({
+      body: getComputedStyle(document.body).backgroundColor,
+      screen: getComputedStyle(document.getElementById('social-screen')).backgroundColor,
+      themeColour: document.querySelector('meta[name="theme-color"][media*="light"]')?.getAttribute('content'),
+    }));
+    expect(colours.body).toBe('rgb(233, 238, 240)');
+    expect(colours.screen).toBe('rgb(233, 238, 240)');
+    expect(colours.themeColour?.toUpperCase()).toBe('#E9EEF0');
+    await page.getByRole('tab', { name: 'Reels' }).click();
+    await expect(page.getByTestId('fixed-reels-screen')).toBeVisible();
+    const reelsBackground = await page.getByTestId('fixed-reels-screen').evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(reelsBackground).not.toBe('rgb(233, 238, 240)');
+  });
+});
+
 test('iPhone and desktop render true edge-to-edge background with safe content insets', async ({ page }) => {
   await page.goto('/');
   // Measure only once the app has rendered: an absent heading is true before
@@ -289,10 +312,10 @@ test('iPhone and desktop render true edge-to-edge background with safe content i
   expect(geometry.viewport).toContain('viewport-fit=cover');
   expect(geometry.viewport).toContain('interactive-widget=resizes-content');
   expect(geometry.status).toBe('black-translucent');
-  expect(geometry.htmlBackground).toBe('rgb(8, 10, 14)');
-  expect(geometry.bodyBackground).toBe('rgb(8, 10, 14)');
-  expect(geometry.screenBackground).toBe('rgb(8, 10, 14)');
-  expect(geometry.tabsBackground).toBe('rgb(8, 10, 14)');
+  expect(geometry.htmlBackground).toBe('rgb(8, 13, 16)');
+  expect(geometry.bodyBackground).toBe('rgb(8, 13, 16)');
+  expect(geometry.screenBackground).toBe('rgb(8, 13, 16)');
+  expect(geometry.tabsBackground).toBe('rgb(8, 13, 16)');
   expect(geometry.hasSafeAreaCss).toBe(true);
   expect(geometry.rootBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
   expect(geometry.screenBottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 2);
@@ -459,7 +482,7 @@ test('Reels For You and Following have separate visible creator sets and Saved s
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
   await page.getByRole('tab', { name: 'Reels', exact: true }).click();
-  await expect(page.getByRole('tab', { name: 'For You videos' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'For you videos' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Following videos' })).toBeVisible();
   await expect(page.locator('#social-reel-panel-r1')).toHaveCount(1);
   await page.getByRole('tab', { name: 'Following videos' }).click();
@@ -471,7 +494,7 @@ test('Reels For You and Following have separate visible creator sets and Saved s
   await page.getByRole('button', { name: 'Next Reel' }).click();
   await expect(page.getByRole('button', { name: 'Next Reel' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Next Reel' })).toHaveCSS('opacity', '0.3');
-  await page.getByRole('tab', { name: 'For You videos' }).click();
+  await page.getByRole('tab', { name: 'For you videos' }).click();
   await page.getByRole('button', { name: 'Save Reel r2' }).click();
   await page.getByRole('tab', { name: 'Home' }).click();
   await page.getByRole('button', { name: 'Open profile' }).click();
@@ -698,6 +721,8 @@ test('repeated Home, Reels, Shop, Profile, Messages and Create navigation never 
     await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toBeVisible();
     await page.getByRole('button', { name: 'Open profile' }).click();
     await expect(page.getByTestId('social-profile-summary')).toBeVisible();
+    // Profile has no top bar; Messages opens from Home.
+    await page.getByRole('tab', { name: 'Home' }).click();
     await page.getByRole('button', { name: 'Open messages' }).click();
     await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
     await page.getByRole('tab', { name: 'Create' }).click();
@@ -1213,6 +1238,7 @@ test('visual inventory captures each Social screen at mobile and desktop sizes',
   await page.getByRole('tab', { name: 'Saved profile tab' }).click();
   await capture('profile-saved');
 
+  await page.getByRole('tab', { name: 'Home' }).click();
   await page.getByRole('button', { name: 'Open messages' }).click();
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
   await capture('messages');

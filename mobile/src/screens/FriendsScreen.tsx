@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share } from 'react-native';
+import { listSignature, useListLayoutAnimation } from '../components/useListLayoutAnimation';
+import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -8,6 +9,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
 import type { RootStackParamList } from '../navigation';
 import { colors, spacing, elevation, pressedFeedback } from '../theme';
+import { useSettings } from '../settings/SettingsContext';
+import { FriendInviteCard } from '../components/FriendInviteCard';
 import { styles } from './FriendsScreen.styles';
 import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
@@ -18,6 +21,8 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { openRiderSafetyMenu } from '../safety/riderSafetyActions';
 import type { PublicRiderProfile, RideMemberLocation } from '../api/client';
+import { SkeletonRows } from '../components/SkeletonRows';
+import { SHEET_GRAB_ZONE, useDragToDismiss } from '../components/useDragToDismiss';
 
 const FRIEND_RIDE_LOCATION_STALE_MS = 20_000;
 
@@ -299,6 +304,7 @@ function FriendProfileModal({
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const sheetDrag = useDragToDismiss(onClose);
   const { client } = useAuth();
   const { refresh, remove } = useFriends();
   const [profile, setProfile] = React.useState<PublicRiderProfile | null>(null);
@@ -383,8 +389,9 @@ function FriendProfileModal({
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose} accessible={false}>
+        <Animated.View style={{ transform: [{ translateY: sheetDrag.translateY }] }}>
         <Pressable style={[styles.profileModal, { paddingBottom: insets.bottom + spacing.md }]} onPress={(event) => event.stopPropagation()} accessible={false}>
-          <View style={styles.modalHandle} />
+          <View {...sheetDrag.panHandlers} style={SHEET_GRAB_ZONE}><View style={styles.modalHandle} /></View>
           <Pressable style={({ pressed }) => [styles.modalClose, pressed && pressedFeedback]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close profile">
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </Pressable>
@@ -398,6 +405,7 @@ function FriendProfileModal({
               <Text style={styles.profileModalHandle}>{profile?.handle ?? friend.handle} · {activityCopy}</Text>
             </View>
           </View>
+          {profile?.bio ? <Text testID="friend-profile-bio" style={styles.profileBio}>{profile.bio}</Text> : null}
 
           {loading && <ActivityIndicator style={styles.profileLoader} color={colors.accent} />}
           {error && <Text style={styles.profileError}>{error}</Text>}
@@ -527,6 +535,7 @@ function FriendProfileModal({
             </Pressable>
           ) : null}
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -540,6 +549,7 @@ export function FriendsScreen(): React.JSX.Element {
   const [query, setQuery] = React.useState('');
   const [selectedProfile, setSelectedProfile] = React.useState<FriendSummary | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  const { handle: myHandle } = useSettings();
   // Pending requests already fill the screen; the "build your circle"
   // prompt is for a genuinely empty list (and a search still says so).
   const hidesEmptyPrompt = incomingRequests.length + outgoingRequests.length > 0 && !query.trim();
@@ -549,6 +559,11 @@ export function FriendsScreen(): React.JSX.Element {
     return friends.filter((friend) => [friend.displayName, friend.handle, friend.riderId]
       .some((value) => value.toLocaleLowerCase().includes(normalized)));
   }, [friends, query]);
+  useListLayoutAnimation(listSignature([
+    ...incomingRequests.map((request) => `in:${request.id}`),
+    ...outgoingRequests.map((request) => `out:${request.id}`),
+    ...filteredFriends.map((friend) => `${activityByRider[friend.riderId]?.online ? 'on' : 'off'}:${friend.riderId}`),
+  ]));
   const unreadByRider = React.useMemo(
     () => Object.fromEntries(conversations.map((conversation) => [conversation.friend.riderId, conversation.unreadCount])),
     [conversations],
@@ -652,13 +667,7 @@ export function FriendsScreen(): React.JSX.Element {
         )}
 
         {loading && friends.length === 0 ? (
-          <View
-            style={styles.emptyState}
-            accessibilityLabel="Loading friends"
-            accessibilityLiveRegion="polite"
-          >
-            <ActivityIndicator color={colors.accent} />
-          </View>
+          <SkeletonRows label="Loading friends" />
         ) : friends.length === 0 && hidesEmptyPrompt ? null : friends.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={28} color={colors.textMuted} />
@@ -691,6 +700,10 @@ export function FriendsScreen(): React.JSX.Element {
             ) : null}
           </View>
         )}
+        {/* A short list leaves the screen bare: offer a way to grow it (PWA: #friendInvite). */}
+        {friends.length > 0 && friends.length < 4 && !query.trim() ? (
+          <FriendInviteCard handle={myHandle} onAdd={() => setAddOpen(true)} />
+        ) : null}
       </ScrollView>
 
       <View style={{ paddingBottom: insets.bottom }}>

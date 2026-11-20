@@ -473,6 +473,19 @@
     if (!key) return;
     try { localStorage.setItem(key, JSON.stringify(withRideHistoryEntry(loadRideHistory(), entry))); } catch { /* Private browsing. */ }
   }
+  /** The menu's ride stats: totals over the rides kept on this device
+   * (native: menuRideStats in MenuScreen). */
+  function renderMenuRideStats() {
+    if (!$('#appMenuStats')) return;
+    const history = loadRideHistory();
+    const unit = state.unit === 'km' ? 'km' : 'mi';
+    const minutes = Math.round(history.reduce((sum, entry) => sum + entry.durationMs, 0) / 60_000);
+    const metres = history.reduce((sum, entry) => sum + (entry.distanceMeters ?? 0), 0);
+    $('#appMenuStatRides').textContent = String(history.length);
+    $('#appMenuStatTime').textContent = minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    $('#appMenuStatDistance').textContent = (metres / (unit === 'km' ? 1000 : 1609.344)).toFixed(metres > 0 ? 1 : 0);
+    $('#appMenuStatDistanceUnit').textContent = unit === 'km' ? 'Kilometres' : 'Miles';
+  }
   function renderRecentRides() {
     const card = $('#recentRides');
     const list = $('#recentRidesList');

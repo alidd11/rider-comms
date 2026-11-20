@@ -4,6 +4,8 @@ import * as LiveActivity from 'expo-live-activity';
 import {
   NavigationLiveActivity,
   navigationLiveActivityContent,
+  rideLiveActivityContent,
+  type RideLiveActivityInput,
   type LiveActivityApi,
   type NavigationLiveActivityInput,
 } from '../navigationLiveActivity';
@@ -36,6 +38,25 @@ export function useNavigationLiveActivity(
     if (key && input) activity.current?.update(navigationLiveActivityContent(input), { urgent: turnIsClose });
     else activity.current?.stop(arrivedRef.current ? 'You’ve arrived' : undefined);
     // `key` captures every field of `input` that reaches the lock screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  React.useEffect(() => () => activity.current?.stop(), []);
+}
+
+/**
+ * A group ride on the lock screen and Dynamic Island while not navigating
+ * (navigation's own activity takes over while it runs). Ends with the ride.
+ */
+export function useRideLiveActivity(input: RideLiveActivityInput | null): void {
+  const activity = React.useRef<NavigationLiveActivity | null>(null);
+  if (!activity.current) activity.current = new NavigationLiveActivity(api);
+  const content = input ? rideLiveActivityContent(input) : null;
+  const key = content ? JSON.stringify(content) : null;
+  React.useEffect(() => {
+    if (content) activity.current?.update(content, { urgent: true });
+    else activity.current?.stop();
+    // `key` captures every field of `content`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 

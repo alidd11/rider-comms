@@ -80,7 +80,7 @@ export function CommentsSheet({
           onChangeText={setDraft} maxLength={500} placeholder="Add a comment…"
           placeholderTextColor={C.muted} style={{
             flex: 1, color: C.ink, backgroundColor: 'transparent', paddingVertical: 11,
-            paddingHorizontal: 0, fontSize: 16, borderBottomWidth: 1, borderBottomColor: '#3B4752',
+            paddingHorizontal: 0, fontSize: 16, borderBottomWidth: 1, borderBottomColor: C.border,
           }}/>
         <Pressable accessibilityRole="button" accessibilityLabel="Post local comment"
           disabled={!draft.trim()} onPress={submit} style={{

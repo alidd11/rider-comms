@@ -196,7 +196,7 @@ export function MapDrawer({
           onPress={onGroupRide} testID="drawer-group-ride"
           style={({ pressed }) => [styles.shortcut, compact && styles.shortcutCompact, pressed && styles.pressed]}>
           <View style={[styles.rideBadge, { width: badgeSize, height: badgeSize }]}>
-            <Ionicons name="people-outline" size={18} color="#fff" />
+            <Ionicons name="people" size={18} color="#fff" />
           </View>
           <Text style={[styles.shortcutText, compact && styles.shortcutTextCompact]}>Group Ride</Text>
         </Pressable>
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
   },
   shortcutCompact: { flexDirection: 'column', minHeight: 68, gap: 4, paddingHorizontal: 2 },
   shortcutTextCompact: { fontSize: 12, lineHeight: 15, textAlign: 'center' },
-  rideBadge: { borderRadius: 10, backgroundColor: '#5755a8', alignItems: 'center', justifyContent: 'center' },
+  rideBadge: { borderRadius: 999, backgroundColor: '#5755a8', alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.7 },
   shortcutCopy: { flexShrink: 1, minWidth: 0 },
   shortcutText: { ...type.body, fontSize: 16, lineHeight: 19, fontWeight: '700', color: colors.textPrimary },

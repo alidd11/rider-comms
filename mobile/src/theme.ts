@@ -1,10 +1,13 @@
 import { DynamicColorIOS, Platform, PlatformColor, useColorScheme } from 'react-native';
-import palette from './themePalette.json';
+import palette from '@rider-comms/shared/src/brandPalette.json';
+import { BRAND_RADII } from '@rider-comms/shared';
 
 /**
  * One product identity translated between two lighting conditions. The
- * values live in themePalette.json so the Android build can turn them into
- * colour resources too (plugins/withAndroidThemeColors.js).
+ * values live in shared/src/brandPalette.json, the palette every app uses
+ * (web: docs/brand.css; Rider Social: social/mobile/src/styles.ts), so the
+ * Android build can turn them into colour resources too
+ * (plugins/withAndroidThemeColors.js).
  *
  * Notes on particular colours:
  * - accentInk: the accent for text and small marks; the brand accent is only
@@ -57,12 +60,13 @@ export const spacing = {
   xxl: 48,
 } as const;
 
+/** Corners from shared/src/brand.ts (BRAND_RADII), as on the web (--radius-*). */
 export const radii = {
-  sm: 3,
-  md: 4,
-  lg: 4,
-  xl: 8,
-  pill: 999,
+  sm: 8,
+  md: BRAND_RADII.control,
+  lg: BRAND_RADII.card,
+  xl: 20,
+  pill: BRAND_RADII.pill,
 } as const;
 
 /**

@@ -27,9 +27,10 @@ jobs:
     # Pinned rather than ubuntu-latest: Playwright's WebKit system deps are
     # tied to the OS release, and ubuntu-latest moves to 26.04 from 2026-10-19.
     runs-on: ubuntu-24.04
-    # A full run takes ~12 minutes; 25 leaves room for a slow browser or apt
-    # mirror without letting a hung job run for the GitHub default of 6 hours.
-    timeout-minutes: 25
+    # A full run takes ~12 minutes. 35 leaves room for one run that has to
+    # fill the apt package cache from a slow mirror (125 MB took 20 minutes on
+    # 18 November), without letting a hung job run for GitHub's 6 hours.
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16-alpine
@@ -112,15 +113,51 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # The browsers' system packages (about 125 MB) are cached between runs:
+      # the Ubuntu mirror has been slow enough to time the job out downloading
+      # them. apt keeps what it downloads in ~/apt-archives (see below).
+      - name: Restore browser system packages
+        id: apt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives/*.deb
+          key: playwright-apt-${{ runner.os }}-24.04-${{ steps.playwright.outputs.version }}
       - name: Install visual-test browser
         # Browsers come from Playwright's CDN; their system libraries come from
-        # the Ubuntu mirror, which has been unreachable from runners at times.
-        # Bound that part so an outage can't eat the whole job, then carry on:
-        # the runner image already has most of what the browsers need.
+        # the Ubuntu mirror, which is unreachable from runners at times. Retry
+        # that part, then make sure both browsers really start: when WebKit's
+        # libraries are missing (libevent, for one) every WebKit test fails at
+        # launch, so stop here with the reason instead of 15 minutes later.
         run: |
           npx playwright install chromium webkit
-          timeout 480 sudo -E env "PATH=$PATH" npx playwright install-deps chromium webkit \
-            || echo "::warning::Playwright system dependencies could not be installed (apt mirror unavailable?)"
+          # Keep apt's downloads where the cache step can find them, and give
+          # up on a stalled mirror connection instead of waiting on it.
+          mkdir -p "$HOME/apt-archives/partial"
+          printf '%s\n' "Dir::Cache::Archives \"$HOME/apt-archives\";" 'Binary::apt::APT::Keep-Downloaded-Packages "true";' 'APT::Keep-Downloaded-Packages "true";' 'Acquire::http::Timeout "60";' 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99rider-comms-ci >/dev/null
+          # Do not put timeout *outside* sudo: it can kill the parent
+          # while leaving an apt-get child holding dpkg's lock. This caused
+          # repeated WebKit failures (missing libevent-2.1.so.7) on PR CI.
+          deps_ready=false
+          for attempt in 1 2; do
+            if sudo -E env "PATH=$PATH" npx playwright install-deps chromium webkit; then
+              deps_ready=true
+              break
+            fi
+            echo "::warning::Playwright dependency installation attempt $attempt failed"
+            sleep 15
+          done
+          if [ "$deps_ready" != true ]; then
+            echo "::error::Playwright system dependencies could not be installed"
+            exit 1
+          fi
+          sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-archives"
+          node -e "const pw = require('@playwright/test'); (async () => { for (const type of [pw.chromium, pw.webkit]) await (await type.launch()).close(); })().catch((error) => { console.error('::error::A test browser cannot start (missing system libraries?): ' + (error.message.split('\\n').find((line) => line.includes('error while loading')) || error.message.split('\\n')[0])); process.exit(1); });"
+      - name: Save browser system packages
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives/*.deb
+          key: ${{ steps.apt-cache.outputs.cache-primary-key }}
       - name: Run PWA visual smoke audit
         run: npm run test:pwa:visual
       - name: Verify Android bundle

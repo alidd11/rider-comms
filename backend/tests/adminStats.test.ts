@@ -237,6 +237,17 @@ describe('admin dashboard API', { skip: !hasDatabase && 'DATABASE_URL not set; s
   it('refuses non-admins', async () => {
     assert.equal((await authenticatedFetch(ctx, RIDER_A, '/admin/overview')).status, 403);
     assert.equal((await authenticatedFetch(ctx, RIDER_A, '/admin/riders?q=x')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, RIDER_A, '/admin/system')).status, 403);
+  });
+
+  it('tells admins what the backend is set up to do', async () => {
+    const response = await authenticatedFetch(ctx, ADMIN, '/admin/system');
+    assert.equal(response.status, 200);
+    const body = await response.json() as { socialMediaStorage: unknown; socialPosting: unknown; email: { configured: unknown } };
+    assert.equal(typeof body.socialMediaStorage, 'boolean');
+    assert.equal(typeof body.socialPosting, 'boolean');
+    assert.equal(typeof (body as { socialMediaScanning?: unknown }).socialMediaScanning, 'boolean');
+    assert.equal(typeof body.email.configured, 'boolean');
   });
 
   it('serves the overview and rider search to admins, with validated parameters', async () => {

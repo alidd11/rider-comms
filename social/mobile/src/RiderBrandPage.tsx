@@ -1,54 +1,29 @@
 import React, { useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import coastalMotorcycle from '../assets/editorial/coastal-motorcycle.jpg';
-import citySportsCar from '../assets/editorial/city-sports-car.jpg';
 import { C, s } from './styles';
+import { BrandMark } from './BrandMark';
 import { brandPosts, brandReels, brandStories } from './brandEditorial';
 type Tab = 'Posts' | 'Reels' | 'Stories';
 type EditorialPost = (typeof brandPosts)[number];
 
-export function RiderBrandHome({ onOpen }: {onOpen:()=>void}) {
-  return <Pressable testID="brand-home-feature" accessibilityRole="button"
-    accessibilityLabel="Open Rider Comms editorial page" onPress={onOpen}
-    style={{ marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 12,
-      minHeight: 62, borderRadius: 14, backgroundColor: C.panel,
-      flexDirection: 'row', gap: 11, alignItems: 'center' }}>
-    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.accentDark,
-      justifyContent: 'center', alignItems: 'center' }}>
-      <Text style={{ color: C.accent, fontWeight: '900', fontSize: 11 }}>RC</Text>
-    </View>
-    <View style={{ flex: 1, gap: 2 }}>
-      <Text style={{ color: C.ink, fontSize: 14, fontWeight: '800' }}>Rider Comms</Text>
-      <Text style={s.small}>Photos, Stories and Reels</Text>
-    </View>
-    <Ionicons name="chevron-forward" size={17} color={C.muted}/>
-  </Pressable>;
-}
-
-const homeEditorial = [
-  { post: brandPosts[0], source: coastalMotorcycle },
-  { post: brandPosts[1], source: citySportsCar },
-];
+const homeEditorial = brandPosts.slice(0, 2);
 
 export function RiderBrandFeed({ onOpen }: { onOpen: () => void }) {
   return <View testID="home-starter-feed">
-    {homeEditorial.map(({ post, source }) => <View key={post.id}
+    {homeEditorial.map(post => <View key={post.id}
       style={{ borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 14 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={'Visit Rider Comms for ' + post.title}
         onPress={onOpen} style={{ minHeight: 54, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: C.accentDark,
-          justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: C.accent, fontSize: 11, fontWeight: '900' }}>RC</Text>
-        </View>
+        <BrandMark size={34}/>
         <View style={{ flex: 1, gap: 1 }}>
           <Text style={{ color: C.ink, fontWeight: '800', fontSize: 14 }}>Rider Comms</Text>
-          <Text style={s.small}>Editorial</Text>
+          <Text style={s.small}>@ridercomms</Text>
         </View>
         <Ionicons name="chevron-forward" size={17} color={C.muted}/>
       </Pressable>
       <View style={{ width: '100%', aspectRatio: 1.15, overflow: 'hidden', backgroundColor: post.tone }}>
-        <Image source={source} accessibilityLabel={post.alt} resizeMode="cover"
+        <Image source={post.image} accessibilityLabel={post.alt} resizeMode="cover"
           style={{ width: '100%', height: '100%' }}/>
       </View>
       <View style={{ paddingHorizontal: 14, paddingTop: 11, gap: 5 }}>
@@ -69,12 +44,12 @@ export function RiderBrandPage({onBack,onStory,onReel}:{
   const back=<Pressable accessibilityRole="button" accessibilityLabel={detail?'Back to Rider Comms page':'Close Rider Comms page'}
     onPress={detail?()=>setDetail(null):onBack} style={{flexDirection:'row',alignItems:'center',
       gap:9,minHeight:44}}>
-    <Ionicons name="arrow-back" size={23} color={C.ink}/>
+    <Ionicons name="chevron-back" size={23} color={C.ink}/>
     <Text style={{color:C.ink,fontWeight:'800'}}>Rider Comms</Text>
   </Pressable>;
   if(detail) return <View testID="brand-post-detail" style={{gap:12,paddingBottom:35}}>
     {back}
-    <Image accessibilityLabel={detail.alt} source={{uri:detail.imageUrl}}
+    <Image accessibilityLabel={detail.alt} source={detail.image}
       resizeMode="cover" style={{width:'100%',aspectRatio:4/5,borderRadius:12,
         backgroundColor:detail.tone}}/>
     <Text style={{color:C.ink,fontSize:19,fontWeight:'900'}}>{detail.title}</Text>
@@ -87,10 +62,7 @@ export function RiderBrandPage({onBack,onStory,onReel}:{
   return <View testID="rider-comms-brand-page" style={{gap:15,paddingBottom:25}}>
     {back}
     <View style={{flexDirection:'row',alignItems:'center',gap:15}}>
-      <View style={{width:82,height:82,borderRadius:41,backgroundColor:'#193B34',
-        borderWidth:2,borderColor:C.accent,alignItems:'center',justifyContent:'center'}}>
-        <Text style={{fontSize:24,color:C.accent,fontWeight:'900'}}>RC</Text>
-      </View>
+      <BrandMark size={82} ring/>
       <View style={{flex:1,gap:5}}>
         <Text style={{color:C.ink,fontSize:23,fontWeight:'900',letterSpacing:-0.5}}>Rider Comms</Text>
         <Text style={[s.small,{fontSize:12}]}>@ridercomms</Text>
@@ -122,7 +94,7 @@ export function RiderBrandPage({onBack,onStory,onReel}:{
         accessibilityRole="button" accessibilityLabel={'View editorial photo '+item.title}
         onPress={()=>setDetail(item)} style={{width:'32.7%',aspectRatio:3/4,
           backgroundColor:item.tone}}>
-        <Image source={{uri:item.imageUrl}} resizeMode="cover" accessibilityLabel={item.alt}
+        <Image source={item.image} resizeMode="cover" accessibilityLabel={item.alt}
           style={{width:'100%',height:'100%'}}/>
       </Pressable>)}
       {tab==='Reels'&&brandReels.map(item=><Pressable key={item.id}

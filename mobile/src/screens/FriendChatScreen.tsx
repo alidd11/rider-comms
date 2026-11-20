@@ -32,6 +32,11 @@ import { useFriends } from '../friends/FriendsContext';
 import { useSettings } from '../settings/SettingsContext';
 import { navigationProviderLabel } from '../navigationPreference';
 import { RiderAvatar } from '../components/RiderAvatar';
+import { haptics } from '../haptics';
+import { SkeletonBubbles } from '../components/SkeletonRows';
+import { messageFollows } from '../chat/messageGrouping';
+import * as Clipboard from 'expo-clipboard';
+import { peerIsTyping, shouldSendTyping, TYPING_SHOW_MS } from '../chat/typing';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FriendChat'>;
 
@@ -53,18 +58,22 @@ function MessageBubble({
   currentRiderId,
   onRetry,
   readByPeer,
+  follows = false,
+  onLongPress,
 }: {
   message: LocalMessage;
   currentRiderId: string;
   onRetry: (id: string) => void;
   readByPeer: boolean;
+  follows?: boolean;
+  onLongPress?: (message: LocalMessage) => void;
 }): React.JSX.Element {
   const mine = message.fromRiderId === currentRiderId;
   const failed = mine && message.status === 'failed';
 
   const bubble = (
     <View style={styles.bubbleColumn}>
-      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, failed && styles.bubbleFailed]}>
+      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, follows && (mine ? styles.bubbleFollowsMine : styles.bubbleFollowsTheirs), failed && styles.bubbleFailed]}>
         <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{message.text}</Text>
         <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>{formatTime(message.createdAt)}</Text>
       </View>
@@ -75,8 +84,17 @@ function MessageBubble({
   );
 
   return (
-    <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-      {failed ? <Pressable accessibilityRole="button" accessibilityHint="Not sent. Double-tap to retry." onPress={() => onRetry(message.id)}>{bubble}</Pressable> : bubble}
+    <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs, follows && styles.bubbleRowFollows]}>
+      {failed ? <Pressable accessibilityRole="button" accessibilityHint="Not sent. Double-tap to retry." onPress={() => onRetry(message.id)}>{bubble}</Pressable> : (
+        <Pressable
+          accessibilityRole="text"
+          accessibilityHint="Long-press for Copy and Delete."
+          accessibilityActions={[{ name: 'longpress', label: 'Message options' }]}
+          onAccessibilityAction={() => onLongPress?.(message)}
+          onLongPress={() => onLongPress?.(message)}
+          delayLongPress={350}
+        >{bubble}</Pressable>
+      )}
     </View>
   );
 }
@@ -126,7 +144,7 @@ export function FriendChatScreen(props: Props): React.JSX.Element {
 function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Element {
   const { riderId, displayName, avatarId } = route.params;
   const { riderId: currentRiderId, client } = useAuth();
-  const { refresh: refreshFriends, refreshMessages, socialRevision } = useFriends();
+  const { refresh: refreshFriends, refreshMessages, socialRevision, typingAtByRider } = useFriends();
   const { navigationProvider } = useSettings();
   const insets = useSafeAreaInsets();
 
@@ -143,6 +161,44 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
   const focusedRef = React.useRef(false);
   const hasLoadedOlderRef = React.useRef(false);
   const preserveViewportOnNextContentChange = React.useRef(false);
+  const lastTypingSentAt = React.useRef(0);
+  const [now, setNow] = React.useState(() => Date.now());
+  const peerTypingAt = typingAtByRider[riderId] ?? 0;
+  const lastMessage = messages[messages.length - 1];
+  const peerTyping = peerIsTyping(peerTypingAt, now, lastMessage?.fromRiderId === riderId ? lastMessage.createdAt : 0);
+  // Re-render once the "typing…" window runs out.
+  React.useEffect(() => {
+    setNow(Date.now());
+    if (!peerTypingAt) return undefined;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, peerTypingAt + TYPING_SHOW_MS - Date.now()) + 50);
+    return () => clearTimeout(timer);
+  }, [peerTypingAt]);
+
+  const handleDraftChange = React.useCallback((text: string) => {
+    setDraft(text);
+    if (!text.trim() || conversationUnavailable) return;
+    const at = Date.now();
+    if (!shouldSendTyping(lastTypingSentAt.current, at)) return;
+    lastTypingSentAt.current = at;
+    void client.sendTyping(riderId).catch(() => undefined);
+  }, [client, conversationUnavailable, riderId]);
+
+  const handleMessageOptions = React.useCallback((message: LocalMessage) => {
+    haptics.select();
+    const mine = message.fromRiderId === currentRiderId && !message.status;
+    const copy = { text: 'Copy', onPress: () => { void Clipboard.setStringAsync(message.text).then(() => haptics.success()); } };
+    const remove = {
+      text: 'Delete',
+      style: 'destructive' as const,
+      onPress: () => {
+        void client.deleteMessage(message.id).then(() => {
+          setMessages((current) => current.filter((entry) => entry.id !== message.id));
+          void refreshMessages();
+        }).catch(() => setError('Couldn’t delete the message. Try again.'));
+      },
+    };
+    Alert.alert('Message', undefined, mine ? [copy, remove, { text: 'Cancel', style: 'cancel' }] : [copy, { text: 'Cancel', style: 'cancel' }]);
+  }, [client, currentRiderId, refreshMessages]);
 
   const [hideouts, setHideouts] = React.useState<Hideout[]>([]);
   const [planOpen, setPlanOpen] = React.useState(false);
@@ -244,8 +300,10 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
       const sent = await client.sendMessage(riderId, text);
       setMessages((current) => acknowledgeOptimisticMessage(current, tempId, sent));
       setError(null);
+      haptics.tap();
     } catch {
       setMessages((current) => current.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
+      haptics.warning();
     } finally {
       setSending(false);
     }
@@ -388,14 +446,17 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         ref={listRef}
         data={messages}
         keyExtractor={(m) => m.id}
-        renderItem={({ item, index }) => (
-          <>
-            {startsNewDay(item.createdAt, messages[index - 1]?.createdAt) ? (
-              <Text style={styles.dayLabel} accessibilityRole="header">{formatMessageDay(item.createdAt)}</Text>
-            ) : null}
-            <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} />
-          </>
-        )}
+        renderItem={({ item, index }) => {
+          const newDay = startsNewDay(item.createdAt, messages[index - 1]?.createdAt);
+          return (
+            <>
+              {newDay ? (
+                <Text style={styles.dayLabel} accessibilityRole="header">{formatMessageDay(item.createdAt)}</Text>
+              ) : null}
+              <MessageBubble message={item} currentRiderId={currentRiderId} onRetry={handleRetry} readByPeer={item.id === peerReadThroughMessageId} follows={messageFollows(messages[index - 1], item, newDay)} onLongPress={handleMessageOptions} />
+            </>
+          );
+        }}
         ListHeaderComponent={nextCursor ? (
           <Pressable
             accessibilityRole="button"
@@ -419,7 +480,7 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
           listRef.current?.scrollToEnd({ animated: true });
         }}
         ListEmptyComponent={loading ? (
-          <View style={styles.chatEmpty}><ActivityIndicator color={colors.accent} /><Text style={styles.chatEmptyText}>Loading conversation…</Text></View>
+          <SkeletonBubbles label="Loading conversation" />
         ) : (
           <View style={styles.chatEmpty}>
             <Ionicons name="chatbubble-ellipses-outline" size={34} color={colors.textMuted} />
@@ -429,13 +490,16 @@ function FriendChatScreenContent({ route, navigation }: Props): React.JSX.Elemen
         )}
       />
 
+      {peerTyping ? (
+        <Text style={styles.typingLabel} accessibilityLiveRegion="polite">{displayName} is typing…</Text>
+      ) : null}
       <View style={styles.composer}>
         <TextInput
           style={styles.composerInput}
           placeholder="Message"
           placeholderTextColor={colors.textMuted}
           value={draft}
-          onChangeText={setDraft}
+          onChangeText={handleDraftChange}
           editable={!conversationUnavailable}
           accessibilityState={{ disabled: conversationUnavailable }}
           multiline

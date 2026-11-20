@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
-import type { SocialVisibility } from '@rider-comms/shared';
+import { MAX_PROFILE_BIO_LENGTH, type SocialVisibility } from '@rider-comms/shared';
 import { colors, spacing, pressedFeedback } from '../theme';
 import { BlockedRidersList } from './BlockedRidersList';
 import { LEGAL_LINKS } from '../legalLinks';
@@ -314,7 +314,7 @@ function SettingsPageLayout({ title, page, children }: { title: string; page: Se
 /** The Settings root: categories only, each opening its own
  * page (the PWA's SETTINGS_CATEGORIES has the same rows and tints). */
 export function SettingsScreen(): React.JSX.Element {
-  const { profileError, clearProfileError, unitSystem, navigationProvider, rideSafeEnabled, riderVehicle, zoneTier } = useSettings();
+  const { profileError, clearProfileError, unitSystem, navigationProvider, rideSafeEnabled, riderVehicle, zoneTier, spokenDirections } = useSettings();
   const insets = useSafeAreaInsets();
   const palette = useSettingsPalette();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -344,7 +344,7 @@ export function SettingsScreen(): React.JSX.Element {
         <SettingsGroup compact>
           <CategoryRow first icon="settings" tint="#1FB6D9" title="General" value={UNIT_LABELS[unitSystem].name} onPress={() => openPage('general')} />
           <CategoryRow icon="map" tint="#2FB35F" title="Map & navigation" value={navigationAppLabel} onPress={() => openPage('mapNavigation')} />
-          <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" onPress={() => openPage('voiceSound')} />
+          <CategoryRow icon="volume-high" tint="#3478F6" title="Voice and sound" value={spokenDirections ? 'Spoken' : 'Muted'} onPress={() => openPage('voiceSound')} />
           <CategoryRow icon="notifications" tint="#EF4444" title="Notifications" onPress={() => openPage('notifications')} />
         </SettingsGroup>
 
@@ -659,7 +659,7 @@ const VISIBILITY_LABELS: Record<SocialVisibility, string> = { public: 'Everyone'
 
 /** View profile: how other riders see you, with Edit profile. */
 function MyProfilePage(): React.JSX.Element {
-  const { avatarId, displayName, handle, zoneTier, instagramUsername, instagramVisibility, tiktokUsername, tiktokVisibility } = useSettings();
+  const { avatarId, displayName, handle, zoneTier, instagramUsername, instagramVisibility, tiktokUsername, tiktokVisibility, bio } = useSettings();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   // push, not navigate: Profile is already a SettingsPage, and navigate() to
   // the same route name would replace it, so Back from Edit profile would
@@ -675,6 +675,7 @@ function MyProfilePage(): React.JSX.Element {
         <Text numberOfLines={1} style={styles.myProfileName}>{displayName}</Text>
         <Text numberOfLines={1} style={styles.myProfileHandle}>{handle}</Text>
         <Text style={styles.myProfilePlan}>{PLAN_INFO[zoneTier].name} plan</Text>
+        {bio ? <Text testID="my-profile-bio" style={styles.myProfileBio}>{bio}</Text> : null}
       </View>
       <SettingsGroup>
         <PlainRow first title="Edit profile" onPress={editProfile} />
@@ -697,12 +698,13 @@ function EditProfilePage(): React.JSX.Element {
     avatarId, setAvatarId, displayName, setDisplayName, handle, setHandle,
     instagramUsername, setInstagramUsername, instagramVisibility, setInstagramVisibility,
     tiktokUsername, setTiktokUsername, tiktokVisibility, setTiktokVisibility,
-    saving, profileError,
+    bio, setBio, saving, profileError,
   } = useSettings();
   const navigation = useNavigation();
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(displayName);
   const [handleDraft, setHandleDraft] = React.useState(handle);
+  const [bioDraft, setBioDraft] = React.useState(bio);
   const [instagramDraft, setInstagramDraft] = React.useState(instagramUsername);
   const [tiktokDraft, setTiktokDraft] = React.useState(tiktokUsername);
   const [instagramVisibilityDraft, setInstagramVisibilityDraft] = React.useState(instagramVisibility);
@@ -744,6 +746,7 @@ function EditProfilePage(): React.JSX.Element {
     let changed = false;
     if (name !== displayName) { setDisplayName(name); changed = true; }
     if (nextHandle !== handle) { setHandle(nextHandle); changed = true; }
+    if (bioDraft.trim() !== bio) { setBio(bioDraft); changed = true; }
     if (instagram.value !== instagramUsername) { setInstagramUsername(instagram.value); changed = true; }
     if (instagramVisibilityDraft !== instagramVisibility) { setInstagramVisibility(instagramVisibilityDraft); changed = true; }
     if (tiktok.value !== tiktokUsername) { setTiktokUsername(tiktok.value); changed = true; }
@@ -775,6 +778,9 @@ function EditProfilePage(): React.JSX.Element {
         <TextInput accessibilityLabel="Rider name" style={styles.sheetInput} value={nameDraft} onChangeText={(value) => { setNameDraft(value); setProfileDraftError(null); }} maxLength={50} returnKeyType="done" placeholder="Rider name" placeholderTextColor={colors.textMuted} />
         <Text style={styles.fieldLabel}>Rider handle</Text>
         <TextInput accessibilityLabel="Rider handle" style={styles.sheetInput} value={handleDraft} onChangeText={(value) => { setHandleDraft(value); setProfileDraftError(null); }} maxLength={25} autoCapitalize="none" autoCorrect={false} returnKeyType="done" placeholder="@handle" placeholderTextColor={colors.textMuted} />
+        <Text style={styles.fieldLabel}>Bio</Text>
+        <TextInput accessibilityLabel="Bio" style={[styles.sheetInput, styles.bioInput]} value={bioDraft} onChangeText={setBioDraft} maxLength={MAX_PROFILE_BIO_LENGTH} multiline textAlignVertical="top" placeholder="What do you ride?" placeholderTextColor={colors.textMuted} />
+        <Text style={styles.fieldHint}>Shown on your profile in Rider Comms and Rider Social.</Text>
       </PageSection>
 
       <PageSection title="Connected profiles" note="Choose who can see each one on your Rider Comms profile.">

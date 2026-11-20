@@ -97,8 +97,13 @@ succeeds and half are answered within tens of milliseconds.
   users**, even in the dense case. By 1000 the CPU is saturated and the slowest
   5% of requests take 1–2 s. They still succeed; it means a slower map
   update, not an error.
-- To scale past that, add Railway replicas. Rate limits and presence live in
-  Postgres, so replicas need no extra coordination. Keep
+- To scale past that, add Railway replicas. Rate limits, presence, sessions,
+  staff password re-checks and live-update wakeups (LISTEN/NOTIFY) live in
+  Postgres, so replicas need no extra coordination. Recurring jobs (cleanups,
+  sweeps, the web-app check) claim each interval in `job_runs`, so one replica
+  runs each (`backend/src/jobLease.ts`). What stays per replica: caches, the
+  dashboard's traffic figures and email-delivery status (the page names the
+  replica), and the error-alert email limit. Keep
   `replicas × DATABASE_POOL_MAX` below the database's `max_connections`
   (100 on a default Railway Postgres).
 - Live voice traffic does not go through this backend (LiveKit carries it),

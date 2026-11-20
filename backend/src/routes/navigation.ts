@@ -17,9 +17,22 @@ export async function handleNavigationRoutes(ctx: RouteContext): Promise<unknown
     // An optional stop on the way (petrol found along the route).
     const via = body.via === undefined ? undefined : routeCoordinate(body.via);
     if (via === null) return sendJson(res, 400, { error: 'via must be a valid coordinate' });
+    // A curated route has ordered intermediate waypoints. Keep the legacy
+    // single-stop `via` contract, but never silently drop an invalid waypoint.
+    let waypoints: Array<{ lat: number; lon: number }> | undefined;
+    if (body.waypoints !== undefined) {
+      if (body.via !== undefined || !Array.isArray(body.waypoints) || body.waypoints.length < 1 || body.waypoints.length > 20) {
+        return sendJson(res, 400, { error: 'waypoints must contain 1-20 coordinates and cannot be combined with via' });
+      }
+      const parsed = body.waypoints.map(routeCoordinate);
+      if (parsed.some((point: unknown) => point === null)) {
+        return sendJson(res, 400, { error: 'every waypoint must be a valid coordinate' });
+      }
+      waypoints = parsed as Array<{ lat: number; lon: number }>;
+    }
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'directions'))) return;
     try {
-      return sendJson(res, 200, await directionsProvider(origin, destination, { ...routeAvoidance(body.avoid), ...(via ? { via } : {}) }));
+      return sendJson(res, 200, await directionsProvider(origin, destination, { ...routeAvoidance(body.avoid), ...(via ? { via } : {}), ...(waypoints ? { waypoints } : {}) }));
     } catch (error) {
       if (!(error instanceof DirectionsProviderError)) throw error;
       if (error.code === 'directions_invalid_request') return sendJson(res, 400, { error: error.code });

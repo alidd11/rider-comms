@@ -1,9 +1,12 @@
 {
   "light": {
     "background": "#E9EEF0",
+    "backgroundElevated": "#F1F4F5",
     "surface": "#F7F9FA",
     "surfaceRaised": "#DFE7EA",
+    "surfaceHover": "#D7E1E5",
     "border": "#BCC8CE",
+    "borderSoft": "#CDD8DD",
     "textPrimary": "#0B1216",
     "textSecondary": "#46545C",
     "textMuted": "#58666E",
@@ -12,19 +15,26 @@
     "accentPressed": "#1F86AA",
     "accentSoft": "#D5EBF2",
     "accentText": "#031217",
+    "focus": "#279FC8",
+    "bubbleMine": "#1A7396",
     "success": "#1D7553",
-    "danger": "#BE4A53",
+    "danger": "#A33640",
     "dangerSurface": "#F2DDDF",
     "warning": "#97620F",
     "asphalt": "#DDE5E8",
     "laneLine": "#BBC7CD",
-    "switchTrackOff": "#AEBBC2"
+    "switchTrackOff": "#AEBBC2",
+    "guidance": "#0B5D78",
+    "guidanceStrip": "#084A60"
   },
   "dark": {
     "background": "#080D10",
+    "backgroundElevated": "#0D1317",
     "surface": "#11171B",
     "surfaceRaised": "#182127",
-    "border": "#202A30",
+    "surfaceHover": "#1D282F",
+    "border": "#27323A",
+    "borderSoft": "#182127",
     "textPrimary": "#F3F6F7",
     "textSecondary": "#AAB5BA",
     "textMuted": "#85919A",
@@ -33,12 +43,16 @@
     "accentPressed": "#278DB1",
     "accentSoft": "#102D38",
     "accentText": "#041318",
+    "focus": "#64BDE0",
+    "bubbleMine": "#1B6E8E",
     "success": "#42C58A",
     "danger": "#F0646B",
     "dangerSurface": "#2A171A",
     "warning": "#D39A42",
     "asphalt": "#0D1317",
     "laneLine": "#253139",
-    "switchTrackOff": "#3A4850"
+    "switchTrackOff": "#3A4850",
+    "guidance": "#0A5069",
+    "guidanceStrip": "#073B4E"
   }
 }

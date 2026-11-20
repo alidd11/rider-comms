@@ -127,6 +127,20 @@ test('a friend_request event refreshes the network but not messages', async () =
   expect(client.getConversations).toHaveBeenCalledTimes(conversationsBefore);
 });
 
+test('a typing event records when the friend typed, and their message clears it', async () => {
+  const { getSocialEvents, resolveNext } = deferredSocialEvents();
+  const client = baseClient({ getSocialEvents });
+  const { result } = await renderFriends(client);
+  await resolveNext(page([], 'c1'));
+  await waitFor(() => expect(result.current.socialRevision).toBe(1));
+
+  await resolveNext(page([socialEvent('typing', 'friend-1')], 'c2'));
+  await waitFor(() => expect(result.current.typingAtByRider['friend-1']).toBeGreaterThan(0));
+
+  await resolveNext(page([socialEvent('message', 'friend-1')], 'c3'));
+  await waitFor(() => expect(result.current.typingAtByRider['friend-1']).toBe(0));
+});
+
 test('a message event refreshes messages and bumps the open-chat revision', async () => {
   const { getSocialEvents, resolveNext } = deferredSocialEvents();
   const client = baseClient({ getSocialEvents });

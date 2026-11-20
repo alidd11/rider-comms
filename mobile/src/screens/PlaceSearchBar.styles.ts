@@ -46,9 +46,9 @@ export const styles = StyleSheet.create({
     minHeight: 58, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
     paddingHorizontal: 5, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  resultsEyebrow: { ...type.label, fontSize: 10 },
+  resultsEyebrow: { ...type.label, fontSize: 12 },
   resultsTitle: { ...type.subheading, fontSize: 16, marginTop: 2 },
-  resultsCount: { ...type.caption, fontSize: 11 },
+  resultsCount: { ...type.caption, fontSize: 12 },
   clearRecent: { ...type.caption, color: colors.accentInk, fontWeight: '800', paddingVertical: spacing.sm, minHeight: 44, textAlignVertical: 'center' },
   resultRow: {
     minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 5,
@@ -60,7 +60,7 @@ export const styles = StyleSheet.create({
   resultName: { ...type.body, color: colors.textPrimary, fontWeight: '700', fontSize: 15 },
   resultAddress: { ...type.caption, marginTop: 3 },
   resultTrailing: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  resultDistance: { ...type.caption, fontSize: 11 },
+  resultDistance: { ...type.caption, fontSize: 12 },
   state: { flex: 1, minHeight: 280, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   stateCompact: { flex: 0, minHeight: 210 },
   stateIcon: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: radii.lg, backgroundColor: colors.surfaceRaised, marginBottom: spacing.md },
@@ -71,5 +71,5 @@ export const styles = StyleSheet.create({
     borderRadius: radii.md, backgroundColor: colors.accent,
   },
   stateActionText: { ...type.caption, color: colors.accentText, fontWeight: '800' },
-  attribution: { ...type.caption, paddingHorizontal: 20, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border, textAlign: 'right', fontSize: 11 },
+  attribution: { ...type.caption, paddingHorizontal: 20, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.border, textAlign: 'right', fontSize: 12 },
 });

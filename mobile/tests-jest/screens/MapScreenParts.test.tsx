@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { RidingHud } from '../../src/screens/RidingHud';
-import { NavigationBanner, NavigationControls, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
+import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
 import { ArrivalCard, DestinationCard } from '../../src/screens/MapPlaceCards';
 import { ROUTE_UPDATED_NOTICE } from '../../src/screens/useInAppNavigation';
 
@@ -32,8 +32,7 @@ test('the riding HUD shows speed, the group and glove-sized Mute and Hazard', as
   expect(view.queryByRole('button', { name: /microphone/ })).toBeNull();
 });
 
-test('the banner shows the road large, the next road, and notices; End closes it', async () => {
-  const onEnd = jest.fn();
+test('the banner shows the road large, the next road, and notices', async () => {
   const onHeight = jest.fn();
   const view = await render(
     <NavigationBanner
@@ -48,7 +47,6 @@ test('the banner shows the road large, the next road, and notices; End closes it
       roadAlerts={[]}
       notice={ROUTE_UPDATED_NOTICE}
       onHeight={onHeight}
-      onEnd={onEnd}
     />,
   );
   expect(view.getByText('Camden Rd / A503')).toBeTruthy();
@@ -59,14 +57,11 @@ test('the banner shows the road large, the next road, and notices; End closes it
   const update = onHeight.mock.calls[0][0] as (current: number) => number;
   expect(update(0)).toBe(181);
   expect(update(180.5)).toBe(180.5);
-  await fireEvent.press(view.getByRole('button', { name: 'End navigation' }));
-  expect(onEnd).toHaveBeenCalled();
-
   await view.rerender(
     <NavigationBanner
       top={0} upcomingStep={null} followingStep={null} distanceToStepEnd={20} unitSystem="km"
       roadName={null} glanceAction="Arrive" guidanceInstruction="Destination will be on the left"
-      roadAlerts={[]} notice="GPS signal lost" onHeight={onHeight} onEnd={onEnd}
+      roadAlerts={[]} notice="GPS signal lost" onHeight={onHeight}
     />,
   );
   expect(view.getByText('Arrive')).toBeTruthy();
@@ -75,11 +70,14 @@ test('the banner shows the road large, the next road, and notices; End closes it
 
 test('speed badge, trip summary and the control dock', async () => {
   const onHeight = jest.fn();
+  const onEnd = jest.fn();
+  const onRecentre = jest.fn();
   const handlers = { onReport: jest.fn(), onToggleMute: jest.fn(), onOverviewOrFollow: jest.fn() };
   const view = await render(
     <>
-      <NavigationSpeedBadge top={0} navigationSpeedMps={null} unitSystem="mi" />
-      <NavigationTripSummary bottomPadding={8} arrivalLabel="14:32" remainingSeconds={1080} remainingMeters={11_900} unitSystem="mi" onHeight={onHeight} />
+      <NavigationSpeedBadge bottom={0} navigationSpeedMps={null} unitSystem="mi" />
+      <NavigationTripSummary bottomPadding={8} arrivalLabel="14:32" remainingSeconds={1080} remainingMeters={11_900} unitSystem="mi" onHeight={onHeight} onEnd={onEnd} />
+      <NavigationRecentreButton bottom={0} onPress={onRecentre} />
       <NavigationControls bottom={0} canReport muted following {...handlers} />
     </>,
   );
@@ -88,6 +86,10 @@ test('speed badge, trip summary and the control dock', async () => {
   expect(view.getByText('18 min')).toBeTruthy();
   await fireEvent(view.getByTestId('navigation-summary'), 'layout', { nativeEvent: { layout: { height: 104 } } });
   expect(onHeight).toHaveBeenCalled();
+  await fireEvent.press(view.getByRole('button', { name: 'End navigation' }));
+  expect(onEnd).toHaveBeenCalled();
+  await fireEvent.press(view.getByRole('button', { name: 'Re-centre' }));
+  expect(onRecentre).toHaveBeenCalled();
   await fireEvent.press(view.getByRole('button', { name: 'Report on the road' }));
   await fireEvent.press(view.getByRole('button', { name: 'Unmute navigation guidance' }));
   await fireEvent.press(view.getByRole('button', { name: 'Show route overview' }));

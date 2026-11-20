@@ -1,4 +1,5 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
+import { MediaScanUnavailableError } from '../src/socialMediaScanner.ts';
 import assert from 'node:assert/strict';
 import { getPool } from '../src/db.ts';
 import { SocialMediaProcessingError } from '../src/socialMediaProcessor.ts';
@@ -17,7 +18,8 @@ const MP4 = Buffer.from([0, 0, 0, 24, ...Buffer.from('ftypisom'), 0, 0, 2, 0, ..
 /** Storage in memory, processors that echo a recognisable result. */
 function fakeMedia() {
   const objects = new Map<string, { bytes: Buffer; mime: string }>();
-  const state = { failPut: false, failPutMime: null as string | null, failGet: false, imageError: null as SocialMediaProcessingError | null, videoError: null as SocialMediaProcessingError | null, videoContainers: [] as string[] };
+  const state = { failPut: false, failPutMime: null as string | null, failGet: false, imageError: null as SocialMediaProcessingError | null, videoError: null as SocialMediaProcessingError | null, videoContainers: [] as string[],
+    scanVerdict: 'allowed' as 'allowed' | 'rejected' | 'unavailable', scanned: [] as string[][] };
   const service: SocialMediaService = {
     urlSecret: Buffer.alloc(32, 3),
     storage: {
@@ -47,7 +49,12 @@ function fakeMedia() {
     async processVideo(_path, container) {
       state.videoContainers.push(container);
       if (state.videoError) throw state.videoError;
-      return { bytes: Buffer.from('processed-video-0123456789'), poster: Buffer.from('poster'), width: 720, height: 1280, durationMs: 12_000 };
+      return { bytes: Buffer.from('processed-video-0123456789'), poster: Buffer.from('poster'), frames: [Buffer.from('frame-1'), Buffer.from('frame-2')], width: 720, height: 1280, durationMs: 12_000 };
+    },
+    async scan(images: readonly Buffer[]) {
+      state.scanned.push(images.map((image) => image.toString()));
+      if (state.scanVerdict === 'unavailable') throw new MediaScanUnavailableError();
+      return state.scanVerdict;
     },
   };
   return { service, objects, state };
@@ -90,7 +97,7 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
   beforeEach(async () => {
     await resetSocial();
     media.objects.clear();
-    Object.assign(media.state, { failPut: false, failPutMime: null, failGet: false, imageError: null, videoError: null, videoContainers: [] });
+    Object.assign(media.state, { failPut: false, failPutMime: null, failGet: false, imageError: null, videoError: null, videoContainers: [], scanVerdict: 'allowed', scanned: [] });
   });
 
   it('switches uploads and posting on once posting is enabled and storage is configured', async () => {
@@ -136,6 +143,22 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
       }
     }
     assert.equal(media.objects.size, 6);
+    // A Reel's poster and frames from through it are checked.
+    assert.deepEqual(media.state.scanned.at(-1), ['poster', 'frame-1', 'frame-2']);
+  });
+
+  it('refuses photos and Reels the content check rejects, and fails closed when it can’t answer', async () => {
+    media.state.scanVerdict = 'rejected';
+    const photo = await upload(ctx, 'social_a', JPEG, 'image/jpeg');
+    assert.deepEqual([photo.status, await photo.json()], [422, { error: 'media_rejected' }]);
+    assert.deepEqual(media.state.scanned.at(-1), ['processed-photo']);
+    const reel = await upload(ctx, 'social_a', MP4, 'video/mp4');
+    assert.deepEqual([reel.status, await reel.json()], [422, { error: 'media_rejected' }]);
+    media.state.scanVerdict = 'unavailable';
+    const unchecked = await upload(ctx, 'social_a', JPEG, 'image/jpeg');
+    assert.deepEqual([unchecked.status, await unchecked.json()], [503, { error: 'media_scan_unavailable' }]);
+    // Nothing that failed the check, or wasn't checked, was stored.
+    assert.equal(media.objects.size, 0);
   });
 
   it('refuses unsupported, mislabelled, oversized and unprocessable uploads', async () => {
@@ -385,5 +408,24 @@ describe('Rider Social posting switch', { skip: !hasDatabase && 'DATABASE_URL no
     assert.deepEqual([refused.status, await refused.json()], [503, { error: 'social_posting_disabled' }]);
     assert.equal((await postJson(ctx, 'social_a', '/social/posts', { kind: 'photo', mediaIds: [] })).status, 503);
     assert.equal((await authenticatedFetch(ctx, 'social_a', '/social/feed')).status, 200, 'feeds still read');
+  });
+});
+
+describe('Rider Social without the content check', { skip: !hasDatabase && 'DATABASE_URL not set; skipping Postgres-backed Social post tests' }, () => {
+  let ctx: TestServer;
+  let service: ReturnType<typeof fakeMedia>['service'];
+  before(async () => {
+    service = { ...fakeMedia().service, scan: undefined };
+    ctx = startTestServer({ socialOpenBetaEnabled: true, socialMedia: service, socialPostingEnabled: true });
+    await ctx.ready;
+  });
+  after(() => ctx.close());
+  beforeEach(resetSocial);
+
+  it('keeps posting off, even when switched on, until uploads can be checked', async () => {
+    const boot = await (await authenticatedFetch(ctx, 'social_a', '/social/bootstrap')).json() as { capabilities: Record<string, boolean> };
+    assert.equal(boot.capabilities.mediaUpload, false);
+    const refused = await upload(ctx, 'social_a', JPEG, 'image/jpeg');
+    assert.deepEqual([refused.status, await refused.json()], [503, { error: 'social_posting_disabled' }]);
   });
 });

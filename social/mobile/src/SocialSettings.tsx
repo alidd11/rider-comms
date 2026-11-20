@@ -136,7 +136,7 @@ export function SocialSettings({ username, emailVerified, feedSummary, onOpenFee
         <Ionicons name="trash-outline" color={C.muted} size={19}/>
       </Pressable>
       {confirmClear ? <View testID="confirm-clear-social-drafts" style={{
-        borderLeftWidth: 2, borderLeftColor: '#D5A0A7', paddingLeft: 12, gap: 12 }}>
+        borderLeftWidth: 2, borderLeftColor: C.danger, paddingLeft: 12, gap: 12 }}>
         <Text style={[s.body, { lineHeight: 21 }]}>
           Delete your text drafts from this device? Your posts, account, friends and messages
           won’t be changed.
@@ -149,14 +149,14 @@ export function SocialSettings({ username, emailVerified, feedSummary, onOpenFee
           <Pressable accessibilityRole="button" accessibilityLabel="Confirm clear local drafts"
             accessibilityState={{ disabled: clearing }} disabled={clearing} onPress={() => void clear()}
             style={[s.ghost, { flex: 1, minHeight: 44, opacity: clearing ? 0.6 : 1 }]}>
-            <Text style={[s.ghostText, { color: '#F1B7BE' }]}>
+            <Text style={[s.ghostText, { color: C.danger }]}>
               {clearing ? 'Clearing…' : 'Delete drafts'}
             </Text>
           </Pressable>
         </View>
       </View> : null}
       {notice ? <Text accessibilityRole="alert" style={[s.small,
-        { color: notice.includes('cleared') ? C.accent : '#F1B7BE' }]}>{notice}</Text> : null}
+        { color: notice.includes('cleared') ? C.accent : C.danger }]}>{notice}</Text> : null}
     </View>
 
     <View style={sectionStyle}>
@@ -173,7 +173,7 @@ export function SocialSettings({ username, emailVerified, feedSummary, onOpenFee
         padding: 12, borderRadius: 12, backgroundColor: C.panel,
         borderColor: C.border, borderWidth: 1, gap: 8,
       }}>
-        <Text accessibilityRole="alert" style={{ color: '#F1B7BE', fontSize: 13, lineHeight: 19 }}>
+        <Text accessibilityRole="alert" style={{ color: C.danger, fontSize: 13, lineHeight: 19 }}>
           Couldn't open {failedPolicy.label}. Select and copy the address below
           to open it manually in your browser.
         </Text>
@@ -206,13 +206,13 @@ export function SocialSettings({ username, emailVerified, feedSummary, onOpenFee
       </Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Delete Rider Comms account"
         onPress={()=>{setConfirmDelete(true);setDeletePhrase('');setDeleteError('');}}
-        style={{minHeight:48,borderWidth:1,borderColor:'#6A3F45',borderRadius:12,
+        style={{minHeight:48,borderWidth:1,borderColor:C.danger,borderRadius:12,
           alignItems:'center',justifyContent:'center'}}>
-        <Text style={{fontSize:14,fontWeight:'800',color:'#F1B7BE'}}>Delete Rider Comms account</Text>
+        <Text style={{fontSize:14,fontWeight:'800',color:C.danger}}>Delete Rider Comms account</Text>
       </Pressable>
       {confirmDelete ? <View testID="confirm-shared-account-deletion"
-        style={{borderWidth:1,borderColor:'#6A3F45',borderRadius:14,padding:14,gap:12}}>
-        <Text style={[s.body,{fontWeight:'800',color:'#F1B7BE'}]}>
+        style={{borderWidth:1,borderColor:C.danger,borderRadius:14,padding:14,gap:12}}>
+        <Text style={[s.body,{fontWeight:'800',color:C.danger}]}>
           Permanently delete your shared account?
         </Text>
         <Text style={s.small}>
@@ -231,14 +231,14 @@ export function SocialSettings({ username, emailVerified, feedSummary, onOpenFee
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Confirm permanent account deletion"
             accessibilityState={{ disabled: deleting || deletePhrase !== 'DELETE' }} disabled={deleting || deletePhrase !== 'DELETE'} onPress={()=>void deleteAccount()}
-            style={[s.ghost,{flex:1,minHeight:48,borderColor:'#6A3F45',
+            style={[s.ghost,{flex:1,minHeight:48,borderColor:C.danger,
               opacity:deleting || deletePhrase !== 'DELETE'?0.45:1}]}>
-            <Text style={{color:'#F1B7BE',fontSize:13,fontWeight:'800'}}>
+            <Text style={{color:C.danger,fontSize:13,fontWeight:'800'}}>
               {deleting?'Deleting…':'Delete forever'}
             </Text>
           </Pressable>
         </View>
-        {deleteError?<Text accessibilityRole="alert" style={{color:'#F1B7BE',
+        {deleteError?<Text accessibilityRole="alert" style={{color:C.danger,
           fontSize:13,lineHeight:19}}>{deleteError}</Text>:null}
       </View>:null}
     </View>
@@ -246,7 +246,7 @@ export function SocialSettings({ username, emailVerified, feedSummary, onOpenFee
     <Pressable accessibilityRole="button" accessibilityLabel="Sign out of Social"
       style={{ borderTopWidth: 1, borderColor: C.border, paddingVertical: 14, minHeight: 48 }}
       onPress={() => void onSignOut()}>
-      <Text style={{ color: '#F2B5BE', fontWeight: '800', fontSize: 14 }}>Sign out</Text>
+      <Text style={{ color: C.danger, fontWeight: '800', fontSize: 14 }}>Sign out</Text>
     </Pressable>
   </View>;
 }

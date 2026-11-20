@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { roleCan } from '../staffRoles.ts';
 import { containsSevereText } from '../contentFilter.ts';
 import { MAX_MODERATION_NOTE_LENGTH, REPORT_REASONS } from '../moderationStore.ts';
 import type { ReportReason } from '../moderationStore.ts';
@@ -10,9 +11,11 @@ import type { VideoContainer } from '../socialMediaProcessor.ts';
 import { parseByteRange, signedMediaPath, verifyMediaSignature } from '../socialMediaService.ts';
 import type { MediaLinkViewer, MediaVariant, SocialMediaService } from '../socialMediaService.ts';
 import { createProcessedObjectKey } from '../socialPrivateObjectTransport.ts';
+import { MediaScanUnavailableError } from '../socialMediaScanner.ts';
+import { log } from '../log.ts';
 import { InvalidSocialCursorError, isSocialId, MAX_POST_CAPTION } from '../socialPostStore.ts';
 import type { SocialFeedPage, SocialPost, SocialPostStore } from '../socialPostStore.ts';
-import { NOT_HANDLED } from './context.ts';
+import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
 import type { PublicRouteContext, RouteContext } from './context.ts';
 
 /** A post as the app gets it: each file with a short-lived link for this session. */
@@ -66,7 +69,7 @@ export async function handleSocialMediaRoute(
     return sendJson(res, 403, { error: 'invalid_media_link' });
   }
   const media = await socialPostStore.servableMedia(viewer.riderId, mediaId) ??
-    (await ctx.authStore.isAdmin(viewer.riderId) ? await socialPostStore.mediaForStaff(mediaId) : null);
+    (await ctx.authStore.can(viewer.riderId, 'moderate') ? await socialPostStore.mediaForStaff(mediaId) : null);
   const key = variant === 'poster' ? media?.posterKey : media?.objectKey;
   if (!media || !key) return sendJson(res, 404, { error: 'not_found' });
   const range = parseByteRange(typeof req.headers.range === 'string' ? req.headers.range : undefined);
@@ -104,6 +107,17 @@ export async function handleSocialMediaRoute(
   res.once('close', () => body.destroy());
   body.on('error', () => res.destroy());
   body.pipe(res);
+}
+
+/**
+ * The unsafe-content check, before anything is stored. Fails closed: with no
+ * scanner the upload is refused (posting is also off then).
+ */
+async function scanRejects(socialMedia: SocialMediaService, images: Buffer[], riderId: string): Promise<boolean> {
+  if (!socialMedia.scan) throw new MediaScanUnavailableError();
+  if ((await socialMedia.scan(images)) === 'allowed') return false;
+  log('info', 'social_media_rejected', { riderId });
+  return true;
 }
 
 type SocialPostContext = RouteContext & { socialPostStore: SocialPostStore; socialMedia: SocialMediaService | null };
@@ -147,6 +161,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
       if (intent.kind === 'image') {
         const { readFile } = await import('node:fs/promises');
         const image = await socialMedia.processImage(await readFile(staged.path));
+        if (await scanRejects(socialMedia, [image.bytes], actorId)) return sendJson(res, 422, { error: 'media_rejected' });
         await socialPostStore.reserveMediaKeys([fileKey]);
         await socialMedia.storage.putProcessed(fileKey, image.bytes, 'image/jpeg');
         const id = await socialPostStore.addMedia(actorId, {
@@ -155,6 +170,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
         return sendJson(res, 201, { media: { id, kind: 'image', width: image.width, height: image.height, durationMs: null } });
       }
       const video = await socialMedia.processVideo(staged.path, VIDEO_CONTAINERS[intent.mime] ?? 'mov');
+      if (await scanRejects(socialMedia, [video.poster, ...video.frames], actorId)) return sendJson(res, 422, { error: 'media_rejected' });
       const posterKey = createProcessedObjectKey('jpg');
       await socialPostStore.reserveMediaKeys([fileKey, posterKey]);
       await socialMedia.storage.putProcessed(fileKey, video.bytes, 'video/mp4');
@@ -168,6 +184,7 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
         const status = error.code === 'media_busy' ? 503 : error.code === 'media_processing_failed' ? 500 : 422;
         return sendJson(res, status, { error: error.code });
       }
+      if (error instanceof MediaScanUnavailableError) return sendJson(res, 503, { error: 'media_scan_unavailable' });
       if (error instanceof Error && error.message === 'social_media_storage_unavailable') {
         return sendJson(res, 502, { error: 'media_storage_unavailable' });
       }
@@ -251,7 +268,10 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
 export async function handleSocialModerationRoutes(ctx: SocialPostContext): Promise<unknown> {
   const { req, res, url, s, actorId, authStore, socialPostStore } = ctx;
   if (s[0] !== 'moderation' || s[1] !== 'social-posts') return NOT_HANDLED;
-  if (!(await authStore.isAdmin(actorId))) return sendJson(res, 403, { error: 'admin_required' });
+  const role = await authStore.staffRole(actorId);
+  if (!role) return sendJson(res, 403, { error: 'admin_required' });
+  if (!roleCan(role, 'moderate')) return sendJson(res, 403, { error: 'permission_required', permission: 'moderate' });
+  if (req.method === 'POST' && (await refuseWithoutRecentReauth(ctx))) return;
   if (req.method === 'GET' && s.length === 2) {
     const limit = Number(url.searchParams.get('limit') ?? 50);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) return sendJson(res, 400, { error: 'limit must be an integer from 1 to 100' });

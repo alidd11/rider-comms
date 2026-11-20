@@ -64,7 +64,7 @@ export function ProfileSummary({
     <View style={{ flexDirection: 'row', alignItems: 'center',
       justifyContent: 'space-between', marginBottom: 17, gap: 12 }}>
       <View style={{ width: 85, height: 85, borderRadius: 43,
-        borderWidth: 2, borderColor: '#376E61', padding: 3,
+        borderWidth: 2, borderColor: C.accent, padding: 3,
         alignItems: 'center', justifyContent: 'center' }}>
         <IdentityAvatar name={accountProfile?.displayName || username} avatarId={accountProfile?.avatarId} size={75} />
       </View>
@@ -85,13 +85,13 @@ export function ProfileSummary({
     {showDisplayName || bio ? <View style={{ gap: 4, marginBottom: 16 }}>
       {showDisplayName ? <Text testID="profile-display-name"
         style={{ color: C.ink, fontSize: 15, fontWeight: '800' }}>{name}</Text> : null}
-      {bio ? <Text testID="profile-bio" style={{ color: '#D6DADE', fontSize: 13,
+      {bio ? <Text testID="profile-bio" style={{ color: C.ink, fontSize: 13,
         lineHeight: 19 }}>{bio}</Text> : null}
     </View> : null}
 
     <Pressable accessibilityRole="button" accessibilityLabel="Edit profile"
       onPress={onEdit} style={{ width: '100%', height: 45,
-        borderRadius: 12, backgroundColor: '#222830',
+        borderRadius: 12, backgroundColor: C.card,
         justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
       <Text style={{ fontSize: 13, fontWeight: '800', color: C.ink }}>Edit profile</Text>
     </Pressable>

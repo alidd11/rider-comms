@@ -98,6 +98,7 @@
               <strong class="my-profile-name">${escapeHtml(state.profile.displayName)}</strong>
               <span class="my-profile-handle">${escapeHtml(state.profile.handle)}</span>
               <span class="my-profile-plan">${escapeHtml(plan.name)} plan</span>
+              ${state.profile.bio ? `<p class="my-profile-bio">${escapeHtml(state.profile.bio)}</p>` : ''}
             </div>
             ${settingsRowsMarkup([settingsLink('editProfile', 'Edit profile')])}
             <section class="my-profile-section" aria-label="Connected profiles"><h3 class="settings-page-heading">Connected profiles</h3>${settingsRowsMarkup([
@@ -109,11 +110,13 @@
       },
       profile: () => ({
         title: 'Edit profile',
-        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Avatar</span>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="settings-sheet-section"><span class="settings-sheet-label">Name</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetInstagramVisibility">Who can see your Instagram</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetTiktokVisibility">Who can see your TikTok</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Avatar</span><div class="avatar-current-row">${avatar(state.profile, 'avatar-xl')}<button type="button" class="button secondary" id="changeAvatarBtn" aria-expanded="false" aria-controls="avatarPicker">Change avatar</button></div><div id="avatarPicker" hidden>${avatarOptionsMarkup(state.profile.avatarId)}</div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Name</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div><div class="form-field"><label for="editBio">Bio</label><textarea id="editBio" maxlength="160" rows="3" placeholder="What do you ride?">${escapeHtml(state.profile.bio || '')}</textarea><small class="field-hint">Shown on your profile in Rider Comms and Rider Social.</small></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetInstagramVisibility">Who can see your Instagram</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetTiktokVisibility">Who can see your TikTok</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#sheetInstagramVisibility').value = state.profile.instagramVisibility;
           $('#sheetTiktokVisibility').value = state.profile.tiktokVisibility;
           $('#saveProfile').addEventListener('click', saveProfile);
+          // The avatar grid stays behind a button so Name and Bio are on screen.
+          $('#changeAvatarBtn').addEventListener('click', () => setAvatarPickerOpen($('#avatarPicker').hidden));
           document.querySelectorAll('#sheetBody [data-avatar-option]').forEach((button) => {
             button.addEventListener('click', () => void selectProfileAvatar(button.dataset.avatarOption));
           });
@@ -315,6 +318,7 @@
           chips.forEach((chip) => chip.addEventListener('click', () => {
             clearInterval(hazardAutoCloseTimer);
             $('#hazardAutoClose').hidden = true;
+            haptic('success');
             createHazard(chip.dataset.hazardType, chips);
           }));
         },
@@ -634,6 +638,7 @@
   function settingsCategoryValue(page) {
     if (page === 'general') return state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';
     if (page === 'mapNavigation') return NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
+    if (page === 'voiceSound') return state.spokenDirections !== false ? 'Spoken' : 'Muted';
     if (page === 'rideSafe') return state.rideSafeEnabled ? 'On' : 'Off';
     if (page === 'vehicle') return RIDER_VEHICLE_OPTIONS.find(([vehicle]) => vehicle === state.vehicleCategory)?.[1] || '';
     if (page === 'plan') return PLAN_INFO[planTier(state.profile.zoneTier)].name;
@@ -773,6 +778,7 @@
       const profile = await apiFetch('PUT', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`, {
         displayName,
         handle,
+        bio: $('#editBio').value.trim(),
         instagramUsername: $('#editInstagram').value.trim().replace(/^@/, ''),
         tiktokUsername: $('#editTiktok').value.trim().replace(/^@/, ''),
         instagramVisibility: $('#sheetInstagramVisibility')?.value || state.profile.instagramVisibility,

@@ -23,6 +23,7 @@ export function ProfileEditor({ initial, onCancel, onSave }: {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [choosingAvatar, setChoosingAvatar] = useState(false);
 
   async function save() {
     const result = profileChanges(initial, draft);
@@ -42,14 +43,21 @@ export function ProfileEditor({ initial, onCancel, onSave }: {
       <Pressable accessibilityRole="button" accessibilityLabel="Cancel" disabled={saving}
         onPress={onCancel} style={{ width: 44, height: 44, borderRadius: 22,
           justifyContent: 'center', alignItems: 'center' }}>
-        <Ionicons name="arrow-back" size={24} color={C.ink} />
+        <Ionicons name="chevron-back" size={24} color={C.ink} />
       </Pressable>
       <Text style={{ color: C.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.6 }}>Edit profile</Text>
     </View>
 
-    <View style={{ alignItems: 'center', gap: 14 }}>
+    {/* The current avatar first, with the full set a tap away, so the name
+        and bio stay on screen. */}
+    <View style={{ alignItems: 'center', gap: 12 }}>
       <RiderAvatar avatarId={draft.avatarId} size={88}/>
-      <View accessibilityRole="radiogroup" accessibilityLabel="Avatar"
+      <Pressable accessibilityRole="button" aria-expanded={choosingAvatar}
+        accessibilityLabel={choosingAvatar ? 'Done choosing avatar' : 'Change avatar'}
+        onPress={() => setChoosingAvatar(open => !open)} style={[s.ghost, { minHeight: 40, paddingVertical: 8 }]}>
+        <Text style={s.ghostText}>{choosingAvatar ? 'Done' : 'Change avatar'}</Text>
+      </Pressable>
+      {choosingAvatar ? <View accessibilityRole="radiogroup" accessibilityLabel="Avatar"
         style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
         {AVATAR_PRESETS.map(preset => {
           const selected = preset.id === draft.avatarId;
@@ -63,7 +71,7 @@ export function ProfileEditor({ initial, onCancel, onSave }: {
             <RiderAvatar avatarId={preset.id} size={42}/>
           </Pressable>;
         })}
-      </View>
+      </View> : null}
     </View>
 
     <View style={{ gap: 9 }}>
@@ -96,9 +104,9 @@ export function ProfileEditor({ initial, onCancel, onSave }: {
     </Text>
     {error ? <Text accessibilityRole="alert" style={{ color: C.warning, fontSize: 13, lineHeight: 19 }}>{error}</Text> : null}
     <Pressable accessibilityRole="button" accessibilityLabel="Save profile" disabled={saving}
-      style={[s.cta, { minHeight: 52, borderRadius: 13, opacity: saving ? 0.7 : 1 }]}
+      style={[s.cta, { minHeight: 52, opacity: saving ? 0.7 : 1 }]}
       onPress={() => { void save(); }}>
-      {saving ? <ActivityIndicator accessibilityLabel="Saving profile" color="#0B1D1C"/>
+      {saving ? <ActivityIndicator accessibilityLabel="Saving profile" color={C.accentText}/>
         : <Text style={[s.ctaText, { fontSize: 15 }]}>Save profile</Text>}
     </Pressable>
   </View>;

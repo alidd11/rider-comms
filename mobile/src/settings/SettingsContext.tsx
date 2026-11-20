@@ -53,6 +53,7 @@ interface SettingsContextValue extends ProfileState {
   setHandle: (v: string) => void; setUnitSystem: (v: UnitSystem) => void; setShareLocation: (v: boolean) => void;
   setInstagramUsername: (v: string) => void; setInstagramVisibility: (v: SocialVisibility) => void;
   setTiktokUsername: (v: string) => void; setTiktokVisibility: (v: SocialVisibility) => void;
+  setBio: (v: string) => void;
   setNotifyInvites: (v: boolean) => void; setNotifyChat: (v: boolean) => void;
   setNavigationProvider: (v: NavigationProvider) => void; setRouteAvoidance: (v: RouteAvoidance) => void; setRideSafeEnabled: (v: boolean) => void; resetAll: () => void;
   refreshProfile: () => Promise<void>;
@@ -179,6 +180,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setShareLocation: (v: boolean) => update('shareLocation', v), setInstagramUsername: (v: string) => update('instagramUsername', v.trim().replace(/^@/, '')),
     setInstagramVisibility: (v: SocialVisibility) => update('instagramVisibility', v), setTiktokUsername: (v: string) => update('tiktokUsername', v.trim().replace(/^@/, '')),
     setTiktokVisibility: (v: SocialVisibility) => update('tiktokVisibility', v),
+    setBio: (v: string) => update('bio', v.trim()),
     setNotifyInvites: (v: boolean) => update('notifyInvites', v), setNotifyChat: (v: boolean) => update('notifyChat', v),
   }), [update]);
   const setNavigationProvider = React.useCallback((value: NavigationProvider) => {

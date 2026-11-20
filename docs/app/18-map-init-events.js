@@ -181,23 +181,32 @@
   // menu only to riders the server lets in (native: MenuScreen).
   const RIDER_SOCIAL_URL = 'https://social-web-preview-preview.up.railway.app';
   let socialAccessCheck = 0;
+  // The session the server last let into Social. The entry shows straight
+  // away for it, so the menu doesn't flicker on every open while the check
+  // runs; a refusal hides it again.
+  let socialAllowedToken = null;
   async function showSocialEntryIfAllowed() {
     const check = ++socialAccessCheck;
     const token = session?.token;
     const entry = $('#appMenuSocial');
-    entry.hidden = true;
+    entry.hidden = !token || socialAllowedToken !== token;
     if (!token) return;
     try {
       await apiFetch('GET', '/social/bootstrap');
-      if (check === socialAccessCheck && session?.token === token && !$('#appMenu').hidden) {
-        entry.hidden = false;
+      if (check !== socialAccessCheck || session?.token !== token) return;
+      socialAllowedToken = token;
+      if (!$('#appMenu').hidden) entry.hidden = false;
+    } catch (error) {
+      // A refusal from the server hides it; a lost connection keeps the last answer.
+      if (check === socialAccessCheck && error instanceof ApiError && error.status > 0) {
+        socialAllowedToken = null;
+        entry.hidden = true;
       }
-    } catch {
-      // Leave the entry hidden until the next successful access check.
     }
   }
 
   function openAppMenu() {
+    renderMenuRideStats();
     if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
       return;
@@ -246,6 +255,7 @@
       else if (navSteps.length) renderNavStep();
       updateNavigationControls();
     });
+    $('#navRecentreBtn')?.addEventListener('click', () => resumeNavigationFollowing());
     $('#navOverviewBtn')?.addEventListener('click', () => {
       if (navFollowing) showNavigationOverview();
       else resumeNavigationFollowing();
@@ -332,7 +342,7 @@
     });
     $('#shareRideBtn').addEventListener('click', shareRide);
     $('#rideShareTop').addEventListener('click', shareRide);
-    $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); showToast('Ride code copied.'); } catch { shareRide(); } });
+    $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); haptic('success'); showToast('Ride code copied.'); } catch { shareRide(); } });
     $('#openRideMap').addEventListener('click', () => navigate('map'));
     $('#ridePill').addEventListener('click', () => navigate('ride'));
     $('#regroupChip')?.addEventListener('click', showRegroupPoint);
@@ -359,10 +369,47 @@
         if (window.scrollY > 0) window.scrollTo(0, 0);
       });
     });
+    $('#chatInput').addEventListener('input', noteChatTyping);
+    let bubblePressTimer = null;
+    $('#chatMessages').addEventListener('contextmenu', (event) => {
+      const row = event.target.closest?.('[data-message-id]');
+      if (!row) return;
+      event.preventDefault();
+      openBubbleMenu(row, event.clientX, event.clientY);
+    });
+    $('#chatMessages').addEventListener('pointerdown', (event) => {
+      const row = event.target.closest?.('[data-message-id]');
+      if (!row || event.pointerType === 'mouse') return;
+      clearTimeout(bubblePressTimer);
+      bubblePressTimer = setTimeout(() => openBubbleMenu(row, event.clientX, event.clientY), 450);
+    });
+    ['pointerup', 'pointercancel', 'pointermove'].forEach((type) => $('#chatMessages').addEventListener(type, (event) => {
+      if (type === 'pointermove' && Math.abs(event.movementY) < 4) return;
+      clearTimeout(bubblePressTimer);
+    }));
+    $('#chatBubbleMenu').addEventListener('click', (event) => {
+      const action = event.target.closest?.('[data-bubble-action]')?.dataset.bubbleAction;
+      if (action) void runBubbleAction(action);
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (!$('#chatBubbleMenu').hidden && !event.target.closest?.('#chatBubbleMenu')) closeBubbleMenu();
+    });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !$('#chatBubbleMenu').hidden) closeBubbleMenu(); });
     $('#chatInput').addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
+    $('#friendInviteAdd')?.addEventListener('click', () => {
+      $('#addFriendForm').hidden = false;
+      $('#friendId').focus();
+    });
+    $('#friendInviteShare')?.addEventListener('click', async () => {
+      const text = `Add me on Rider Comms: ${state.profile.handle}`;
+      try {
+        if (navigator.share) await navigator.share({ text });
+        else { await navigator.clipboard.writeText(state.profile.handle); haptic('success'); showToast('Handle copied.'); }
+      } catch { /* Share sheet dismissed. */ }
+    });
     $('#friendEmptyAdd')?.addEventListener('click', () => {
       $('#addFriendForm').hidden = false;
       $('#friendId').focus();
@@ -423,10 +470,14 @@
       }
     });
     $('#locateBtn').addEventListener('click', locate);
-    $('#joinNearbyBtn').addEventListener('click', toggleNearby);
+    $('#joinNearbyBtn').addEventListener('click', () => { haptic('tap'); toggleNearby(); });
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
-    $('#endNavBtn').addEventListener('click', () => finishNavigation(false));
+    $('#endNavBtn').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripToggle').addEventListener('click', () => { haptic('select'); setNavTripDetailsOpen($('#navTripDetails').hidden); });
+    $('#navTripEnd').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripShare').addEventListener('click', () => void shareNavigationEta());
+    $('#navTripAddStop').addEventListener('click', () => { setNavTripDetailsOpen(false); openSheet('stopsOnTheWay'); });
   }
 
   // --- Auth screen -----------------------------------------------------

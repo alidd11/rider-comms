@@ -95,6 +95,7 @@
   }
 
   let navRemainingSeconds = null;
+  let navRemainingMeters = null;
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -137,8 +138,17 @@
     applyManeuverSvg($('#navManeuverSvg'), maneuver);
   }
 
+  /** Curated itineraries preserve all unfinished checkpoints through reroutes.
+   * An ad-hoc fuel stop is inserted first, rather than replacing the route. */
+  let navCuratedStops = [];
+  let navCuratedFinishReplanAt = null;
+  const CURATED_FINISH_REPLAN_COOLDOWN_MS = 30000;
+  const CURATED_STOP_REACHED_RADIUS_M = 140;
+  const CURATED_STOP_MAX_GPS_ACCURACY_M = 80;
+
   /** A Google Directions request with the rider's route options applied. */
-  function navigationRouteRequest(origin, destination) {
+  function navigationRouteRequest(origin, destination, plannedStops = navCuratedStops, preserveFuelStop = true) {
+    const stops = [...(preserveFuelStop && navStop ? [navStop] : []), ...plannedStops];
     return {
       origin,
       destination,
@@ -149,9 +159,9 @@
       // Live traffic and the other ways there, as in Google Maps and Waze
       // (native: the backend's Routes API request).
       // Google offers no alternatives for a trip with a stop.
-      provideRouteAlternatives: !navStop,
+      provideRouteAlternatives: stops.length === 0,
       drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel?.BEST_GUESS ?? 'bestguess' },
-      ...(navStop ? { waypoints: [{ location: { lat: navStop.lat, lng: navStop.lng }, stopover: true }] } : {}),
+      ...(stops.length ? { waypoints: stops.map(({ lat, lng }) => ({ location: { lat, lng }, stopover: true })) } : {}),
     };
   }
 
@@ -236,6 +246,19 @@
     navRouteLine.setPath(path);
     navRouteOutline.setMap(map);
     navRouteLine.setMap(map);
+  }
+
+  /** Drops the ridden part of the route line, as Google and Apple Maps do.
+   * Redrawn only every few metres, so a fix a second stays cheap. */
+  function trimNavigationRouteLine(distanceAlongMeters) {
+    if (!navRouteLine || !navPuckPath || !Number.isFinite(distanceAlongMeters)) return;
+    if (navRouteLineFromMeters !== null && Math.abs(distanceAlongMeters - navRouteLineFromMeters) < 5) return;
+    const ahead = navigationPuck.navigationPathAhead(navPuckPath, distanceAlongMeters);
+    if (ahead.length < 2) return;
+    navRouteLineFromMeters = distanceAlongMeters;
+    const path = ahead.map((point) => ({ lat: point.lat, lng: point.lon }));
+    navRouteOutline.setPath(path);
+    navRouteLine.setPath(path);
   }
 
   function clearNavigationRouteLine() {
@@ -366,6 +389,8 @@
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     navRemainingSeconds = remainingSeconds;
+    navRemainingMeters = remainingMeters;
+    if (!$('#navTripDetails').hidden) renderNavTripTurns();
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
     renderNavigationRoadAhead();
@@ -416,6 +441,9 @@
       if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-locate');
       overview.classList.toggle('active', !navFollowing);
     }
+    // Google Maps' Re-centre: offered once the rider has moved the map.
+    const recentre = $('#navRecentreBtn');
+    if (recentre) recentre.hidden = navFollowing || !navSteps.length;
   }
 
   function updateNavigationPositionIcon() {
@@ -703,27 +731,76 @@
    * button (see showDestinationCard above). Fetches the rider's live GPS
    * fix, requests a real route from it to the selected destination, and
    * hands off to applyRoute on success. */
-  async function startInAppNavigation(location, label) {
+  async function startInAppNavigation(location, label, plannedStops = []) {
     let position;
     try {
-      position = await currentPosition();
+      // A curated start cannot be acknowledged from a cached position.
+      // Ordinary point-to-point navigation retains its established behaviour.
+      position = await currentPosition({ maximumAge: plannedStops.length ? 0 : 15000 });
     } catch {
       showToast('Location access is needed to start navigation.');
       return;
     }
     const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
     const destination = { lat: location.lat(), lng: location.lng() };
+    // When already at the start, do not route the rider around it again.
+    // Match native's first-checkpoint handling using the current GPS fix.
+    const accuracyMeters = Number(position.coords.accuracy);
+    const startDistance = plannedStops.length ? metersBetween(origin, plannedStops[0]) : Infinity;
+    // Coarse GPS can put someone inside the 140 m arrival circle before they
+    // reach the start. Only skip it when the full reported uncertainty fits
+    // inside that circle, and no later checkpoint is actually closer.
+    const atStart = plannedStops.length > 0
+      && position.coords.accuracy != null
+      && Number.isFinite(accuracyMeters)
+      && accuracyMeters >= 0
+      && accuracyMeters <= CURATED_STOP_MAX_GPS_ACCURACY_M
+      && startDistance + accuracyMeters <= CURATED_STOP_REACHED_RADIUS_M
+      && !plannedStops.slice(1).some((later) => metersBetween(origin, later) < startDistance);
+    const remainingStops = atStart ? plannedStops.slice(1) : plannedStops;
     getDirectionsService().route(
-      navigationRouteRequest(origin, destination),
+      // A new navigation selection must not inherit a fuel stop left over
+      // from a previous journey. Only reroutes preserve existing stops.
+      navigationRouteRequest(origin, destination, remainingStops, false),
       (result, status) => {
         if (status !== 'OK' || !result) {
-          showToast('Couldn’t calculate a route. Try again.');
+          showToast('Couldn’t calculate the complete route. Try again.');
           return;
         }
+        navStop = null;
+        navCuratedFinishReplanAt = null;
+        navCuratedStops = [...remainingStops];
         applyRoute(result, destination, label);
       }
     );
   }
+
+  // Curated Routes lives in docs/routes.js, while this is the existing
+  // turn-by-turn map engine. A dedicated event preserves every itinerary
+  // point without exposing routing credentials or opening an external app.
+  window.addEventListener('rider-comms:navigate-curated-route', (event) => {
+    const detail = event.detail;
+    const safePoint = (value) => {
+      const lat = Number(value?.lat);
+      const lng = Number(value?.lng);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return null;
+      return { lat, lng, label: typeof value?.label === 'string' ? value.label.slice(0, 100) : '' };
+    };
+    const end = safePoint(detail?.end);
+    const stops = Array.isArray(detail?.stops) ? detail.stops.map(safePoint) : null;
+    if (!end || !stops || stops.length < 1 || stops.length > 20 || stops.some((point) => !point)) {
+      showToast('This route has invalid planned stops.');
+      return;
+    }
+    navigate('map');
+    if (!map || !window.google?.maps) {
+      showToast('Map is still loading. Try starting the route again once it is ready.');
+      return;
+    }
+    const label = typeof detail?.label === 'string' && detail.label.trim()
+      ? detail.label.trim().slice(0, 120) : 'Scenic route';
+    void startInAppNavigation(new google.maps.LatLng(end.lat, end.lng), label, stops);
+  });
 
   // Navigation now extends the real app surface through the installed-iPhone
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
@@ -749,6 +826,7 @@
     renderNavigationRouteLine(routePath);
     navPuckPath = navigationPuck.buildNavigationPathIndex(routePath.map((point) => ({ lat: point.lat, lon: point.lng })));
     navPuckAlongMeters = null;
+    navRouteLineFromMeters = null;
     navStepIndex = 0;
     navArrowKey = null;
     navLastAnnouncedStep = -1;
@@ -820,6 +898,41 @@
   }
 
   let navStatusNoticeTimer;
+
+  // The trip card (Google Maps' swipe-up sheet): the turns left, Add stop,
+  // Share ETA and End. Parked only: Ride Safe closes it and hides the handle.
+  function renderNavTripTurns() {
+    const list = $('#navTripTurns');
+    if (!list) return;
+    const upcoming = navSteps.slice(navStepIndex + 1);
+    const rows = upcoming.map((step) => `<li><span>${escapeHtml(stripHtml(step.instructions))}</span><em>${escapeHtml(formatNavDistance(step.distance.value))}</em></li>`);
+    rows.push(`<li class="arrive"><span>Arrive at ${escapeHtml(navDestination?.label || 'your destination')}</span></li>`);
+    list.innerHTML = rows.join('');
+  }
+
+  function setNavTripDetailsOpen(open) {
+    const details = $('#navTripDetails');
+    const toggle = $('#navTripToggle');
+    if (!details || !toggle) return;
+    const show = open && navSteps.length > 0 && !syncMovementSafetyBanner();
+    if (show) renderNavTripTurns();
+    details.hidden = !show;
+    $('#app').classList.toggle('nav-trip-open', show);
+    toggle.setAttribute('aria-expanded', String(show));
+    toggle.setAttribute('aria-label', show ? 'Hide trip details' : 'Show trip details');
+  }
+
+  async function shareNavigationEta() {
+    if (!Number.isFinite(navRemainingSeconds)) return;
+    const text = navigationGuidance.navigationEtaShareText(navDestination?.label || '', formatArrivalTime(navRemainingSeconds), navRemainingMeters || 0, state.unit);
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else { await navigator.clipboard.writeText(text); showToast('ETA copied. Paste it to share.'); }
+      haptic('success');
+    } catch (error) {
+      if (error?.name !== 'AbortError') showToast('Couldn’t share your ETA. Try again.');
+    }
+  }
 
   /** `info` notices (a successful reroute) are styled neutrally and clear
    * themselves; warnings stay until the problem is resolved. */
@@ -919,6 +1032,7 @@
     const placed = placeNavigationPuck(position);
     const here = placed.now;
     checkNavStopReached(here);
+    checkCuratedStopReached(raw);
     navCurrentPosition = here;
 
     let effectiveIndex = navStepIndex;
@@ -935,7 +1049,24 @@
     const lastStep = navSteps[navSteps.length - 1];
     const lastEnd = { lat: lastStep.end_location.lat(), lng: lastStep.end_location.lng() };
     if (effectiveIndex === navSteps.length - 1 && metersBetween(here, lastEnd) <= NAV_STEP_ARRIVAL_RADIUS_M) {
-      finishNavigation(true);
+      if (navCuratedStops.length === 0) {
+        finishNavigation(true);
+        return;
+      }
+      // Curated destinations are not a shortcut around unfinished checkpoints.
+      // Only a reliable raw fix near the finish may initiate recovery; the
+      // snapped map puck alone is not evidence that the rider has arrived.
+      const atFinish = navCurrentAccuracyMeters != null && navCurrentAccuracyMeters >= 0
+        && navCurrentAccuracyMeters <= CURATED_STOP_MAX_GPS_ACCURACY_M
+        && metersBetween(raw, lastEnd) + navCurrentAccuracyMeters <= CURATED_STOP_REACHED_RADIUS_M;
+      const previous = navCuratedFinishReplanAt;
+      if (atFinish && !navRerouting
+        && (previous === null || Date.now() - previous >= CURATED_FINISH_REPLAN_COOLDOWN_MS)) {
+        navCuratedFinishReplanAt = Date.now();
+        navOffRouteSince = null;
+        const count = navCuratedStops.length;
+        rerouteFromCurrentPosition(raw, `${count} planned ${count === 1 ? 'stop' : 'stops'} remaining. Recalculating…`);
+      }
       return;
     }
 
@@ -967,6 +1098,7 @@
       speedMps: speed,
     }, navPuckAlongMeters);
     navPuckAlongMeters = match.distanceAlongMeters;
+    if (match.snapped) trimNavigationRouteLine(match.distanceAlongMeters);
     const age = navigationPuck.navigationFixAgeSeconds(position.timestamp, nowMs);
     const current = navigationPuck.predictNavigationPuck(navPuckPath, match, speed, age);
     const ahead = navigationPuck.predictNavigationPuck(navPuckPath, match, speed, age + NAV_PUCK_GLIDE_MS / 1000);
@@ -996,7 +1128,9 @@
     if (status === 'unknown') return;
     if (status === 'off') {
       if (!navOffRouteSince) navOffRouteSince = Date.now();
-      else if (Date.now() - navOffRouteSince > NAV_OFF_ROUTE_GRACE_MS) {
+      // Shorter at speed (shared navigationOffRouteGraceMs), as Google Maps
+      // and Waze recalculate within seconds of a missed exit.
+      else if (Date.now() - navOffRouteSince > navigationPuck.navigationOffRouteGraceMs(navCurrentSpeedMps)) {
         navOffRouteSince = null;
         void rerouteFromCurrentPosition(here);
       }
@@ -1011,11 +1145,17 @@
    * reroute request itself fails, the rider just keeps following the
    * stale route/step they were already on rather than losing navigation
    * entirely. */
-  async function rerouteFromCurrentPosition(here) {
-    if (!navDestination) return;
+  async function rerouteFromCurrentPosition(here, notice = 'Rerouting…') {
+    if (!navDestination || navRerouting) return;
     navRerouting = true;
-    setNavStatusNotice('Rerouting…');
-    if (!navMuted) speak('Rerouting.');
+    if (notice === 'Rerouting…') {
+      // Preserve ordinary missed-turn guidance and its existing safety audit.
+      setNavStatusNotice('Rerouting…');
+      if (!navMuted) speak('Rerouting.');
+    } else {
+      setNavStatusNotice(notice);
+      if (!navMuted) speak(notice);
+    }
     getDirectionsService().route(
       navigationRouteRequest(here, { lat: navDestination.lat, lng: navDestination.lng }),
       (result, status) => {
@@ -1118,6 +1258,24 @@
     });
   }
 
+  /** Only advance the next planned checkpoint on a reliable raw GPS fix.
+   * Missed turns never silently remove remaining scenic-route waypoints. */
+  function checkCuratedStopReached(here) {
+    const next = navCuratedStops[0];
+    if (!next || navCurrentAccuracyMeters == null
+      || navCurrentAccuracyMeters < 0 || navCurrentAccuracyMeters > CURATED_STOP_MAX_GPS_ACCURACY_M
+      || metersBetween(here, next) > CURATED_STOP_REACHED_RADIUS_M) return;
+    // Do not count an earlier stop as passed if a nearby later stop is
+    // actually closer to this GPS fix. Small waypoint gaps can overlap
+    // the arrival tolerance; avoid silently skipping the itinerary.
+    const nextDistance = metersBetween(here, next);
+    if (navCuratedStops.slice(1).some((later) => metersBetween(here, later) < nextDistance)) return;
+    navCuratedStops.shift();
+    const reached = `Passed ${next.label || 'the planned stop'}.`;
+    setNavStatusNotice(reached, { tone: 'info', clearAfterMs: 5000 });
+    if (!navMuted) speak(reached);
+  }
+
   /** At the stop: say so, and route straight on from here. */
   function checkNavStopReached(here) {
     if (!navStop || distanceToPathMeters(here, [navStop, navStop]) > NAV_STOP_REACHED_RADIUS_M) return;
@@ -1144,6 +1302,7 @@
     navSteps = [];
     navPuckPath = null;
     navPuckAlongMeters = null;
+    navRouteLineFromMeters = null;
     navPuckPlaced = false;
     navPuckTravelHeading = null;
     removeAnimatedMarker('self-nav');
@@ -1176,6 +1335,8 @@
     $('#navBanner').hidden = true;
     $('#navSpeedBadge').hidden = true;
     $('#navSummary').hidden = true;
+    setNavTripDetailsOpen(false);
+    navRemainingMeters = null;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     void keepScreenOnForNavigation(false);
@@ -1184,6 +1345,8 @@
     navRouteResult = null;
     navTrafficScale = 1;
     navStop = null;
+    navCuratedStops = [];
+    navCuratedFinishReplanAt = null;
     renderNavRouteChoices();
     const traffic = $('#navTraffic');
     if (traffic) traffic.hidden = true;

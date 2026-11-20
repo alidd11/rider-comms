@@ -27,6 +27,31 @@ device, so it needs the owner. The detailed guides are linked.
   privacy manifest. The Android APK targets API 36, supports 16 KB memory
   pages, and requests only the permissions the store answers describe.
 
+## 0. Google Cloud API key (5 minutes, do this first)
+
+Two live features are waiting on this: **place search** in both apps, and
+**photo and Reel posting in Rider Social**. The backend has one Google key,
+stored on Railway as `GOOGLE_DIRECTIONS_API_KEY`. Google refuses it today:
+search gets `PERMISSION_DENIED`, and on 2026-11-19 the Rider Social content
+check got "Requests to this API vision.googleapis.com … are blocked". Every
+upload is refused until the check can run, so nothing is posted unchecked.
+
+1. In Google Cloud Console, go to **APIs & Services → Library** and make sure
+   **Places API (New)**, **Routes API** and **Cloud Vision API** are all
+   enabled for the project. Cloud Vision is already on.
+2. Go to **APIs & Services → Credentials** and open the backend's key.
+3. **API restrictions:** choose *Don't restrict key*, or keep *Restrict key*
+   and tick **Places API (New)**, **Routes API** and **Cloud Vision API**.
+4. **Application restrictions:** **None**. The key is used only by the
+   server, so website or app restrictions block it.
+5. Save, wait about five minutes, then search for a place and post a photo in
+   Rider Social. If either still fails, the backend logs say why
+   (`places_provider_refused`, `media_scan_refused`).
+
+Cost: Cloud Vision SafeSearch is about $1.50 per 1,000 images after the
+first 1,000 each month. A Reel counts as four images (its cover and three
+frames).
+
 ## 1. Legal and support (about a day, plus lawyer time)
 
 **Do this first: new riders aren't getting their verification email.**

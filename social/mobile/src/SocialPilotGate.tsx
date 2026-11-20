@@ -8,9 +8,10 @@ import { clearAccountTextDraft } from './textDraftStorage';
 import { SocialSettings } from './SocialSettings';
 import { SocialAccessContext } from './socialAccess';
 import type { SocialAccess } from './socialAccess';
+import { C } from './styles';
 
 type Phase = 'checking' | 'allowed' | 'denied' | 'unavailable';
-const ink = '#F4F7FB', muted = '#91A4B5', accent = '#5CE4C1', bg = '#080D13';
+const ink = C.ink, muted = C.muted, accent = C.accent, bg = C.bg;
 
 export function SocialPilotGate({ identity, client, onSignOut, onDeleteAccount, children }: {
   identity: AccountIdentity; client: RiderAccountClient;
@@ -76,7 +77,7 @@ export function SocialPilotGate({ identity, client, onSignOut, onDeleteAccount, 
           </>}
           <Pressable accessibilityRole="button" accessibilityLabel="Account settings"
             onPress={() => setSettingsOpen(true)}
-            style={{ minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: '#23303C',
+            style={{ minHeight: 50, borderRadius: 13, borderWidth: 1, borderColor: C.border,
               alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: ink, fontSize: 14, fontWeight: '700' }}>Account settings & deletion</Text>
           </Pressable>

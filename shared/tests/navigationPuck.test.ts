@@ -219,3 +219,29 @@ test('no turn arrow without a next step or with broken geometry', () => {
   const short = navigationManeuverArrow([at(0, 0), at(0, 10)], [at(0, 10), at(0, 10.2), at(5, 10)])!;
   assert.ok(short.path.length >= 5);
 });
+
+test('the route ahead starts where the rider is and drops what is behind', async () => {
+  const { navigationPathAhead } = await import('../src/navigationPuck.ts');
+  const north = (metres: number): PuckCoordinate => ({ lat: ORIGIN.lat + metres / M_PER_DEG_LAT, lon: ORIGIN.lon });
+  const east = (metres: number): PuckCoordinate => ({ lat: north(500).lat, lon: ORIGIN.lon + metres / mPerDegLon });
+  const index = buildNavigationPathIndex([north(0), north(500), east(500)]);
+  const ahead = navigationPathAhead(index, 250);
+  assert.equal(ahead.length, 3);
+  assert.ok(Math.abs(ahead[0]!.lat - north(250).lat) < 1e-6);
+  assert.deepEqual(ahead.slice(1), [north(500), east(500)]);
+  // Exactly at a corner the corner isn't repeated.
+  assert.equal(navigationPathAhead(index, index.cumulative[1]!).length, 2);
+  // Unknown progress draws the whole route; the end draws nothing.
+  assert.equal(navigationPathAhead(index, null).length, 3);
+  assert.deepEqual(navigationPathAhead(index, index.totalMeters + 50), []);
+  assert.deepEqual(navigationPathAhead(buildNavigationPathIndex([north(0)]), 0), []);
+});
+
+test('rerouting waits less at speed, never under four seconds', async () => {
+  const { navigationOffRouteGraceMs, NAV_OFF_ROUTE_GRACE_MAX_MS, NAV_OFF_ROUTE_GRACE_MIN_MS } = await import('../src/navigationPuck.ts');
+  assert.equal(navigationOffRouteGraceMs(null), NAV_OFF_ROUTE_GRACE_MAX_MS);
+  assert.equal(navigationOffRouteGraceMs(0), NAV_OFF_ROUTE_GRACE_MAX_MS);
+  assert.equal(navigationOffRouteGraceMs(4), NAV_OFF_ROUTE_GRACE_MAX_MS);
+  assert.equal(navigationOffRouteGraceMs(15), 5_000);
+  assert.equal(navigationOffRouteGraceMs(31), NAV_OFF_ROUTE_GRACE_MIN_MS);
+});

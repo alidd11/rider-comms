@@ -1,4 +1,5 @@
 import { reportOperationalError } from '../errorAlerts.ts';
+import { log } from '../log.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { isGoogleMapsModuleLoadFailure, parseClientErrorReport } from '../clientErrors.ts';
 import { countFilterRejection, NOT_HANDLED } from './context.ts';
@@ -18,7 +19,7 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
       await readinessCheck();
       return sendJson(res, 200, { ok: true });
     } catch (error) {
-      console.error(JSON.stringify({ level: 'error', event: 'readiness_failed', message: error instanceof Error ? error.message : String(error) }));
+      log('error', 'readiness_failed', { message: error instanceof Error ? error.message : String(error) });
       return sendJson(res, 503, { ok: false, error: 'not_ready' });
     }
   }
@@ -92,10 +93,10 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     // with this message. The map keeps working and there's nothing to fix,
     // so it's logged without emailing staff too.
     if ((report.message === 'Script error.' && !report.stack) || isGoogleMapsModuleLoadFailure(report.message)) {
-      console.warn(JSON.stringify({ level: 'warn', event: 'client_error', ...report, fatal: false }));
+      log('warn', 'client_error', { ...report, fatal: false });
       return sendJson(res, 202, { received: true });
     }
-    console.error(JSON.stringify({ level: report.fatal ? 'fatal' : 'error', event: 'client_error', ...report }));
+    log(report.fatal ? 'fatal' : 'error', 'client_error', { ...report });
     // Anyone can post a crash report, so the alert marks its text as
     // unverified: staff shouldn't act on instructions inside one.
     reportOperationalError('client_error', `${report.platform}${report.fatal ? ' (fatal)' : ''}${report.appVersion ? ` v${report.appVersion}` : ''} [unverified client report]: ${report.message}`);

@@ -1,5 +1,6 @@
 import { haversineMeters } from '@rider-comms/shared';
 import type { RouteCoordinate } from './directionsProvider.ts';
+import { log } from './log.ts';
 
 // Server-side Google Places (New) proxy for the native map search bar. The
 // key stays on the backend (GOOGLE_PLACES_API_KEY, falling back to the
@@ -140,6 +141,22 @@ function isValidRequest(request: PlaceSearchRequest): boolean {
     : normalizePlaceTypes(request.includedTypes) !== null;
 }
 
+/** Google's reason for refusing a request (e.g. PERMISSION_DENIED "Places API
+ * (New) has not been used in project …", or a key restriction), logged so a
+ * misconfigured key is diagnosable from the logs. The key is never logged. */
+async function logGoogleRefusal(response: Response): Promise<void> {
+  let status: string | undefined;
+  let message: string | undefined;
+  try {
+    const body = await response.json() as { error?: { status?: unknown; message?: unknown } };
+    if (typeof body?.error?.status === 'string') status = body.error.status;
+    if (typeof body?.error?.message === 'string') message = body.error.message.slice(0, 400);
+  } catch {
+    // Not JSON: the HTTP status alone is still worth logging.
+  }
+  log('warn', 'places_provider_refused', { httpStatus: response.status, googleStatus: status, googleMessage: message });
+}
+
 export async function fetchGooglePlaces(
   request: PlaceSearchRequest,
   options: GooglePlacesOptions = {},
@@ -174,7 +191,10 @@ export async function fetchGooglePlaces(
     }
 
     if (response.status === 429) throw new PlacesProviderError('places_rate_limited');
-    if (!response.ok) throw new PlacesProviderError('places_unavailable');
+    if (!response.ok) {
+      await logGoogleRefusal(response);
+      throw new PlacesProviderError('places_unavailable');
+    }
 
     let payload: unknown;
     try {
@@ -241,7 +261,10 @@ async function callPlaces(url: string, init: RequestInit, options: GooglePlacesO
       throw new PlacesProviderError(controller.signal.aborted ? 'places_timeout' : 'places_unavailable');
     }
     if (response.status === 429) throw new PlacesProviderError('places_rate_limited');
-    if (!response.ok) throw new PlacesProviderError('places_unavailable');
+    if (!response.ok) {
+      await logGoogleRefusal(response);
+      throw new PlacesProviderError('places_unavailable');
+    }
     try {
       return await response.json();
     } catch {

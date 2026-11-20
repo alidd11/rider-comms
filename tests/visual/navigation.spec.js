@@ -227,3 +227,66 @@ test('PWA finds petrol along the rest of the route and routes through it', async
   await expect(page.locator('#navGpsNotice')).toHaveText('Stop added: Shell.');
   await expect.poll(() => page.evaluate(() => window.__spoken)).toContain('Stop added: Shell.');
 });
+
+test('PWA guidance looks like Google Maps: coloured banner, End in the trip card, Re-centre after moving the map', async ({ page }) => {
+  await startNavigationHome(page);
+  // The turn banner is the guidance colour with white type, day or night.
+  const banner = await page.locator('#navBanner').evaluate((node) => ({
+    background: getComputedStyle(node).backgroundColor,
+    guidance: getComputedStyle(document.documentElement).getPropertyValue('--guidance').trim(),
+    road: getComputedStyle(document.querySelector('#navInstruction')).color,
+  }));
+  expect(banner.guidance).toMatch(/^#[0-9a-f]{6}$/);
+  expect(banner.background).not.toBe('rgba(0, 0, 0, 0)');
+  expect(banner.road).toBe('rgb(255, 255, 255)');
+  // End sits at the left of the trip card, away from the turn.
+  await expect(page.locator('#navSummary #endNavBtn')).toBeVisible();
+  await expect(page.locator('#navBanner #endNavBtn')).toHaveCount(0);
+  // Re-centre shows only once the rider has left follow mode.
+  await expect(page.locator('#navRecentreBtn')).toBeHidden();
+  await expect(page.locator('#navSpeedBadge')).toBeVisible();
+  await page.locator('#navOverviewBtn').click();
+  await expect(page.locator('#navRecentreBtn')).toBeVisible();
+  await expect(page.locator('#navSpeedBadge')).toBeHidden();
+  await page.locator('#navRecentreBtn').click();
+  await expect(page.locator('#navRecentreBtn')).toBeHidden();
+  await page.locator('#endNavBtn').click();
+  await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
+  await expect(page.locator('#navRecentreBtn')).toBeHidden();
+});
+
+test('PWA trip card opens while parked with the turns left, Share ETA, Add stop and End', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__shared = [];
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async (data) => { window.__shared.push(data); } });
+  });
+  await startNavigationHome(page);
+  const toggle = page.locator('#navTripToggle');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(page.locator('#navTripDetails')).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  const turns = page.locator('#navTripTurns li');
+  await expect(turns).toHaveCount(2);
+  await expect(turns.first()).toContainText('Turn left onto High Street');
+  await expect(turns.last()).toContainText('Arrive at Home');
+  // The controls on the map step aside while the card is open.
+  await expect(page.locator('#navSpeedBadge')).toBeHidden();
+
+  await page.locator('#navTripShare').click();
+  await expect.poll(() => page.evaluate(() => window.__shared.length)).toBe(1);
+  const [{ text }] = await page.evaluate(() => window.__shared);
+  expect(text).toMatch(/^On my way to Home\. Arriving about .+, .+ to go\. Sent from Rider Comms\.$/);
+
+  await page.locator('#navTripAddStop').click();
+  await expect(page.locator('#navTripDetails')).toBeHidden();
+  await expect(page.locator('#navSpeedBadge')).toBeVisible();
+  await expect(page.locator('#sheetTitle')).toHaveText('On the way');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+
+  await toggle.click();
+  await page.locator('#navTripEnd').click();
+  await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
+  await expect(page.locator('#navTripDetails')).toBeHidden();
+});

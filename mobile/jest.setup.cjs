@@ -42,7 +42,13 @@ jest.mock('expo-speech-recognition', () => {
 });
 
 // Haptics are native; tests only need the calls to resolve.
-jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn(async () => undefined) }));
+jest.mock('expo-haptics', () => ({
+  selectionAsync: jest.fn(async () => undefined),
+  impactAsync: jest.fn(async () => undefined),
+  notificationAsync: jest.fn(async () => undefined),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
+  NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
+}));
 
 // Push notifications are native; tests get a phone that hasn't been asked.
 jest.mock('expo-notifications', () => ({
@@ -54,5 +60,8 @@ jest.mock('expo-notifications', () => ({
   getLastNotificationResponseAsync: jest.fn(async () => null),
   clearLastNotificationResponseAsync: jest.fn(async () => undefined),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  setNotificationCategoryAsync: jest.fn(async () => null),
+  dismissNotificationAsync: jest.fn(async () => undefined),
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
   AndroidImportance: { HIGH: 4 },
 }));

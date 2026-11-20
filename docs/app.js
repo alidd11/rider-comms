@@ -58,6 +58,53 @@
       // Not allowed here (iOS, multitasking, some tablets): keep the fallback.
     });
   }
+  // Installed iOS slides the whole app up when a text box gets focus, even
+  // when the box would sit above the keyboard anyway, and sometimes leaves it
+  // there after the keyboard closes. Outside chat (which follows the visual
+  // viewport itself), put the app back at the top: scroll the box's own list
+  // just far enough to keep it above the keyboard, and only keep the slide
+  // when nothing else can show the box.
+  const TEXT_FIELD = 'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="file"]):not([type="color"]), textarea, [contenteditable="true"], [contenteditable=""]';
+  let keyboardPanned = false;
+  let rootPanFrame = 0;
+  function scrollableAncestor(element) {
+    for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+      const { overflowY } = getComputedStyle(node);
+      if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node;
+    }
+    return null;
+  }
+  function settleRootPan() {
+    rootPanFrame = 0;
+    const root = document.documentElement;
+    if (root.classList.contains('chat-open')) return;
+    const panned = Math.max(0, window.scrollY || root.scrollTop || 0);
+    const field = document.activeElement;
+    const focusedField = field?.matches?.(TEXT_FIELD) ? field : null;
+    if (focusedField && panned > 0) keyboardPanned = true;
+    if (panned <= 0 || !keyboardPanned) return;
+    if (!focusedField) {
+      keyboardPanned = false;
+      window.scrollTo(0, 0);
+      return;
+    }
+    const visibleBottom = (visualViewport?.height ?? window.innerHeight) - 12;
+    const overflow = focusedField.getBoundingClientRect().bottom + panned - visibleBottom;
+    if (overflow > 0) {
+      const scroller = scrollableAncestor(focusedField);
+      if (!scroller || scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop < overflow) return;
+      scroller.scrollTop += overflow;
+    }
+    window.scrollTo(0, 0);
+  }
+  const queueRootPanCheck = () => {
+    if (!rootPanFrame) rootPanFrame = requestAnimationFrame(settleRootPan);
+  };
+  document.addEventListener('focusin', queueRootPanCheck);
+  document.addEventListener('focusout', () => setTimeout(queueRootPanCheck, 60));
+  window.addEventListener('scroll', queueRootPanCheck, { passive: true });
+  visualViewport?.addEventListener?.('resize', queueRootPanCheck);
+
   lockPortraitWhereSupported();
   settleViewportEnvironment();
   window.addEventListener('resize', syncViewportEnvironment);
@@ -117,6 +164,7 @@
       notifyChat: true,
       instagram: '',
       tiktok: '',
+      bio: '',
       instagramVisibility: 'friends',
       tiktokVisibility: 'friends',
       shareLocation: false,
@@ -469,6 +517,13 @@
       this.body = body;
     }
   }
+
+  // Touch feedback (native: mobile/src/haptics.ts). Android browsers vibrate;
+  // Safari has no vibration API, so on iPhone this does nothing.
+  const HAPTIC_MS = { tap: 10, select: 6, success: [12, 40, 12], warning: [20, 60, 20] };
+  function haptic(kind = 'tap') {
+    try { navigator.vibrate?.(HAPTIC_MS[kind] ?? 10); } catch { /* never needed */ }
+  }
   function loadSession() {
     for (const storage of [localStorage, sessionStorage]) {
       try {
@@ -713,15 +768,27 @@
     });
   }
 
+  function setAvatarPickerOpen(open) {
+    const picker = $('#avatarPicker');
+    const button = $('#changeAvatarBtn');
+    if (!picker || !button) return;
+    picker.hidden = !open;
+    button.setAttribute('aria-expanded', String(open));
+    button.textContent = open ? 'Done' : 'Change avatar';
+  }
+
   async function selectProfileAvatar(avatarId) {
     if (!AVATAR_PRESET_BY_ID[avatarId] || avatarId === state.profile.avatarId) return;
     // Re-rendering the page must not drop anything typed but not yet saved.
-    const draftIds = ['editName', 'editHandle', 'editInstagram', 'editTiktok', 'sheetInstagramVisibility', 'sheetTiktokVisibility'];
+    const draftIds = ['editName', 'editHandle', 'editBio', 'editInstagram', 'editTiktok', 'sheetInstagramVisibility', 'sheetTiktokVisibility'];
     const drafts = Object.fromEntries(draftIds.map((id) => [id, document.getElementById(id)?.value]));
     const saved = await patchProfile({ avatarId });
     if (!saved) return;
     showToast('Avatar updated.');
     openSheet('profile');
+    // Keep the picker open on the family just chosen from.
+    setAvatarPickerOpen(true);
+    setAvatarPickerFamily(getAvatarFamily(avatarId));
     for (const [id, value] of Object.entries(drafts)) {
       const field = document.getElementById(id);
       if (field && value !== undefined) field.value = value;
@@ -1459,6 +1526,12 @@
     const empty = $('#friendEmpty');
     $('#requestSection').hidden = !hasRequests;
     $('#friendSection').hidden = !hasVisibleFriends;
+    // A short list leaves the screen bare: offer a way to grow it.
+    const invite = $('#friendInvite');
+    if (invite) {
+      invite.hidden = !hasVisibleFriends || query !== '' || state.friends.length >= 4;
+      $('#friendInviteHandle').textContent = state.profile?.handle ?? '';
+    }
     // Pending requests already fill the screen; the "build your circle"
     // prompt is for a genuinely empty list.
     empty.hidden = hasVisibleFriends || (hasRequests && !query) || (!hasFriends && friendsLoadState !== 'ready');
@@ -1546,6 +1619,7 @@
               <span>${escapeHtml(currentFriend.handle)} · ${escapeHtml(activityCopy)}</span>
             </div>
           </div>
+          ${profile.bio ? `<p class="friend-profile-bio">${escapeHtml(profile.bio)}</p>` : ''}
         </article>
         <div class="friend-profile-actions" aria-label="Rider actions">
           <button id="messageFriend"><span class="friend-action-icon">${icon('message')}</span><strong>Message</strong></button>
@@ -1801,7 +1875,9 @@
   function renderChat() {
     if (!activeChat) return;
     const messages = $('#chatMessages');
+    if (chatMessages.at(-1)?.fromRiderId === activeChat?.riderId) hideFriendTyping();
     let previousDay = '';
+    let previous = null;
     messages.innerHTML = chatMessages.map((message) => {
       // A day label before the first message of each day, so times from
       // different days never read as one out-of-order conversation.
@@ -1809,6 +1885,11 @@
       const dayLabel = day && day !== previousDay ? `<p class="chat-day" role="separator">${escapeHtml(day)}</p>` : '';
       previousDay = day || previousDay;
       const mine = message.fromRiderId === state.profile.riderId;
+      // A message straight after another from the same rider (same day,
+      // within five minutes) sits tight under it, as in Messages.
+      const follows = Boolean(previous && !dayLabel && previous.fromRiderId === message.fromRiderId
+        && Math.abs(message.createdAt - previous.createdAt) < 5 * 60_000);
+      previous = message;
       const failed = mine && message.status === 'failed';
       const status = message.status === 'pending'
         ? '<small>Sending…</small>'
@@ -1820,7 +1901,7 @@
       const body = `<span>${escapeHtml(message.text)}</span><time>${escapeHtml(formatMessageTime(message.createdAt))}</time>${status}`;
       return dayLabel + (failed
         ? `<button class="chat-bubble-row mine" data-retry-message="${escapeHtml(message.id)}" aria-label="Message failed. Retry sending."><span class="chat-bubble failed">${body}</span></button>`
-        : `<div class="chat-bubble-row${mine ? ' mine' : ''}"><div class="chat-bubble">${body}</div></div>`);
+        : `<div class="chat-bubble-row${mine ? ' mine' : ''}${follows ? ' follows' : ''}" data-message-id="${escapeHtml(message.id)}"${mine && message.status !== 'pending' ? ' data-mine' : ''}><div class="chat-bubble">${body}</div></div>`);
     }).join('');
     $('#chatEmpty').hidden = chatLoading || chatMessages.length > 0;
     $('#chatLoading').hidden = !(chatLoading && chatShowingLoading && chatMessages.length === 0);
@@ -1940,8 +2021,73 @@
     void loadChatHideouts();
   }
 
+  // "Typing…": sent at most every few seconds while the rider types, shown
+  // for a few seconds when the friend's signal arrives (native:
+  // FriendChatScreen, the same timings).
+  const TYPING_SEND_INTERVAL_MS = 3_000;
+  const TYPING_SHOW_MS = 6_000;
+  let lastTypingSentAt = 0;
+  let typingHideTimer = null;
+  function noteChatTyping() {
+    if (!activeChat || Date.now() - lastTypingSentAt < TYPING_SEND_INTERVAL_MS) return;
+    lastTypingSentAt = Date.now();
+    void apiFetch('POST', '/messages/typing', { toRiderId: activeChat.riderId }).catch(() => {});
+  }
+  function showFriendTyping(riderId) {
+    if (!activeChat || activeChat.riderId !== riderId) return;
+    $('#chatTypingText').textContent = `${activeChat.displayName || 'Your friend'} is typing…`;
+    $('#chatTyping').hidden = false;
+    clearTimeout(typingHideTimer);
+    typingHideTimer = setTimeout(hideFriendTyping, TYPING_SHOW_MS);
+  }
+  function hideFriendTyping() {
+    clearTimeout(typingHideTimer);
+    const typing = $('#chatTyping');
+    if (typing) typing.hidden = true;
+  }
+
+  // Long-press (or right-click) a bubble for Copy, and Delete on your own.
+  let bubbleMenuMessageId = null;
+  function openBubbleMenu(row, x, y) {
+    const menu = $('#chatBubbleMenu');
+    bubbleMenuMessageId = row.dataset.messageId;
+    $('[data-bubble-action="delete"]', menu).hidden = !row.hasAttribute('data-mine');
+    menu.hidden = false;
+    const width = menu.offsetWidth || 160;
+    menu.style.left = `${Math.max(12, Math.min(window.innerWidth - width - 12, x - width / 2))}px`;
+    menu.style.top = `${Math.max(12, y - 64)}px`;
+    haptic('select');
+    $('button:not([hidden])', menu)?.focus();
+  }
+  function closeBubbleMenu() {
+    $('#chatBubbleMenu').hidden = true;
+    bubbleMenuMessageId = null;
+  }
+  async function runBubbleAction(action) {
+    const id = bubbleMenuMessageId;
+    closeBubbleMenu();
+    const message = chatMessages.find((entry) => entry.id === id);
+    if (!message) return;
+    if (action === 'copy') {
+      try { await navigator.clipboard.writeText(message.text); haptic('success'); showToast('Message copied.'); } catch { showToast('Couldn’t copy the message.'); }
+      return;
+    }
+    if (action === 'delete') {
+      try {
+        await apiFetch('DELETE', `/messages/${encodeURIComponent(id)}`);
+        chatMessages = chatMessages.filter((entry) => entry.id !== id);
+        renderChat();
+        showToast('Message deleted.');
+      } catch {
+        showToast('Couldn’t delete the message. Try again.');
+      }
+    }
+  }
+
   function closeChat({ restoreFocus = true } = {}) {
     if (!activeChat) return;
+    hideFriendTyping();
+    closeBubbleMenu();
     activeChat = null;
     chatMessages = [];
     chatNextCursor = null;
@@ -1967,7 +2113,9 @@
       if (activeChat?.riderId !== riderId) return;
       chatMessages = window.RiderMessageState.acknowledge(chatMessages, localId, sent);
       renderChat();
+      haptic('tap');
     } catch {
+      haptic('warning');
       if (activeChat?.riderId !== riderId) return;
       chatMessages = chatMessages.map((message) => message.id === localId ? { ...message, status: 'failed' } : message);
       renderChat();
@@ -2200,6 +2348,7 @@
             }
             if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed') chatDirty = true;
             if (peerProfileDirty) friendProfileDirtyRiderIds.add(event.actorRiderId);
+            if (event.type === 'typing') showFriendTyping(event.actorRiderId);
             if (event.type === 'social_refresh' && event.entityId === 'profile' && event.actorRiderId === state.profile.riderId) {
               selfProfileDirty = true;
             }
@@ -2885,6 +3034,19 @@
     if (!key) return;
     try { localStorage.setItem(key, JSON.stringify(withRideHistoryEntry(loadRideHistory(), entry))); } catch { /* Private browsing. */ }
   }
+  /** The menu's ride stats: totals over the rides kept on this device
+   * (native: menuRideStats in MenuScreen). */
+  function renderMenuRideStats() {
+    if (!$('#appMenuStats')) return;
+    const history = loadRideHistory();
+    const unit = state.unit === 'km' ? 'km' : 'mi';
+    const minutes = Math.round(history.reduce((sum, entry) => sum + entry.durationMs, 0) / 60_000);
+    const metres = history.reduce((sum, entry) => sum + (entry.distanceMeters ?? 0), 0);
+    $('#appMenuStatRides').textContent = String(history.length);
+    $('#appMenuStatTime').textContent = minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    $('#appMenuStatDistance').textContent = (metres / (unit === 'km' ? 1000 : 1609.344)).toFixed(metres > 0 ? 1 : 0);
+    $('#appMenuStatDistanceUnit').textContent = unit === 'km' ? 'Kilometres' : 'Miles';
+  }
   function renderRecentRides() {
     const card = $('#recentRides');
     const list = $('#recentRidesList');
@@ -3095,6 +3257,7 @@
               <strong class="my-profile-name">${escapeHtml(state.profile.displayName)}</strong>
               <span class="my-profile-handle">${escapeHtml(state.profile.handle)}</span>
               <span class="my-profile-plan">${escapeHtml(plan.name)} plan</span>
+              ${state.profile.bio ? `<p class="my-profile-bio">${escapeHtml(state.profile.bio)}</p>` : ''}
             </div>
             ${settingsRowsMarkup([settingsLink('editProfile', 'Edit profile')])}
             <section class="my-profile-section" aria-label="Connected profiles"><h3 class="settings-page-heading">Connected profiles</h3>${settingsRowsMarkup([
@@ -3106,11 +3269,13 @@
       },
       profile: () => ({
         title: 'Edit profile',
-        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Avatar</span>${avatarOptionsMarkup(state.profile.avatarId)}</div><div class="settings-sheet-section"><span class="settings-sheet-label">Name</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetInstagramVisibility">Who can see your Instagram</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetTiktokVisibility">Who can see your TikTok</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
+        body: `<div class="settings-sheet-section"><span class="settings-sheet-label">Avatar</span><div class="avatar-current-row">${avatar(state.profile, 'avatar-xl')}<button type="button" class="button secondary" id="changeAvatarBtn" aria-expanded="false" aria-controls="avatarPicker">Change avatar</button></div><div id="avatarPicker" hidden>${avatarOptionsMarkup(state.profile.avatarId)}</div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Name</span><div class="form-field"><label for="editName">Display name</label><input id="editName" maxlength="50" value="${escapeHtml(state.profile.displayName)}"></div><div class="form-field"><label for="editHandle">Rider handle</label><input id="editHandle" maxlength="25" value="${escapeHtml(state.profile.handle)}"></div><div class="form-field"><label for="editBio">Bio</label><textarea id="editBio" maxlength="160" rows="3" placeholder="What do you ride?">${escapeHtml(state.profile.bio || '')}</textarea><small class="field-hint">Shown on your profile in Rider Comms and Rider Social.</small></div></div><div class="settings-sheet-section"><span class="settings-sheet-label">Connected profiles</span><div class="form-field"><label for="editInstagram">Instagram</label><input id="editInstagram" maxlength="31" value="${escapeHtml(state.profile.instagram)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetInstagramVisibility">Who can see your Instagram</label><select id="sheetInstagramVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div><div class="form-field"><label for="editTiktok">TikTok</label><input id="editTiktok" maxlength="31" value="${escapeHtml(state.profile.tiktok)}" placeholder="Username" autocapitalize="none" autocorrect="off"></div><div class="form-field"><label for="sheetTiktokVisibility">Who can see your TikTok</label><select id="sheetTiktokVisibility"><option value="friends">Friends only</option><option value="public">Everyone</option><option value="private">Only me</option></select></div></div><p id="profileFormError" class="inline-error" hidden></p><button class="button primary wide" id="saveProfile">Save changes</button>`,
         ready: () => {
           $('#sheetInstagramVisibility').value = state.profile.instagramVisibility;
           $('#sheetTiktokVisibility').value = state.profile.tiktokVisibility;
           $('#saveProfile').addEventListener('click', saveProfile);
+          // The avatar grid stays behind a button so Name and Bio are on screen.
+          $('#changeAvatarBtn').addEventListener('click', () => setAvatarPickerOpen($('#avatarPicker').hidden));
           document.querySelectorAll('#sheetBody [data-avatar-option]').forEach((button) => {
             button.addEventListener('click', () => void selectProfileAvatar(button.dataset.avatarOption));
           });
@@ -3312,6 +3477,7 @@
           chips.forEach((chip) => chip.addEventListener('click', () => {
             clearInterval(hazardAutoCloseTimer);
             $('#hazardAutoClose').hidden = true;
+            haptic('success');
             createHazard(chip.dataset.hazardType, chips);
           }));
         },
@@ -3631,6 +3797,7 @@
   function settingsCategoryValue(page) {
     if (page === 'general') return state.profile.unitSystem === 'km' ? 'Kilometres' : 'Miles';
     if (page === 'mapNavigation') return NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label;
+    if (page === 'voiceSound') return state.spokenDirections !== false ? 'Spoken' : 'Muted';
     if (page === 'rideSafe') return state.rideSafeEnabled ? 'On' : 'Off';
     if (page === 'vehicle') return RIDER_VEHICLE_OPTIONS.find(([vehicle]) => vehicle === state.vehicleCategory)?.[1] || '';
     if (page === 'plan') return PLAN_INFO[planTier(state.profile.zoneTier)].name;
@@ -3770,6 +3937,7 @@
       const profile = await apiFetch('PUT', `/riders/${encodeURIComponent(state.profile.riderId)}/profile`, {
         displayName,
         handle,
+        bio: $('#editBio').value.trim(),
         instagramUsername: $('#editInstagram').value.trim().replace(/^@/, ''),
         tiktokUsername: $('#editTiktok').value.trim().replace(/^@/, ''),
         instagramVisibility: $('#sheetInstagramVisibility')?.value || state.profile.instagramVisibility,
@@ -3879,23 +4047,21 @@
   let hudSpeedMps = null;
 
   /**
-   * The map's own chrome. Parked: a status chip under the search bar and a
-   * bottom bar with Report (small) and Go live (wide, labelled). Moving with
+   * The map's own chrome. Parked: a bottom bar with Report and a labelled
+   * Go live button that also counts riders nearby. Moving with
    * Ride Safe on (and not navigating, which has its own HUD): the riding
    * HUD replaces both, with speed, a group chip and two glove-sized buttons,
    * Mute and Hazard. The native MapScreen mirrors this.
    */
   function renderMapChrome() {
     const live = state.publicLive && state.profile.shareLocation;
-    const chip = $('#mapStatusChip');
-    if (chip) {
+    // Go live is an icon only; its colour says whether you're live, and its
+    // label tells screen readers how many riders are near. (A group ride has
+    // its own ride bar.)
+    const button = $('#joinNearbyBtn');
+    if (button) {
       const nearby = nearbyRiders.length;
-      chip.dataset.state = state.activeRide ? 'ride' : live ? 'live' : 'off';
-      $('#mapStatusText').textContent = state.activeRide
-        ? 'In a group ride'
-        : live
-          ? `Live on Nearby${nearby ? ` · ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}`
-          : 'Nearby off';
+      button.setAttribute('aria-label', live ? `Leave nearby${nearby ? `, ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}` : 'Go live nearby');
     }
     const hud = $('#ridingHud');
     if (!hud) return;
@@ -5398,6 +5564,7 @@
     if (locked && !['map', 'ride'].includes(state.screen)) navigate(state.activeRide ? 'ride' : 'map', false);
     if (locked && activeChat) closeChat({ restoreFocus: false });
     if (locked) closeAppMenu({ restoreFocus: false });
+    if (locked) setNavTripDetailsOpen(false);
   }
 
   function stopMovementSafetyTracking() {
@@ -6173,8 +6340,7 @@
     const drawer = $('#mapDrawer');
     const list = $('#mapDrawerRecent');
     const avatar = $('.map-avatar-wrap')?.getBoundingClientRect();
-    const status = $('#mapStatusChip')?.getBoundingClientRect();
-    const clear = Math.max(avatar?.bottom || 0, status?.bottom || 0) + DRAWER_OPEN_GAP;
+    const clear = (avatar?.bottom || 0) + DRAWER_OPEN_GAP;
     // The drawer's top when resting: its bottom edge less everything but the list.
     const rest = drawer.getBoundingClientRect().bottom - (drawer.offsetHeight - (list.hidden ? 0 : list.offsetHeight - drawerFlush()));
     return Math.max(DRAWER_MIN_OPEN, Math.round(rest - clear));
@@ -6816,6 +6982,8 @@
   const navigationPuck = globalThis.RiderNavigationPuck;
   let navPuckPath = null;
   let navPuckAlongMeters = null;
+  // How far along the route the drawn line last started (it drops what's ridden).
+  let navRouteLineFromMeters = null;
   let navPuckPlaced = false;
   // The rider's direction of travel at the last fix, for the puck's cone.
   let navPuckTravelHeading = null;
@@ -6838,7 +7006,6 @@
   let navStatusNotice = null;
 
   const NAV_STEP_ARRIVAL_RADIUS_M = 30;
-  const NAV_OFF_ROUTE_GRACE_MS = 10_000;
   const NAV_GPS_STALE_MS = 12_000;
   const NAV_GPS_CHECK_MS = 2_000;
   const NAV_GPS_STALE_NOTICE = 'GPS signal lost. Keep following the route with caution.';
@@ -7125,6 +7292,7 @@
   }
 
   let navRemainingSeconds = null;
+  let navRemainingMeters = null;
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -7167,8 +7335,17 @@
     applyManeuverSvg($('#navManeuverSvg'), maneuver);
   }
 
+  /** Curated itineraries preserve all unfinished checkpoints through reroutes.
+   * An ad-hoc fuel stop is inserted first, rather than replacing the route. */
+  let navCuratedStops = [];
+  let navCuratedFinishReplanAt = null;
+  const CURATED_FINISH_REPLAN_COOLDOWN_MS = 30000;
+  const CURATED_STOP_REACHED_RADIUS_M = 140;
+  const CURATED_STOP_MAX_GPS_ACCURACY_M = 80;
+
   /** A Google Directions request with the rider's route options applied. */
-  function navigationRouteRequest(origin, destination) {
+  function navigationRouteRequest(origin, destination, plannedStops = navCuratedStops, preserveFuelStop = true) {
+    const stops = [...(preserveFuelStop && navStop ? [navStop] : []), ...plannedStops];
     return {
       origin,
       destination,
@@ -7179,9 +7356,9 @@
       // Live traffic and the other ways there, as in Google Maps and Waze
       // (native: the backend's Routes API request).
       // Google offers no alternatives for a trip with a stop.
-      provideRouteAlternatives: !navStop,
+      provideRouteAlternatives: stops.length === 0,
       drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel?.BEST_GUESS ?? 'bestguess' },
-      ...(navStop ? { waypoints: [{ location: { lat: navStop.lat, lng: navStop.lng }, stopover: true }] } : {}),
+      ...(stops.length ? { waypoints: stops.map(({ lat, lng }) => ({ location: { lat, lng }, stopover: true })) } : {}),
     };
   }
 
@@ -7266,6 +7443,19 @@
     navRouteLine.setPath(path);
     navRouteOutline.setMap(map);
     navRouteLine.setMap(map);
+  }
+
+  /** Drops the ridden part of the route line, as Google and Apple Maps do.
+   * Redrawn only every few metres, so a fix a second stays cheap. */
+  function trimNavigationRouteLine(distanceAlongMeters) {
+    if (!navRouteLine || !navPuckPath || !Number.isFinite(distanceAlongMeters)) return;
+    if (navRouteLineFromMeters !== null && Math.abs(distanceAlongMeters - navRouteLineFromMeters) < 5) return;
+    const ahead = navigationPuck.navigationPathAhead(navPuckPath, distanceAlongMeters);
+    if (ahead.length < 2) return;
+    navRouteLineFromMeters = distanceAlongMeters;
+    const path = ahead.map((point) => ({ lat: point.lat, lng: point.lon }));
+    navRouteOutline.setPath(path);
+    navRouteLine.setPath(path);
   }
 
   function clearNavigationRouteLine() {
@@ -7396,6 +7586,8 @@
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     navRemainingSeconds = remainingSeconds;
+    navRemainingMeters = remainingMeters;
+    if (!$('#navTripDetails').hidden) renderNavTripTurns();
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
     renderNavigationRoadAhead();
@@ -7446,6 +7638,9 @@
       if (use) use.setAttribute('href', navFollowing ? '#i-route' : '#i-locate');
       overview.classList.toggle('active', !navFollowing);
     }
+    // Google Maps' Re-centre: offered once the rider has moved the map.
+    const recentre = $('#navRecentreBtn');
+    if (recentre) recentre.hidden = navFollowing || !navSteps.length;
   }
 
   function updateNavigationPositionIcon() {
@@ -7733,27 +7928,76 @@
    * button (see showDestinationCard above). Fetches the rider's live GPS
    * fix, requests a real route from it to the selected destination, and
    * hands off to applyRoute on success. */
-  async function startInAppNavigation(location, label) {
+  async function startInAppNavigation(location, label, plannedStops = []) {
     let position;
     try {
-      position = await currentPosition();
+      // A curated start cannot be acknowledged from a cached position.
+      // Ordinary point-to-point navigation retains its established behaviour.
+      position = await currentPosition({ maximumAge: plannedStops.length ? 0 : 15000 });
     } catch {
       showToast('Location access is needed to start navigation.');
       return;
     }
     const origin = { lat: position.coords.latitude, lng: position.coords.longitude };
     const destination = { lat: location.lat(), lng: location.lng() };
+    // When already at the start, do not route the rider around it again.
+    // Match native's first-checkpoint handling using the current GPS fix.
+    const accuracyMeters = Number(position.coords.accuracy);
+    const startDistance = plannedStops.length ? metersBetween(origin, plannedStops[0]) : Infinity;
+    // Coarse GPS can put someone inside the 140 m arrival circle before they
+    // reach the start. Only skip it when the full reported uncertainty fits
+    // inside that circle, and no later checkpoint is actually closer.
+    const atStart = plannedStops.length > 0
+      && position.coords.accuracy != null
+      && Number.isFinite(accuracyMeters)
+      && accuracyMeters >= 0
+      && accuracyMeters <= CURATED_STOP_MAX_GPS_ACCURACY_M
+      && startDistance + accuracyMeters <= CURATED_STOP_REACHED_RADIUS_M
+      && !plannedStops.slice(1).some((later) => metersBetween(origin, later) < startDistance);
+    const remainingStops = atStart ? plannedStops.slice(1) : plannedStops;
     getDirectionsService().route(
-      navigationRouteRequest(origin, destination),
+      // A new navigation selection must not inherit a fuel stop left over
+      // from a previous journey. Only reroutes preserve existing stops.
+      navigationRouteRequest(origin, destination, remainingStops, false),
       (result, status) => {
         if (status !== 'OK' || !result) {
-          showToast('Couldn’t calculate a route. Try again.');
+          showToast('Couldn’t calculate the complete route. Try again.');
           return;
         }
+        navStop = null;
+        navCuratedFinishReplanAt = null;
+        navCuratedStops = [...remainingStops];
         applyRoute(result, destination, label);
       }
     );
   }
+
+  // Curated Routes lives in docs/routes.js, while this is the existing
+  // turn-by-turn map engine. A dedicated event preserves every itinerary
+  // point without exposing routing credentials or opening an external app.
+  window.addEventListener('rider-comms:navigate-curated-route', (event) => {
+    const detail = event.detail;
+    const safePoint = (value) => {
+      const lat = Number(value?.lat);
+      const lng = Number(value?.lng);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return null;
+      return { lat, lng, label: typeof value?.label === 'string' ? value.label.slice(0, 100) : '' };
+    };
+    const end = safePoint(detail?.end);
+    const stops = Array.isArray(detail?.stops) ? detail.stops.map(safePoint) : null;
+    if (!end || !stops || stops.length < 1 || stops.length > 20 || stops.some((point) => !point)) {
+      showToast('This route has invalid planned stops.');
+      return;
+    }
+    navigate('map');
+    if (!map || !window.google?.maps) {
+      showToast('Map is still loading. Try starting the route again once it is ready.');
+      return;
+    }
+    const label = typeof detail?.label === 'string' && detail.label.trim()
+      ? detail.label.trim().slice(0, 120) : 'Scenic route';
+    void startInAppNavigation(new google.maps.LatLng(end.lat, end.lng), label, stops);
+  });
 
   // Navigation now extends the real app surface through the installed-iPhone
   // bottom safe area. Do not recolour browser/system chrome to hide a gap.
@@ -7779,6 +8023,7 @@
     renderNavigationRouteLine(routePath);
     navPuckPath = navigationPuck.buildNavigationPathIndex(routePath.map((point) => ({ lat: point.lat, lon: point.lng })));
     navPuckAlongMeters = null;
+    navRouteLineFromMeters = null;
     navStepIndex = 0;
     navArrowKey = null;
     navLastAnnouncedStep = -1;
@@ -7850,6 +8095,41 @@
   }
 
   let navStatusNoticeTimer;
+
+  // The trip card (Google Maps' swipe-up sheet): the turns left, Add stop,
+  // Share ETA and End. Parked only: Ride Safe closes it and hides the handle.
+  function renderNavTripTurns() {
+    const list = $('#navTripTurns');
+    if (!list) return;
+    const upcoming = navSteps.slice(navStepIndex + 1);
+    const rows = upcoming.map((step) => `<li><span>${escapeHtml(stripHtml(step.instructions))}</span><em>${escapeHtml(formatNavDistance(step.distance.value))}</em></li>`);
+    rows.push(`<li class="arrive"><span>Arrive at ${escapeHtml(navDestination?.label || 'your destination')}</span></li>`);
+    list.innerHTML = rows.join('');
+  }
+
+  function setNavTripDetailsOpen(open) {
+    const details = $('#navTripDetails');
+    const toggle = $('#navTripToggle');
+    if (!details || !toggle) return;
+    const show = open && navSteps.length > 0 && !syncMovementSafetyBanner();
+    if (show) renderNavTripTurns();
+    details.hidden = !show;
+    $('#app').classList.toggle('nav-trip-open', show);
+    toggle.setAttribute('aria-expanded', String(show));
+    toggle.setAttribute('aria-label', show ? 'Hide trip details' : 'Show trip details');
+  }
+
+  async function shareNavigationEta() {
+    if (!Number.isFinite(navRemainingSeconds)) return;
+    const text = navigationGuidance.navigationEtaShareText(navDestination?.label || '', formatArrivalTime(navRemainingSeconds), navRemainingMeters || 0, state.unit);
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else { await navigator.clipboard.writeText(text); showToast('ETA copied. Paste it to share.'); }
+      haptic('success');
+    } catch (error) {
+      if (error?.name !== 'AbortError') showToast('Couldn’t share your ETA. Try again.');
+    }
+  }
 
   /** `info` notices (a successful reroute) are styled neutrally and clear
    * themselves; warnings stay until the problem is resolved. */
@@ -7949,6 +8229,7 @@
     const placed = placeNavigationPuck(position);
     const here = placed.now;
     checkNavStopReached(here);
+    checkCuratedStopReached(raw);
     navCurrentPosition = here;
 
     let effectiveIndex = navStepIndex;
@@ -7965,7 +8246,24 @@
     const lastStep = navSteps[navSteps.length - 1];
     const lastEnd = { lat: lastStep.end_location.lat(), lng: lastStep.end_location.lng() };
     if (effectiveIndex === navSteps.length - 1 && metersBetween(here, lastEnd) <= NAV_STEP_ARRIVAL_RADIUS_M) {
-      finishNavigation(true);
+      if (navCuratedStops.length === 0) {
+        finishNavigation(true);
+        return;
+      }
+      // Curated destinations are not a shortcut around unfinished checkpoints.
+      // Only a reliable raw fix near the finish may initiate recovery; the
+      // snapped map puck alone is not evidence that the rider has arrived.
+      const atFinish = navCurrentAccuracyMeters != null && navCurrentAccuracyMeters >= 0
+        && navCurrentAccuracyMeters <= CURATED_STOP_MAX_GPS_ACCURACY_M
+        && metersBetween(raw, lastEnd) + navCurrentAccuracyMeters <= CURATED_STOP_REACHED_RADIUS_M;
+      const previous = navCuratedFinishReplanAt;
+      if (atFinish && !navRerouting
+        && (previous === null || Date.now() - previous >= CURATED_FINISH_REPLAN_COOLDOWN_MS)) {
+        navCuratedFinishReplanAt = Date.now();
+        navOffRouteSince = null;
+        const count = navCuratedStops.length;
+        rerouteFromCurrentPosition(raw, `${count} planned ${count === 1 ? 'stop' : 'stops'} remaining. Recalculating…`);
+      }
       return;
     }
 
@@ -7997,6 +8295,7 @@
       speedMps: speed,
     }, navPuckAlongMeters);
     navPuckAlongMeters = match.distanceAlongMeters;
+    if (match.snapped) trimNavigationRouteLine(match.distanceAlongMeters);
     const age = navigationPuck.navigationFixAgeSeconds(position.timestamp, nowMs);
     const current = navigationPuck.predictNavigationPuck(navPuckPath, match, speed, age);
     const ahead = navigationPuck.predictNavigationPuck(navPuckPath, match, speed, age + NAV_PUCK_GLIDE_MS / 1000);
@@ -8026,7 +8325,9 @@
     if (status === 'unknown') return;
     if (status === 'off') {
       if (!navOffRouteSince) navOffRouteSince = Date.now();
-      else if (Date.now() - navOffRouteSince > NAV_OFF_ROUTE_GRACE_MS) {
+      // Shorter at speed (shared navigationOffRouteGraceMs), as Google Maps
+      // and Waze recalculate within seconds of a missed exit.
+      else if (Date.now() - navOffRouteSince > navigationPuck.navigationOffRouteGraceMs(navCurrentSpeedMps)) {
         navOffRouteSince = null;
         void rerouteFromCurrentPosition(here);
       }
@@ -8041,11 +8342,17 @@
    * reroute request itself fails, the rider just keeps following the
    * stale route/step they were already on rather than losing navigation
    * entirely. */
-  async function rerouteFromCurrentPosition(here) {
-    if (!navDestination) return;
+  async function rerouteFromCurrentPosition(here, notice = 'Rerouting…') {
+    if (!navDestination || navRerouting) return;
     navRerouting = true;
-    setNavStatusNotice('Rerouting…');
-    if (!navMuted) speak('Rerouting.');
+    if (notice === 'Rerouting…') {
+      // Preserve ordinary missed-turn guidance and its existing safety audit.
+      setNavStatusNotice('Rerouting…');
+      if (!navMuted) speak('Rerouting.');
+    } else {
+      setNavStatusNotice(notice);
+      if (!navMuted) speak(notice);
+    }
     getDirectionsService().route(
       navigationRouteRequest(here, { lat: navDestination.lat, lng: navDestination.lng }),
       (result, status) => {
@@ -8148,6 +8455,24 @@
     });
   }
 
+  /** Only advance the next planned checkpoint on a reliable raw GPS fix.
+   * Missed turns never silently remove remaining scenic-route waypoints. */
+  function checkCuratedStopReached(here) {
+    const next = navCuratedStops[0];
+    if (!next || navCurrentAccuracyMeters == null
+      || navCurrentAccuracyMeters < 0 || navCurrentAccuracyMeters > CURATED_STOP_MAX_GPS_ACCURACY_M
+      || metersBetween(here, next) > CURATED_STOP_REACHED_RADIUS_M) return;
+    // Do not count an earlier stop as passed if a nearby later stop is
+    // actually closer to this GPS fix. Small waypoint gaps can overlap
+    // the arrival tolerance; avoid silently skipping the itinerary.
+    const nextDistance = metersBetween(here, next);
+    if (navCuratedStops.slice(1).some((later) => metersBetween(here, later) < nextDistance)) return;
+    navCuratedStops.shift();
+    const reached = `Passed ${next.label || 'the planned stop'}.`;
+    setNavStatusNotice(reached, { tone: 'info', clearAfterMs: 5000 });
+    if (!navMuted) speak(reached);
+  }
+
   /** At the stop: say so, and route straight on from here. */
   function checkNavStopReached(here) {
     if (!navStop || distanceToPathMeters(here, [navStop, navStop]) > NAV_STOP_REACHED_RADIUS_M) return;
@@ -8174,6 +8499,7 @@
     navSteps = [];
     navPuckPath = null;
     navPuckAlongMeters = null;
+    navRouteLineFromMeters = null;
     navPuckPlaced = false;
     navPuckTravelHeading = null;
     removeAnimatedMarker('self-nav');
@@ -8206,6 +8532,8 @@
     $('#navBanner').hidden = true;
     $('#navSpeedBadge').hidden = true;
     $('#navSummary').hidden = true;
+    setNavTripDetailsOpen(false);
+    navRemainingMeters = null;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     void keepScreenOnForNavigation(false);
@@ -8214,6 +8542,8 @@
     navRouteResult = null;
     navTrafficScale = 1;
     navStop = null;
+    navCuratedStops = [];
+    navCuratedFinishReplanAt = null;
     renderNavRouteChoices();
     const traffic = $('#navTraffic');
     if (traffic) traffic.hidden = true;
@@ -8419,23 +8749,32 @@
   // menu only to riders the server lets in (native: MenuScreen).
   const RIDER_SOCIAL_URL = 'https://social-web-preview-preview.up.railway.app';
   let socialAccessCheck = 0;
+  // The session the server last let into Social. The entry shows straight
+  // away for it, so the menu doesn't flicker on every open while the check
+  // runs; a refusal hides it again.
+  let socialAllowedToken = null;
   async function showSocialEntryIfAllowed() {
     const check = ++socialAccessCheck;
     const token = session?.token;
     const entry = $('#appMenuSocial');
-    entry.hidden = true;
+    entry.hidden = !token || socialAllowedToken !== token;
     if (!token) return;
     try {
       await apiFetch('GET', '/social/bootstrap');
-      if (check === socialAccessCheck && session?.token === token && !$('#appMenu').hidden) {
-        entry.hidden = false;
+      if (check !== socialAccessCheck || session?.token !== token) return;
+      socialAllowedToken = token;
+      if (!$('#appMenu').hidden) entry.hidden = false;
+    } catch (error) {
+      // A refusal from the server hides it; a lost connection keeps the last answer.
+      if (check === socialAccessCheck && error instanceof ApiError && error.status > 0) {
+        socialAllowedToken = null;
+        entry.hidden = true;
       }
-    } catch {
-      // Leave the entry hidden until the next successful access check.
     }
   }
 
   function openAppMenu() {
+    renderMenuRideStats();
     if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
       showToast('Controls stay locked until Rider Comms confirms you are stationary.');
       return;
@@ -8484,6 +8823,7 @@
       else if (navSteps.length) renderNavStep();
       updateNavigationControls();
     });
+    $('#navRecentreBtn')?.addEventListener('click', () => resumeNavigationFollowing());
     $('#navOverviewBtn')?.addEventListener('click', () => {
       if (navFollowing) showNavigationOverview();
       else resumeNavigationFollowing();
@@ -8570,7 +8910,7 @@
     });
     $('#shareRideBtn').addEventListener('click', shareRide);
     $('#rideShareTop').addEventListener('click', shareRide);
-    $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); showToast('Ride code copied.'); } catch { shareRide(); } });
+    $('#copyRideCode').addEventListener('click', async () => { try { await navigator.clipboard.writeText(state.activeRide.code); haptic('success'); showToast('Ride code copied.'); } catch { shareRide(); } });
     $('#openRideMap').addEventListener('click', () => navigate('map'));
     $('#ridePill').addEventListener('click', () => navigate('ride'));
     $('#regroupChip')?.addEventListener('click', showRegroupPoint);
@@ -8597,10 +8937,47 @@
         if (window.scrollY > 0) window.scrollTo(0, 0);
       });
     });
+    $('#chatInput').addEventListener('input', noteChatTyping);
+    let bubblePressTimer = null;
+    $('#chatMessages').addEventListener('contextmenu', (event) => {
+      const row = event.target.closest?.('[data-message-id]');
+      if (!row) return;
+      event.preventDefault();
+      openBubbleMenu(row, event.clientX, event.clientY);
+    });
+    $('#chatMessages').addEventListener('pointerdown', (event) => {
+      const row = event.target.closest?.('[data-message-id]');
+      if (!row || event.pointerType === 'mouse') return;
+      clearTimeout(bubblePressTimer);
+      bubblePressTimer = setTimeout(() => openBubbleMenu(row, event.clientX, event.clientY), 450);
+    });
+    ['pointerup', 'pointercancel', 'pointermove'].forEach((type) => $('#chatMessages').addEventListener(type, (event) => {
+      if (type === 'pointermove' && Math.abs(event.movementY) < 4) return;
+      clearTimeout(bubblePressTimer);
+    }));
+    $('#chatBubbleMenu').addEventListener('click', (event) => {
+      const action = event.target.closest?.('[data-bubble-action]')?.dataset.bubbleAction;
+      if (action) void runBubbleAction(action);
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (!$('#chatBubbleMenu').hidden && !event.target.closest?.('#chatBubbleMenu')) closeBubbleMenu();
+    });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !$('#chatBubbleMenu').hidden) closeBubbleMenu(); });
     $('#chatInput').addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });
     $('#addFriendToggle').addEventListener('click', () => { $('#addFriendForm').hidden = !$('#addFriendForm').hidden; if (!$('#addFriendForm').hidden) $('#friendId').focus(); });
+    $('#friendInviteAdd')?.addEventListener('click', () => {
+      $('#addFriendForm').hidden = false;
+      $('#friendId').focus();
+    });
+    $('#friendInviteShare')?.addEventListener('click', async () => {
+      const text = `Add me on Rider Comms: ${state.profile.handle}`;
+      try {
+        if (navigator.share) await navigator.share({ text });
+        else { await navigator.clipboard.writeText(state.profile.handle); haptic('success'); showToast('Handle copied.'); }
+      } catch { /* Share sheet dismissed. */ }
+    });
     $('#friendEmptyAdd')?.addEventListener('click', () => {
       $('#addFriendForm').hidden = false;
       $('#friendId').focus();
@@ -8661,10 +9038,14 @@
       }
     });
     $('#locateBtn').addEventListener('click', locate);
-    $('#joinNearbyBtn').addEventListener('click', toggleNearby);
+    $('#joinNearbyBtn').addEventListener('click', () => { haptic('tap'); toggleNearby(); });
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
-    $('#endNavBtn').addEventListener('click', () => finishNavigation(false));
+    $('#endNavBtn').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripToggle').addEventListener('click', () => { haptic('select'); setNavTripDetailsOpen($('#navTripDetails').hidden); });
+    $('#navTripEnd').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripShare').addEventListener('click', () => void shareNavigationEta());
+    $('#navTripAddStop').addEventListener('click', () => { setNavTripDetailsOpen(false); openSheet('stopsOnTheWay'); });
   }
 
   // --- Auth screen -----------------------------------------------------
@@ -8798,6 +9179,7 @@
     state.unit = state.profile.unitSystem;
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;
+    state.profile.bio = typeof profile.bio === 'string' ? profile.bio : '';
     state.profile.instagramVisibility = profile.instagramVisibility;
     state.profile.tiktokVisibility = profile.tiktokVisibility;
     state.profile.shareLocation = profile.shareLocation;
@@ -8870,7 +9252,7 @@
     } finally {
       button.disabled = false;
       button.removeAttribute('aria-busy');
-      button.textContent = 'Log in';
+      button.textContent = 'Sign in';
     }
   }
 

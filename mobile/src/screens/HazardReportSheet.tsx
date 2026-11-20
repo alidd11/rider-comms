@@ -1,10 +1,12 @@
 import * as React from 'react';
-import { View, Text, Pressable, Modal, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Modal, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { HazardType } from '@rider-comms/shared';
 import { colors, spacing, radii, type, pressedFeedback } from '../theme';
 import { HazardIcon } from '../components/HazardIcon';
+import { haptics } from '../haptics';
+import { SHEET_GRAB_ZONE, useDragToDismiss } from '../components/useDragToDismiss';
 
 export const HAZARD_TYPE_META: Record<HazardType, { label: string; color: string }> = {
   police: { label: 'Police', color: colors.accent },
@@ -36,6 +38,7 @@ export function HazardReportSheet({
   onReport: (type: HazardType) => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const sheetDrag = useDragToDismiss(onClose);
   // One tap to report; if nothing is picked the picker closes itself, so a
   // rider never rides on with a sheet over the map. Same 10s as the PWA.
   const [remaining, setRemaining] = React.useState(HAZARD_AUTO_CLOSE_SECONDS);
@@ -55,8 +58,9 @@ export function HazardReportSheet({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable accessible={false} style={styles.backdrop} onPress={onClose}>
+        <Animated.View style={{ transform: [{ translateY: sheetDrag.translateY }] }}>
         <Pressable accessible={false} style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.handle} />
+          <View {...sheetDrag.panHandlers} style={SHEET_GRAB_ZONE}><View style={styles.handle} /></View>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
               <Text style={styles.title}>Report on the road</Text>
@@ -73,7 +77,10 @@ export function HazardReportSheet({
                 <Pressable accessibilityRole="button"
                   key={type}
                   style={({ pressed }) => [styles.typeButton, pressed && styles.typeButtonPressed]}
-                  onPress={() => onReport(type)}
+                  onPress={() => {
+                    haptics.success();
+                    onReport(type);
+                  }}
                 >
                   <View style={styles.typeIcon}>
                     <HazardIcon type={type} size={40} />
@@ -87,6 +94,7 @@ export function HazardReportSheet({
             Closes in {remaining} seconds if you don’t pick one.
           </Text>
         </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );

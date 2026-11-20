@@ -3,7 +3,8 @@ import { ActivityIndicator, AppState, ImageBackground, Linking, Platform, Pressa
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { C } from './styles';
+import { CDark as C } from './styles';
+import { BrandMark } from './BrandMark';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
 
@@ -54,7 +55,7 @@ function ReelActionButton({
 }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
     style={{ alignItems: 'center', gap: 4, minWidth: 43, minHeight: 46, justifyContent: 'center' }}>
-    <Ionicons name={icon} size={27} color={active ? '#5CE4C1' : '#F7F8F9'} style={reelTextShadow} />
+    <Ionicons name={icon} size={27} color={active ? C.accent : '#F7F8F9'} style={reelTextShadow} />
   </Pressable>;
 }
 
@@ -245,8 +246,8 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
     minHeight: 44, flexDirection: 'row', gap: 18, alignItems: 'center',
     justifyContent: 'center',
   }}>
-    {([{mode:'following',label:'Following videos',text:'Following'},
-       {mode:'forYou',label:'For You videos',text:'For You'}] as const).map(tab =>
+    {([{mode:'forYou',label:'For you videos',text:'For you'},
+       {mode:'following',label:'Following videos',text:'Following'}] as const).map(tab =>
       <Pressable key={tab.mode} accessibilityRole="tab" accessibilityLabel={tab.label}
         aria-selected={feedMode === tab.mode}
         onPress={() => changeFeed(tab.mode)} style={{
@@ -293,34 +294,15 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
       backgroundColor: '#05070A', paddingHorizontal: 24, paddingVertical: 16, gap: 11,
       overflow: 'hidden',
     }}>
-      <View pointerEvents="none" style={{
-        position: 'absolute', width: 360, height: 360, borderRadius: 180,
-        backgroundColor: '#102C28', opacity: 0.34,
-      }}/>
+      {/* The same icon tile as the other empty screens. */}
       <View testID="reels-empty-studio-art" accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        style={{ width: 210, height: 218, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ position: 'absolute', width: 126, height: 184,
-          left: 13, top: 24, transform: [{ rotate: '-13deg' }],
-          borderRadius: 20, backgroundColor: '#142025', borderWidth: 1,
-          borderColor: '#284139' }}/>
-        <View style={{ position: 'absolute', width: 126, height: 186,
-          right: 12, top: 17, transform: [{ rotate: '12deg' }],
-          borderRadius: 20, backgroundColor: '#1A2329', borderWidth: 1,
-          borderColor: '#2A363B' }}/>
-        <View style={{ width: 132, height: 194, borderRadius: 22,
-          backgroundColor: '#202A30', borderWidth: 1, borderColor: '#4A615C',
-          alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <View style={{ width: 66, height: 66, borderRadius: 33,
-            backgroundColor: '#F7F9FA', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="play" size={31} color="#080A0E" style={{ marginLeft: 4 }}/>
-          </View>
-          <Text style={{ color: '#CDE8DE', fontSize: 9, fontWeight: '800',
-            letterSpacing: 1.3 }}>YOUR REEL</Text>
-        </View>
+        style={{ width: 80, height: 80, borderRadius: 28, backgroundColor: C.card,
+          alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+        <Ionicons name="play-circle-outline" size={36} color={C.accent}/>
       </View>
-      <Text style={{ color: C.ink, fontWeight: '900', fontSize: 25,
-        letterSpacing: -0.6, textAlign: 'center' }}>
+      <Text style={{ color: C.ink, fontWeight: '900', fontSize: 20,
+        letterSpacing: -0.4, textAlign: 'center' }}>
         {feedMode === 'following' ? 'No followed Reels yet' : 'No Reels yet'}
       </Text>
       <Text style={{ color: '#ABB6BE', fontSize: 14, textAlign: 'center',
@@ -330,14 +312,14 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
           : 'Reels riders share will appear here.'}
       </Text>
       <Pressable accessibilityRole="button"
-        accessibilityLabel={feedMode === 'following' ? 'Explore For You Reels' : 'Create Reel'}
+        accessibilityLabel={feedMode === 'following' ? 'Explore For you Reels' : 'Create Reel'}
         onPress={feedMode === 'following' ? () => changeFeed('forYou') : onCreateReel}
         style={{ minHeight: 50, minWidth: 193, paddingHorizontal: 23,
-          borderRadius: 999, backgroundColor: '#FFFFFF', alignItems: 'center',
+          borderRadius: 999, backgroundColor: C.accent, alignItems: 'center',
           justifyContent: 'center', marginTop: 10, flexDirection: 'row', gap: 9 }}>
-        <Ionicons name={feedMode === 'following' ? 'compass-outline' : 'add'} size={21} color="#080A0E"/>
-        <Text style={{ color: '#080A0E', fontWeight: '900', fontSize: 15 }}>
-          {feedMode === 'following' ? 'Explore For You' : 'Create a Reel'}
+        <Ionicons name={feedMode === 'following' ? 'compass-outline' : 'add'} size={21} color={C.accentText}/>
+        <Text style={{ color: C.accentText, fontWeight: '900', fontSize: 15 }}>
+          {feedMode === 'following' ? 'Explore For you' : 'Create a Reel'}
         </Text>
       </Pressable>
       <View pointerEvents="box-none" style={{
@@ -372,14 +354,14 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                 <View testID={'reel-caption-' + reel.id}
                   style={{ position: 'absolute', left: 16, bottom: 18, right: 72, gap: 6 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-                    <View style={{
+                    {reel.editorialPreview ? <BrandMark size={36} ring/> : <View style={{
                       width: 36, height: 36, borderRadius: 18, backgroundColor: reel.theme,
                       borderColor: 'rgba(255,255,255,0.6)', borderWidth: 1,
                       alignItems: 'center', justifyContent: 'center',
                     }}>
                       <Ionicons name={reel.category === 'CYCLING' ? 'bicycle' : reel.category === 'CARS' ? 'car-sport' : 'speedometer'}
                         size={19} color={C.ink} />
-                    </View>
+                    </View>}
                     <Pressable accessibilityRole="button" accessibilityLabel={'View creator ' + reel.handle}
                       onPress={() => onOpenCreator(reel.authorId)}>
                       <Text style={[{ color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, reelTextShadow]}>{reel.handle}</Text>
@@ -410,7 +392,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                   ) : null}
                   {!reel.editorialPreview ? <Pressable accessibilityRole="button" accessibilityLabel={'View profile for ' + reel.handle}
                     onPress={() => onOpenCreator(reel.authorId)}>
-                    <Text style={[{ color: '#D7FFF3', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View profile</Text>
+                    <Text style={[{ color: '#FFFFFF', fontWeight: '800', fontSize: 12 }, reelTextShadow]}>View profile</Text>
                   </Pressable> : null}
                   {!reel.videoUrl ? <Text style={[{ color: '#E8ECEF', fontSize: 11 }, reelTextShadow]}>
                     {reel.editorialPreview ? 'Featured by Rider Comms' : 'Sample photo'}
@@ -462,7 +444,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
           paddingHorizontal: 15, paddingVertical: 13, borderRadius: 12,
           backgroundColor: 'rgba(9,24,29,0.94)', borderWidth: 1, borderColor: '#27564F',
         }}>
-        <Text style={{ color: '#EAFDF5', fontSize: 13 }}>{notice}</Text>
+        <Text style={{ color: C.ink, fontSize: 13 }}>{notice}</Text>
       </Pressable> : null}
       {Platform.OS === 'web' ? <View nativeID="social-reels-swipe-buttons" pointerEvents="box-none" style={{
         position: 'absolute', right: 10, top: 72, gap: 3,

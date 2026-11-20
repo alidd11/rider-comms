@@ -87,7 +87,8 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   await page.locator('#closeSheetAll').click();
   await expect(page.locator('#sheetBackdrop')).toBeHidden();
 
-  // Voice and sound: whether new routes speak directions.
+  // Voice and sound: whether new routes speak directions, shown on its row.
+  await expect(page.locator('[data-settings-open="voiceSound"] .settings-row-value')).toHaveText('Spoken');
   await page.locator('[data-settings-open="voiceSound"]').click();
   const spoken = page.locator('#sheetBody [data-toggle="spokenDirections"]');
   await expect(spoken).toHaveAttribute('aria-pressed', 'true');
@@ -292,6 +293,8 @@ test('PWA View profile is your profile, separate from editing it and from Accoun
   const body = page.locator('#sheetBody');
   await expect(page.locator('.my-profile-hero')).toContainText(PROFILE.displayName);
   await expect(page.locator('.my-profile-hero .rider-avatar-svg')).toBeVisible();
+  // The bio is shared with Rider Social.
+  await expect(page.locator('.my-profile-bio')).toHaveText(PROFILE.bio);
   await expect(body).toContainText('Connected profiles');
   // Nothing from other pages is repeated here.
   for (const absent of ['Signed-in devices', 'Delete account', 'Reset settings', 'Choose your Nearby range']) {
@@ -302,6 +305,8 @@ test('PWA View profile is your profile, separate from editing it and from Accoun
   await page.locator('#sheetBody [data-settings-open="editProfile"]').first().click();
   await expect(page.locator('#sheetTitle')).toHaveText('Edit profile');
   await expect(page.locator('#editName')).toHaveValue(PROFILE.displayName);
+  await expect(page.locator('#editBio')).toHaveValue(PROFILE.bio);
+  await expect(page.locator('#editBio')).toHaveAttribute('maxlength', '160');
   await expect(page.locator('#sheetInstagramVisibility')).toBeVisible();
   await expect(body).not.toContainText('Signed-in devices');
   // Back from Edit profile returns to the profile, not the map.
@@ -332,6 +337,11 @@ test('PWA profile avatar families persist and render the selected identity', asy
 
   await page.goto('/');
   await openOwnProfile(page, { edit: true });
+  // The grid is behind Change avatar, so Name and Bio come first.
+  await expect(page.locator('#avatarPicker')).toBeHidden();
+  await expect(page.locator('#editName')).toBeInViewport();
+  await page.locator('#changeAvatarBtn').click();
+  await expect(page.locator('#changeAvatarBtn')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('[data-avatar-family-tab="helmet"]')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-avatar-option="ember"]')).toHaveAttribute('aria-checked', 'true');
 

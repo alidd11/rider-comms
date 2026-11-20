@@ -579,8 +579,7 @@
     const drawer = $('#mapDrawer');
     const list = $('#mapDrawerRecent');
     const avatar = $('.map-avatar-wrap')?.getBoundingClientRect();
-    const status = $('#mapStatusChip')?.getBoundingClientRect();
-    const clear = Math.max(avatar?.bottom || 0, status?.bottom || 0) + DRAWER_OPEN_GAP;
+    const clear = (avatar?.bottom || 0) + DRAWER_OPEN_GAP;
     // The drawer's top when resting: its bottom edge less everything but the list.
     const rest = drawer.getBoundingClientRect().bottom - (drawer.offsetHeight - (list.hidden ? 0 : list.offsetHeight - drawerFlush()));
     return Math.max(DRAWER_MIN_OPEN, Math.round(rest - clear));

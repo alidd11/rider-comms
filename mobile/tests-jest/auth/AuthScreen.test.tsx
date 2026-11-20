@@ -93,11 +93,11 @@ test('validates the username and password before calling the server', async () =
   await renderSignedOut();
 
   await fillLogin('a', 'correct-horse');
-  await press('Log in');
+  await press('Sign in');
   expect(screen.getByRole('alert')).toHaveTextContent('Use 3–20 letters, numbers, or underscores for your username.');
 
   await fillLogin('rider_one', 'short');
-  await press('Log in');
+  await press('Sign in');
   expect(screen.getByRole('alert')).toHaveTextContent('Use a password between 8 and 128 characters.');
   expect(mockClientImpl.logIn).not.toHaveBeenCalled();
 });
@@ -105,7 +105,7 @@ test('validates the username and password before calling the server', async () =
 test('logs in, remembers the session by default and shows the app', async () => {
   await renderSignedOut();
   await fillLogin('  rider_one  ', 'correct-horse');
-  await press('Log in');
+  await press('Sign in');
 
   expect(mockClientImpl.logIn).toHaveBeenCalledWith('rider_one', 'correct-horse');
   await screen.findByText('Signed in content');
@@ -116,7 +116,7 @@ test('doesn’t store the session when Remember me is turned off', async () => {
   await renderSignedOut();
   await fireEvent.press(screen.getByText('Remember me'));
   await fillLogin('rider_one', 'correct-horse');
-  await press('Log in');
+  await press('Sign in');
 
   await screen.findByText('Signed in content');
   expect(mockSetItemAsync).not.toHaveBeenCalledWith(KEY, expect.anything());
@@ -135,7 +135,7 @@ test.each([
   mockClientImpl.logIn.mockRejectedValueOnce(error);
   await renderSignedOut();
   await fillLogin('rider_one', 'correct-horse');
-  await press('Log in');
+  await press('Sign in');
 
   expect(await screen.findByRole('alert')).toHaveTextContent(message);
   expect(screen.queryByText('Signed in content')).toBeNull();
@@ -211,7 +211,7 @@ test('recovers a password: request a code, then reset and return to login', asyn
   await press('Reset password');
   expect(mockClientImpl.resetPassword).toHaveBeenCalledWith('code-123', 'new-password-1');
   expect(await screen.findByText('Password updated. Sign in again on each device.')).toBeTruthy();
-  expect(screen.getByText('Log in')).toBeTruthy();
+  expect(screen.getByText('Sign in')).toBeTruthy();
 });
 
 test('explains an expired reset code', async () => {
@@ -261,7 +261,7 @@ test('submits from the keyboard and toggles password visibility on the login for
   expect(mockClientImpl.logIn).toHaveBeenCalledWith('rider_one', 'correct-horse');
 });
 
-test('opens the legal pages from signup and returns to log in from every form', async () => {
+test('opens the legal pages from signup and returns to sign in from every form', async () => {
   const { Linking } = jest.requireActual('react-native') as typeof import('react-native');
   const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   await renderSignedOut();
@@ -271,11 +271,11 @@ test('opens the legal pages from signup and returns to log in from every form', 
   await fireEvent.press(screen.getByText('Community Guidelines'));
   await fireEvent.press(screen.getByText('Privacy Policy'));
   expect(openURL).toHaveBeenCalledTimes(3);
-  await fireEvent.press(screen.getByText('Back to log in'));
+  await fireEvent.press(screen.getByText('Back to sign in'));
   expect(screen.getByText('Forgot password?')).toBeTruthy();
 
   await fireEvent.press(screen.getByText('Forgot password?'));
-  await fireEvent.press(screen.getByText('Back to log in'));
+  await fireEvent.press(screen.getByText('Back to sign in'));
   expect(screen.getByText('Forgot password?')).toBeTruthy();
 
   await fireEvent.press(screen.getByText('Forgot password?'));
@@ -283,7 +283,7 @@ test('opens the legal pages from signup and returns to log in from every form', 
   await press('Send reset link');
   await fireEvent.press(screen.getByLabelText('Show password'));
   expect(screen.getByLabelText('Hide password')).toBeTruthy();
-  await fireEvent.press(screen.getByText('Back to log in'));
+  await fireEvent.press(screen.getByText('Back to sign in'));
   expect(screen.getByText('Forgot password?')).toBeTruthy();
 });
 
@@ -296,7 +296,7 @@ test('signs in and out even when the device can’t save the session', async () 
   expect(screen.queryByText('We couldn’t check your saved session. Retry or sign in again.')).toBeNull();
 
   await fillLogin('rider_one', 'correct-horse');
-  await press('Log in');
+  await press('Sign in');
 
   expect(await screen.findByText('Signed in content')).toBeTruthy();
   expect(screen.queryByText(/could not reach the account service/i)).toBeNull();

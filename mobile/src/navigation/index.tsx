@@ -40,6 +40,8 @@ export type TabParamList = {
     lat?: number;
     lon?: number;
     label?: string;
+    /** Select a complete editorial itinerary for Rider Comms turn-by-turn. */
+    curatedRouteId?: string;
   } | undefined;
   GroupRide: undefined;
   Friends: undefined;

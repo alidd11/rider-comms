@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import * as Location from 'expo-location';
 import { act, renderHook } from '@testing-library/react-native';
 import { ApiError } from '../../src/api/client';
 import type { RiderCommsClient } from '../../src/api/client';
@@ -11,6 +12,7 @@ import {
 } from '../../src/navigationGpsHealth';
 import { FASTER_ROUTE_CHECK_MS } from '@rider-comms/shared';
 import { NAVIGATION_KEEP_AWAKE_TAG, useInAppNavigation } from '../../src/screens/useInAppNavigation';
+import { CURATED_ROUTES } from '../../src/routes/curatedRoutes';
 
 const mockSpeakNavigationPrompt = jest.fn();
 const mockStopNavigationPrompt = jest.fn(async () => undefined);
@@ -132,7 +134,7 @@ async function renderNavigation(overrides: Partial<Props> = {}) {
     reduceMotionEnabled: false,
     currentLocation: { lat: 51.5, lon: -0.1 },
     currentLocationAccuracyRef: { current: null },
-    requestCurrentLocation: jest.fn(async () => ({ lat: 51.5, lon: -0.1 })),
+    requestCurrentLocation: jest.fn(async () => ({ lat: 51.5, lon: -0.1, accuracyMeters: 5 })),
     setCurrentLocation: jest.fn(),
     setSelectedPlace: jest.fn(),
     setNavigationTarget: jest.fn(),
@@ -724,4 +726,229 @@ test('places the navigation puck on the route and ahead of a late fix', async ()
 
   await act(async () => { result.current.finishInAppNavigation(); });
   expect(result.current.navigationPuck).toBeNull();
+});
+
+
+/** A short scenic itinerary that follows the same synthetic road as ROUTE. */
+const SCENIC_ROUTE = {
+  ...CURATED_ROUTES[0]!,
+  start: { lat: 51.5, lon: -0.1, label: 'Route start' },
+  waypoints: [
+    { lat: 51.501, lon: -0.1, label: 'First viewpoint' },
+    { lat: 51.502, lon: -0.1, label: 'Second viewpoint' },
+  ],
+  end: { lat: 51.504, lon: -0.097, label: 'Route finish' },
+};
+
+test('curated navigation starts from a fresh GPS fix through every unfinished stop', async () => {
+  const { result, props } = await renderNavigation();
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+
+  // Already within the start's arrival radius: skip only that checkpoint.
+  expect(props.requestCurrentLocation).toHaveBeenCalledWith(true, Location.Accuracy.High);
+  expect(props.client.getDrivingRoute).toHaveBeenCalledWith(
+    { lat: 51.5, lon: -0.1 },
+    { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
+    { highways: false, tolls: false, ferries: false },
+    undefined,
+    SCENIC_ROUTE.waypoints,
+  );
+  expect(result.current.activeRoute).toBe(ROUTE);
+  expect(result.current.curatedRemainingStops.map((stop) => stop.label)).toEqual(['First viewpoint', 'Second viewpoint']);
+  expect(props.setSelectedPlace).toHaveBeenCalledWith(null);
+  expect(props.setNavigationTarget).toHaveBeenCalledWith(null);
+  expect(props.setSelectedHazardId).toHaveBeenCalledWith(null);
+  expect(result.current.navigationLoading).toBe(false);
+});
+
+test('uncertain start GPS keeps the route start in the itinerary', async () => {
+  const requestCurrentLocation = jest.fn(async () => ({ lat: 51.5, lon: -0.1, accuracyMeters: 120 }));
+  const { result, props } = await renderNavigation({ requestCurrentLocation });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+
+  expect(requestCurrentLocation).toHaveBeenCalledWith(true, Location.Accuracy.High);
+  expect(props.client.getDrivingRoute).toHaveBeenCalledWith(
+    { lat: 51.5, lon: -0.1 },
+    { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
+    { highways: false, tolls: false, ferries: false },
+    undefined,
+    [SCENIC_ROUTE.start, ...SCENIC_ROUTE.waypoints],
+  );
+  expect(result.current.curatedRemainingStops.map((stop) => stop.label)).toEqual(['Route start', 'First viewpoint', 'Second viewpoint']);
+});
+
+test('missing start GPS accuracy also retains the route start', async () => {
+  const requestCurrentLocation = jest.fn(async () => ({ lat: 51.5, lon: -0.1 }));
+  const { result, props } = await renderNavigation({ requestCurrentLocation });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+
+  expect(props.client.getDrivingRoute).toHaveBeenCalledWith(
+    { lat: 51.5, lon: -0.1 },
+    expect.objectContaining({ label: SCENIC_ROUTE.name }),
+    expect.any(Object),
+    undefined,
+    [SCENIC_ROUTE.start, ...SCENIC_ROUTE.waypoints],
+  );
+  expect(result.current.curatedRemainingStops).toHaveLength(3);
+});
+
+test('curated checkpoint progression is ordered and rejects uncertain GPS', async () => {
+  const { result } = await renderNavigation();
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+
+  // GPS proximity to a later stop must not skip an earlier scenic stop.
+  await sendFix(51.502, -0.1);
+  expect(result.current.curatedRemainingStops).toHaveLength(2);
+
+  // A noisy GPS fix cannot mark a stop as passed.
+  await sendFix(51.501, -0.1, 8, 0, 100);
+  expect(result.current.curatedRemainingStops).toHaveLength(2);
+
+  mockSpeakNavigationPrompt.mockClear();
+  await sendFix(51.501, -0.1, 8, 0, 5);
+  expect(result.current.curatedRemainingStops.map((stop) => stop.label)).toEqual(['Second viewpoint']);
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Passed First viewpoint.');
+
+  await sendFix(51.502, -0.1);
+  expect(result.current.curatedRemainingStops).toHaveLength(0);
+});
+
+test('rerouting retains the scenic checkpoints not yet reached', async () => {
+  const { result, props } = await renderNavigation();
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.5005, -0.097);
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  await sendFix(51.5005, -0.097);
+
+  expect(props.client.getDrivingRoute).toHaveBeenLastCalledWith(
+    { lat: 51.5005, lon: -0.097 },
+    { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
+    { highways: false, tolls: false, ferries: false },
+    null,
+    SCENIC_ROUTE.waypoints,
+  );
+  expect(result.current.curatedRemainingStops.map((stop) => stop.label)).toEqual(['First viewpoint', 'Second viewpoint']);
+});
+
+test('adding a fuel stop keeps it ahead of the unfinished scenic itinerary', async () => {
+  const { result, props } = await renderNavigation();
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  let added = false;
+  await act(async () => {
+    added = await result.current.addNavigationStop({ lat: 51.5008, lon: -0.1, name: 'Petrol' });
+  });
+
+  expect(added).toBe(true);
+  expect(props.client.getDrivingRoute).toHaveBeenLastCalledWith(
+    { lat: 51.5, lon: -0.1 },
+    { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
+    { highways: false, tolls: false, ferries: false },
+    { lat: 51.5008, lon: -0.1, label: 'Petrol' },
+    SCENIC_ROUTE.waypoints,
+  );
+  expect(result.current.curatedRemainingStops).toHaveLength(2);
+
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(result.current.curatedRemainingStops).toEqual([]);
+});
+
+/** A single provider leg ending at the scenic finish exposes premature arrival. */
+const SCENIC_SINGLE_STEP_ROUTE: InAppNavigationRoute = {
+  ...ROUTE,
+  steps: [{
+    ...ROUTE.steps[0]!,
+    end: ROUTE.steps[ROUTE.steps.length - 1]!.end,
+    coordinates: ROUTE.coordinates,
+    distanceMeters: ROUTE.distanceMeters,
+    durationSeconds: ROUTE.durationSeconds,
+  }],
+};
+
+test('reaching the finish before the scenic checkpoints re-routes through them instead of arriving', async () => {
+  const client = { getDrivingRoute: jest.fn(async () => SCENIC_SINGLE_STEP_ROUTE) };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.504, -0.097, 0, 0, 5);
+
+  expect(result.current.navigationArrival).toBeNull();
+  expect(result.current.activeRoute).not.toBeNull();
+  expect(result.current.curatedRemainingStops.map((stop) => stop.label)).toEqual(['First viewpoint', 'Second viewpoint']);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith(
+    { lat: 51.504, lon: -0.097 },
+    { lat: SCENIC_ROUTE.end.lat, lon: SCENIC_ROUTE.end.lon, label: SCENIC_ROUTE.name },
+    { highways: false, tolls: false, ferries: false },
+    null,
+    SCENIC_ROUTE.waypoints,
+  );
+});
+
+test('uncertain GPS at the finish neither ends a scenic journey nor triggers a recovery request', async () => {
+  const client = { getDrivingRoute: jest.fn(async () => SCENIC_SINGLE_STEP_ROUTE) };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.504, -0.097, 0, 0, 120);
+
+  expect(result.current.activeRoute).not.toBeNull();
+  expect(result.current.curatedRemainingStops).toHaveLength(2);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(1);
+});
+
+test('failed finish recovery retains scenic stops and does not retry every GPS fix', async () => {
+  const client = {
+    getDrivingRoute: jest.fn().mockResolvedValueOnce(SCENIC_SINGLE_STEP_ROUTE)
+      .mockRejectedValue(new Error('temporarily unavailable')),
+  };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.504, -0.097, 0, 0, 5);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
+  expect(result.current.navigationArrival).toBeNull();
+  expect(result.current.curatedRemainingStops).toHaveLength(2);
+  expect(result.current.navigationNotice).toBe('Couldn’t restore the remaining planned stops. Continue with caution.');
+
+  await sendFix(51.504, -0.097, 0, 0, 5);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(2);
+  await act(async () => { jest.advanceTimersByTime(30_001); });
+  await sendFix(51.504, -0.097, 0, 0, 5);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(3);
+});
+
+test('scenic navigation completes normally after all planned checkpoints are reached', async () => {
+  const client = { getDrivingRoute: jest.fn(async () => SCENIC_SINGLE_STEP_ROUTE) };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+  await sendFix(51.501, -0.1, 0, 0, 5);
+  await sendFix(51.502, -0.1, 0, 0, 5);
+  expect(result.current.curatedRemainingStops).toHaveLength(0);
+
+  await sendFix(51.504, -0.097, 0, 0, 5);
+  expect(result.current.activeRoute).toBeNull();
+  expect(result.current.navigationArrival?.label).toBe(SCENIC_ROUTE.name);
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(1);
+});
+
+test('curated navigation does not start without a fresh location fix', async () => {
+  const requestCurrentLocation = jest.fn(async () => null);
+  const { result, props } = await renderNavigation({ requestCurrentLocation });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+
+  expect(requestCurrentLocation).toHaveBeenCalledWith(true, Location.Accuracy.High);
+  expect(props.client.getDrivingRoute).not.toHaveBeenCalled();
+  expect(result.current.activeRoute).toBeNull();
+  expect(result.current.navigationLoading).toBe(false);
+});
+
+test('a failed complete scenic-route request leaves navigation stopped', async () => {
+  const client = { getDrivingRoute: jest.fn().mockRejectedValue(new Error('route unavailable')) };
+  const { result } = await renderNavigation({ client });
+  await act(async () => { await result.current.startCuratedNavigation(SCENIC_ROUTE); });
+
+  expect(Alert.alert).toHaveBeenCalledWith(
+    'Couldn’t plan the scenic route',
+    'Couldn’t calculate the full route through every planned stop. Check road conditions and try again.',
+  );
+  expect(result.current.activeRoute).toBeNull();
+  expect(result.current.curatedRemainingStops).toEqual([]);
+  expect(result.current.navigationLoading).toBe(false);
 });

@@ -180,19 +180,27 @@ test('ride join baseline matches the approved compact-card hierarchy in day and 
     expect(visual.heroWidth).toBeLessThanOrEqual(visual.viewportWidth - 36);
     expect(visual.heroHeight).toBeGreaterThanOrEqual(130);
     expect(visual.heroHeight).toBeLessThanOrEqual(215);
-    expect(visual.heroRadius).toBeLessThanOrEqual(4);
+    // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(visual.heroRadius).toBeGreaterThanOrEqual(8);
+    expect(visual.heroRadius).toBeLessThanOrEqual(16);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeGreaterThanOrEqual(8);
     expect(visual.joinTop - (visual.heroTop + visual.heroHeight)).toBeLessThanOrEqual(14);
-    expect(visual.joinRadius).toBeLessThanOrEqual(4);
+    // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(visual.joinRadius).toBeGreaterThanOrEqual(8);
+    expect(visual.joinRadius).toBeLessThanOrEqual(16);
     expect(visual.railHeight).toBeLessThanOrEqual(40);
-    expect(visual.railRadius).toBeLessThanOrEqual(4);
+    // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(visual.railRadius).toBeGreaterThanOrEqual(8);
+    expect(visual.railRadius).toBeLessThanOrEqual(16);
     expect(visual.railGap).toBe(0);
     expect(visual.slotHeight).toBeLessThanOrEqual(40);
     expect(visual.slotRadius).toBe(0);
     expect(visual.buttonHeight).toBeLessThanOrEqual(44);
     expect(visual.startHeight).toBeLessThanOrEqual(170);
     expect(visual.startButtonHeight).toBeGreaterThanOrEqual(44);
-    expect(visual.startRadius).toBeLessThanOrEqual(4);
+    // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(visual.startRadius).toBeGreaterThanOrEqual(8);
+    expect(visual.startRadius).toBeLessThanOrEqual(16);
     expect(visual.startBottom).toBeLessThanOrEqual(visual.viewportHeight + 2);
 
     await page.screenshot({
@@ -349,6 +357,7 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(mapGeometry.actionRadius).toBe('14px');
   expect(mapGeometry.reportWidth).toBe(52);
   expect(mapGeometry.locateWidth).toBe(52);
+  // Go live is an icon-only square, like Report and Locate.
   expect(mapGeometry.nearbyWidth).toBe(52);
   expect(mapGeometry.reportTransform).toBe('none');
   expect(mapGeometry.locateTransform).toBe('none');
@@ -401,7 +410,9 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
     };
   });
   expect(reportShape.sheetRadius).toBeLessThanOrEqual(8);
-  expect(reportShape.tileRadius).toBeLessThanOrEqual(4);
+  // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(reportShape.tileRadius).toBeGreaterThanOrEqual(8);
+    expect(reportShape.tileRadius).toBeLessThanOrEqual(16);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-report-final.png'), fullPage: true });
   await page.locator('#closeSheet').click();
 
@@ -424,7 +435,9 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       viewportWidth: window.innerWidth,
     };
   });
-  expect(rideGeometry.heroRadius).toBeLessThanOrEqual(4);
+  // Brand corners (shared/src/brand.ts): 8–16 px, not square.
+    expect(rideGeometry.heroRadius).toBeGreaterThanOrEqual(8);
+    expect(rideGeometry.heroRadius).toBeLessThanOrEqual(16);
   expect(rideGeometry.hero.height).toBeGreaterThanOrEqual(130);
   expect(rideGeometry.hero.height).toBeLessThanOrEqual(215);
   expect(rideGeometry.hero.width).toBeLessThan(rideGeometry.viewportWidth - 30);
@@ -438,7 +451,9 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   await expect(finalRouteCard.locator('.route-trace-card')).toBeHidden();
   const finalRouteBox = await finalRouteCard.boundingBox();
   expect(finalRouteBox).not.toBeNull();
-  expect(finalRouteBox.width / finalRouteBox.height).toBeGreaterThan(2);
+  // Route cards now have a full photograph and a distinct, readable text
+  // panel; the previous >2:1 ratio assumed a compressed 136px card.
+  expect(finalRouteBox.height).toBeGreaterThanOrEqual(200);
   await expect(finalRouteCard.locator('.route-quick-stats svg')).toHaveCount(3);
   const routeCardGeometry = await finalRouteCard.evaluate((card) => {
     const image = card.querySelector('img');
@@ -450,11 +465,12 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
       statsHeight: box(stats)?.height ?? NaN,
     };
   });
-  expect(routeCardGeometry.cardHeight).toBeGreaterThanOrEqual(136);
-  expect(routeCardGeometry.cardHeight).toBeLessThanOrEqual(140);
-  expect(routeCardGeometry.imageHeight).toBeGreaterThanOrEqual(76);
-  expect(routeCardGeometry.imageHeight).toBeLessThanOrEqual(80);
-  expect(routeCardGeometry.statsHeight).toBeLessThanOrEqual(18);
+  expect(routeCardGeometry.cardHeight).toBeGreaterThanOrEqual(200);
+  expect(routeCardGeometry.imageHeight).toBeGreaterThanOrEqual(120);
+  expect(routeCardGeometry.imageHeight).toBeLessThanOrEqual(132);
+  // Stats may wrap with larger text or smaller viewports; never truncate.
+  expect(routeCardGeometry.statsHeight).toBeGreaterThan(10);
+  expect(routeCardGeometry.statsHeight).toBeLessThan(80);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-routes-final.png'), fullPage: true });
 
   await openTab(page, 'friends');
@@ -604,9 +620,10 @@ test('map keeps Google Roadmap language with rider-first overlays on iPhone 17 P
   expect(dmGeometry.planWidth).toBe(40);
   expect(dmGeometry.safetyWidth).toBe(40);
   expect(dmGeometry.inputHeight).toBeGreaterThanOrEqual(44);
-  expect(dmGeometry.inputRadius).toBeLessThanOrEqual(8);
+  // The composer is a pill, as in Messages.
+  expect(dmGeometry.inputRadius).toBeGreaterThanOrEqual(18);
   expect(dmGeometry.sendWidth).toBe(44);
-  expect(dmGeometry.sendRadius).toBeLessThanOrEqual(8);
+  expect(dmGeometry.sendRadius).toBeGreaterThanOrEqual(20);
   expect(dmGeometry.composerHeight).toBeLessThanOrEqual(82);
   await page.screenshot({ path: testInfo.outputPath('iphone-17-pro-max-dm-final.png'), fullPage: true });
   await page.locator('#chatBack').click();

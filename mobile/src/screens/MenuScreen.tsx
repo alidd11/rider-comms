@@ -11,10 +11,28 @@ import { RiderAvatar } from '../components/RiderAvatar';
 import { useRide } from '../ride/RideContext';
 import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
+import { ApiError } from '../api/client';
 import { RIDER_SOCIAL_URL } from '@rider-comms/shared';
-import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
+import { colors, elevation, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
+import { useRideHistory } from '../ride/rideHistory';
+import type { RideHistoryEntry } from '@rider-comms/shared';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Menu'>;
+
+/** Totals over the rides kept on this device (PWA: renderMenuRideStats). */
+export function menuRideStats(history: readonly RideHistoryEntry[], unit: 'mi' | 'km'): { rides: string; time: string; distance: string; distanceLabel: string } {
+  const minutes = Math.round(history.reduce((sum, entry) => sum + entry.durationMs, 0) / 60_000);
+  const metres = history.reduce((sum, entry) => sum + (entry.distanceMeters ?? 0), 0);
+  return {
+    rides: String(history.length),
+    time: minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`,
+    distance: (metres / (unit === 'km' ? 1000 : 1609.344)).toFixed(metres > 0 ? 1 : 0),
+    distanceLabel: unit === 'km' ? 'Kilometres' : 'Miles',
+  };
+}
+
+/** The last Rider Social access answer for each signed-in client. */
+const socialAccess = new WeakMap<object, boolean>();
 
 function MenuRow({ icon, label, detail, onPress }: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -29,7 +47,9 @@ function MenuRow({ icon, label, detail, onPress }: {
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <Ionicons name={icon} size={26} color={colors.textPrimary} />
+      <View style={styles.rowIcon}>
+        <Ionicons name={icon} size={22} color={colors.accentInk} />
+      </View>
       <Text style={styles.rowLabel}>{label}</Text>
       {detail ? <Text style={styles.rowDetail}>{detail}</Text> : null}
     </Pressable>
@@ -43,17 +63,28 @@ function MenuRow({ icon, label, detail, onPress }: {
  */
 export function MenuScreen({ navigation }: Props): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { avatarId, displayName, handle, zoneTier } = useSettings();
+  const { avatarId, displayName, handle, zoneTier, unitSystem } = useSettings();
+  const { riderId } = useAuth();
+  const stats = menuRideStats(useRideHistory(riderId), unitSystem);
   const appVersion = Constants.expoConfig?.version ?? '0.1.0';
   const { activeRide } = useRide();
   const { incomingRequests, unreadMessageCount } = useFriends();
   const friendsCount = incomingRequests.length + unreadMessageCount;
   const { client } = useAuth();
-  // Rider Social is listed only for riders the server lets in.
-  const [socialAllowed, setSocialAllowed] = React.useState(false);
+  // Rider Social is listed only for riders the server lets in. The last
+  // answer for this session shows straight away, so the row doesn't flicker
+  // while the check runs; a refusal removes it, a lost connection doesn't.
+  const [socialAllowed, setSocialAllowed] = React.useState(() => socialAccess.get(client) === true);
   React.useEffect(() => {
     let live = true;
-    client.getSocialBootstrap().then(() => { if (live) setSocialAllowed(true); }, () => undefined);
+    client.getSocialBootstrap().then(() => {
+      socialAccess.set(client, true);
+      if (live) setSocialAllowed(true);
+    }, (error: unknown) => {
+      if (!(error instanceof ApiError)) return;
+      socialAccess.delete(client);
+      if (live) setSocialAllowed(false);
+    });
     return () => { live = false; };
   }, [client]);
 
@@ -88,7 +119,14 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
           </View>
         </View>
 
-        <View style={styles.divider} />
+        <View style={styles.stats} accessibilityLabel="Your recent rides" testID="menu-ride-stats">
+          {[[stats.rides, 'Rides'], [stats.time, 'Ride time'], [stats.distance, stats.distanceLabel]].map(([value, label]) => (
+            <View key={label} style={styles.stat} accessible accessibilityLabel={`${label}: ${value}`}>
+              <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+              <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+            </View>
+          ))}
+        </View>
 
         <MenuRow icon="bicycle-outline" label="Ride" detail={activeRide ? 'Live' : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Map', params: { segment: 'host', at: Date.now() } })} />
         <MenuRow icon="people-outline" label="Friends" detail={friendsCount > 0 ? `${friendsCount > 99 ? '99+' : friendsCount} new` : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Friends' })} />
@@ -116,9 +154,14 @@ const styles = StyleSheet.create({
   profileButton: { marginTop: spacing.sm, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radii.pill, justifyContent: 'center', backgroundColor: colors.surfaceRaised },
   profileButtonText: { ...type.button, color: colors.accentInk, fontSize: 16 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: spacing.md },
-  row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radii.lg, paddingHorizontal: spacing.xs },
+  stats: { flexDirection: 'row', gap: 10, marginTop: spacing.sm, marginBottom: spacing.md },
+  stat: { flex: 1, minWidth: 0, paddingVertical: 12, paddingHorizontal: 12, borderRadius: radii.lg, backgroundColor: colors.surface, ...elevation.raised },
+  statValue: { ...type.heading, color: colors.textPrimary, fontSize: 22, lineHeight: 26, fontWeight: '800' },
+  statLabel: { ...type.caption, color: colors.textMuted, marginTop: 2 },
+  rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
+  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radii.md, paddingHorizontal: spacing.sm },
   rowPressed: { opacity: 0.7 },
-  rowLabel: { ...type.body, flex: 1, color: colors.textPrimary, fontSize: 19, lineHeight: 24, fontWeight: '500' },
+  rowLabel: { ...type.body, flex: 1, color: colors.textPrimary, fontSize: 18, lineHeight: 23, fontWeight: '600' },
   rowDetail: { ...type.caption, color: colors.textSecondary, fontSize: 14 },
   version: { ...type.caption, color: colors.textMuted, textAlign: 'center', marginTop: 'auto', paddingTop: spacing.xl },
 });

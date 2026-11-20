@@ -171,6 +171,8 @@
   const navigationPuck = globalThis.RiderNavigationPuck;
   let navPuckPath = null;
   let navPuckAlongMeters = null;
+  // How far along the route the drawn line last started (it drops what's ridden).
+  let navRouteLineFromMeters = null;
   let navPuckPlaced = false;
   // The rider's direction of travel at the last fix, for the puck's cone.
   let navPuckTravelHeading = null;
@@ -193,7 +195,6 @@
   let navStatusNotice = null;
 
   const NAV_STEP_ARRIVAL_RADIUS_M = 30;
-  const NAV_OFF_ROUTE_GRACE_MS = 10_000;
   const NAV_GPS_STALE_MS = 12_000;
   const NAV_GPS_CHECK_MS = 2_000;
   const NAV_GPS_STALE_NOTICE = 'GPS signal lost. Keep following the route with caution.';

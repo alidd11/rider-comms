@@ -165,6 +165,41 @@ describe('profiles, social links, friends, and messages', { skip: !hasDatabase &
     assert.equal((await postJson(ctx, 'conv-alice', '/messages/read', { withRiderId: 'conv-bob' })).status, 403);
   });
 
+  it('tells a friend you are typing at most every few seconds, and lets you delete only your own messages', async () => {
+    ctx.authStore.createTestSession('typ-a');
+    ctx.authStore.createTestSession('typ-b');
+    ctx.authStore.createTestSession('typ-stranger');
+    const request = await postJson(ctx, 'typ-a', '/friends/requests', { toRiderId: 'typ-b' });
+    const { id } = await request.json() as { id: string };
+    await postJson(ctx, 'typ-b', `/friends/requests/${id}/accept`, {});
+
+    const typingEvents = async () => (await getPool().query(
+      "SELECT count(*)::int AS n FROM social_events WHERE rider_id = 'typ-b' AND actor_id = 'typ-a' AND event_type = 'typing'",
+    )).rows[0].n as number;
+    assert.equal((await postJson(ctx, 'typ-a', '/messages/typing', { toRiderId: 'typ-b' })).status, 200);
+    assert.equal((await postJson(ctx, 'typ-a', '/messages/typing', { toRiderId: 'typ-b' })).status, 200);
+    assert.equal(await typingEvents(), 1, 'a second signal within 3 s writes nothing');
+    assert.equal((await postJson(ctx, 'typ-a', '/messages/typing', {})).status, 400);
+    assert.equal((await postJson(ctx, 'typ-stranger', '/messages/typing', { toRiderId: 'typ-b' })).status, 403);
+
+    const sent = await (await postJson(ctx, 'typ-a', '/messages', { toRiderId: 'typ-b', text: 'Oops' })).json() as { id: string };
+    assert.equal((await authenticatedFetch(ctx, 'typ-b', `/messages/${sent.id}`, { method: 'DELETE' })).status, 404, 'not the sender');
+    assert.equal((await authenticatedFetch(ctx, 'typ-a', `/messages/${sent.id}`, { method: 'DELETE' })).status, 200);
+    assert.equal((await authenticatedFetch(ctx, 'typ-a', `/messages/${sent.id}`, { method: 'DELETE' })).status, 404, 'already gone');
+    const thread = await (await authenticatedFetch(ctx, 'typ-b', '/messages?withRiderId=typ-a')).json() as { messages: unknown[] };
+    assert.equal(thread.messages.length, 0);
+  });
+
+  it('blocks typing between blocked riders', async () => {
+    ctx.authStore.createTestSession('typ-c');
+    ctx.authStore.createTestSession('typ-d');
+    const request = await postJson(ctx, 'typ-c', '/friends/requests', { toRiderId: 'typ-d' });
+    const { id } = await request.json() as { id: string };
+    await postJson(ctx, 'typ-d', `/friends/requests/${id}/accept`, {});
+    await postJson(ctx, 'typ-d', '/blocks', { riderId: 'typ-c' });
+    assert.equal((await postJson(ctx, 'typ-c', '/messages/typing', { toRiderId: 'typ-d' })).status, 403);
+  });
+
   it('resolves a friend request sent by handle to the matching riderId', async () => {
     ctx.authStore.createTestSession('carol');
     await ctx.profileStore.update('carol', { handle: '@carol_rides' });

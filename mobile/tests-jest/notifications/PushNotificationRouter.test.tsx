@@ -8,9 +8,16 @@ jest.mock('../../src/notifications/pushNotifications', () => ({
   ...jest.requireActual('../../src/notifications/pushNotifications'),
   syncPush: (...args: unknown[]) => mockSyncPush(...(args as [])),
 }));
-jest.mock('../../src/auth/AuthContext', () => ({ useAuth: () => ({ client: {}, riderId: 'me' }) }));
+const mockClient = {
+  sendMessage: jest.fn(async () => ({})),
+  acceptFriendRequest: jest.fn(async () => ({})),
+  declineFriendRequest: jest.fn(async () => ({})),
+};
+const mockRefresh = jest.fn(async () => undefined);
+const mockRefreshMessages = jest.fn(async () => undefined);
+jest.mock('../../src/auth/AuthContext', () => ({ useAuth: () => ({ client: mockClient, riderId: 'me' }) }));
 jest.mock('../../src/friends/FriendsContext', () => ({
-  useFriends: () => ({ friends: [{ riderId: 'sam', displayName: 'Sam', avatarId: 'ember' }] }),
+  useFriends: () => ({ friends: [{ riderId: 'sam', displayName: 'Sam', avatarId: 'ember' }], refresh: mockRefresh, refreshMessages: mockRefreshMessages }),
 }));
 
 const mocked = Notifications as jest.Mocked<typeof Notifications>;
@@ -20,7 +27,11 @@ function fakeNavigation(ready = true) {
 }
 
 function tapResponse(route: unknown) {
-  return { notification: { request: { content: { data: { route } } } } } as never;
+  return { actionIdentifier: 'expo.modules.notifications.actions.DEFAULT', notification: { request: { identifier: 'n1', content: { data: { route } } } } } as never;
+}
+
+function actionResponse(actionIdentifier: string, data: Record<string, string>, userText?: string) {
+  return { actionIdentifier, userText, notification: { request: { identifier: 'n1', content: { data } } } } as never;
 }
 
 beforeEach(() => {
@@ -37,7 +48,7 @@ test('a tapped message opens that chat; a friend request opens Friends', async (
   });
   const navigation = fakeNavigation();
   const view = await render(<PushNotificationRouter navigationRef={navigation as never} />);
-  expect(mockSyncPush).toHaveBeenCalledWith({}, 'me');
+  expect(mockSyncPush).toHaveBeenCalledWith(mockClient, 'me');
 
   await act(async () => { onTap?.(tapResponse('#chat:sam')); });
   expect(navigation.navigate).toHaveBeenLastCalledWith('FriendChat', { riderId: 'sam', displayName: 'Sam', avatarId: 'ember' });
@@ -100,4 +111,45 @@ test('a launching tap waits for navigation to become ready', async () => {
   } finally {
     jest.useRealTimers();
   }
+});
+
+test('Reply, Accept and Decline on a notification act without opening the app', async () => {
+  let onTap: ((response: never) => void) | undefined;
+  mocked.addNotificationResponseReceivedListener.mockImplementation((listener) => {
+    onTap = listener as never;
+    return { remove: jest.fn() } as never;
+  });
+  const navigation = fakeNavigation();
+  await render(<PushNotificationRouter navigationRef={navigation as never} />);
+
+  await act(async () => { onTap?.(actionResponse('reply', { route: '#chat:sam' }, ' On my way ')); });
+  expect(mockClient.sendMessage).toHaveBeenCalledWith('sam', 'On my way');
+  expect(mockRefreshMessages).toHaveBeenCalled();
+  expect(mocked.dismissNotificationAsync).toHaveBeenCalledWith('n1');
+
+  await act(async () => { onTap?.(actionResponse('accept', { route: '#friends', requestId: 'req-1' })); });
+  expect(mockClient.acceptFriendRequest).toHaveBeenCalledWith('req-1');
+  await act(async () => { onTap?.(actionResponse('decline', { route: '#friends', requestId: 'req-2' })); });
+  expect(mockClient.declineFriendRequest).toHaveBeenCalledWith('req-2');
+  expect(mockRefresh).toHaveBeenCalledTimes(2);
+  expect(navigation.navigate).not.toHaveBeenCalled();
+
+  // If the action fails, it opens what it was about instead.
+  mockClient.acceptFriendRequest.mockRejectedValueOnce(new Error('offline'));
+  await act(async () => { onTap?.(actionResponse('accept', { route: '#friends', requestId: 'req-3' })); });
+  expect(navigation.navigate).toHaveBeenLastCalledWith('Tabs', { screen: 'Friends' });
+
+  // An empty reply is a plain open.
+  await act(async () => { onTap?.(actionResponse('reply', { route: '#chat:sam' }, '  ')); });
+  expect(navigation.navigate).toHaveBeenLastCalledWith('FriendChat', { riderId: 'sam', displayName: 'Sam', avatarId: 'ember' });
+});
+
+test('a button pressed while the app was closed is acted on at launch', async () => {
+  mocked.getLastNotificationResponseAsync.mockResolvedValue(actionResponse('accept', { route: '#friends', requestId: 'req-9' }));
+  mocked.addNotificationResponseReceivedListener.mockReturnValue({ remove: jest.fn() } as never);
+  const navigation = fakeNavigation();
+  await render(<PushNotificationRouter navigationRef={navigation as never} />);
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  expect(mockClient.acceptFriendRequest).toHaveBeenCalledWith('req-9');
+  expect(navigation.navigate).not.toHaveBeenCalled();
 });
