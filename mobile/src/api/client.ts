@@ -79,7 +79,7 @@ export class RiderCommsClient {
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
     const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
+      const res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal, redirect: 'error', credentials: 'omit', cache: 'no-store' });
       if (res.status === 204 && res.ok) return undefined as T;
       const contentType = res.headers?.get?.('content-type') ?? '';
       const json = contentType.includes('application/json') || !res.headers ? await res.json() : { error: await res.text() };
