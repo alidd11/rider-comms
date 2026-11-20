@@ -102,6 +102,28 @@ test('speed badge, trip summary and the control dock', async () => {
   expect(view.getByRole('button', { name: 'Resume navigation follow mode' })).toBeTruthy();
 });
 
+test('the voice button while navigating: tap to mute, hold for Leave Nearby Voice', async () => {
+  const voice = { muted: false, onToggleMute: jest.fn(), onMore: jest.fn() };
+  const handlers = { onReport: jest.fn(), onToggleMute: jest.fn(), onOverviewOrFollow: jest.fn() };
+  const view = await render(<NavigationControls bottom={0} canReport={false} muted={false} following {...handlers} voice={voice} />);
+  // Shown on the move too (canReport false): it only makes the rider less exposed.
+  const button = view.getByTestId('navigation-voice');
+  expect(button.props.accessibilityLabel).toBe('Mute your microphone');
+  await fireEvent.press(button);
+  expect(voice.onToggleMute).toHaveBeenCalledTimes(1);
+  await fireEvent(button, 'longPress');
+  expect(voice.onMore).toHaveBeenCalledTimes(1);
+  await fireEvent(button, 'accessibilityAction', { nativeEvent: { actionName: 'longpress' } });
+  expect(voice.onMore).toHaveBeenCalledTimes(2);
+  await fireEvent(button, 'accessibilityAction', { nativeEvent: { actionName: 'activate' } });
+  expect(voice.onMore).toHaveBeenCalledTimes(2);
+  await view.rerender(<NavigationControls bottom={0} canReport={false} muted={false} following {...handlers} voice={{ ...voice, muted: true }} />);
+  expect(view.getByTestId('navigation-voice').props.accessibilityLabel).toBe('Unmute your microphone');
+  // No voice on: no button.
+  await view.rerender(<NavigationControls bottom={0} canReport={false} muted={false} following {...handlers} voice={null} />);
+  expect(view.queryByTestId('navigation-voice')).toBeNull();
+});
+
 test('place cards: arrival, and a destination with the host’s regroup action', async () => {
   const onDone = jest.fn();
   const arrival = await render(<ArrivalCard bottom={0} arrival={{ label: 'Cafe', seconds: 1440, distanceMeters: 13_360 }} unitSystem="mi" onDone={onDone} />);

@@ -1,7 +1,7 @@
 // Turn-by-turn navigation in the web app, against a mocked Google route.
 /* global google */
 import { expect, test } from '@playwright/test';
-import { RIDER_ID, mockAuthenticatedApi } from './helpers.js';
+import { PROFILE, RIDER_ID, mockAuthenticatedApi } from './helpers.js';
 
 const HOME = { placeId: 'home', name: 'Home', secondary: 'Mill Lane', lat: 51.52, lng: -0.1 };
 
@@ -149,11 +149,12 @@ test('PWA shows the ways there before Start, with live traffic, and starts the o
   const lines = () => page.evaluate(() => window.__riderCommsTestOverlays
     ?.filter((overlay) => overlay.options?.strokeColor && overlay.map)
     .map((overlay) => [overlay.options.strokeColor, overlay.options.strokeWeight]));
-  await expect.poll(lines).toEqual(expect.arrayContaining([['#1a73e8', 8], ['#8a98a0', 7]]));
+  // Google Maps' look: wide blue on a darker edge; the other way grey on grey.
+  await expect.poll(lines).toEqual(expect.arrayContaining([['#0b4fb3', 13], ['#1a73e8', 9], ['#7f8c93', 10], ['#a9b4ba', 7]]));
 
   // Tapping the grey line chooses it, as does its row.
   await page.evaluate(() => window.__riderCommsTestOverlays
-    .find((overlay) => overlay.map && overlay.options.strokeColor === '#8a98a0').trigger('click'));
+    .find((overlay) => overlay.map && overlay.options.strokeColor === '#a9b4ba').trigger('click'));
   await expect(rows.nth(1)).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('#routePreviewTime')).toHaveText('29 min');
   await expect(page.locator('#routePreviewTag')).toHaveText('Twisty');
@@ -448,4 +449,57 @@ test('PWA preview: times on the map, riding styles, Avoid, Share, and the group 
   await page.locator('#routePreviewTo').click();
   await expect(page.locator('#routePreview')).toBeHidden();
   await expect(page.locator('#app')).not.toHaveClass(/route-preview-mode/);
+});
+
+test('PWA keeps a voice button while navigating: tap to mute, hold to leave Nearby Voice', async ({ page }) => {
+  let shareLocation = false;
+  let presenceDeletes = 0;
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile`) {
+      if (request.method() === 'PUT' && typeof request.postDataJSON().shareLocation === 'boolean') shareLocation = request.postDataJSON().shareLocation;
+      return { body: { ...PROFILE, shareLocation } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') return { body: { inZoneWith: [], transitions: [], radiusMiles: 1 } };
+    if (url.pathname === '/presence' && request.method() === 'DELETE') { presenceDeletes += 1; return { body: {} }; }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') return { body: { connections: [], refreshAfterMs: 20_000 } };
+    return null;
+  });
+  await page.addInitScript(({ riderId, home }) => {
+    localStorage.setItem(`riderComms.savedPlaces:${riderId}`, JSON.stringify({ home }));
+    localStorage.setItem(`rider-comms-pwa-v4:${riderId}`, JSON.stringify({ navigationProvider: 'in_app' }));
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => fakeStream } });
+    window.LivekitClient = {};
+  }, { riderId: RIDER_ID, home: HOME });
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.google?.maps?.LatLng && window.__riderCommsTestMap));
+  // Nearby Voice on, then off to Home.
+  await page.locator('#joinNearbyBtn').click();
+  await expect(page.locator('#joinNearbyBtn')).toHaveAttribute('aria-pressed', 'true');
+  await provideRoute(page);
+  await page.locator('[data-saved-place="home"]').click();
+  await page.locator('#routePreviewStart').click();
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+
+  const voice = page.locator('#navVoiceBtn');
+  await expect(voice).toBeVisible();
+  await expect(voice).toHaveAttribute('aria-label', 'Mute your microphone');
+  // A hold (or a right click) opens the options; the route keeps going.
+  const menu = page.locator('#navVoiceMenu');
+  await voice.click({ button: 'right' });
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('.nav-voice-menu-note')).toHaveText('Nearby Voice · your route keeps going');
+  await page.locator('#navVoiceCancelItem').click();
+  await expect(menu).toBeHidden();
+  await voice.dispatchEvent('pointerdown');
+  await page.waitForTimeout(600);
+  await voice.dispatchEvent('pointerup');
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await voice.click({ button: 'right' });
+  await page.locator('#navVoiceLeaveItem').click();
+  await expect.poll(() => presenceDeletes).toBeGreaterThan(0);
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  await expect(voice).toBeHidden();
 });

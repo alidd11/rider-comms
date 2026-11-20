@@ -201,6 +201,13 @@
   // Steps and Share; it opens up to list every way and the turns. Parked
   // only: with Ride Safe on, Start happens at once on the way shown
   // (native: RoutePreviewSheet).
+  /** The route line, as Google Maps draws it: the chosen way wide blue on a
+   * darker edge, other ways grey (native: ROUTE_LINE in MapScreen). */
+  const ROUTE_LINE = {
+    chosen: { fill: '#1a73e8', casing: '#0b4fb3', width: 9, casingWidth: 13 },
+    other: { fill: '#a9b4ba', casing: '#7f8c93', width: 7, casingWidth: 10 },
+  };
+
   let routePreview = null;
   let routePreviewLines = [];
   let routePreviewBubbles = [];
@@ -275,19 +282,18 @@
     const { result, index } = routePreview;
     // The chosen route last, so it draws on top of the others.
     const order = result.routes.map((_route, i) => i).sort((a, b) => (a === index) - (b === index));
-    routePreviewLines = order.map((i) => {
+    routePreviewLines = order.flatMap((i) => {
       const chosen = i === index;
+      const look = chosen ? ROUTE_LINE.chosen : ROUTE_LINE.other;
+      const path = routePathOf(result.routes[i]);
+      const casing = trackMapOverlay(new google.maps.Polyline({
+        map, path, clickable: false, strokeColor: look.casing, strokeOpacity: 1, strokeWeight: look.casingWidth, zIndex: chosen ? 12 : 10,
+      }));
       const line = trackMapOverlay(new google.maps.Polyline({
-        map,
-        path: routePathOf(result.routes[i]),
-        clickable: !chosen,
-        strokeColor: chosen ? '#1a73e8' : '#8a98a0',
-        strokeOpacity: chosen ? 1 : 0.9,
-        strokeWeight: chosen ? 8 : 7,
-        zIndex: chosen ? 12 : 11,
+        map, path, clickable: !chosen, strokeColor: look.fill, strokeOpacity: 1, strokeWeight: look.width, zIndex: chosen ? 12 : 11,
       }));
       line.addListener?.('click', () => chooseRoutePreview(i));
-      return line;
+      return [casing, line];
     });
     // Each way's time on its line, spread along the routes so they don't sit
     // on top of one another where the ways share a road.
@@ -555,8 +561,8 @@
   function renderNavigationRouteLine(path) {
     if (!Array.isArray(path) || path.length < 2) return;
     if (!navRouteOutline) {
-      navRouteOutline = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#174EA6', strokeWeight: 10, zIndex: 6 }));
-      navRouteLine = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#4285F4', strokeWeight: 6, zIndex: 7 }));
+      navRouteOutline = trackMapOverlay(new google.maps.Polyline({ strokeColor: ROUTE_LINE.chosen.casing, strokeOpacity: 1, strokeWeight: ROUTE_LINE.chosen.casingWidth, zIndex: 6, clickable: false }));
+      navRouteLine = trackMapOverlay(new google.maps.Polyline({ strokeColor: ROUTE_LINE.chosen.fill, strokeOpacity: 1, strokeWeight: ROUTE_LINE.chosen.width, zIndex: 7, clickable: false }));
     }
     navRouteOutline.setPath(path);
     navRouteLine.setPath(path);

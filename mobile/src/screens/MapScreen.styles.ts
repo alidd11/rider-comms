@@ -522,6 +522,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
+  navigationActionButtonDanger: { backgroundColor: colors.danger, borderColor: colors.danger },
   navigationDestinationMarker: {
     width: 42,
     height: 42,

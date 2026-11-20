@@ -404,6 +404,45 @@
     };
   }
 
+  /** A stretch of a route line where Google says traffic is slow or jammed
+   * (point indexes into the line, as the backend sends them). */
+
+  /**
+   * The slow and jammed stretches to draw over the route line, as Google Maps
+   * colours them, from `fromMeters` along the line on (the part still to
+   * ride; the ridden part is dropped like the line itself).
+   */
+  function routeTrafficLines(
+    line,
+    stretches,
+    fromMeters = null,
+  ) {
+    if (!stretches?.length || line.length < 2) return [];
+    const along = [0];
+    for (let i = 1; i < line.length; i += 1) along.push(along[i - 1] + metersBetween(line[i - 1], line[i]));
+    const from = fromMeters !== null && Number.isFinite(fromMeters) ? fromMeters : 0;
+    const lines = [];
+    for (const stretch of stretches) {
+      const start = Math.max(0, Math.floor(stretch.startIndex));
+      const end = Math.min(line.length - 1, Math.floor(stretch.endIndex));
+      if (!(end > start) || along[end] <= from) continue;
+      const coordinates = [];
+      for (let i = start; i <= end; i += 1) {
+        if (along[i] < from) {
+          // The stretch starts behind the rider: begin it where they are.
+          if (along[i + 1] > from) {
+            const span = along[i + 1] - along[i];
+            coordinates.push(pointAlong(line[i], line[i + 1], span > 0 ? (from - along[i]) / span : 0));
+          }
+          continue;
+        }
+        coordinates.push({ lat: line[i] .lat, lon: line[i] .lon });
+      }
+      if (coordinates.length >= 2) lines.push({ speed: stretch.speed, coordinates });
+    }
+    return lines;
+  }
+
   root.RiderNavigationPuck = Object.freeze({
     PUCK_MIN_SNAP_METERS,
     PUCK_MAX_SNAP_METERS,
@@ -440,5 +479,6 @@
     MANEUVER_ARROW_AFTER_M,
     MANEUVER_ARROW_HEAD_M,
     navigationManeuverArrow,
+    routeTrafficLines,
   });
 })(typeof window !== 'undefined' ? window : globalThis);

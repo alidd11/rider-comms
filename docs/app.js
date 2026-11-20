@@ -4859,6 +4859,17 @@
               ? 'Talking'
               : 'Listening hands-free',
     );
+    // While navigating the map header is hidden: the navigation buttons
+    // carry the same mute, and a hold offers Leave Nearby Voice (native:
+    // NavigationControls' voice button).
+    const navVoice = $('#navVoiceBtn');
+    if (navVoice) {
+      navVoice.hidden = !wantsVoice && !connected;
+      navVoice.classList.toggle('muted', voiceManuallyMuted);
+      navVoice.setAttribute('aria-pressed', String(voiceManuallyMuted));
+      navVoice.setAttribute('aria-label', voiceManuallyMuted ? 'Unmute your microphone' : 'Mute your microphone');
+      if (navVoice.hidden) setNavVoiceMenuOpen(false);
+    }
     // The Ride tab has no map header of its own (the glowing avatar above
     // only exists on the Map screen), so a rider parked on Ride while
     // talking needs this same status somewhere too — same real state,
@@ -5225,6 +5236,46 @@
     }
     if (state.activeRide) void connectVoice('ride', state.activeRide.rideId);
     else if (state.publicLive) void connectVoice('channel');
+  }
+
+  function setNavVoiceMenuOpen(open) {
+    const menu = $('#navVoiceMenu');
+    if (!menu) return;
+    menu.hidden = !open;
+    if (!open) return;
+    $('#navVoiceMuteItem').textContent = voiceManuallyMuted ? 'Unmute microphone' : 'Mute microphone';
+    $('#navVoiceLeaveItem').hidden = !state.publicLive;
+    $('#navVoiceMenuNote').textContent = `${state.publicLive ? 'Nearby Voice' : 'Group ride voice'} · your route keeps going`;
+    $('#navVoiceMuteItem').focus();
+  }
+
+  /** The navigation voice button: a tap mutes, a hold (or a right click)
+   * opens Mute and Leave Nearby Voice. */
+  function initNavigationVoiceButton() {
+    const button = $('#navVoiceBtn');
+    if (!button) return;
+    let holdTimer = null;
+    let held = false;
+    const cancelHold = () => { clearTimeout(holdTimer); holdTimer = null; };
+    button.addEventListener('pointerdown', () => {
+      held = false;
+      cancelHold();
+      holdTimer = setTimeout(() => { held = true; haptic('tap'); setNavVoiceMenuOpen(true); }, 450);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => button.addEventListener(type, cancelHold));
+    button.addEventListener('contextmenu', (event) => { event.preventDefault(); cancelHold(); held = true; setNavVoiceMenuOpen(true); });
+    button.addEventListener('click', () => {
+      if (held) { held = false; return; }
+      haptic('select');
+      void toggleVoiceMute();
+    });
+    button.addEventListener('keydown', (event) => {
+      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); setNavVoiceMenuOpen(true); }
+    });
+    $('#navVoiceMuteItem')?.addEventListener('click', () => { setNavVoiceMenuOpen(false); void toggleVoiceMute(); });
+    $('#navVoiceLeaveItem')?.addEventListener('click', () => { setNavVoiceMenuOpen(false); if (state.publicLive) void toggleNearby(); });
+    $('#navVoiceCancelItem')?.addEventListener('click', () => { setNavVoiceMenuOpen(false); button.focus(); });
+    $('#navVoiceMenu')?.addEventListener('keydown', (event) => { if (event.key === 'Escape') { setNavVoiceMenuOpen(false); button.focus(); } });
   }
 
   async function toggleVoiceMute() {
@@ -7400,6 +7451,13 @@
   // Steps and Share; it opens up to list every way and the turns. Parked
   // only: with Ride Safe on, Start happens at once on the way shown
   // (native: RoutePreviewSheet).
+  /** The route line, as Google Maps draws it: the chosen way wide blue on a
+   * darker edge, other ways grey (native: ROUTE_LINE in MapScreen). */
+  const ROUTE_LINE = {
+    chosen: { fill: '#1a73e8', casing: '#0b4fb3', width: 9, casingWidth: 13 },
+    other: { fill: '#a9b4ba', casing: '#7f8c93', width: 7, casingWidth: 10 },
+  };
+
   let routePreview = null;
   let routePreviewLines = [];
   let routePreviewBubbles = [];
@@ -7474,19 +7532,18 @@
     const { result, index } = routePreview;
     // The chosen route last, so it draws on top of the others.
     const order = result.routes.map((_route, i) => i).sort((a, b) => (a === index) - (b === index));
-    routePreviewLines = order.map((i) => {
+    routePreviewLines = order.flatMap((i) => {
       const chosen = i === index;
+      const look = chosen ? ROUTE_LINE.chosen : ROUTE_LINE.other;
+      const path = routePathOf(result.routes[i]);
+      const casing = trackMapOverlay(new google.maps.Polyline({
+        map, path, clickable: false, strokeColor: look.casing, strokeOpacity: 1, strokeWeight: look.casingWidth, zIndex: chosen ? 12 : 10,
+      }));
       const line = trackMapOverlay(new google.maps.Polyline({
-        map,
-        path: routePathOf(result.routes[i]),
-        clickable: !chosen,
-        strokeColor: chosen ? '#1a73e8' : '#8a98a0',
-        strokeOpacity: chosen ? 1 : 0.9,
-        strokeWeight: chosen ? 8 : 7,
-        zIndex: chosen ? 12 : 11,
+        map, path, clickable: !chosen, strokeColor: look.fill, strokeOpacity: 1, strokeWeight: look.width, zIndex: chosen ? 12 : 11,
       }));
       line.addListener?.('click', () => chooseRoutePreview(i));
-      return line;
+      return [casing, line];
     });
     // Each way's time on its line, spread along the routes so they don't sit
     // on top of one another where the ways share a road.
@@ -7754,8 +7811,8 @@
   function renderNavigationRouteLine(path) {
     if (!Array.isArray(path) || path.length < 2) return;
     if (!navRouteOutline) {
-      navRouteOutline = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#174EA6', strokeWeight: 10, zIndex: 6 }));
-      navRouteLine = trackMapOverlay(new google.maps.Polyline({ strokeColor: '#4285F4', strokeWeight: 6, zIndex: 7 }));
+      navRouteOutline = trackMapOverlay(new google.maps.Polyline({ strokeColor: ROUTE_LINE.chosen.casing, strokeOpacity: 1, strokeWeight: ROUTE_LINE.chosen.casingWidth, zIndex: 6, clickable: false }));
+      navRouteLine = trackMapOverlay(new google.maps.Polyline({ strokeColor: ROUTE_LINE.chosen.fill, strokeOpacity: 1, strokeWeight: ROUTE_LINE.chosen.width, zIndex: 7, clickable: false }));
     }
     navRouteOutline.setPath(path);
     navRouteLine.setPath(path);
@@ -9139,6 +9196,7 @@
       updateNavigationControls();
     });
     $('#navRecentreBtn')?.addEventListener('click', () => resumeNavigationFollowing());
+    initNavigationVoiceButton();
     $('#navOverviewBtn')?.addEventListener('click', () => {
       if (navFollowing) showNavigationOverview();
       else resumeNavigationFollowing();

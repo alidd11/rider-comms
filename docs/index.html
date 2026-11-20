@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=123">
+  <link rel="stylesheet" href="app.css?v=124">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -252,6 +252,14 @@
             <button id="locateBtn" class="icon-button glass map-action-button map-action-small" aria-label="Centre on my location"><svg><use href="#i-locate"/></svg></button>
             <button id="navStopsBtn" class="icon-button glass map-action-button nav-only-control" aria-label="Find petrol and stops on the way"><svg><use href="#i-fuel"/></svg></button>
             <button id="navReportBtn" class="icon-button glass map-action-button nav-only-control" aria-label="Report on the road"><svg><use href="#i-hazard-report"/></svg></button>
+            <button id="navVoiceBtn" class="icon-button glass nav-only-control nav-voice-button" type="button" aria-label="Mute your microphone" aria-describedby="navVoiceHint" hidden><svg><use href="#i-mic"/></svg></button>
+            <span id="navVoiceHint" class="sr-only">Hold for more voice options, such as leaving Nearby Voice</span>
+            <div id="navVoiceMenu" class="nav-voice-menu" role="menu" aria-label="Voice" hidden>
+              <p id="navVoiceMenuNote" class="nav-voice-menu-note"></p>
+              <button type="button" role="menuitem" id="navVoiceMuteItem">Mute microphone</button>
+              <button type="button" role="menuitem" id="navVoiceLeaveItem" class="danger">Leave Nearby Voice</button>
+              <button type="button" role="menuitem" id="navVoiceCancelItem">Cancel</button>
+            </div>
             <button id="navMuteBtn" class="icon-button glass nav-only-control" aria-label="Mute navigation guidance"><svg><use href="#i-volume"/></svg></button>
             <button id="navOverviewBtn" class="icon-button glass nav-only-control" aria-label="Show route overview"><svg><use href="#i-route"/></svg></button>
           </div>
@@ -498,8 +506,8 @@
   <script src="position-interpolation.js?v=1" defer></script>
   <script src="navigation-guidance.js?v=4" defer></script>
   <script src="navigation-camera.js?v=3" defer></script>
-  <script src="navigation-puck.js?v=2" defer></script>
+  <script src="navigation-puck.js?v=3" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=128" defer></script>
+  <script src="app.js?v=129" defer></script>
 </body>
 </html>

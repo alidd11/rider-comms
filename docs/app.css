@@ -3065,3 +3065,13 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .route-preview-steps em{margin-left:auto;flex:none;color:var(--text-muted);font-style:normal;font-size:.82rem}
 .route-preview-steps .arrive span{font-weight:700}
 #app.route-preview-mode .screen-map .map-actions,#app.route-preview-mode #mapBottomBar,#app.route-preview-mode .map-header,#app.route-preview-mode #mapDrawer,#app.route-preview-mode .map-actions,#app.route-preview-mode #joinNearbyBtn,#app.route-preview-mode #ridePill,#app.route-preview-mode #poiChipRow,#app.route-preview-mode #destinationCard,#app.route-preview-mode #mapSearchSlot{display:none}
+/* The voice button while navigating: a tap mutes (red when muted), a hold
+   opens Leave Nearby Voice (native: NavigationControls' voice). */
+.nav-mode .map-actions .nav-voice-button[hidden]{display:none}
+.nav-mode .map-actions .nav-voice-button.muted{background:var(--danger);border-color:var(--danger);color:#fff}
+.nav-voice-menu{position:absolute;z-index:13;right:calc(100% + 10px);bottom:0;width:min(260px,calc(100vw - 110px));display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:16px;background:var(--bg-elevated);color:var(--text);box-shadow:0 12px 30px rgb(0 0 0/.35)}
+.nav-voice-menu[hidden]{display:none}
+.nav-voice-menu-note{margin:0 4px 4px;color:var(--text-secondary);font-size:.82rem;font-weight:650}
+.nav-voice-menu button{min-height:48px;padding:0 14px;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface);color:var(--text);font:inherit;font-weight:700;text-align:left}
+.nav-voice-menu button.danger{color:var(--danger)}
+.nav-voice-menu button[hidden]{display:none}

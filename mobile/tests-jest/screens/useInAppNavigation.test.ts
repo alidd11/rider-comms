@@ -358,6 +358,20 @@ test('arriving shows the ride time and the distance actually ridden, until dismi
   expect(result.current.navigationArrival).toBeNull();
 });
 
+test('colours slow and jammed traffic on the line, and drops it behind the rider', async () => {
+  const withTraffic: InAppNavigationRoute = { ...ROUTE, traffic: [{ startIndex: 0, endIndex: 1, speed: 'slow' }, { startIndex: 2, endIndex: 3, speed: 'jam' }] };
+  const client = { getDrivingRoute: jest.fn(async () => withTraffic) };
+  const { result } = await startNavigation({ client: client as never });
+  expect(result.current.navigationTrafficLines.map((stretch) => stretch.speed)).toEqual(['slow', 'jam']);
+  // Past the slow stretch (222 m up Mill Lane and round the corner): only the jam is left.
+  await sendFix(51.5, -0.1);
+  await sendFix(51.502, -0.1);
+  await sendFix(51.502, -0.0985);
+  expect(result.current.navigationTrafficLines.map((stretch) => stretch.speed)).toEqual(['jam']);
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(result.current.navigationTrafficLines).toEqual([]);
+});
+
 test('stopping a route early shows no arrival card', async () => {
   const { result } = await startNavigation();
   await sendFix(51.5, -0.1);

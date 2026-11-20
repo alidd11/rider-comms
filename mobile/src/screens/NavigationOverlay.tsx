@@ -292,6 +292,7 @@ export function NavigationControls({
   onToggleMute,
   onOverviewOrFollow,
   onFindStops,
+  voice,
 }: {
   bottom: number;
   canReport: boolean;
@@ -302,6 +303,12 @@ export function NavigationControls({
   onOverviewOrFollow: () => void;
   /** Petrol, cafés or food on the way; parked only, like reporting. */
   onFindStops?: () => void;
+  /**
+   * Nearby Voice or group ride voice, while navigating (PWA: #navVoiceBtn):
+   * a tap mutes or unmutes the microphone, a long press offers Leave
+   * Nearby Voice. Allowed on the move: both only make the rider less exposed.
+   */
+  voice?: { muted: boolean; onToggleMute: () => void; onMore: () => void } | null;
 }): React.JSX.Element {
   return (
     <View style={[styles.navigationActions, { bottom }]}>
@@ -325,6 +332,23 @@ export function NavigationControls({
           <MaterialCommunityIcons name="alert-plus" size={24} color={colors.textPrimary} />
         </Pressable>
       )}
+      {voice ? (
+        <Pressable
+          testID="navigation-voice"
+          style={({ pressed }) => [styles.navigationActionButton, voice.muted && styles.navigationActionButtonDanger, pressed && styles.navigationActionButtonPressed]}
+          onPress={() => { haptics.select(); voice.onToggleMute(); }}
+          onLongPress={() => { haptics.tap(); voice.onMore(); }}
+          delayLongPress={450}
+          accessibilityRole="button"
+          accessibilityState={{ selected: voice.muted }}
+          accessibilityLabel={voice.muted ? 'Unmute your microphone' : 'Mute your microphone'}
+          accessibilityHint="Hold for more voice options, such as leaving Nearby Voice"
+          accessibilityActions={[{ name: 'longpress', label: 'More voice options' }]}
+          onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') voice.onMore(); }}
+        >
+          <Ionicons name={voice.muted ? 'mic-off' : 'mic'} size={24} color={voice.muted ? '#FFFFFF' : colors.textPrimary} />
+        </Pressable>
+      ) : null}
       <Pressable
         style={({ pressed }) => [styles.navigationActionButton, muted && styles.navigationActionButtonActive, pressed && styles.navigationActionButtonPressed]}
         onPress={() => { haptics.select(); onToggleMute(); }}

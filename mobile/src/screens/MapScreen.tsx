@@ -52,7 +52,7 @@ import { NavigationBanner, NavigationControls, NavigationRecentreButton, Navigat
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard, RoutePreviewSheet, RoutePreviewTopBar } from './MapPlaceCards';
 import type { RouteAvoidance } from '../routeOptionsPreference';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, routeShareText, type RouteStyle, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, routeShareText, routeTrafficLines, type RouteStyle, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
@@ -73,6 +73,15 @@ const DEFAULT_REGION = {
 const FOCUSED_REGION_DELTA = 0.025;
 
 type Segment = 'public' | 'host';
+
+/** The route line, as Google Maps draws it: the chosen way wide blue on a
+ * darker edge, other ways grey, traffic orange and red (PWA: ROUTE_LINE in
+ * 17-navigation.js). */
+const ROUTE_LINE = {
+  chosen: { fill: '#1A73E8', casing: '#0B4FB3', width: 9, casingWidth: 13 },
+  other: { fill: '#A9B4BA', casing: '#7F8C93', width: 7, casingWidth: 10 },
+  traffic: { slow: '#F29900', jam: '#D93025' },
+} as const;
 
 export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
@@ -254,6 +263,7 @@ export function MapScreen(): React.JSX.Element {
     navigationSpeedMps,
     navigationPuck,
     navigationRouteLine,
+    navigationTrafficLines,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,
@@ -608,6 +618,21 @@ export function MapScreen(): React.JSX.Element {
     }
   }
 
+  /** Hold the navigation voice button: mute, or leave Nearby Voice, without
+   * ending the route. */
+  function openNavigationVoiceOptions(): void {
+    const buttons: Parameters<typeof Alert.alert>[2] = [
+      { text: voiceMuted ? 'Unmute microphone' : 'Mute microphone', onPress: toggleVoiceMuted },
+      ...(publicLive ? [{ text: 'Leave Nearby Voice', style: 'destructive' as const, onPress: () => void handleNearbyToggle() }] : []),
+      { text: 'Cancel', style: 'cancel' as const },
+    ];
+    Alert.alert(
+      publicLive ? 'Nearby Voice' : 'Group ride voice',
+      publicLive ? 'Your route keeps going whatever you choose.' : 'Your route keeps going. Leave the ride from the ride screen.',
+      buttons,
+    );
+  }
+
   /** Fastest, Twisty or No motorways, for this trip only. */
   async function chooseRoutePreviewStyle(style: RouteStyle): Promise<void> {
     if (!(await setRoutePreviewStyle(style))) {
@@ -760,19 +785,37 @@ export function MapScreen(): React.JSX.Element {
               .sort((a, b) => Number(a === routePreview.index) - Number(b === routePreview.index))
               .map((index) => {
                 const chosen = index === routePreview.index;
+                const coordinates = routePreview.routes[index]!.coordinates.map((point) => ({ latitude: point.lat, longitude: point.lon }));
+                const line = chosen ? ROUTE_LINE.chosen : ROUTE_LINE.other;
                 return (
-                  <Polyline
-                    key={`route-preview-${index}`}
-                    testID={`route-preview-line-${index}`}
-                    coordinates={routePreview.routes[index]!.coordinates.map((point) => ({ latitude: point.lat, longitude: point.lon }))}
-                    strokeColor={chosen ? '#4285F4' : '#8A98A0'}
-                    strokeWidth={chosen ? 8 : 6}
-                    zIndex={chosen ? 6 : 5}
-                    tappable={!chosen}
-                    onPress={() => chooseRoutePreview(index)}
-                  />
+                  <React.Fragment key={`route-preview-${index}`}>
+                    <Polyline coordinates={coordinates} strokeColor={line.casing} strokeWidth={line.casingWidth} lineCap="round" lineJoin="round" zIndex={chosen ? 6 : 4} />
+                    <Polyline
+                      testID={`route-preview-line-${index}`}
+                      coordinates={coordinates}
+                      strokeColor={line.fill}
+                      strokeWidth={line.width}
+                      lineCap="round"
+                      lineJoin="round"
+                      zIndex={chosen ? 6 : 5}
+                      tappable={!chosen}
+                      onPress={() => chooseRoutePreview(index)}
+                    />
+                  </React.Fragment>
                 );
               }) : null}
+            {/* Traffic on the chosen way, as Google Maps colours it. */}
+            {!activeRoute && routePreview ? routeTrafficLines(routePreview.routes[routePreview.index]!.coordinates, routePreview.routes[routePreview.index]!.traffic).map((stretch, index) => (
+              <Polyline
+                key={`route-preview-traffic-${index}`}
+                coordinates={stretch.coordinates.map((point) => ({ latitude: point.lat, longitude: point.lon }))}
+                strokeColor={ROUTE_LINE.traffic[stretch.speed]}
+                strokeWidth={ROUTE_LINE.chosen.width}
+                lineCap="round"
+                lineJoin="round"
+                zIndex={6}
+              />
+            )) : null}
             {/* Each way's time on its line, as in Google Maps; a tap chooses it. */}
             {!activeRoute && routePreview ? routePreview.choices.map((choice) => {
               const path = routePreview.routes[choice.index]!.coordinates;
@@ -809,16 +852,36 @@ export function MapScreen(): React.JSX.Element {
                     pinColor={colors.accent}
                   />
                 ))}
+                {/* Google Maps' line: wide blue on a darker edge, with slow
+                    and jammed stretches in orange and red (PWA: renderNavigationRouteLine). */}
                 <Polyline
                   coordinates={routeLineCoordinates}
-                  strokeColor="#174EA6"
-                  strokeWidth={10}
+                  strokeColor={ROUTE_LINE.chosen.casing}
+                  strokeWidth={ROUTE_LINE.chosen.casingWidth}
+                  lineCap="round"
+                  lineJoin="round"
+                  zIndex={5}
                 />
                 <Polyline
                   coordinates={routeLineCoordinates}
-                  strokeColor="#4285F4"
-                  strokeWidth={6}
+                  strokeColor={ROUTE_LINE.chosen.fill}
+                  strokeWidth={ROUTE_LINE.chosen.width}
+                  lineCap="round"
+                  lineJoin="round"
+                  zIndex={6}
                 />
+                {navigationTrafficLines.map((stretch, index) => (
+                  <Polyline
+                    key={`navigation-traffic-${index}`}
+                    testID="navigation-traffic-line"
+                    coordinates={stretch.coordinates.map((point) => ({ latitude: point.lat, longitude: point.lon }))}
+                    strokeColor={ROUTE_LINE.traffic[stretch.speed]}
+                    strokeWidth={ROUTE_LINE.chosen.width}
+                    lineCap="round"
+                    lineJoin="round"
+                    zIndex={7}
+                  />
+                ))}
                 {/* The white turn arrow at the next maneuver (PWA: navArrowLine). */}
                 {maneuverArrowPath ? (
                   <>
@@ -995,6 +1058,7 @@ export function MapScreen(): React.JSX.Element {
           onReport={() => void openReportSheet()}
           onFindStops={() => setStopsSheetOpen(true)}
           onToggleMute={() => setNavigationMuted((current) => !current)}
+          voice={voiceConnected || publicLive || activeRide ? { muted: voiceMuted, onToggleMute: toggleVoiceMuted, onMore: openNavigationVoiceOptions } : null}
           onOverviewOrFollow={() => {
             if (navigationFollowing) fitRoute(activeRoute);
             else void centreOnCurrentLocation();

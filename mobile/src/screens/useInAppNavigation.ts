@@ -40,6 +40,7 @@ import { acquireNavigationAudioSession, releaseNavigationAudioSession } from '..
 import { watchNavigationLocation, type NavigationLocationWatch } from '../navigationLocationStream';
 import {
   buildNavigationPathIndex,
+  routeTrafficLines,
   matchFixToPath,
   navigationOffRouteGraceMs,
   navigationPathAhead,
@@ -138,6 +139,7 @@ export interface InAppNavigation {
   navigationPuck: NavigationPuckPlacement | null;
   /** The route line to draw: what is still to ride, or all of it (null when not navigating). */
   navigationRouteLine: readonly { lat: number; lon: number }[] | null;
+  navigationTrafficLines: ReadonlyArray<{ speed: 'slow' | 'jam'; coordinates: { lat: number; lon: number }[] }>;
   currentNavigationStep: InAppNavigationRoute['steps'][number] | null;
   fitRoute: (nextRoute: InAppNavigationRoute) => void;
   focusNavigationCamera: (
@@ -239,6 +241,9 @@ export function useInAppNavigation(
   const [navigationPuck, setNavigationPuck] = React.useState<NavigationPuckPlacement | null>(null);
   /** The route still to ride (PWA: trimNavigationRouteLine); null draws all of it. */
   const [routeLineAhead, setRouteLineAhead] = React.useState<{ lat: number; lon: number }[] | null>(null);
+  // How far along the route the drawn line now starts (the ridden part is
+  // dropped), so the traffic colours drop away with it.
+  const [routeLineFromMeters, setRouteLineFromMeters] = React.useState<number | null>(null);
   const navOffRouteSince = React.useRef<number | null>(null);
   const curatedFinishReplanAt = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
@@ -464,6 +469,7 @@ export function useInAppNavigation(
     setActiveRoute(null);
     setNavigationPuck(null);
     setRouteLineAhead(null);
+    setRouteLineFromMeters(null);
     setNavigationDestination(null);
     setNavigationStepIndex(0);
     announcedNavigationStep.current = null;
@@ -790,6 +796,7 @@ export function useInAppNavigation(
     let puckAlongMeters: number | null = null;
     let lineFromMeters: number | null = null;
     setRouteLineAhead(null);
+    setRouteLineFromMeters(null);
 
     // Keeps delivering fixes with the phone locked (see navigationLocationStream).
     void watchNavigationLocation(
@@ -831,6 +838,7 @@ export function useInAppNavigation(
           if (ahead.length >= 2) {
             lineFromMeters = match.distanceAlongMeters;
             setRouteLineAhead(ahead);
+            setRouteLineFromMeters(match.distanceAlongMeters);
           }
         }
         const age = navigationFixAgeSeconds(position.timestamp, nowMs);
@@ -1028,6 +1036,11 @@ export function useInAppNavigation(
     setNavigationFollowing(true);
   }, []);
 
+  const navigationTrafficLines = React.useMemo(
+    () => (activeRoute ? routeTrafficLines(activeRoute.coordinates, activeRoute.traffic, routeLineFromMeters) : []),
+    [activeRoute, routeLineFromMeters],
+  );
+
   return {
     activeRoute,
     navigationDestination,
@@ -1041,6 +1054,8 @@ export function useInAppNavigation(
     navigationPuck,
     /** The line to draw: what's still to ride, or the whole route. */
     navigationRouteLine: activeRoute ? (routeLineAhead ?? activeRoute.coordinates) : null,
+    /** Slow and jammed stretches still ahead, drawn over the line (Google Maps' traffic colours). */
+    navigationTrafficLines,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,

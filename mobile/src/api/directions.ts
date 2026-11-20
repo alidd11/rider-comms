@@ -1,3 +1,4 @@
+import type { RouteTrafficStretch } from '@rider-comms/shared';
 import { haversineMeters } from '@rider-comms/shared';
 import type { NavigationInstruction } from '@rider-comms/shared';
 
@@ -22,6 +23,8 @@ export interface InAppNavigationRoute {
   typicalDurationSeconds?: number;
   /** The main road, as Google names it ("A41"), for the route preview. */
   summary?: string;
+  /** Where traffic is slow or jammed, as stretches of `coordinates`. */
+  traffic?: RouteTrafficStretch[];
   /** Other ways there, offered before the rider sets off. */
   alternatives?: InAppNavigationRoute[];
 }
