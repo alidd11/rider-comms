@@ -256,6 +256,7 @@
       updateNavigationControls();
     });
     $('#navRecentreBtn')?.addEventListener('click', () => resumeNavigationFollowing());
+    initNavigationVoiceButton();
     $('#navOverviewBtn')?.addEventListener('click', () => {
       if (navFollowing) showNavigationOverview();
       else resumeNavigationFollowing();

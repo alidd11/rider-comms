@@ -50,8 +50,9 @@ import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './Regro
 import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
-import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
+import { ArrivalCard, DestinationCard, RoutePreviewSheet, RoutePreviewTopBar } from './MapPlaceCards';
+import type { RouteAvoidance } from '../routeOptionsPreference';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, routeShareText, routeTrafficLines, type RouteStyle, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
@@ -73,6 +74,15 @@ const FOCUSED_REGION_DELTA = 0.025;
 
 type Segment = 'public' | 'host';
 
+/** The route line, as Google Maps draws it: the chosen way wide blue on a
+ * darker edge, other ways grey, traffic orange and red (PWA: ROUTE_LINE in
+ * 17-navigation.js). */
+const ROUTE_LINE = {
+  chosen: { fill: '#1A73E8', casing: '#0B4FB3', width: 9, casingWidth: 13 },
+  other: { fill: '#A9B4BA', casing: '#7F8C93', width: 7, casingWidth: 10 },
+  traffic: { slow: '#F29900', jam: '#D93025' },
+} as const;
+
 export function MapScreen(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const { client, riderId } = useAuth();
@@ -80,7 +90,7 @@ export function MapScreen(): React.JSX.Element {
   const regroup = activeRide?.regroup ?? null;
   const [regroupError, setRegroupError] = React.useState(false);
   const [regroupSaving, setRegroupSaving] = React.useState(false);
-  const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, spokenDirections, avatarId, displayName } = useSettings();
+  const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, setRouteAvoidance, spokenDirections, avatarId, displayName } = useSettings();
   const { lockedForSafety, speedMps, refreshTracking } = useMovementSafety();
   const { muted: voiceMuted, toggleMuted: toggleVoiceMuted, voiceConnected } = useVoiceMute();
   const [rideBarHeight, setRideBarHeight] = React.useState(0);
@@ -253,6 +263,7 @@ export function MapScreen(): React.JSX.Element {
     navigationSpeedMps,
     navigationPuck,
     navigationRouteLine,
+    navigationTrafficLines,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,
@@ -264,9 +275,12 @@ export function MapScreen(): React.JSX.Element {
     curatedRemainingStops,
     stopFollowingRoute,
     resumeFollowingRoute,
-    routeChoices: navigationRouteChoices,
-    chosenRouteIndex,
-    chooseRoute,
+    routePreview,
+    chooseRoutePreview,
+    startRoutePreview,
+    closeRoutePreview,
+    replanRoutePreview,
+    setRoutePreviewStyle,
     findStopsOnTheWay,
     addNavigationStop,
   } = useInAppNavigation(
@@ -592,9 +606,53 @@ export function MapScreen(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDestination?.lat, selectedDestination?.lon, client, routeAvoidance.highways, routeAvoidance.tolls, routeAvoidance.ferries]);
 
+  /** An avoid chip in the route preview: the Settings choice, and the ways
+   * asked for again; put back if Google finds none that way. */
+  async function toggleRoutePreviewAvoid(key: keyof RouteAvoidance): Promise<void> {
+    const previous = routeAvoidance;
+    const next = { ...previous, [key]: !previous[key] };
+    setRouteAvoidance(next);
+    if (!(await replanRoutePreview(next))) {
+      setRouteAvoidance(previous);
+      Alert.alert('No route found', 'There’s no way there with that setting. The routes shown are unchanged.');
+    }
+  }
+
+  /** Hold the navigation voice button: mute, or leave Nearby Voice, without
+   * ending the route. */
+  function openNavigationVoiceOptions(): void {
+    const buttons: Parameters<typeof Alert.alert>[2] = [
+      { text: voiceMuted ? 'Unmute microphone' : 'Mute microphone', onPress: toggleVoiceMuted },
+      ...(publicLive ? [{ text: 'Leave Nearby Voice', style: 'destructive' as const, onPress: () => void handleNearbyToggle() }] : []),
+      { text: 'Cancel', style: 'cancel' as const },
+    ];
+    Alert.alert(
+      publicLive ? 'Nearby Voice' : 'Group ride voice',
+      publicLive ? 'Your route keeps going whatever you choose.' : 'Your route keeps going. Leave the ride from the ride screen.',
+      buttons,
+    );
+  }
+
+  /** Fastest, Twisty or No motorways, for this trip only. */
+  async function chooseRoutePreviewStyle(style: RouteStyle): Promise<void> {
+    if (!(await setRoutePreviewStyle(style))) {
+      Alert.alert('No route found', 'There’s no way there like that. The routes shown are unchanged.');
+    }
+  }
+
+  function shareRoutePreview(): void {
+    if (!routePreview) return;
+    const route = routePreview.routes[routePreview.index];
+    if (!route) return;
+    const arrival = new Date(Date.now() + route.durationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const message = routeShareText(routePreview.target.label ?? '', arrival, route.distanceMeters, unitSystem, route.summary ?? '');
+    void Share.share({ message }).then(() => haptics.success()).catch(() => undefined);
+  }
+
   async function openDirections(target: NavigationTarget): Promise<void> {
     if (navigationProvider === 'in_app') {
-      await startInAppNavigation(target);
+      // Parked: the ways there first. On the move: straight onto the fastest.
+      await startInAppNavigation(target, { preview: !lockedForSafety });
       return;
     }
     const url = buildNavigationProviderUrl(target, navigationProvider);
@@ -625,7 +683,11 @@ export function MapScreen(): React.JSX.Element {
   // The drawer steps aside while navigating, while Ride Safe locks the
   // controls, and while a place or hazard card owns the bottom of the map.
   const friendsAttention = incomingRequests.length + unreadMessageCount;
-  const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard && !navigationArrival;
+  const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !routePreview && !selectedDestination && !selectedHazard && !navigationArrival;
+  // Moving off with the route preview open: go, on the route it shows.
+  React.useEffect(() => {
+    if (lockedForSafety && routePreview) startRoutePreview();
+  }, [lockedForSafety, routePreview, startRoutePreview]);
   const bottomInset = drawerVisible && drawerPeek > 0 ? drawerPeek : insets.bottom;
   // Bottom controls sit above the drawer, and above the ride bar while a
   // group ride is showing.
@@ -717,6 +779,69 @@ export function MapScreen(): React.JSX.Element {
                 pinColor={colors.accent}
               />
             )}
+            {/* The route preview: every way there, the chosen one blue and
+                on top, the others grey; a tap on a line chooses it. */}
+            {!activeRoute && routePreview ? [...routePreview.routes.keys()]
+              .sort((a, b) => Number(a === routePreview.index) - Number(b === routePreview.index))
+              .map((index) => {
+                const chosen = index === routePreview.index;
+                const coordinates = routePreview.routes[index]!.coordinates.map((point) => ({ latitude: point.lat, longitude: point.lon }));
+                const line = chosen ? ROUTE_LINE.chosen : ROUTE_LINE.other;
+                return (
+                  <React.Fragment key={`route-preview-${index}`}>
+                    <Polyline coordinates={coordinates} strokeColor={line.casing} strokeWidth={line.casingWidth} lineCap="round" lineJoin="round" zIndex={chosen ? 6 : 4} />
+                    <Polyline
+                      testID={`route-preview-line-${index}`}
+                      coordinates={coordinates}
+                      strokeColor={line.fill}
+                      strokeWidth={line.width}
+                      lineCap="round"
+                      lineJoin="round"
+                      zIndex={chosen ? 6 : 5}
+                      tappable={!chosen}
+                      onPress={() => chooseRoutePreview(index)}
+                    />
+                  </React.Fragment>
+                );
+              }) : null}
+            {/* Traffic on the chosen way, as Google Maps colours it. */}
+            {!activeRoute && routePreview ? routeTrafficLines(routePreview.routes[routePreview.index]!.coordinates, routePreview.routes[routePreview.index]!.traffic).map((stretch, index) => (
+              <Polyline
+                key={`route-preview-traffic-${index}`}
+                coordinates={stretch.coordinates.map((point) => ({ latitude: point.lat, longitude: point.lon }))}
+                strokeColor={ROUTE_LINE.traffic[stretch.speed]}
+                strokeWidth={ROUTE_LINE.chosen.width}
+                lineCap="round"
+                lineJoin="round"
+                zIndex={6}
+              />
+            )) : null}
+            {/* Each way's time on its line, as in Google Maps; a tap chooses it. */}
+            {!activeRoute && routePreview ? routePreview.choices.map((choice) => {
+              const path = routePreview.routes[choice.index]!.coordinates;
+              const point = path[Math.min(path.length - 1, Math.floor(path.length * ([0.5, 0.35, 0.65][choice.index] ?? 0.5)))];
+              if (!point) return null;
+              const chosen = choice.index === routePreview.index;
+              return (
+                <Marker
+                  key={`route-preview-time-${choice.index}`}
+                  testID={`route-preview-time-${choice.index}`}
+                  coordinate={{ latitude: point.lat, longitude: point.lon }}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  zIndex={chosen ? 8 : 7}
+                  tracksViewChanges={false}
+                  accessibilityLabel={`${choice.text}${chosen ? ', chosen' : ''}`}
+                  onPress={() => chooseRoutePreview(choice.index)}
+                >
+                  <View style={[styles.routePreviewBubble, chosen && styles.routePreviewBubbleChosen]}>
+                    <Text style={[styles.routePreviewBubbleText, chosen && styles.routePreviewBubbleTextChosen]}>{choice.time}</Text>
+                    {choice.label !== 'Alternative' ? (
+                      <Text style={[styles.routePreviewBubbleLabel, chosen && styles.routePreviewBubbleTextChosen]}>{choice.label}</Text>
+                    ) : null}
+                  </View>
+                </Marker>
+              );
+            }) : null}
             {activeRoute && routeLineCoordinates && (
               <>
                 {curatedRemainingStops.map((stop, index) => (
@@ -727,16 +852,36 @@ export function MapScreen(): React.JSX.Element {
                     pinColor={colors.accent}
                   />
                 ))}
+                {/* Google Maps' line: wide blue on a darker edge, with slow
+                    and jammed stretches in orange and red (PWA: renderNavigationRouteLine). */}
                 <Polyline
                   coordinates={routeLineCoordinates}
-                  strokeColor="#174EA6"
-                  strokeWidth={10}
+                  strokeColor={ROUTE_LINE.chosen.casing}
+                  strokeWidth={ROUTE_LINE.chosen.casingWidth}
+                  lineCap="round"
+                  lineJoin="round"
+                  zIndex={5}
                 />
                 <Polyline
                   coordinates={routeLineCoordinates}
-                  strokeColor="#4285F4"
-                  strokeWidth={6}
+                  strokeColor={ROUTE_LINE.chosen.fill}
+                  strokeWidth={ROUTE_LINE.chosen.width}
+                  lineCap="round"
+                  lineJoin="round"
+                  zIndex={6}
                 />
+                {navigationTrafficLines.map((stretch, index) => (
+                  <Polyline
+                    key={`navigation-traffic-${index}`}
+                    testID="navigation-traffic-line"
+                    coordinates={stretch.coordinates.map((point) => ({ latitude: point.lat, longitude: point.lon }))}
+                    strokeColor={ROUTE_LINE.traffic[stretch.speed]}
+                    strokeWidth={ROUTE_LINE.chosen.width}
+                    lineCap="round"
+                    lineJoin="round"
+                    zIndex={7}
+                  />
+                ))}
                 {/* The white turn arrow at the next maneuver (PWA: navArrowLine). */}
                 {maneuverArrowPath ? (
                   <>
@@ -775,7 +920,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !lockedForSafety && !activeRoute && (
+      {segment === 'public' && !lockedForSafety && !activeRoute && !routePreview && (
         <View style={[styles.searchSlot, styles.searchRow, { top: insets.top + spacing.sm }]}>
           {/* The menu (Ride, Friends, Routes, Settings, plan, help). Friend
               requests and unread messages show as a count on the avatar. */}
@@ -842,7 +987,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !selectedDestination && !activeRoute && !navigationArrival && (
+      {segment === 'public' && !selectedDestination && !activeRoute && !routePreview && !navigationArrival && (
         <View style={[styles.mapActions, { bottom: bottomBarOffset + (lockedForSafety ? HUD_ACTION_HEIGHT : BOTTOM_BAR_HEIGHT) + spacing.sm }]}>
           <Pressable
             style={({ pressed }) => [styles.mapActionButton, pressed && styles.mapActionButtonPressed]}
@@ -856,7 +1001,7 @@ export function MapScreen(): React.JSX.Element {
         </View>
       )}
 
-      {segment === 'public' && !selectedDestination && !activeRoute && !navigationArrival && !lockedForSafety && (
+      {segment === 'public' && !selectedDestination && !activeRoute && !routePreview && !navigationArrival && !lockedForSafety && (
         <View style={[styles.mapBottomBar, { bottom: bottomBarOffset }]} testID="map-bottom-bar">
           <Pressable
             style={({ pressed }) => [styles.mapHazardButton, pressed && styles.mapActionButtonPressed]}
@@ -913,6 +1058,7 @@ export function MapScreen(): React.JSX.Element {
           onReport={() => void openReportSheet()}
           onFindStops={() => setStopsSheetOpen(true)}
           onToggleMute={() => setNavigationMuted((current) => !current)}
+          voice={voiceConnected || publicLive || activeRide ? { muted: voiceMuted, onToggleMute: toggleVoiceMuted, onMore: openNavigationVoiceOptions } : null}
           onOverviewOrFollow={() => {
             if (navigationFollowing) fitRoute(activeRoute);
             else void centreOnCurrentLocation();
@@ -955,7 +1101,45 @@ export function MapScreen(): React.JSX.Element {
         />
       )}
 
-      {segment === 'public' && !activeRoute && selectedDestination && !selectedHazard && (
+      {segment === 'public' && !activeRoute && routePreview && (
+        <>
+          <RoutePreviewTopBar
+            top={insets.top + spacing.sm}
+            preview={routePreview}
+            avoidance={routeAvoidance}
+            replanning={navigationLoading}
+            onBack={closeRoutePreview}
+            onChangeDestination={() => {
+              // Another destination: back to search, as in Google Maps.
+              closeRoutePreview();
+              setNavigationTarget(null);
+              setSelectedPlace(null);
+              setDrawerOpen(true);
+            }}
+            onStyle={(style) => void chooseRoutePreviewStyle(style)}
+            onToggleAvoid={(key) => void toggleRoutePreviewAvoid(key)}
+          />
+          <RoutePreviewSheet
+            bottom={0}
+            preview={routePreview}
+            unitSystem={unitSystem}
+            replanning={navigationLoading}
+            ride={activeRide ? {
+              count: Math.max(1, roster.length),
+              avatars: roster.slice(0, 3).map((id, index) => (
+                <View key={id} style={index > 0 ? styles.routePreviewRideAvatarOverlap : undefined}>
+                  <RiderAvatar avatarId={rideProfiles[id]?.avatarId ?? null} size={26} mapMarker={false} status="none" />
+                </View>
+              )),
+            } : null}
+            onChoose={chooseRoutePreview}
+            onStart={startRoutePreview}
+            onShare={shareRoutePreview}
+          />
+        </>
+      )}
+
+      {segment === 'public' && !activeRoute && !routePreview && selectedDestination && !selectedHazard && (
         <DestinationCard
           bottom={insets.bottom + spacing.sm}
           destination={selectedDestination}
@@ -993,20 +1177,19 @@ export function MapScreen(): React.JSX.Element {
             onHeight={setNavigationBannerHeight}
           />
           {/* Bottom-left, as in Google Maps: Re-centre once the map has been
-              moved, otherwise the speedometer (hidden while route choices
-              are offered, which only happens parked). */}
+              moved, otherwise the speedometer. */}
           {!navigationFollowing ? (
             <NavigationRecentreButton
               bottom={navigationSummaryHeight + spacing.md}
               onPress={() => void centreOnCurrentLocation()}
             />
-          ) : lockedForSafety || navigationRouteChoices.length <= 1 ? (
+          ) : (
             <NavigationSpeedBadge
               bottom={navigationSummaryHeight + spacing.md}
               navigationSpeedMps={navigationSpeedMps}
               unitSystem={unitSystem}
             />
-          ) : null}
+          )}
           <NavigationTripSummary
             bottomPadding={Math.max(insets.bottom, spacing.sm)}
             arrivalLabel={navigationArrivalLabel}
@@ -1014,10 +1197,6 @@ export function MapScreen(): React.JSX.Element {
             remainingMeters={remainingNavigationMeters}
             unitSystem={unitSystem}
             onHeight={setNavigationSummaryHeight}
-            // Choosing a way is for when parked: Ride Safe hides it on the move.
-            routeChoices={lockedForSafety ? [] : navigationRouteChoices}
-            chosenRouteIndex={chosenRouteIndex}
-            onChooseRoute={chooseRoute}
             trafficText={activeRoute ? routeTrafficDelayText(activeRoute.durationSeconds, activeRoute.typicalDurationSeconds) : ''}
             onEnd={() => finishInAppNavigation(false)}
             tripDetails={tripDetails}

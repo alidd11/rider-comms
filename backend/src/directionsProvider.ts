@@ -24,8 +24,45 @@ export interface DrivingRoute {
   durationSeconds: number;
   /** The same trip in normal traffic, when known: the gap is today's delay. */
   typicalDurationSeconds?: number;
+  /** The main road, as Google names it ("A41"), for the route preview. */
+  summary?: string;
+  /** Where traffic is slow or jammed, as stretches of `coordinates` (point
+   * indexes), to colour the line as Google Maps does. Free-flowing stretches
+   * are left out; absent when Google gave no traffic. */
+  traffic?: RouteTrafficStretch[];
   /** Up to two other ways there, for the rider to choose from. */
   alternatives?: DrivingRoute[];
+}
+
+export interface RouteTrafficStretch {
+  startIndex: number;
+  endIndex: number;
+  speed: 'slow' | 'jam';
+}
+
+/** Google's speedReadingIntervals, kept only where they're slow or jammed
+ * and point at real stretches of the route line. */
+function routeTraffic(intervals: unknown, pointCount: number): { traffic?: RouteTrafficStretch[] } {
+  if (!Array.isArray(intervals)) return {};
+  const traffic: RouteTrafficStretch[] = [];
+  for (const interval of intervals as Array<{ startPolylinePointIndex?: unknown; endPolylinePointIndex?: unknown; speed?: unknown }>) {
+    const speed = interval?.speed === 'TRAFFIC_JAM' ? 'jam' : interval?.speed === 'SLOW' ? 'slow' : null;
+    // Google leaves out a zero start index (proto3 default).
+    const startIndex = interval?.startPolylinePointIndex === undefined ? 0 : interval.startPolylinePointIndex;
+    const endIndex = interval?.endPolylinePointIndex;
+    if (!speed || !Number.isInteger(startIndex) || !Number.isInteger(endIndex)) continue;
+    const from = startIndex as number;
+    const to = endIndex as number;
+    if (from < 0 || to <= from || to >= pointCount) continue;
+    traffic.push({ startIndex: from, endIndex: to, speed });
+  }
+  return traffic.length ? { traffic } : {};
+}
+
+/** Google's road name for a route, trimmed and short enough for a row. */
+function routeSummary(value: unknown): { summary?: string } {
+  const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+  return text ? { summary: text } : {};
 }
 
 export type DirectionsProviderErrorCode =
@@ -57,6 +94,7 @@ interface GoogleDirectionsStep {
 interface GoogleDirectionsResponse {
   status?: string;
   routes?: Array<{
+    summary?: string;
     overview_polyline?: { points?: string };
     legs?: Array<{
       distance?: { value?: number };
@@ -218,6 +256,7 @@ function parseGoogleResponse(payload: GoogleDirectionsResponse): DrivingRoute {
     durationSeconds: nonNegativeFinite(leg.duration?.value)
       ? leg.duration.value
       : steps.reduce((sum, step) => sum + step.durationSeconds, 0),
+    ...routeSummary(route.summary),
   };
 }
 
@@ -293,9 +332,11 @@ export async function fetchGoogleDrivingRoute(
 const ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 const ROUTES_FIELD_MASK = [
   'routes.distanceMeters',
+  'routes.description',
   'routes.duration',
   'routes.staticDuration',
   'routes.polyline.encodedPolyline',
+  'routes.travelAdvisory.speedReadingIntervals',
   'routes.legs.steps.distanceMeters',
   'routes.legs.steps.staticDuration',
   'routes.legs.steps.polyline.encodedPolyline',
@@ -314,7 +355,9 @@ interface RoutesStep {
   navigationInstruction?: { maneuver?: string; instructions?: string };
 }
 interface RoutesRoute {
+  travelAdvisory?: { speedReadingIntervals?: unknown };
   distanceMeters?: number;
+  description?: string;
   duration?: string;
   staticDuration?: string;
   polyline?: { encodedPolyline?: string };
@@ -381,6 +424,8 @@ function parseRoutesRoute(route: RoutesRoute): DrivingRoute {
     distanceMeters: nonNegativeFinite(route.distanceMeters) ? route.distanceMeters : steps.reduce((sum, step) => sum + step.distanceMeters, 0),
     durationSeconds: Math.round(withTraffic),
     typicalDurationSeconds: Math.round(typical),
+    ...routeSummary(route.description),
+    ...routeTraffic(route.travelAdvisory?.speedReadingIntervals, coordinates.length),
   };
 }
 
@@ -405,6 +450,10 @@ export async function fetchGoogleRoutes(
     destination: point(destination),
     travelMode: 'DRIVE',
     routingPreference: 'TRAFFIC_AWARE',
+    // The full-detail line, which follows the road at navigation zoom (the
+    // default is simplified and cuts corners), and where traffic is slow.
+    polylineQuality: 'HIGH_QUALITY',
+    extraComputations: ['TRAFFIC_ON_POLYLINE'],
     // Google offers no alternatives for a trip with a stop.
     computeAlternativeRoutes: !waypoints.length,
     ...(waypoints.length ? { intermediates: waypoints.map(point) } : {}),

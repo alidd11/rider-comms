@@ -2,7 +2,7 @@ import * as React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { RidingHud } from '../../src/screens/RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
-import { ArrivalCard, DestinationCard } from '../../src/screens/MapPlaceCards';
+import { ArrivalCard, DestinationCard, RoutePreviewSheet, RoutePreviewTopBar } from '../../src/screens/MapPlaceCards';
 import { ROUTE_UPDATED_NOTICE } from '../../src/screens/useInAppNavigation';
 
 jest.mock('../../src/screens/useInAppNavigation', () => ({ ROUTE_UPDATED_NOTICE: 'Route updated.' }));
@@ -102,6 +102,28 @@ test('speed badge, trip summary and the control dock', async () => {
   expect(view.getByRole('button', { name: 'Resume navigation follow mode' })).toBeTruthy();
 });
 
+test('the voice button while navigating: tap to mute, hold for Leave Nearby Voice', async () => {
+  const voice = { muted: false, onToggleMute: jest.fn(), onMore: jest.fn() };
+  const handlers = { onReport: jest.fn(), onToggleMute: jest.fn(), onOverviewOrFollow: jest.fn() };
+  const view = await render(<NavigationControls bottom={0} canReport={false} muted={false} following {...handlers} voice={voice} />);
+  // Shown on the move too (canReport false): it only makes the rider less exposed.
+  const button = view.getByTestId('navigation-voice');
+  expect(button.props.accessibilityLabel).toBe('Mute your microphone');
+  await fireEvent.press(button);
+  expect(voice.onToggleMute).toHaveBeenCalledTimes(1);
+  await fireEvent(button, 'longPress');
+  expect(voice.onMore).toHaveBeenCalledTimes(1);
+  await fireEvent(button, 'accessibilityAction', { nativeEvent: { actionName: 'longpress' } });
+  expect(voice.onMore).toHaveBeenCalledTimes(2);
+  await fireEvent(button, 'accessibilityAction', { nativeEvent: { actionName: 'activate' } });
+  expect(voice.onMore).toHaveBeenCalledTimes(2);
+  await view.rerender(<NavigationControls bottom={0} canReport={false} muted={false} following {...handlers} voice={{ ...voice, muted: true }} />);
+  expect(view.getByTestId('navigation-voice').props.accessibilityLabel).toBe('Unmute your microphone');
+  // No voice on: no button.
+  await view.rerender(<NavigationControls bottom={0} canReport={false} muted={false} following {...handlers} voice={null} />);
+  expect(view.queryByTestId('navigation-voice')).toBeNull();
+});
+
 test('place cards: arrival, and a destination with the host’s regroup action', async () => {
   const onDone = jest.fn();
   const arrival = await render(<ArrivalCard bottom={0} arrival={{ label: 'Cafe', seconds: 1440, distanceMeters: 13_360 }} unitSystem="mi" onDone={onDone} />);
@@ -132,4 +154,138 @@ test('place cards: arrival, and a destination with the host’s regroup action',
 
   await card.rerender(<DestinationCard {...props} isHost={false} />);
   expect(card.queryByText('Regroup here')).toBeNull();
+});
+
+const previewRoute = (durationSeconds: number, distanceMeters: number, summary?: string, typicalDurationSeconds?: number) => ({
+  coordinates: [],
+  steps: [
+    { instruction: 'Head north on Mill Lane', distanceMeters: 640, durationSeconds: 60, start: { lat: 0, lon: 0 }, end: { lat: 0, lon: 0 }, coordinates: [] },
+    { instruction: 'Turn right onto A41', distanceMeters: 13_200, durationSeconds: 600, start: { lat: 0, lon: 0 }, end: { lat: 0, lon: 0 }, coordinates: [] },
+  ],
+  durationSeconds,
+  distanceMeters,
+  ...(summary ? { summary } : {}),
+  ...(typicalDurationSeconds ? { typicalDurationSeconds } : {}),
+});
+
+const PREVIEW = {
+  target: { lat: 51.5, lon: -0.1, label: 'Home' },
+  style: 'fastest' as const,
+  routes: [previewRoute(23 * 60, 17_700, 'A41', 15 * 60), previewRoute(29 * 60, 24_100, undefined, 29 * 60)],
+  choices: [
+    { index: 0, label: 'Fastest' as const, text: 'Fastest · 23 min', time: '23 min', tag: 'Fastest' },
+    { index: 1, label: 'Twisty' as const, text: 'Twisty · 29 min · +6 min', time: '29 min', tag: 'Twisty · +6 min' },
+  ],
+  index: 0,
+};
+
+test('the route preview card: the chosen way, Start, Share, and every way and its turns', async () => {
+  const onChoose = jest.fn();
+  const onStart = jest.fn();
+  const onShare = jest.fn();
+  const sheet = (extra: Partial<React.ComponentProps<typeof RoutePreviewSheet>> = {}) => (
+    <RoutePreviewSheet bottom={0} preview={PREVIEW} unitSystem="mi" onChoose={onChoose} onStart={onStart} onShare={onShare} {...extra} />
+  );
+  const view = await render(sheet());
+  expect(view.getByText('23 min')).toBeTruthy();
+  expect(view.getByText('11 mi')).toBeTruthy();
+  expect(view.getByText('Fastest')).toBeTruthy();
+  expect(view.getByText(/^Arrive .+ · via A41$/)).toBeTruthy();
+  expect(view.getByText('Fastest despite +8 min of traffic')).toBeTruthy();
+  expect(view.getByText('1 other route')).toBeTruthy();
+  expect(view.queryByTestId('route-preview-ride')).toBeNull();
+  // Every way and the turns open on demand.
+  expect(view.queryByTestId('route-preview-details')).toBeNull();
+
+  await fireEvent.press(view.getByRole('button', { name: 'Start route to Home' }));
+  expect(onStart).toHaveBeenCalled();
+  await fireEvent.press(view.getByRole('button', { name: 'Share route' }));
+  expect(onShare).toHaveBeenCalledTimes(1);
+
+  await fireEvent.press(view.getByRole('button', { name: 'Steps' }));
+  expect(view.getByTestId('route-preview-details')).toBeTruthy();
+  expect(view.getByText('Steps on the fastest')).toBeTruthy();
+  expect(view.getByText('Turn right onto A41')).toBeTruthy();
+  expect(view.getByText('Arrive at Home')).toBeTruthy();
+  const fastest = view.getByTestId('route-preview-row-0');
+  expect(fastest.props.accessibilityState).toEqual({ selected: true });
+  expect(fastest.props.accessibilityLabel).toMatch(/^Fastest · 23 min, arrive .+, 11 mi, via A41, \+8 min traffic$/);
+  expect(view.getByText('TWISTY · +6 MIN')).toBeTruthy();
+  // The chosen one again does nothing; another one is chosen.
+  await fireEvent.press(fastest);
+  expect(onChoose).not.toHaveBeenCalled();
+  await fireEvent.press(view.getByTestId('route-preview-row-1'));
+  expect(onChoose).toHaveBeenCalledWith(1);
+  await fireEvent.press(view.getByTestId('route-preview-more'));
+  expect(view.queryByTestId('route-preview-details')).toBeNull();
+  await fireEvent.press(view.getByTestId('route-preview-handle'));
+  expect(view.getByTestId('route-preview-details')).toBeTruthy();
+
+  // The twisty way chosen: usual traffic, no Fastest note.
+  await view.rerender(sheet({ preview: { ...PREVIEW, index: 1 } }));
+  expect(view.getByText('Usual traffic')).toBeTruthy();
+  expect(view.getByText('Steps on the twisty')).toBeTruthy();
+
+  // While Google is asked again, Start can't be pressed.
+  await view.rerender(sheet({ replanning: true }));
+  expect(view.getByTestId('route-preview-start').props.accessibilityState).toEqual({ disabled: true });
+
+  // In a group ride: who's in it, and Share route.
+  await view.rerender(sheet({ ride: { count: 3, avatars: [] } }));
+  expect(view.getByText('Group ride · 3 riders')).toBeTruthy();
+  await fireEvent.press(view.getByRole('button', { name: 'Share route with the group' }));
+  expect(onShare).toHaveBeenCalledTimes(2);
+  await view.rerender(sheet({ ride: { count: 1, avatars: [] } }));
+  expect(view.getByText('Group ride · 1 rider')).toBeTruthy();
+
+  await fireEvent.press(view.getByTestId('route-preview-handle'));
+  // A place with no name, one way, no traffic figure.
+  await view.rerender(sheet({ preview: { ...PREVIEW, target: { lat: 51.5, lon: -0.1 }, routes: [previewRoute(600, 900)], choices: [{ ...PREVIEW.choices[0]!, time: '10 min' }] } }));
+  expect(view.getByRole('button', { name: 'Start route to Selected place' })).toBeTruthy();
+  expect(view.getByText('Fastest route')).toBeTruthy();
+  expect(view.queryByTestId('route-preview-more')).toBeNull();
+  expect(view.getByText(/^Arrive \S+/)).toBeTruthy();
+});
+
+test('the route preview bar: back, another destination, riding style and Avoid', async () => {
+  const onBack = jest.fn();
+  const onChangeDestination = jest.fn();
+  const onStyle = jest.fn();
+  const onToggleAvoid = jest.fn();
+  const bar = (extra: Partial<React.ComponentProps<typeof RoutePreviewTopBar>> = {}) => (
+    <RoutePreviewTopBar
+      top={0} preview={PREVIEW} avoidance={{ highways: false, tolls: true, ferries: false }}
+      onBack={onBack} onChangeDestination={onChangeDestination} onStyle={onStyle} onToggleAvoid={onToggleAvoid} {...extra}
+    />
+  );
+  const view = await render(bar());
+  expect(view.getByText('Your location')).toBeTruthy();
+  await fireEvent.press(view.getByRole('button', { name: 'Back to the place' }));
+  expect(onBack).toHaveBeenCalled();
+  await fireEvent.press(view.getByRole('button', { name: 'Change destination, now Home' }));
+  expect(onChangeDestination).toHaveBeenCalled();
+
+  expect(view.getByTestId('route-preview-style-fastest').props.accessibilityState).toEqual({ selected: true, disabled: false });
+  await fireEvent.press(view.getByTestId('route-preview-style-fastest'));
+  expect(onStyle).not.toHaveBeenCalled();
+  await fireEvent.press(view.getByTestId('route-preview-style-twisty'));
+  expect(onStyle).toHaveBeenCalledWith('twisty');
+
+  // Avoid: tolls and ferries, the Settings choices.
+  const avoid = view.getByTestId('route-preview-avoid');
+  expect(avoid.props.accessibilityLabel).toBe('Avoid tolls or ferries, 1 on');
+  expect(view.queryByRole('switch', { name: 'Avoid tolls' })).toBeNull();
+  await fireEvent.press(avoid);
+  expect(view.getByRole('switch', { name: 'Avoid tolls' }).props.accessibilityState).toEqual({ checked: true, disabled: false });
+  expect(view.getByText('✓ Tolls')).toBeTruthy();
+  await fireEvent.press(view.getByRole('switch', { name: 'Avoid ferries' }));
+  expect(onToggleAvoid).toHaveBeenCalledWith('ferries');
+
+  // While Google is asked again, the chips wait; nothing avoided reads plainly.
+  await view.rerender(bar({ replanning: true, avoidance: { highways: false, tolls: false, ferries: false }, preview: { ...PREVIEW, target: { lat: 0, lon: 0 } } }));
+  expect(view.getByTestId('route-preview-style-twisty').props.accessibilityState).toEqual({ selected: false, disabled: true });
+  expect(view.getByTestId('route-preview-avoid').props.accessibilityLabel).toBe('Avoid tolls or ferries');
+  expect(view.getByText('Selected place')).toBeTruthy();
+  await fireEvent.press(view.getByTestId('route-preview-avoid'));
+  expect(view.queryByRole('switch', { name: 'Avoid tolls' })).toBeNull();
 });

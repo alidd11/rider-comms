@@ -151,8 +151,11 @@ export async function mockAuthenticatedApi(page, movement = 'stationary', backen
           this.map = options.map;
           window.__riderCommsTestMarkers = window.__riderCommsTestMarkers || [];
           window.__riderCommsTestMarkers.push(this);
+          this.label = options.label;
+          this.listeners = {};
         }
-        addListener() {}
+        addListener(event, fn) { (this.listeners[event] ||= []).push(fn); }
+        trigger(event) { (this.listeners[event] || []).forEach((fn) => fn({})); }
         setMap(map) { this.map = map; }
         getMap() { return this.map; }
         setPosition(position) { this.position = position; }
@@ -169,7 +172,14 @@ export async function mockAuthenticatedApi(page, movement = 'stationary', backen
         }
       }
       class OverlayMock {
-        constructor(options = {}) { this.options = { ...options }; this.map = options.map ?? null; }
+        constructor(options = {}) {
+          this.options = { ...options };
+          this.map = options.map ?? null;
+          this.listeners = {};
+          (window.__riderCommsTestOverlays ||= []).push(this);
+        }
+        addListener(event, fn) { (this.listeners[event] ||= []).push(fn); }
+        trigger(event) { (this.listeners[event] || []).forEach((fn) => fn({})); }
         setMap(map) { this.map = map; }
         getMap() { return this.map; }
         setOptions(options) { this.options = { ...this.options, ...options }; }

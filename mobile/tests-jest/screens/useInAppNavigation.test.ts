@@ -121,6 +121,7 @@ interface Props {
   setSelectedPlace: jest.Mock;
   setNavigationTarget: jest.Mock;
   setSelectedHazardId: jest.Mock;
+  routeAvoidance?: { highways: boolean; tolls: boolean; ferries: boolean };
 }
 
 const INSETS = { top: 44, bottom: 34 };
@@ -161,6 +162,7 @@ async function renderNavigation(overrides: Partial<Props> = {}) {
       p.setSelectedPlace,
       p.setNavigationTarget,
       p.setSelectedHazardId,
+      p.routeAvoidance,
     ),
     { initialProps: props },
   ) };
@@ -182,7 +184,7 @@ async function sendFix(lat: number, lon: number, speed: number | null = 8, headi
 async function startNavigation(overrides: Partial<Props> = {}) {
   const rendered = await renderNavigation(overrides);
   await act(async () => {
-    await rendered.result.current.startInAppNavigation(DESTINATION);
+    await rendered.result.current.startInAppNavigation(DESTINATION, { preview: false });
   });
   return rendered;
 }
@@ -356,6 +358,20 @@ test('arriving shows the ride time and the distance actually ridden, until dismi
   expect(result.current.navigationArrival).toBeNull();
 });
 
+test('colours slow and jammed traffic on the line, and drops it behind the rider', async () => {
+  const withTraffic: InAppNavigationRoute = { ...ROUTE, traffic: [{ startIndex: 0, endIndex: 1, speed: 'slow' }, { startIndex: 2, endIndex: 3, speed: 'jam' }] };
+  const client = { getDrivingRoute: jest.fn(async () => withTraffic) };
+  const { result } = await startNavigation({ client: client as never });
+  expect(result.current.navigationTrafficLines.map((stretch) => stretch.speed)).toEqual(['slow', 'jam']);
+  // Past the slow stretch (222 m up Mill Lane and round the corner): only the jam is left.
+  await sendFix(51.5, -0.1);
+  await sendFix(51.502, -0.1);
+  await sendFix(51.502, -0.0985);
+  expect(result.current.navigationTrafficLines.map((stretch) => stretch.speed)).toEqual(['jam']);
+  await act(async () => { result.current.finishInAppNavigation(); });
+  expect(result.current.navigationTrafficLines).toEqual([]);
+});
+
 test('stopping a route early shows no arrival card', async () => {
   const { result } = await startNavigation();
   await sendFix(51.5, -0.1);
@@ -381,25 +397,108 @@ test('muting silences prompts and stops speech without re-subscribing GPS', asyn
   expect(mockWatchNavigationLocation).toHaveBeenCalledTimes(1);
 });
 
-test('offers the other ways there before setting off, and switches on a tap', async () => {
+test('shows the ways there before Start, and starts the one chosen', async () => {
   const twisty: InAppNavigationRoute = { ...ROUTE, durationSeconds: 400, steps: ROUTE.steps.slice(1) };
-  const client = { getDrivingRoute: jest.fn(async () => ({ ...ROUTE, alternatives: [{ ...twisty, alternatives: [] }] })) };
-  const { result } = await startNavigation({ client: client as never });
-  expect(result.current.routeChoices.map((choice) => choice.label)).toEqual(['Fastest', 'Alternative']);
-  expect(result.current.chosenRouteIndex).toBe(0);
-  expect(result.current.activeRoute).not.toHaveProperty('alternatives');
+  const client = { getDrivingRoute: jest.fn(async () => ({ ...twisty, alternatives: [{ ...ROUTE, alternatives: [] }] })) };
+  const rendered = await renderNavigation({ client: client as never });
+  const { result } = rendered;
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
 
-  await act(async () => { result.current.chooseRoute(1); });
-  expect(result.current.chosenRouteIndex).toBe(1);
+  // No guidance yet: the preview, on the fastest way (Google's second here).
+  expect(result.current.activeRoute).toBeNull();
+  const preview = result.current.routePreview!;
+  expect(preview.target).toBe(DESTINATION);
+  expect(preview.choices.map((choice) => choice.label)).toEqual(['Alternative', 'Fastest']);
+  expect(preview.index).toBe(1);
+  expect(preview.routes.every((route) => !('alternatives' in route))).toBe(true);
+  expect(mockWatchNavigationLocation).not.toHaveBeenCalled();
+
+  await act(async () => { result.current.chooseRoutePreview(0); });
+  expect(result.current.routePreview?.index).toBe(0);
+  // One that doesn't exist changes nothing.
+  await act(async () => { result.current.chooseRoutePreview(5); });
+  expect(result.current.routePreview?.index).toBe(0);
+
+  await act(async () => { result.current.startRoutePreview(); });
+  expect(result.current.routePreview).toBeNull();
   expect(result.current.activeRoute?.steps).toEqual(twisty.steps);
+  expect(result.current.activeRoute).not.toHaveProperty('alternatives');
   expect(result.current.navigationStepIndex).toBe(0);
-  // The same one again, or one that doesn't exist, changes nothing.
+  // Nothing to start once it has gone.
   const current = result.current.activeRoute;
-  await act(async () => { result.current.chooseRoute(1); result.current.chooseRoute(5); });
+  await act(async () => { result.current.startRoutePreview(); });
   expect(result.current.activeRoute).toBe(current);
+});
 
-  await act(async () => { result.current.finishInAppNavigation(); });
-  expect(result.current.routeChoices).toEqual([]);
+test('re-plans the preview with new avoid settings, and leaves it be when none comes back', async () => {
+  const noMotorway: InAppNavigationRoute = { ...ROUTE, durationSeconds: 700 };
+  const client = { getDrivingRoute: jest.fn()
+    .mockResolvedValueOnce({ ...ROUTE, alternatives: [noMotorway] })
+    .mockResolvedValueOnce(noMotorway)
+    .mockRejectedValueOnce(new Error('directions_no_route')) };
+  const { result } = await renderNavigation({ client: client as never });
+  // Nothing to re-plan before there is a preview.
+  await act(async () => { expect(await result.current.replanRoutePreview({ highways: true, tolls: false, ferries: false })).toBe(false); });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  const avoid = { highways: true, tolls: false, ferries: false };
+  let ok = false;
+  await act(async () => { ok = await result.current.replanRoutePreview(avoid); });
+  expect(ok).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, avoid);
+  expect(result.current.routePreview?.routes).toEqual([noMotorway]);
+  expect(result.current.routePreview?.index).toBe(0);
+  expect(result.current.navigationLoading).toBe(false);
+
+  await act(async () => { ok = await result.current.replanRoutePreview({ ...avoid, ferries: true }); });
+  expect(ok).toBe(false);
+  expect(result.current.routePreview?.routes).toEqual([noMotorway]);
+  expect(result.current.navigationLoading).toBe(false);
+});
+
+test('a riding style asks again off motorways and shows the bendiest way, for this trip only', async () => {
+  const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+  const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+  const quick: InAppNavigationRoute = { ...ROUTE, durationSeconds: 600, coordinates: straight };
+  const bendy: InAppNavigationRoute = { ...ROUTE, durationSeconds: 900, coordinates: zigzag };
+  const client = { getDrivingRoute: jest.fn()
+    .mockResolvedValueOnce(quick)
+    .mockResolvedValueOnce({ ...quick, alternatives: [bendy] })
+    .mockRejectedValueOnce(new Error('directions_no_route')) };
+  const { result } = await renderNavigation({ client: client as never, routeAvoidance: { highways: false, tolls: true, ferries: false } });
+  await act(async () => { expect(await result.current.setRoutePreviewStyle('twisty')).toBe(false); });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  expect(result.current.routePreview?.style).toBe('fastest');
+  // The same style again asks nothing.
+  await act(async () => { expect(await result.current.setRoutePreviewStyle('fastest')).toBe(false); });
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(1);
+
+  let ok = false;
+  await act(async () => { ok = await result.current.setRoutePreviewStyle('twisty'); });
+  expect(ok).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, { highways: true, tolls: true, ferries: false });
+  expect(result.current.routePreview?.style).toBe('twisty');
+  expect(result.current.routePreview?.index).toBe(1);
+
+  // None that way: the style and the routes stay as they were.
+  await act(async () => { ok = await result.current.setRoutePreviewStyle('no_motorways'); });
+  expect(ok).toBe(false);
+  expect(result.current.routePreview?.style).toBe('twisty');
+  expect(result.current.routePreview?.routes).toHaveLength(2);
+});
+
+test('closing the route preview starts nothing; without a preview the fastest starts at once', async () => {
+  const slower: InAppNavigationRoute = { ...ROUTE, durationSeconds: 900 };
+  const client = { getDrivingRoute: jest.fn(async () => ({ ...slower, alternatives: [ROUTE] })) };
+  const { result } = await renderNavigation({ client: client as never });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  expect(result.current.routePreview).not.toBeNull();
+  await act(async () => { result.current.closeRoutePreview(); });
+  expect(result.current.routePreview).toBeNull();
+  expect(result.current.activeRoute).toBeNull();
+
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION, { preview: false }); });
+  expect(result.current.routePreview).toBeNull();
+  expect(result.current.activeRoute?.durationSeconds).toBe(ROUTE.durationSeconds);
 });
 
 test('switches to a faster route found in live traffic, and says so', async () => {
@@ -500,7 +599,7 @@ test('reroutes only after staying off route for the grace period', async () => {
   expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5005, lon: -0.097 }, DESTINATION, { highways: false, tolls: false, ferries: false });
   expect(result.current.activeRoute).toStrictEqual(rerouted);
   // A reroute takes Google's best way; it doesn't offer choices mid-ride.
-  expect(result.current.routeChoices).toEqual([]);
+  expect(result.current.routePreview).toBeNull();
   expect(result.current.navigationStepIndex).toBe(0);
   expect(result.current.navigationNotice).toBe('Route updated.');
   // The new route restarts the GPS feed, but the prompt audio session stays up.

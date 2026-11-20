@@ -174,6 +174,8 @@
     if (locked && activeChat) closeChat({ restoreFocus: false });
     if (locked) closeAppMenu({ restoreFocus: false });
     if (locked) setNavTripDetailsOpen(false);
+    // Moving with the route preview open: go, on the route it shows.
+    if (locked) startRoutePreview();
   }
 
   function stopMovementSafetyTracking() {

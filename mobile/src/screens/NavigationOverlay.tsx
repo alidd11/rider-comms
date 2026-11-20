@@ -13,7 +13,6 @@ import {
   navigationInstructionRoad,
   navigationSpeedUnit,
 } from '../navigationGuidance';
-import type { RouteChoice } from '@rider-comms/shared';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { colors, darkColors, lightColors, pressedFeedback } from '../theme';
 import { GLANCE_TEXT_MAX_SCALE, useNavigationPalette } from '../navigationTone';
@@ -179,9 +178,6 @@ export function NavigationTripSummary({
   remainingMeters,
   unitSystem,
   onHeight,
-  routeChoices = [],
-  chosenRouteIndex = -1,
-  onChooseRoute,
   trafficText = '',
   onEnd,
   tripDetails,
@@ -192,10 +188,6 @@ export function NavigationTripSummary({
   remainingMeters: number;
   unitSystem: UnitSystem;
   onHeight: React.Dispatch<React.SetStateAction<number>>;
-  /** Other ways there, offered while parked (PWA: #navRouteChoices). */
-  routeChoices?: RouteChoice[];
-  chosenRouteIndex?: number;
-  onChooseRoute?: (index: number) => void;
   /** "+8 min traffic" when today's traffic is adding time. */
   trafficText?: string;
   /** End sits at the left of the trip card, away from the turn, as in Google Maps. */
@@ -266,32 +258,6 @@ export function NavigationTripSummary({
           </ScrollView>
         </View>
       ) : null}
-      {routeChoices.length > 1 && onChooseRoute ? (
-        <View style={styles.navigationRouteChoices} accessibilityRole="radiogroup" accessibilityLabel="Routes" testID="navigation-route-choices">
-          {routeChoices.map((choice) => {
-            const selected = choice.index === chosenRouteIndex;
-            return (
-              <Pressable
-                key={choice.index}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-                accessibilityLabel={choice.text}
-                onPress={() => onChooseRoute(choice.index)}
-                style={({ pressed }) => [
-                  styles.navigationRouteChoice,
-                  isNight && night.card,
-                  selected && styles.navigationRouteChoiceSelected,
-                  pressed && styles.navigationRouteChoicePressed,
-                ]}
-              >
-                <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} numberOfLines={2} style={[styles.navigationRouteChoiceText, isNight && night.primaryText, selected && styles.navigationRouteChoiceTextSelected]}>
-                  {choice.text}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
       <View style={styles.navigationSummaryContent}>
         <Pressable accessibilityRole="button" accessibilityLabel="End navigation" onPress={() => { haptics.tap(); onEnd(); }} style={({ pressed }) => [styles.navigationEndButton, isNight && night.endButton, pressed && pressedFeedback]}>
           <Ionicons name="close" size={24} color={palette.textPrimary} />
@@ -326,6 +292,7 @@ export function NavigationControls({
   onToggleMute,
   onOverviewOrFollow,
   onFindStops,
+  voice,
 }: {
   bottom: number;
   canReport: boolean;
@@ -336,6 +303,12 @@ export function NavigationControls({
   onOverviewOrFollow: () => void;
   /** Petrol, cafés or food on the way; parked only, like reporting. */
   onFindStops?: () => void;
+  /**
+   * Nearby Voice or group ride voice, while navigating (PWA: #navVoiceBtn):
+   * a tap mutes or unmutes the microphone, a long press offers Leave
+   * Nearby Voice. Allowed on the move: both only make the rider less exposed.
+   */
+  voice?: { muted: boolean; onToggleMute: () => void; onMore: () => void } | null;
 }): React.JSX.Element {
   return (
     <View style={[styles.navigationActions, { bottom }]}>
@@ -359,6 +332,23 @@ export function NavigationControls({
           <MaterialCommunityIcons name="alert-plus" size={24} color={colors.textPrimary} />
         </Pressable>
       )}
+      {voice ? (
+        <Pressable
+          testID="navigation-voice"
+          style={({ pressed }) => [styles.navigationActionButton, voice.muted && styles.navigationActionButtonDanger, pressed && styles.navigationActionButtonPressed]}
+          onPress={() => { haptics.select(); voice.onToggleMute(); }}
+          onLongPress={() => { haptics.tap(); voice.onMore(); }}
+          delayLongPress={450}
+          accessibilityRole="button"
+          accessibilityState={{ selected: voice.muted }}
+          accessibilityLabel={voice.muted ? 'Unmute your microphone' : 'Mute your microphone'}
+          accessibilityHint="Hold for more voice options, such as leaving Nearby Voice"
+          accessibilityActions={[{ name: 'longpress', label: 'More voice options' }]}
+          onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') voice.onMore(); }}
+        >
+          <Ionicons name={voice.muted ? 'mic-off' : 'mic'} size={24} color={voice.muted ? '#FFFFFF' : colors.textPrimary} />
+        </Pressable>
+      ) : null}
       <Pressable
         style={({ pressed }) => [styles.navigationActionButton, muted && styles.navigationActionButtonActive, pressed && styles.navigationActionButtonPressed]}
         onPress={() => { haptics.select(); onToggleMute(); }}

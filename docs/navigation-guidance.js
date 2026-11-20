@@ -136,9 +136,12 @@
     return routes.map((route, index) => {
       const label = index === fastest ? 'Fastest' : index === twisty ? 'Twisty' : 'Alternative';
       const extra = route.durationSeconds - routes[fastest].durationSeconds;
-      const parts = [label, formatNavigationDuration(route.durationSeconds)];
-      if (index !== fastest && extra >= 60) parts.push(`+${formatNavigationDuration(extra)}`);
-      return { index, label, text: parts.join(' · ') };
+      const time = formatNavigationDuration(route.durationSeconds);
+      const more = index !== fastest && extra >= 60 ? `+${formatNavigationDuration(extra)}` : '';
+      const parts = [label, time, ...(more ? [more] : [])];
+      // An alternative's tag is just how much longer it takes, when it does.
+      const tag = label === 'Alternative' ? (more || label) : [label, ...(more ? [more] : [])].join(' · ');
+      return { index, label, text: parts.join(' · '), time, tag };
     });
   }
 
@@ -285,6 +288,34 @@
     }
   }
 
+  function routeStyleAvoidsMotorways(style, avoidMotorwaysSetting) {
+    return style === 'fastest' ? avoidMotorwaysSetting : true;
+  }
+
+  function routeIndexForStyle(routes, style) {
+    let best = 0;
+    if (style === 'twisty') {
+      const twist = routes.map((route) => routeTwistiness(route.coordinates));
+      twist.forEach((value, index) => { if (value > twist[best]) best = index; });
+      return best;
+    }
+    routes.forEach((route, index) => { if (route.durationSeconds < routes[best].durationSeconds) best = index; });
+    return best;
+  }
+
+  function routeTrafficNote(durationSeconds, typicalDurationSeconds, fastest) {
+    if (typeof typicalDurationSeconds !== 'number' || !Number.isFinite(typicalDurationSeconds)) return fastest ? 'Fastest route' : '';
+    const delay = durationSeconds - typicalDurationSeconds;
+    if (delay >= 120) return `${fastest ? 'Fastest despite ' : ''}+${formatNavigationDuration(delay)} of traffic`;
+    return fastest ? 'Fastest route, usual traffic' : 'Usual traffic';
+  }
+
+  function routeShareText(destination, arrivalLabel, meters, unit, via) {
+    const place = destination.trim() || 'my destination';
+    const road = via.trim() ? ` via ${via.trim()}` : '';
+    return `Heading to ${place}${road}: ${formatNavigationDistance(meters, unit)}, arriving about ${arrivalLabel}. Sent from Rider Comms.`;
+  }
+
   root.RiderNavigationGuidance = Object.freeze({
     formatNavigationDistance,
     formatNavigationDuration,
@@ -299,6 +330,10 @@
     routeTwistiness,
     routeChoices,
     routeTrafficDelayText,
+    routeStyleAvoidsMotorways,
+    routeIndexForStyle,
+    routeTrafficNote,
+    routeShareText,
     FASTER_ROUTE_CHECK_MS,
     fasterRouteSavingSeconds,
     fasterRouteAnnouncement,

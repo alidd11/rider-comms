@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  routeTrafficLines,
   buildNavigationPathIndex,
   matchFixToPath,
   navigationFixAgeSeconds,
@@ -244,4 +245,34 @@ test('rerouting waits less at speed, never under four seconds', async () => {
   assert.equal(navigationOffRouteGraceMs(4), NAV_OFF_ROUTE_GRACE_MAX_MS);
   assert.equal(navigationOffRouteGraceMs(15), 5_000);
   assert.equal(navigationOffRouteGraceMs(31), NAV_OFF_ROUTE_GRACE_MIN_MS);
+});
+
+const east = (metres: number) => ({ lat: 51.5, lon: -0.12 + metres / (111_195 * Math.cos(51.5 * Math.PI / 180)) });
+const trafficLine = [east(0), east(100), east(200), east(300), east(400)];
+
+test('traffic on the route line: draws the slow and jammed stretches, from where the rider is on', () => {
+  const stretches = [{ startIndex: 0, endIndex: 2, speed: 'slow' as const }, { startIndex: 3, endIndex: 4, speed: 'jam' as const }];
+  const all = routeTrafficLines(trafficLine, stretches);
+  assert.deepEqual(all.map((stretch) => [stretch.speed, stretch.coordinates.length]), [['slow', 3], ['jam', 2]]);
+  // 150 m along: the slow stretch now starts at the rider, half way to the third point.
+  const ahead = routeTrafficLines(trafficLine, stretches, 150);
+  assert.equal(ahead.length, 2);
+  assert.equal(ahead[0]!.coordinates.length, 2);
+  assert.ok(Math.abs(ahead[0]!.coordinates[0]!.lon - east(150).lon) < 1e-5);
+  // Past it: only the jam is left.
+  assert.deepEqual(routeTrafficLines(trafficLine, stretches, 250).map((stretch) => stretch.speed), ['jam']);
+  assert.deepEqual(routeTrafficLines(trafficLine, stretches, 400), []);
+});
+
+test('traffic on the route line: ignores missing traffic, bad stretches and a line too short to draw', () => {
+  assert.deepEqual(routeTrafficLines(trafficLine, undefined), []);
+  assert.deepEqual(routeTrafficLines(trafficLine, []), []);
+  assert.deepEqual(routeTrafficLines([east(0)], [{ startIndex: 0, endIndex: 1, speed: 'slow' }]), []);
+  assert.deepEqual(routeTrafficLines(trafficLine, [{ startIndex: 2, endIndex: 2, speed: 'slow' }, { startIndex: 3, endIndex: 1, speed: 'jam' }]), []);
+  // Indexes past the end are held to the line; a non-number start counts from the beginning.
+  assert.equal(routeTrafficLines(trafficLine, [{ startIndex: 2, endIndex: 99, speed: 'jam' }])[0]!.coordinates.length, 3);
+  assert.equal(routeTrafficLines(trafficLine, [{ startIndex: 0, endIndex: 1, speed: 'slow' }], Number.NaN)[0]!.coordinates.length, 2);
+  // Repeated points (no length between them) still start cleanly.
+  const doubled = [east(0), east(0), east(100)];
+  assert.equal(routeTrafficLines(doubled, [{ startIndex: 0, endIndex: 2, speed: 'slow' }], 0)[0]!.coordinates.length, 3);
 });
