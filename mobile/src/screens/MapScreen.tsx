@@ -210,10 +210,8 @@ export function MapScreen(): React.JSX.Element {
   // (PWA: isDarkOutside at map start). Re-checked each minute so the map
   // turns dark mid-ride. Without a fix, the time zone gives the longitude.
   const darkOutside = useDarkOutside(currentLocation);
-  // The Go live button says whether you're live and how many riders are
-  // near (PWA: renderMapChrome), and the riding HUD's speed.
+  // Riders near you, for the Go live button's spoken label (PWA: renderMapChrome).
   const nearbyCount = ridersInZone.length;
-  const liveLabel = publicLive ? (nearbyCount ? `Live · ${nearbyCount} nearby` : 'Live') : 'Go live';
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
 
   const hasCurrentLocation = currentLocation !== null;
@@ -887,9 +885,6 @@ export function MapScreen(): React.JSX.Element {
             ) : (
               <NearbyRidersIcon size={24} color={publicLive ? '#04210F' : '#04161D'} />
             )}
-            <Text style={[styles.mapLiveLabel, publicLive && styles.mapLiveLabelActive]} numberOfLines={1} maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} importantForAccessibility="no">
-              {liveLabel}
-            </Text>
           </Pressable>
         </View>
       )}

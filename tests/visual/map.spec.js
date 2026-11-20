@@ -78,8 +78,9 @@ test('PWA map has compact Report and Go live buttons when parked and a glanceabl
   // No separate status chip: the Go live button is the one place that says it.
   await expect(page.locator('#mapStatusChip')).toHaveCount(0);
   const live = page.locator('#joinNearbyBtn');
-  await expect(page.locator('#joinNearbyLabel')).toHaveText('Go live');
   await expect(live).toBeVisible();
+  // An icon only, no words.
+  await expect(live).toHaveText('');
   await expect(live).toHaveAccessibleName('Go live nearby');
   const [liveBox, hazardBox, locateBox] = await Promise.all([live.boundingBox(), page.locator('#reportHazardBtn').boundingBox(), page.locator('#locateBtn').boundingBox()]);
   // One compact size for all three, above the touch minimum, so the map
@@ -90,9 +91,9 @@ test('PWA map has compact Report and Go live buttons when parked and a glanceabl
     expect(box.width).toBeLessThanOrEqual(56);
     expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(1);
   }
-  // Go live is the same height, and wide enough for its label.
+  // Go live is the same square as the others.
   expect(Math.abs(liveBox.height - hazardBox.height)).toBeLessThanOrEqual(1);
-  expect(liveBox.width).toBeGreaterThan(liveBox.height);
+  expect(Math.abs(liveBox.width - liveBox.height)).toBeLessThanOrEqual(1);
   expect(hazardBox.x).toBeLessThan(liveBox.x - 150);
   expect(Math.abs((locateBox.x + locateBox.width) - (liveBox.x + liveBox.width))).toBeLessThanOrEqual(2);
   expect(locateBox.y + locateBox.height).toBeLessThanOrEqual(liveBox.y);

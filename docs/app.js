@@ -4055,14 +4055,13 @@
    */
   function renderMapChrome() {
     const live = state.publicLive && state.profile.shareLocation;
-    // One control says whether you're live and how many riders are near:
-    // "Go live", or "Live · 2 nearby". (A group ride has its own ride bar.)
-    const label = $('#joinNearbyLabel');
-    if (label) {
+    // Go live is an icon only; its colour says whether you're live, and its
+    // label tells screen readers how many riders are near. (A group ride has
+    // its own ride bar.)
+    const button = $('#joinNearbyBtn');
+    if (button) {
       const nearby = nearbyRiders.length;
-      label.textContent = live ? (nearby ? `Live · ${nearby} nearby` : 'Live') : 'Go live';
-      const button = $('#joinNearbyBtn');
-      if (button) button.setAttribute('aria-label', live ? `Leave nearby${nearby ? `, ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}` : 'Go live nearby');
+      button.setAttribute('aria-label', live ? `Leave nearby${nearby ? `, ${nearby} ${nearby === 1 ? 'rider' : 'riders'} nearby` : ''}` : 'Go live nearby');
     }
     const hud = $('#ridingHud');
     if (!hud) return;
