@@ -53,6 +53,18 @@ describe('Rider Social media service', () => {
     assert.equal(check({ riderId: 'rider_b', sessionId: SESSION }, 'file', link.exp, link.sig), false, 'another rider');
     assert.equal(check({ riderId: 'rider_a', sessionId: OTHER_SESSION }, 'file', link.exp, link.sig), false, 'another session');
     assert.equal(check({ riderId: 'rider_a', sessionId: 'not-a-session' }, 'file', link.exp, link.sig), false);
+    // Signed links must not accept UUID-looking tokens with misplaced hyphens.
+    for (const malformed of [
+      'aaaaaaaa1111-4111-8111-aaaaaaaaaaaa',
+      'aaaaaaaa-1111-4111-8111-aaaaaaaaaaa-',
+      'aaaaaaaa--1111-4111-8111-aaaaaaaaaaa',
+    ]) {
+      const forged = parts(signedMediaPath(secret, { riderId: 'rider_a', sessionId: malformed }, MEDIA, 'file', NOW));
+      assert.equal(check({ riderId: 'rider_a', sessionId: malformed }, 'file', forged.exp, forged.sig), false);
+    }
+    const compactSession = 'a'.repeat(32);
+    const compactLink = parts(signedMediaPath(secret, { riderId: 'rider_a', sessionId: compactSession }, MEDIA, 'file', NOW));
+    assert.equal(check({ riderId: 'rider_a', sessionId: compactSession }, 'file', compactLink.exp, compactLink.sig), true);
     assert.equal(check(viewer, 'poster', link.exp, link.sig), false);
     assert.equal(check(viewer, 'file', link.exp + 10 * MINUTE, link.sig), false);
     assert.equal(check(viewer, 'file', link.exp, link.sig, NOW, Buffer.alloc(32, 8)), false);
