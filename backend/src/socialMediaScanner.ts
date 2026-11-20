@@ -1,3 +1,4 @@
+import { noteProviderError, noteProviderOk } from './providerHealth.ts';
 import sharp from 'sharp';
 import { log } from './log.ts';
 
@@ -75,6 +76,7 @@ export function googleSafeSearchScanner(apiKey: string, fetchImpl: FetchLike = (
       });
     } catch (error) {
       log('warn', 'media_scan_failed', { message: error instanceof Error ? error.message : String(error) });
+      noteProviderError('google_vision', 'No answer from Google');
       throw new MediaScanUnavailableError();
     }
     let body: { responses?: Array<{ safeSearchAnnotation?: SafeSearchAnnotation; error?: { message?: string } }>; error?: { status?: string; message?: string } };
@@ -84,6 +86,7 @@ export function googleSafeSearchScanner(apiKey: string, fetchImpl: FetchLike = (
       body = {};
     }
     if (!response.ok) {
+      noteProviderError('google_vision', [response.status, body.error?.status, body.error?.message?.slice(0, 200)].filter(Boolean).join(' · '));
       log('warn', 'media_scan_refused', {
         httpStatus: response.status,
         googleStatus: typeof body.error?.status === 'string' ? body.error.status : undefined,
@@ -96,6 +99,7 @@ export function googleSafeSearchScanner(apiKey: string, fetchImpl: FetchLike = (
       log('warn', 'media_scan_incomplete', { images: images.length, answered: results.length });
       throw new MediaScanUnavailableError();
     }
+    noteProviderOk('google_vision');
     return results.some((result) => safeSearchBlocks(result.safeSearchAnnotation!)) ? 'rejected' : 'allowed';
   };
 }

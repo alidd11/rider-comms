@@ -34,6 +34,8 @@ interface RouteBucket {
   count: number;
   clientErrors: number;
   serverErrors: number;
+  /** 502/503: a provider refused (Google, storage) or a feature is off. */
+  unavailable: number;
   totalMs: number;
   histogram: number[];
 }
@@ -46,8 +48,10 @@ interface Minute {
 export interface RouteSummary {
   route: string;
   count: number;
-  /** Share of requests answered with 5xx. */
+  /** Share of requests our own code failed (500, 504 and up). */
   errorRate: number;
+  /** Share answered 502/503: a provider refused, or a feature is switched off. */
+  unavailableRate: number;
   clientErrorRate: number;
   avgMs: number;
   p50Ms: number;
@@ -71,13 +75,14 @@ export interface MetricsSnapshot {
 }
 
 function emptyBucket(): RouteBucket {
-  return { count: 0, clientErrors: 0, serverErrors: 0, totalMs: 0, histogram: new Array(LATENCY_BUCKETS_MS.length + 1).fill(0) };
+  return { count: 0, clientErrors: 0, serverErrors: 0, unavailable: 0, totalMs: 0, histogram: new Array(LATENCY_BUCKETS_MS.length + 1).fill(0) };
 }
 
 function merge(into: RouteBucket, from: RouteBucket): void {
   into.count += from.count;
   into.clientErrors += from.clientErrors;
   into.serverErrors += from.serverErrors;
+  into.unavailable += from.unavailable;
   into.totalMs += from.totalMs;
   from.histogram.forEach((value, index) => { into.histogram[index]! += value; });
 }
@@ -101,6 +106,7 @@ function summarise(route: string, bucket: RouteBucket): RouteSummary {
     route,
     count: bucket.count,
     errorRate: rate(bucket.serverErrors),
+    unavailableRate: rate(bucket.unavailable),
     clientErrorRate: rate(bucket.clientErrors),
     avgMs: bucket.count ? Math.round(bucket.totalMs / bucket.count) : 0,
     p50Ms: percentile(bucket.histogram, 0.5),
@@ -140,7 +146,10 @@ export class RequestMetrics {
     if (!current.routes.has(key) && current.routes.size >= MAX_TRACKED_ROUTES) key = 'other';
     const bucket = current.routes.get(key) ?? emptyBucket();
     bucket.count += 1;
-    if (status >= 500) bucket.serverErrors += 1;
+    // A provider refusing (Google, storage) or a feature switched off is not
+    // our code failing; counted apart so real errors stand out.
+    if (status === 502 || status === 503) bucket.unavailable += 1;
+    else if (status >= 500) bucket.serverErrors += 1;
     else if (status >= 400) bucket.clientErrors += 1;
     const duration = Math.max(0, durationMs);
     bucket.totalMs += duration;

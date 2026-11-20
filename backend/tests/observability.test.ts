@@ -94,6 +94,16 @@ describe('request metrics', () => {
     assert.equal(snapshot.process.eventLoopDelayP99Ms, null);
     assert.equal(metrics.snapshot().database, null);
 
+    // A provider refusing or a feature switched off (502/503) is counted
+    // apart from our own failures.
+    metrics.record('POST', '/social/media', 503, 600);
+    metrics.record('GET', '/places/search', 502, 200);
+    metrics.record('GET', '/places/search', 504, 200);
+    const split = metrics.snapshot();
+    assert.equal(split.totals.count, 18);
+    assert.equal(split.totals.unavailableRate, 0.1111);
+    assert.equal(split.totals.errorRate, 0.1111);
+
     // An hour later the old minutes have aged out.
     now += 60 * 60_000;
     metrics.record('GET', '/health', 200, 1);
