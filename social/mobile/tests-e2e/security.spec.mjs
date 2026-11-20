@@ -1,3 +1,4 @@
+/* global window */
 import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
 
