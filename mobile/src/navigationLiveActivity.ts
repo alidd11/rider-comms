@@ -21,7 +21,8 @@ export interface NavigationLiveActivityInput {
 export interface NavigationLiveActivityContent {
   title: string;
   subtitle: string;
-  progressBar: { progress: number };
+  /** Route progress; a group ride without navigation has none. */
+  progressBar?: { progress: number };
   imageName: string;
   dynamicIslandImageName: string;
 }
@@ -57,6 +58,28 @@ export function navigationLiveActivityContent(input: NavigationLiveActivityInput
     progressBar: { progress: Math.round(progress * 100) / 100 },
     imageName: image,
     dynamicIslandImageName: image,
+  };
+}
+
+export interface RideLiveActivityInput {
+  riderCount: number;
+  code?: string;
+  /** Where the host has asked the group to meet, if anywhere. */
+  regroupLabel?: string | null;
+}
+
+/**
+ * A group ride on the lock screen while not navigating: how many are riding
+ * and the regroup point when there is one (else the code to share).
+ */
+export function rideLiveActivityContent(input: RideLiveActivityInput): NavigationLiveActivityContent {
+  const riders = Math.max(1, Math.round(input.riderCount));
+  const regroup = input.regroupLabel?.trim();
+  return {
+    title: `Group ride · ${riders} ${riders === 1 ? 'rider' : 'riders'}`,
+    subtitle: regroup ? `Regroup at ${regroup}` : input.code ? `Ride code ${input.code}` : 'Riding together',
+    imageName: 'ride_group',
+    dynamicIslandImageName: 'ride_group',
   };
 }
 

@@ -87,6 +87,76 @@ test('PWA Navigate full route sends every named checkpoint in order to the map',
   await expect(page.locator('[data-screen="map"]')).toHaveClass(/active/);
 });
 
+test('PWA keeps unfinished scenic stops when reaching the finish and requests one recovery route', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.google?.maps?.LatLng && window.__riderCommsTestMap));
+  await page.evaluate(() => {
+    // Preserve the real curated-navigation event and defer the first GPS fix
+    // until its destination is known. This uses the existing Maps mock.
+    window.__curatedGpsCallbacks = [];
+    navigator.geolocation.getCurrentPosition = (success) => {
+      window.__curatedGpsCallbacks.push(success);
+    };
+    window.addEventListener('rider-comms:navigate-curated-route', (event) => {
+      const { stops, end } = event.detail;
+      window.__curatedTestFinish = end;
+      const point = ({ lat, lng }) => new window.google.maps.LatLng(lat, lng);
+      // The first catalogue route is a loop (start === finish); choose a
+      // distinct intermediate point so the mocked last leg has real geometry.
+      const start = point(stops[1] ?? stops[0]);
+      const finish = point(end);
+      const step = {
+        instructions: 'Continue to the scenic finish',
+        distance: { value: 1500, text: '1.5 km' },
+        duration: { value: 120, text: '2 min' },
+        start_location: start,
+        end_location: finish,
+        path: [start, finish],
+      };
+      window.__riderCommsTestRoute = { routes: [{ legs: [{
+        steps: [step],
+        distance: { value: 1500, text: '1.5 km' },
+        duration: { value: 120, text: '2 min' },
+        start_location: start,
+        end_location: finish,
+      }] }] };
+      window.__riderCommsTestRouteRequests = [];
+      for (const resolve of window.__curatedGpsCallbacks.splice(0)) {
+        resolve({ timestamp: Date.now(), coords: {
+          latitude: end.lat, longitude: end.lng, accuracy: 5, speed: 0, heading: 0,
+        } });
+      }
+    }, { once: true });
+  });
+  await openFromMenu(page, 'routes');
+  await page.locator('.curated-route-card').first().click();
+  await page.locator('[data-start-full-route]').click();
+
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  await expect.poll(() => page.evaluate(() => window.__riderCommsTestRouteRequests?.length ?? 0)).toBe(1);
+  await page.evaluate(() => {
+    const end = window.__curatedTestFinish;
+    window.gpsTest.success({ timestamp: Date.now(), coords: {
+      latitude: end.lat, longitude: end.lng, accuracy: 5, speed: 0, heading: 0,
+    } });
+  });
+  await expect.poll(() => page.evaluate(() => window.__riderCommsTestRouteRequests?.length ?? 0)).toBe(2);
+  const requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
+  expect(requests[0].waypoints.length).toBeGreaterThan(0);
+  expect(requests[1].waypoints).toEqual(requests[0].waypoints);
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+
+  // The same fix must not trigger another network reroute while stopped.
+  await page.evaluate(() => {
+    const end = window.__curatedTestFinish;
+    window.gpsTest.success({ timestamp: Date.now(), coords: {
+      latitude: end.lat, longitude: end.lng, accuracy: 5, speed: 0, heading: 0,
+    } });
+  });
+  expect(await page.evaluate(() => window.__riderCommsTestRouteRequests.length)).toBe(2);
+});
+
 test('PWA Routes shows only roads that suit the rider’s vehicle', async ({ page }) => {
   await mockAuthenticatedApi(page, 'stationary');
   await page.goto('/');

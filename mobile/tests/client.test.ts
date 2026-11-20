@@ -275,11 +275,15 @@ describe('RiderCommsClient social profiles and messages', () => {
     assert.equal((await client.getUnreadMessageCount()).unreadCount, 3);
     assert.equal((await client.markMessagesRead('friend/1')).readThroughSeq, 42);
     assert.deepEqual(await client.getConversations({ before: 'cursor_1', limit: 20 }), { conversations: [], nextCursor: null });
+    await client.sendTyping('friend/1');
+    await client.deleteMessage('msg/1');
     assert.deepEqual(requests, [
       { url: 'http://example.test/social/events?limit=25&waitMs=0&after=MA', method: 'GET', body: undefined },
       { url: 'http://example.test/messages/unread-count', method: 'GET', body: undefined },
       { url: 'http://example.test/messages/read', method: 'POST', body: { withRiderId: 'friend/1' } },
       { url: 'http://example.test/conversations?limit=20&before=cursor_1', method: 'GET', body: undefined },
+      { url: 'http://example.test/messages/typing', method: 'POST', body: { toRiderId: 'friend/1' } },
+      { url: 'http://example.test/messages/msg%2F1', method: 'DELETE', body: undefined },
     ]);
   });
 

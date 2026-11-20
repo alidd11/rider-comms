@@ -139,6 +139,14 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
         connections: [{ peerId: PEER_ID, token: 'speaker-livekit-token', url: 'wss://voice.example.test' }],
         refreshAfterMs: 20_000,
       };
+    } else if (url.pathname === '/social/events') {
+      // Mirror the long-poll API contract. Returning {} here leaves cursor
+      // unset and makes the app repeatedly reload social state with no wait,
+      // starving this WebKit voice test before its first token request.
+      if (url.searchParams.get('waitMs') !== '0') {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      body = { events: [], cursor: url.searchParams.get('after') || 'MA', hasMore: false };
     } else if (url.pathname === '/hazards/nearby') body = { hazards: [] };
     else if (url.pathname === '/rides/current') body = { ride: null };
     else if (url.pathname === '/config') body = { googleMapsApiKey: '' };
@@ -207,7 +215,9 @@ test('PWA retries a transient pre-connect voice failure and preserves VOX/speake
   // The first token mint is deliberately failed above before any LiveKit
   // Room exists. Rider Comms must self-recover through the reconnect scheduler
   // rather than requiring the rider to toggle Nearby off/on again.
-  await expect.poll(() => voiceTokenRequests, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
+  // The scheduler's first retry waits 2 s after the failed mint; a slow
+  // WebKit runner has taken longer than 5 s to get there.
+  await expect.poll(() => voiceTokenRequests, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
 
   const localVoiceButton = page.locator('#voiceStatusBtn');
   await expect(localVoiceButton).toHaveAttribute('aria-label', 'Listening hands-free');

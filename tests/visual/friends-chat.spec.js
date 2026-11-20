@@ -451,3 +451,62 @@ test('@viewport PWA puts the app back when iOS slides it up for a visible text b
   await page.evaluate(() => window.__setRiderTestRootScrollY(140));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
+
+test('PWA chat shows when a friend is typing, and a long-press offers Copy and Delete', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
+  const typing = [];
+  const deleted = [];
+  await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
+    if (url.pathname === '/messages' && request.method() === 'GET') return { body: { messages: [
+      { id: 'message-1', fromRiderId: 'rider_friend01', toRiderId: RIDER_ID, text: 'Meet at the petrol station?', createdAt: 1_700_000_000_000 },
+      { id: 'message-2', fromRiderId: RIDER_ID, toRiderId: 'rider_friend01', text: 'On my way', createdAt: 1_700_000_060_000 },
+    ], nextCursor: null, peerReadThroughMessageId: null } };
+    if (url.pathname === '/messages/typing') { typing.push(JSON.parse(request.postData() || '{}')); return { body: {} }; }
+    if (url.pathname.startsWith('/messages/message-') && request.method() === 'DELETE') { deleted.push(url.pathname); return { body: {} }; }
+    if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    return null;
+  });
+
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatMessages')).toContainText('On my way');
+
+  await page.locator('#chatInput').pressSequentially('Be there');
+  await expect.poll(() => typing).toEqual([{ toRiderId: 'rider_friend01' }]);
+
+  // The friend's bubble offers Copy only.
+  await page.locator('[data-message-id="message-1"] .chat-bubble').click({ button: 'right' });
+  await expect(page.locator('#chatBubbleMenu')).toBeVisible();
+  await expect(page.locator('[data-bubble-action="delete"]')).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#chatBubbleMenu')).toBeHidden();
+
+  // Your own bubble can be deleted.
+  await page.locator('[data-message-id="message-2"] .chat-bubble').click({ button: 'right' });
+  await page.locator('[data-bubble-action="delete"]').click();
+  await expect.poll(() => deleted).toEqual(['/messages/message-2']);
+  await expect(page.locator('#chatMessages')).not.toContainText('On my way');
+  await expect(page.locator('#chatMessages')).toContainText('Meet at the petrol station?');
+});
+
+test('PWA chat shows the friend typing when the signal arrives', async ({ page }) => {
+  let polls = 0;
+  await mockAuthenticatedApi(page, 'stationary', async ({ url }) => {
+    if (url.pathname === '/social/events' && url.searchParams.get('after') && url.searchParams.get('waitMs') !== '0') {
+      polls += 1;
+      if (polls >= 3) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return { body: { events: [{ cursor: `M${polls}`, type: 'typing', actorRiderId: 'rider_friend01', entityId: 'rider_friend01', createdAt: Date.now() }], cursor: `M${polls}`, hasMore: false } };
+      }
+    }
+    if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: 'Maya', handle: '@maya_moto', avatarId: 'ridge' } };
+    return null;
+  });
+  await page.goto('/#friends');
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatScreen')).toBeVisible();
+  await expect(page.locator('#chatTyping')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#chatTyping')).toContainText('Maya is typing');
+});

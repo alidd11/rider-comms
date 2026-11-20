@@ -1073,4 +1073,15 @@ export const MIGRATIONS: Migration[] = [
           'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent'));
     `,
   },
+  {
+    // Chat: "typing…" travels as a social event, so every replica's
+    // long-poll wakes for it the same way a new message does.
+    name: '0061_typing_event',
+    sql: `
+      ALTER TABLE social_events DROP CONSTRAINT IF EXISTS social_events_event_type_check;
+      ALTER TABLE social_events ADD CONSTRAINT social_events_event_type_check CHECK (
+        event_type IN ('message', 'message_read', 'friend_request', 'friend_request_resolved', 'friend_removed', 'social_refresh', 'typing')
+      );
+    `,
+  },
 ];

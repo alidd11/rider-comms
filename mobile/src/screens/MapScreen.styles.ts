@@ -97,10 +97,8 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
   mapLiveButton: {
-    minWidth: BOTTOM_BAR_HEIGHT,
-    maxWidth: '62%',
-    paddingLeft: 14,
-    paddingRight: 16,
+    // An icon only: its colour says whether you're live.
+    width: BOTTOM_BAR_HEIGHT,
     height: BOTTOM_BAR_HEIGHT,
     borderRadius: 14,
     flexDirection: 'row',
@@ -115,8 +113,6 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
   mapLiveButtonActive: { backgroundColor: '#35E68A' },
-  mapLiveLabel: { fontSize: 15, fontWeight: '800', color: '#04161D', flexShrink: 1 },
-  mapLiveLabelActive: { color: '#04210F' },
   // Riding HUD: shown while Ride Safe has locked the map (moving, not navigating).
   hudChips: { position: 'absolute', left: spacing.md, right: spacing.md, zIndex: 10, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   hudChip: {
@@ -461,6 +457,18 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.textMuted,
     opacity: 0.55,
   },
+  navigationSummaryHandleButton: { alignSelf: 'center', paddingHorizontal: spacing.lg, minHeight: 20, justifyContent: 'flex-start' },
+  navigationTripDetails: { paddingBottom: spacing.md },
+  navigationTripActions: { flexDirection: 'row', gap: spacing.sm },
+  navigationTripAction: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 16, backgroundColor: colors.surfaceRaised },
+  navigationTripActionText: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+  navigationTripHeading: { marginTop: spacing.md, marginBottom: spacing.xs, fontSize: 13, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase', color: colors.textMuted },
+  navigationTripTurns: { maxHeight: 220 },
+  navigationTripTurn: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing.md, paddingVertical: spacing.sm },
+  navigationTripTurnDivided: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  navigationTripTurnText: { flex: 1, fontSize: 15, lineHeight: 20, color: colors.textPrimary },
+  navigationTripTurnDistance: { fontSize: 14, fontWeight: '700', color: colors.textMuted },
+  navigationTripArrive: { fontWeight: '800' },
   navigationSummaryContent: {
     flexDirection: 'row',
     alignItems: 'center',

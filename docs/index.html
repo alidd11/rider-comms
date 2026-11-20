@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=117">
+  <link rel="stylesheet" href="app.css?v=120">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -257,7 +257,7 @@
           </div>
           <div id="mapBottomBar" class="map-bottom-bar">
             <button id="reportHazardBtn" class="map-hazard-button" aria-label="Report on the road"><svg aria-hidden="true"><use href="#i-hazard-report"/></svg></button>
-            <button id="joinNearbyBtn" class="map-live-button" aria-label="Go live nearby" aria-pressed="false"><svg aria-hidden="true"><use href="#i-nearby"/></svg><span id="joinNearbyLabel" aria-hidden="true">Go live</span></button>
+            <button id="joinNearbyBtn" class="map-live-button" aria-label="Go live nearby" aria-pressed="false"><svg aria-hidden="true"><use href="#i-nearby"/></svg></button>
           </div>
           <section id="mapDrawer" class="map-drawer" data-state="peek" aria-label="Where to">
             <button id="mapDrawerHandle" class="map-drawer-handle" type="button" aria-controls="mapDrawerRecent" aria-expanded="false" aria-label="Show recent places"><span></span></button>
@@ -303,7 +303,17 @@
           </div>
           <div id="navRouteChoices" class="nav-route-choices" role="radiogroup" aria-label="Routes" hidden></div>
           <button id="navRecentreBtn" class="nav-recentre" type="button" hidden><svg aria-hidden="true"><use href="#i-locate"/></svg>Re-centre</button>
+          <div id="navTripDetails" class="nav-trip-details" role="region" aria-label="Trip details" hidden>
+            <div class="nav-trip-actions">
+              <button id="navTripAddStop" class="nav-trip-action" type="button"><svg aria-hidden="true"><use href="#i-plus"/></svg><span>Add stop</span></button>
+              <button id="navTripShare" class="nav-trip-action" type="button"><svg aria-hidden="true"><use href="#i-share"/></svg><span>Share ETA</span></button>
+              <button id="navTripEnd" class="nav-trip-action danger" type="button"><svg aria-hidden="true"><use href="#i-close"/></svg><span>End</span></button>
+            </div>
+            <h2 class="nav-trip-heading">Turns</h2>
+            <ol id="navTripTurns" class="nav-trip-turns"></ol>
+          </div>
           <div id="navSummary" class="nav-summary" hidden>
+            <button id="navTripToggle" class="nav-trip-toggle" type="button" aria-expanded="false" aria-controls="navTripDetails" aria-label="Show trip details"></button>
             <button id="endNavBtn" class="icon-button nav-end-button" aria-label="End navigation"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
             <div class="nav-summary-eta"><strong id="navArrival"></strong><span>arrival</span></div>
             <div class="nav-summary-stat"><strong id="navEta"></strong><span>left</span><em id="navTraffic" class="nav-traffic" hidden></em></div>
@@ -417,9 +427,11 @@
     <main id="chatThread" class="chat-thread" role="log" aria-live="polite" aria-label="Conversation">
       <button id="chatLoadOlder" class="button tertiary chat-load-older" type="button" hidden>Load older messages</button>
       <div id="chatMessages"></div>
+      <p id="chatTyping" class="chat-typing" aria-live="polite" hidden><span class="chat-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="chatTypingText">Typing…</span></p>
       <p id="chatLoading" class="support-copy chat-loading" role="status" hidden>Loading conversation…</p>
       <div id="chatEmpty" class="empty-state chat-empty" hidden><div class="hero-icon"><svg><use href="#i-friends"/></svg></div><h2>Start a private conversation</h2><p id="chatEmptyCopy">Messages in this thread are only available to you and your friend.</p></div>
     </main>
+    <div id="chatBubbleMenu" class="chat-bubble-menu" role="menu" hidden><button type="button" role="menuitem" data-bubble-action="copy">Copy</button><button type="button" role="menuitem" data-bubble-action="delete" class="danger">Delete</button></div>
     <form id="chatComposer" class="chat-composer">
       <label class="sr-only" for="chatInput">Message</label>
       <textarea id="chatInput" maxlength="1000" rows="1" placeholder="Message" enterkeyhint="send"></textarea>
@@ -439,10 +451,10 @@
   <script src="avatar-system.js?v=1" defer></script>
   <script src="navigation-road-events.js?v=1" defer></script>
   <script src="position-interpolation.js?v=1" defer></script>
-  <script src="navigation-guidance.js?v=1" defer></script>
+  <script src="navigation-guidance.js?v=2" defer></script>
   <script src="navigation-camera.js?v=3" defer></script>
   <script src="navigation-puck.js?v=2" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=122" defer></script>
+  <script src="app.js?v=125" defer></script>
 </body>
 </html>

@@ -2698,7 +2698,7 @@ html.map-drawer-open #ridePill{display:none}
    colour says live or not) bottom-right, Centre on me above it. */
 .map-bottom-bar{justify-content:space-between;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right))}
 .map-hazard-button{width:52px;height:52px;border-radius:14px}.map-hazard-button svg{width:24px;height:24px}
-#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button{flex:none;width:auto;min-width:52px;max-width:62%;height:52px;padding:0 16px 0 14px;border-radius:14px;font-size:.95rem;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button{flex:none;width:52px;min-width:52px;height:52px;padding:0;border-radius:14px}
 #joinNearbyLabel{overflow:hidden;text-overflow:ellipsis}
 #app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button[data-active=true] svg{animation:live-icon-pulse 2.4s ease-in-out infinite}
 @keyframes live-icon-pulse{50%{opacity:.55}}
@@ -2956,3 +2956,37 @@ html.map-day .nav-end-button{background:rgb(11 18 22/.06);border-color:rgb(11 18
 .friend-invite p{margin:4px 0 0;color:var(--text-secondary);font-size:.875rem;line-height:1.4}
 .friend-invite-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .friend-invite-actions .button{min-height:46px}
+.chat-typing{display:flex;align-items:center;gap:8px;margin:2px 0 6px;color:var(--text-muted);font-size:.8125rem;font-weight:650}
+.chat-typing[hidden]{display:none}
+.chat-typing-dots{display:inline-flex;gap:3px;padding:8px 10px;border-radius:14px;background:var(--surface)}
+.chat-typing-dots i{width:6px;height:6px;border-radius:50%;background:var(--text-muted);animation:typing-dot 1s ease-in-out infinite}
+.chat-typing-dots i:nth-child(2){animation-delay:.15s}.chat-typing-dots i:nth-child(3){animation-delay:.3s}
+@keyframes typing-dot{0%,80%,100%{opacity:.35;transform:none}40%{opacity:1;transform:translateY(-2px)}}
+.chat-bubble-menu{position:fixed;z-index:80;display:flex;gap:2px;padding:4px;border-radius:14px;background:var(--surface-raised);box-shadow:var(--shadow-lg)}
+.chat-bubble-menu[hidden]{display:none}
+.chat-bubble-menu button{min-height:44px;padding:0 16px;border:0;border-radius:10px;background:transparent;color:var(--text);font:700 .9375rem/1 Inter,sans-serif}
+.chat-bubble-menu button.danger{color:var(--danger)}
+.chat-bubble-menu button[hidden]{display:none}
+.chat-bubble-row{-webkit-touch-callout:none;user-select:none}
+@media(prefers-reduced-motion:reduce){.chat-typing-dots i{animation:none}}
+.nav-trip-toggle{position:absolute;top:0;left:calc(50% - 60px);z-index:1;width:120px;height:28px;padding:0;border:0;background:transparent;cursor:pointer}
+.nav-trip-toggle:active{transform:none}
+#app.safety-locked .nav-trip-toggle,#app.safety-locked .nav-trip-details{display:none}
+.nav-trip-details{position:absolute;z-index:12;left:0;right:0;bottom:calc(var(--nav-summary-height,104px) + var(--navigation-control-inset) - 24px);max-height:min(52vh,420px);overflow:auto;overscroll-behavior:contain;padding:18px max(18px,var(--safe-right)) 36px max(18px,var(--safe-left));border-radius:24px 24px 0 0;background:#11171b;color:#f5f4fb;box-shadow:0 -12px 34px rgb(0 0 0/.36);animation:screen-in .22s ease-out}
+.nav-trip-details[hidden]{display:none}
+.nav-trip-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.nav-trip-action{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:64px;border:0;border-radius:var(--radius-lg);background:#1f282e;color:#f5f4fb;font:700 .8125rem/1.2 Inter,sans-serif}
+.nav-trip-action svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav-trip-action.danger{color:#ff8a80}
+.nav-trip-heading{margin:18px 0 6px;font-size:.8125rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#9aa6ad}
+.nav-trip-turns{margin:0;padding:0;list-style:none}
+.nav-trip-turns li{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid rgb(255 255 255/.08);font-size:.9375rem;line-height:1.35}
+.nav-trip-turns li:first-child{border-top:0}
+.nav-trip-turns em{flex:none;font-style:normal;font-weight:700;color:#9aa6ad}
+.nav-trip-turns li.arrive span{font-weight:800}
+html.map-day .nav-trip-details{background:#fff;color:#0b1216;box-shadow:0 -10px 30px rgb(22 38 46/.14)}
+html.map-day .nav-trip-action{background:#eef2f4;color:#0b1216}
+html.map-day .nav-trip-action.danger{color:#c62828}
+html.map-day .nav-trip-heading,html.map-day .nav-trip-turns em{color:#58666e}
+html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
+.nav-trip-open .map-actions,.nav-trip-open #navSpeedBadge,.nav-trip-open #navRecentreBtn{visibility:hidden}

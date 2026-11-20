@@ -95,6 +95,7 @@
   }
 
   let navRemainingSeconds = null;
+  let navRemainingMeters = null;
   function formatArrivalTime(remainingSeconds) {
     return new Date(Date.now() + remainingSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -140,6 +141,8 @@
   /** Curated itineraries preserve all unfinished checkpoints through reroutes.
    * An ad-hoc fuel stop is inserted first, rather than replacing the route. */
   let navCuratedStops = [];
+  let navCuratedFinishReplanAt = null;
+  const CURATED_FINISH_REPLAN_COOLDOWN_MS = 30000;
   const CURATED_STOP_REACHED_RADIUS_M = 140;
   const CURATED_STOP_MAX_GPS_ACCURACY_M = 80;
 
@@ -386,6 +389,8 @@
     $('#navDistance').textContent = formatNavDistance(remainingMeters);
     $('#navEta').textContent = formatNavDuration(remainingSeconds);
     navRemainingSeconds = remainingSeconds;
+    navRemainingMeters = remainingMeters;
+    if (!$('#navTripDetails').hidden) renderNavTripTurns();
     $('#navArrival').textContent = formatArrivalTime(remainingSeconds);
     renderNavSpeed();
     renderNavigationRoadAhead();
@@ -763,6 +768,7 @@
           return;
         }
         navStop = null;
+        navCuratedFinishReplanAt = null;
         navCuratedStops = [...remainingStops];
         applyRoute(result, destination, label);
       }
@@ -893,6 +899,41 @@
 
   let navStatusNoticeTimer;
 
+  // The trip card (Google Maps' swipe-up sheet): the turns left, Add stop,
+  // Share ETA and End. Parked only: Ride Safe closes it and hides the handle.
+  function renderNavTripTurns() {
+    const list = $('#navTripTurns');
+    if (!list) return;
+    const upcoming = navSteps.slice(navStepIndex + 1);
+    const rows = upcoming.map((step) => `<li><span>${escapeHtml(stripHtml(step.instructions))}</span><em>${escapeHtml(formatNavDistance(step.distance.value))}</em></li>`);
+    rows.push(`<li class="arrive"><span>Arrive at ${escapeHtml(navDestination?.label || 'your destination')}</span></li>`);
+    list.innerHTML = rows.join('');
+  }
+
+  function setNavTripDetailsOpen(open) {
+    const details = $('#navTripDetails');
+    const toggle = $('#navTripToggle');
+    if (!details || !toggle) return;
+    const show = open && navSteps.length > 0 && !syncMovementSafetyBanner();
+    if (show) renderNavTripTurns();
+    details.hidden = !show;
+    $('#app').classList.toggle('nav-trip-open', show);
+    toggle.setAttribute('aria-expanded', String(show));
+    toggle.setAttribute('aria-label', show ? 'Hide trip details' : 'Show trip details');
+  }
+
+  async function shareNavigationEta() {
+    if (!Number.isFinite(navRemainingSeconds)) return;
+    const text = navigationGuidance.navigationEtaShareText(navDestination?.label || '', formatArrivalTime(navRemainingSeconds), navRemainingMeters || 0, state.unit);
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else { await navigator.clipboard.writeText(text); showToast('ETA copied. Paste it to share.'); }
+      haptic('success');
+    } catch (error) {
+      if (error?.name !== 'AbortError') showToast('Couldn’t share your ETA. Try again.');
+    }
+  }
+
   /** `info` notices (a successful reroute) are styled neutrally and clear
    * themselves; warnings stay until the problem is resolved. */
   function setNavStatusNotice(message, { tone = 'warning', clearAfterMs = 0 } = {}) {
@@ -1008,7 +1049,24 @@
     const lastStep = navSteps[navSteps.length - 1];
     const lastEnd = { lat: lastStep.end_location.lat(), lng: lastStep.end_location.lng() };
     if (effectiveIndex === navSteps.length - 1 && metersBetween(here, lastEnd) <= NAV_STEP_ARRIVAL_RADIUS_M) {
-      finishNavigation(true);
+      if (navCuratedStops.length === 0) {
+        finishNavigation(true);
+        return;
+      }
+      // Curated destinations are not a shortcut around unfinished checkpoints.
+      // Only a reliable raw fix near the finish may initiate recovery; the
+      // snapped map puck alone is not evidence that the rider has arrived.
+      const atFinish = navCurrentAccuracyMeters != null && navCurrentAccuracyMeters >= 0
+        && navCurrentAccuracyMeters <= CURATED_STOP_MAX_GPS_ACCURACY_M
+        && metersBetween(raw, lastEnd) + navCurrentAccuracyMeters <= CURATED_STOP_REACHED_RADIUS_M;
+      const previous = navCuratedFinishReplanAt;
+      if (atFinish && !navRerouting
+        && (previous === null || Date.now() - previous >= CURATED_FINISH_REPLAN_COOLDOWN_MS)) {
+        navCuratedFinishReplanAt = Date.now();
+        navOffRouteSince = null;
+        const count = navCuratedStops.length;
+        rerouteFromCurrentPosition(raw, `${count} planned ${count === 1 ? 'stop' : 'stops'} remaining. Recalculating…`);
+      }
       return;
     }
 
@@ -1087,11 +1145,17 @@
    * reroute request itself fails, the rider just keeps following the
    * stale route/step they were already on rather than losing navigation
    * entirely. */
-  async function rerouteFromCurrentPosition(here) {
-    if (!navDestination) return;
+  async function rerouteFromCurrentPosition(here, notice = 'Rerouting…') {
+    if (!navDestination || navRerouting) return;
     navRerouting = true;
-    setNavStatusNotice('Rerouting…');
-    if (!navMuted) speak('Rerouting.');
+    if (notice === 'Rerouting…') {
+      // Preserve ordinary missed-turn guidance and its existing safety audit.
+      setNavStatusNotice('Rerouting…');
+      if (!navMuted) speak('Rerouting.');
+    } else {
+      setNavStatusNotice(notice);
+      if (!navMuted) speak(notice);
+    }
     getDirectionsService().route(
       navigationRouteRequest(here, { lat: navDestination.lat, lng: navDestination.lng }),
       (result, status) => {
@@ -1271,6 +1335,8 @@
     $('#navBanner').hidden = true;
     $('#navSpeedBadge').hidden = true;
     $('#navSummary').hidden = true;
+    setNavTripDetailsOpen(false);
+    navRemainingMeters = null;
     $('#app').style.removeProperty('--nav-banner-height');
     $('#app').classList.remove('nav-mode');
     void keepScreenOnForNavigation(false);
@@ -1280,6 +1346,7 @@
     navTrafficScale = 1;
     navStop = null;
     navCuratedStops = [];
+    navCuratedFinishReplanAt = null;
     renderNavRouteChoices();
     const traffic = $('#navTraffic');
     if (traffic) traffic.hidden = true;

@@ -5,6 +5,7 @@ import {
   NavigationLiveActivity,
   liveActivityImageForManeuver,
   navigationLiveActivityContent,
+  rideLiveActivityContent,
   type LiveActivityApi,
   type NavigationLiveActivityContent,
 } from '../src/navigationLiveActivity.ts';
@@ -43,8 +44,8 @@ describe('navigation Live Activity', () => {
       imageName: 'nav_left',
       dynamicIslandImageName: 'nav_left',
     });
-    assert.equal(navigationLiveActivityContent({ ...input, progress: Number.NaN }).progressBar.progress, 0);
-    assert.equal(navigationLiveActivityContent({ ...input, progress: 3 }).progressBar.progress, 1);
+    assert.equal(navigationLiveActivityContent({ ...input, progress: Number.NaN }).progressBar?.progress, 0);
+    assert.equal(navigationLiveActivityContent({ ...input, progress: 3 }).progressBar?.progress, 1);
   });
 
   it('starts once, skips identical updates and stops with a final state', () => {
@@ -175,5 +176,19 @@ describe('navigation Live Activity dismissed by the rider', () => {
     activity.update(navigationLiveActivityContent(input));
     assert.doesNotThrow(() => activity.stop());
     assert.equal(calls[0]?.[0], 'start');
+  });
+});
+
+describe('rideLiveActivityContent', () => {
+  it('shows how many are riding, then the regroup point or the code', () => {
+    assert.deepEqual(rideLiveActivityContent({ riderCount: 4, code: 'ABC123', regroupLabel: ' Esso, A1 ' }), {
+      title: 'Group ride · 4 riders',
+      subtitle: 'Regroup at Esso, A1',
+      imageName: 'ride_group',
+      dynamicIslandImageName: 'ride_group',
+    });
+    assert.equal(rideLiveActivityContent({ riderCount: 1, code: 'ABC123' }).title, 'Group ride · 1 rider');
+    assert.equal(rideLiveActivityContent({ riderCount: 0, code: 'ABC123', regroupLabel: '' }).subtitle, 'Ride code ABC123');
+    assert.equal(rideLiveActivityContent({ riderCount: 3 }).subtitle, 'Riding together');
   });
 });

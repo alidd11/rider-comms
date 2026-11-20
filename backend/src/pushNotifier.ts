@@ -14,7 +14,19 @@ export interface PushContent {
   route: string;
   /** Notifications with the same tag replace each other (one per chat). */
   tag: string;
+  /** The friend request this is about, for the phone's Accept and Decline buttons. */
+  requestId?: string;
 }
+
+/**
+ * The phone's buttons on a notification (mobile/src/notifications:
+ * NOTIFICATION_CATEGORIES): Reply on a message, Accept and Decline on a
+ * friend request.
+ */
+export const PUSH_CATEGORY: Partial<Record<PushEvent, string>> = {
+  message: 'message',
+  friend_request: 'friend_request',
+};
 
 // Settings → Notifications: Friend requests (notifyInvites), Messages (notifyChat).
 // A regroup point goes only to riders in that ride, while they ride, so it
@@ -79,7 +91,13 @@ export class PushNotifier {
     }
     if (expo.length > 0) {
       const { goneTokens } = await sendExpoPush(
-        expo.map((device) => ({ to: device.address, title: content.title, body: content.body, data: { route: content.route, type: event } })),
+        expo.map((device) => ({
+          to: device.address,
+          title: content.title,
+          body: content.body,
+          data: { route: content.route, type: event, ...(content.requestId ? { requestId: content.requestId } : {}) },
+          ...(PUSH_CATEGORY[event] ? { categoryId: PUSH_CATEGORY[event] } : {}),
+        })),
         this.fetchImpl,
         this.options.expoAccessToken,
       );

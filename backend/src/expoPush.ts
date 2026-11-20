@@ -18,6 +18,8 @@ export interface ExpoPushMessage {
   title: string;
   body: string;
   data: Record<string, string>;
+  /** Which buttons the phone shows (registered by the app). */
+  categoryId?: string;
 }
 
 /** Sends up to 100 messages; returns the tokens Expo says are no longer valid. */

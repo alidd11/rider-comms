@@ -65,9 +65,17 @@ import { bearingDegrees } from './mapMarkers';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { DEFAULT_ROUTE_AVOIDANCE, type RouteAvoidance } from '../routeOptionsPreference';
 import type { CuratedRoute } from '../routes/curatedRoutes';
-import { advanceCuratedStops, initialCuratedStops, type CuratedNavigationStop } from '../routes/curatedNavigation';
+import {
+  advanceCuratedStops,
+  initialCuratedStops,
+  CURATED_STOP_MAX_GPS_ACCURACY_METERS,
+  CURATED_STOP_REACHED_METERS,
+  type CuratedNavigationStop,
+} from '../routes/curatedNavigation';
 
 const NAV_STEP_ARRIVAL_RADIUS_M = 30;
+/** Avoid repeated route requests while parked at the finish with missed stops. */
+const CURATED_FINISH_REPLAN_COOLDOWN_MS = 30_000;
 /** Shown briefly after a successful reroute; styled as information, not a warning. */
 export const ROUTE_UPDATED_NOTICE = 'Route updated.';
 const ROUTE_UPDATED_NOTICE_MS = 4000;
@@ -198,6 +206,7 @@ export function useInAppNavigation(
   /** The route still to ride (PWA: trimNavigationRouteLine); null draws all of it. */
   const [routeLineAhead, setRouteLineAhead] = React.useState<{ lat: number; lon: number }[] | null>(null);
   const navOffRouteSince = React.useRef<number | null>(null);
+  const curatedFinishReplanAt = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
   // A stop on the way (petrol found along the route); every route asked for
   // goes through it until the rider gets there.
@@ -427,6 +436,7 @@ export function useInAppNavigation(
     navigationPromptProgress.current = null;
     finalNavigationPrompt.current = null;
     navOffRouteSince.current = null;
+    curatedFinishReplanAt.current = null;
     navRerouting.current = false;
     navGpsTracker.current.reset();
     navigationCameraHeading.current = null;
@@ -619,6 +629,7 @@ export function useInAppNavigation(
     try {
       const calculated = await client.getDrivingRoute(origin, destination, routeAvoidanceRef.current, undefined, pending);
       setNavigationStop(null);
+      curatedFinishReplanAt.current = null;
       updateCuratedStops(pending);
       applyInAppRoute(calculated, origin, destination, false);
       setSelectedPlace(null);
@@ -765,11 +776,44 @@ export function useInAppNavigation(
           return;
         }
 
+        // Confirm curated checkpoints using the raw GPS fix before checking
+        // for arrival. Reaching the destination must not discard a viewpoint
+        // that the rider never passed (including after a GPS interruption).
+        const checkpoint = advanceCuratedStops(curatedStopsRef.current, raw, position.coords.accuracy);
+        if (checkpoint.reached) {
+          updateCuratedStops(checkpoint.remaining);
+          const reached = `Passed ${checkpoint.reached.label}.`;
+          setNavigationNotice(reached);
+          if (!navigationMutedRef.current) speakNavigationPrompt(reached);
+        }
+
         if (
           stepIndex === activeRoute.steps.length - 1 &&
           metersBetween(here, startingStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M
         ) {
-          finishInAppNavigation(true);
+          if (curatedStopsRef.current.length === 0) {
+            finishInAppNavigation(true);
+            return;
+          }
+          // The map puck may be snapped/predicted; only a reliable *raw* fix
+          // near the finish authorises a recovery reroute. Retry at most once
+          // per cooldown so a failed provider request cannot loop each fix.
+          placePuck();
+          const accuracy = position.coords.accuracy;
+          const atFinish = accuracy != null && Number.isFinite(accuracy)
+            && accuracy >= 0 && accuracy <= CURATED_STOP_MAX_GPS_ACCURACY_METERS
+            && metersBetween(raw, startingStep.end) + accuracy <= CURATED_STOP_REACHED_METERS;
+          const previous = curatedFinishReplanAt.current;
+          if (atFinish && !navRerouting.current
+            && (previous === null || nowMs - previous >= CURATED_FINISH_REPLAN_COOLDOWN_MS)) {
+            curatedFinishReplanAt.current = nowMs;
+            navOffRouteSince.current = null;
+            const count = curatedStopsRef.current.length;
+            setNavigationNotice(`${count} planned ${count === 1 ? 'stop' : 'stops'} remaining. Recalculating…`);
+            void requestInAppRoute(raw, navigationDestination, true).catch(() => {
+              setNavigationNotice('Couldn’t restore the remaining planned stops. Continue with caution.');
+            });
+          }
           return;
         }
 
@@ -796,16 +840,6 @@ export function useInAppNavigation(
           remainingSeconds: effectiveStep.durationSeconds * stepLeft
             + activeRoute.steps.slice(effectiveIndex + 1).reduce((sum, step) => sum + step.durationSeconds, 0),
         };
-        // Complete scenic checkpoints strictly in order on accurate fixes.
-        // Missed turns and reroutes retain every unfinished point, rather
-        // than silently changing the curated road sequence.
-        const checkpoint = advanceCuratedStops(curatedStopsRef.current, raw, position.coords.accuracy);
-        if (checkpoint.reached) {
-          updateCuratedStops(checkpoint.remaining);
-          const reached = `Passed ${checkpoint.reached.label}.`;
-          setNavigationNotice(reached);
-          if (!navigationMutedRef.current) speakNavigationPrompt(reached);
-        }
         // At the stop: say so, and route straight on from here.
         const stop = navigationStopRef.current;
         if (stop && metersBetween(raw, stop) <= NAV_STOP_REACHED_RADIUS_M) {

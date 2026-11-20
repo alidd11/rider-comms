@@ -206,6 +206,12 @@
       .sort((a, b) => (a.detourSeconds ?? Infinity) - (b.detourSeconds ?? Infinity));
   }
 
+  /** Port of navigationEtaShareText: the message "Share ETA" sends. */
+  function navigationEtaShareText(destination, arrivalLabel, remainingMeters, unit) {
+    const place = String(destination || '').trim() || 'my destination';
+    return `On my way to ${place}. Arriving about ${arrivalLabel}, ${formatNavigationDistance(remainingMeters, unit)} to go. Sent from Rider Comms.`;
+  }
+
   const NAVIGATION_CONTINUE_PROMPT_METERS = 2000;
 
   function navigationStepStartPrompt(instruction, stepMeters, unit, alreadySpokenAtTurn) {
@@ -298,6 +304,7 @@
     fasterRouteAnnouncement,
     routeAheadPath,
     stopsOnTheWay,
+    navigationEtaShareText,
     navigationSpeedUnit,
   });
 })(typeof window === 'undefined' ? globalThis : window);

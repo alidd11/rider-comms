@@ -1774,6 +1774,37 @@
     }));
   }
 
+
+  /**
+   * Preview uses the same account-scoped persisted road-avoidance choices
+   * as the in-app navigator (docs/app/02-session-api.js + 03-state-and-shell.js).
+   * Read on opening detail, not for every catalogue card.
+   */
+  function previewNavigationAvoidance() {
+    const defaults = { avoidHighways: false, avoidTolls: false, avoidFerries: false };
+    try {
+      let session = null;
+      for (const storage of [localStorage, sessionStorage]) {
+        try {
+          const candidate = JSON.parse(storage.getItem('rider-comms-session-v1') || 'null');
+          if (candidate && typeof candidate.riderId === 'string' && typeof candidate.token === 'string') {
+            session = candidate;
+            break;
+          }
+        } catch { /* A corrupt session must not prevent the preview fallback. */ }
+      }
+      const key = session?.riderId ? `rider-comms-pwa-v4:${session.riderId}` : 'rider-comms-pwa-v4';
+      const saved = JSON.parse(localStorage.getItem(key) || 'null');
+      return {
+        avoidHighways: saved?.avoidHighways === true,
+        avoidTolls: saved?.avoidTolls === true,
+        avoidFerries: saved?.avoidFerries === true,
+      };
+    } catch {
+      return defaults;
+    }
+  }
+
   function openRoute(id) {
     const route = routes.find((item) => item.id === id);
     if (!route) return;
@@ -1785,8 +1816,17 @@
       <div class="route-detail-body"><div class="route-detail-stats"><span><b>${route.distance} mi</b>route</span><span><b>${route.minutes} min</b>travel time*</span><span><b>${escapeHtml(route.difficulty)}</b>difficulty</span>${approach ? `<span><b>${escapeHtml(approach.replace(' from you', ''))}</b>to start</span>` : ''}</div>
       <button class="button primary wide" data-start-full-route>Navigate full route</button>
       <p class="caption route-action-note">Follow the start, ${route.waypoints.length} planned ${route.waypoints.length === 1 ? 'stop' : 'stops'} and finish in Rider Comms.</p>
-      <div class="route-trace-panel"><div><h3>Waypoint sketch</h3><p>${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}</p></div><span class="route-trace-detail">${routeTraceSvg(route, 156, 88)}</span></div>
-      <p class="route-sketch-disclaimer">Waypoint sketch only — lines do not follow the road network.</p>
+      <div class="route-road-preview-panel">
+        <h3>Road-following preview</h3>
+        <div class="route-road-preview-media">
+          <div class="route-road-preview" data-road-preview aria-label="Road map for ${escapeHtml(route.name)}" role="img"></div>
+          <div class="route-road-preview-fallback" data-road-preview-fallback>
+            <div class="route-trace-panel"><div><h3>Waypoint sketch</h3><p>${route.waypoints.length} curated ${route.waypoints.length === 1 ? 'waypoint' : 'waypoints'}</p></div><span class="route-trace-detail">${routeTraceSvg(route, 156, 88)}</span></div>
+          </div>
+        </div>
+        <p class="route-preview-estimate" data-road-preview-metrics aria-live="polite">Calculating road preview…</p>
+        <p class="route-preview-note">Calculated through the planned stops. The roads and traffic may change when navigation begins.</p>
+      </div>
       <div class="route-itinerary"><h3>Route itinerary</h3><ol>${[route.start, ...route.waypoints, route.end].map((point, index, points) => `<li><span class="route-itinerary-marker">${index === 0 ? 'S' : index === points.length - 1 ? 'F' : index}</span><span><strong>${escapeHtml(index === 0 ? (itineraryLabels[route.id]?.start || 'Start') : index === points.length - 1 ? (itineraryLabels[route.id]?.end || 'Finish') : (itineraryLabels[route.id]?.waypoints[index - 1] || `Stop ${index}`))}</strong><small>${index === 0 ? 'Start' : index === points.length - 1 ? 'Finish' : `Stop ${index} of ${route.waypoints.length}`}</small></span></li>`).join('')}</ol></div><p>${escapeHtml(route.description)}</p><div class="rider-note"><strong>Route note</strong><p>${escapeHtml(route.note)}</p></div>
       <div><h3>Highlights</h3><div class="badge-row"><span class="badge">${escapeHtml(roadTypeLabels[route.roadType.toLowerCase()] || route.roadType)}</span>${route.highlights.map((item) => `<span class="badge">${escapeHtml(item)}</span>`).join('')}</div></div>
       <div class="safety-box"><svg><use href="#i-shield"/></svg><div><strong>Before you go</strong>${route.safety.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></div>
@@ -1807,6 +1847,74 @@
         if (backdrop.isConnected) detailImage.src = heroImageSrc;
       }, { once: true });
       heroImage.src = heroImageSrc;
+    }
+    // Calculate only when the rider opens a detail, not for every card.
+    // The fallback deliberately remains a labelled waypoint sketch until
+    // Google returns every requested leg of the road-following itinerary.
+    const previewMapElement = backdrop.querySelector('[data-road-preview]');
+    const fallbackElement = backdrop.querySelector('[data-road-preview-fallback]');
+    const previewMetrics = backdrop.querySelector('[data-road-preview-metrics]');
+    let previewRenderer = null;
+    let previewClosed = false;
+    const previewFailed = () => {
+      if (previewClosed || !backdrop.isConnected) return;
+      previewMetrics.textContent = 'Road preview unavailable. Waypoint sketch only.';
+    };
+    if (previewMapElement && window.google?.maps?.Map
+      && window.google.maps.DirectionsService && window.google.maps.DirectionsRenderer) {
+      try {
+        const maps = window.google.maps;
+        const previewMap = new maps.Map(previewMapElement, {
+          center: { lat: route.start[0], lng: route.start[1] },
+          zoom: 9,
+          disableDefaultUI: true,
+          gestureHandling: 'none',
+          clickableIcons: false,
+          keyboardShortcuts: false,
+        });
+        previewRenderer = new maps.DirectionsRenderer({
+          map: previewMap,
+          preserveViewport: false,
+        });
+        const point = ([lat, lng]) => ({ lat, lng });
+        new maps.DirectionsService().route({
+          origin: point(route.start),
+          destination: point(route.end),
+          travelMode: maps.TravelMode.DRIVING,
+          optimizeWaypoints: false,
+          provideRouteAlternatives: false,
+          ...previewNavigationAvoidance(),
+          waypoints: route.waypoints.map((coordinate) => ({ location: point(coordinate), stopover: true })),
+        }, (result, status) => {
+          if (previewClosed || !backdrop.isConnected) return;
+          const legs = result?.routes?.[0]?.legs;
+          if (status !== 'OK' || !Array.isArray(legs)
+            || legs.length !== route.waypoints.length + 1
+            || legs.some((leg) => !Number.isFinite(leg.distance?.value) || !Number.isFinite(leg.duration?.value))) {
+            previewFailed();
+            return;
+          }
+          const distanceMetres = legs.reduce((sum, leg) => sum + leg.distance.value, 0);
+          const durationSeconds = legs.reduce((sum, leg) => sum + leg.duration.value, 0);
+          const calculatedMiles = distanceMetres / 1609.344;
+          previewRenderer.setDirections(result);
+          previewMapElement.classList.add('ready');
+          fallbackElement.hidden = true;
+          const mismatch = route.distance > 0
+            && Math.abs(calculatedMiles - route.distance) / route.distance > 0.25;
+          previewMetrics.textContent = `${Math.round(calculatedMiles)} mi · ${Math.ceil(durationSeconds / 60)} min calculated drive · ${route.waypoints.length} planned stops`;
+          if (mismatch) {
+            const warning = document.createElement('p');
+            warning.className = 'route-preview-warning';
+            warning.textContent = 'Calculated distance differs from the reviewed route. Check the roads before riding.';
+            previewMetrics.after(warning);
+          }
+        });
+      } catch {
+        previewFailed();
+      }
+    } else {
+      previewFailed();
     }
     const previousFocus = document.activeElement;
     const onKeyDown = (event) => {
@@ -1831,7 +1939,13 @@
         first.focus();
       }
     };
-    const close = () => { backdrop.remove(); document.removeEventListener('keydown', onKeyDown); previousFocus?.focus?.(); };
+    const close = () => {
+      previewClosed = true;
+      previewRenderer?.setMap(null);
+      backdrop.remove();
+      document.removeEventListener('keydown', onKeyDown);
+      previousFocus?.focus?.();
+    };
     document.addEventListener('keydown', onKeyDown);
     backdrop.querySelector('.route-detail-close').addEventListener('click', close);
     backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });

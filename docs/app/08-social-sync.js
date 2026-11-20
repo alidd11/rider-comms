@@ -51,6 +51,7 @@
             }
             if (event.type === 'message' || event.type === 'message_read' || event.type === 'friend_removed') chatDirty = true;
             if (peerProfileDirty) friendProfileDirtyRiderIds.add(event.actorRiderId);
+            if (event.type === 'typing') showFriendTyping(event.actorRiderId);
             if (event.type === 'social_refresh' && event.entityId === 'profile' && event.actorRiderId === state.profile.riderId) {
               selfProfileDirty = true;
             }

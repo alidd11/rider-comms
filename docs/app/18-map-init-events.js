@@ -369,6 +369,32 @@
         if (window.scrollY > 0) window.scrollTo(0, 0);
       });
     });
+    $('#chatInput').addEventListener('input', noteChatTyping);
+    let bubblePressTimer = null;
+    $('#chatMessages').addEventListener('contextmenu', (event) => {
+      const row = event.target.closest?.('[data-message-id]');
+      if (!row) return;
+      event.preventDefault();
+      openBubbleMenu(row, event.clientX, event.clientY);
+    });
+    $('#chatMessages').addEventListener('pointerdown', (event) => {
+      const row = event.target.closest?.('[data-message-id]');
+      if (!row || event.pointerType === 'mouse') return;
+      clearTimeout(bubblePressTimer);
+      bubblePressTimer = setTimeout(() => openBubbleMenu(row, event.clientX, event.clientY), 450);
+    });
+    ['pointerup', 'pointercancel', 'pointermove'].forEach((type) => $('#chatMessages').addEventListener(type, (event) => {
+      if (type === 'pointermove' && Math.abs(event.movementY) < 4) return;
+      clearTimeout(bubblePressTimer);
+    }));
+    $('#chatBubbleMenu').addEventListener('click', (event) => {
+      const action = event.target.closest?.('[data-bubble-action]')?.dataset.bubbleAction;
+      if (action) void runBubbleAction(action);
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (!$('#chatBubbleMenu').hidden && !event.target.closest?.('#chatBubbleMenu')) closeBubbleMenu();
+    });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !$('#chatBubbleMenu').hidden) closeBubbleMenu(); });
     $('#chatInput').addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatMessage(); }
     });
@@ -448,6 +474,10 @@
     $('#voiceStatusBtn').addEventListener('click', toggleVoiceMute);
     $('#rideVoiceStatus').addEventListener('click', toggleVoiceMute);
     $('#endNavBtn').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripToggle').addEventListener('click', () => { haptic('select'); setNavTripDetailsOpen($('#navTripDetails').hidden); });
+    $('#navTripEnd').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
+    $('#navTripShare').addEventListener('click', () => void shareNavigationEta());
+    $('#navTripAddStop').addEventListener('click', () => { setNavTripDetailsOpen(false); openSheet('stopsOnTheWay'); });
   }
 
   // --- Auth screen -----------------------------------------------------

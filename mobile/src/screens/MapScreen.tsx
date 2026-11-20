@@ -10,7 +10,7 @@
 // mounting a second map instance, which keeps map billing/state predictable
 // and matches the PWA's tab-owned interaction model.
 import * as React from 'react';
-import { AccessibilityInfo, ActivityIndicator, BackHandler, View, Text, Pressable, Alert, Linking, useColorScheme, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, BackHandler, View, Text, Pressable, Alert, Linking, Share, useColorScheme, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -35,7 +35,7 @@ import { useFriends } from '../friends/FriendsContext';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
 import { HazardDetailCard } from '../components/HazardDetailCard';
-import { useNavigationLiveActivity } from './useNavigationLiveActivity';
+import { useNavigationLiveActivity, useRideLiveActivity } from './useNavigationLiveActivity';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
 import type { NavigationTarget } from '../navigationLinks';
 import { useMovementSafety } from '../safety/MovementSafetyContext';
@@ -51,7 +51,7 @@ import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
 import { ArrivalCard, DestinationCard } from './MapPlaceCards';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
@@ -210,10 +210,8 @@ export function MapScreen(): React.JSX.Element {
   // (PWA: isDarkOutside at map start). Re-checked each minute so the map
   // turns dark mid-ride. Without a fix, the time zone gives the longitude.
   const darkOutside = useDarkOutside(currentLocation);
-  // The Go live button says whether you're live and how many riders are
-  // near (PWA: renderMapChrome), and the riding HUD's speed.
+  // Riders near you, for the Go live button's spoken label (PWA: renderMapChrome).
   const nearbyCount = ridersInZone.length;
-  const liveLabel = publicLive ? (nearbyCount ? `Live · ${nearbyCount} nearby` : 'Live') : 'Go live';
   const hudSpeed = speedMps == null ? null : Math.round(speedMps * (unitSystem === 'km' ? 3.6 : 2.23694));
 
   const hasCurrentLocation = currentLocation !== null;
@@ -424,6 +422,19 @@ export function MapScreen(): React.JSX.Element {
     : `Open in ${navigationProviderLabel(navigationProvider)}`;
 
   const navigationArrivalLabel = new Date(Date.now() + remainingNavigationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // The trip card's expanded half: parked only (Ride Safe leaves it out).
+  const tripDetails = React.useMemo(() => (activeRoute && !lockedForSafety ? {
+    upcomingSteps: activeRoute.steps.slice(navigationStepIndex + 1),
+    destinationLabel: navigationDestination?.label ?? '',
+    onAddStop: () => setStopsSheetOpen(true),
+    onShareEta: () => {
+      const message = navigationEtaShareText(navigationDestination?.label ?? '', navigationArrivalLabel, remainingNavigationMeters, unitSystem);
+      void Share.share({ message }).then(() => haptics.success()).catch(() => undefined);
+    },
+  } : undefined), [activeRoute, lockedForSafety, navigationStepIndex, navigationDestination, navigationArrivalLabel, remainingNavigationMeters, unitSystem]);
+  useRideLiveActivity(activeRide && !activeRoute
+    ? { riderCount: roster.length, code: activeRide.code, regroupLabel: regroup?.label }
+    : null);
   useNavigationLiveActivity(
     activeRoute && currentNavigationStep
       ? {
@@ -874,9 +885,6 @@ export function MapScreen(): React.JSX.Element {
             ) : (
               <NearbyRidersIcon size={24} color={publicLive ? '#04210F' : '#04161D'} />
             )}
-            <Text style={[styles.mapLiveLabel, publicLive && styles.mapLiveLabelActive]} numberOfLines={1} maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} importantForAccessibility="no">
-              {liveLabel}
-            </Text>
           </Pressable>
         </View>
       )}
@@ -1012,6 +1020,7 @@ export function MapScreen(): React.JSX.Element {
             onChooseRoute={chooseRoute}
             trafficText={activeRoute ? routeTrafficDelayText(activeRoute.durationSeconds, activeRoute.typicalDurationSeconds) : ''}
             onEnd={() => finishInAppNavigation(false)}
+            tripDetails={tripDetails}
           />
         </NavigationNightContext.Provider>
       )}

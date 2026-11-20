@@ -108,3 +108,23 @@ test('Android phones get a notification channel before the token', async () => {
     restore.restore();
   }
 });
+
+test('notification buttons: the categories register, and each press maps to an action', async () => {
+  const { NOTIFICATION_CATEGORIES, notificationQuickAction, registerNotificationCategories } = jest.requireActual('../../src/notifications/pushNotifications') as typeof import('../../src/notifications/pushNotifications');
+  const Notifications = jest.requireMock('expo-notifications') as { setNotificationCategoryAsync: jest.Mock };
+  Notifications.setNotificationCategoryAsync.mockClear();
+  Notifications.setNotificationCategoryAsync.mockRejectedValueOnce(new Error('unsupported'));
+  await registerNotificationCategories();
+  expect(Notifications.setNotificationCategoryAsync).toHaveBeenCalledWith('message', NOTIFICATION_CATEGORIES.message);
+  expect(Notifications.setNotificationCategoryAsync).toHaveBeenCalledWith('friend_request', NOTIFICATION_CATEGORIES.friend_request);
+
+  expect(notificationQuickAction('reply', { route: '#chat:sam' }, 'Hi')).toEqual({ kind: 'reply', riderId: 'sam', text: 'Hi' });
+  expect(notificationQuickAction('reply', { route: '#friends' }, 'Hi')).toBeNull();
+  expect(notificationQuickAction('reply', { route: '#chat:sam' })).toBeNull();
+  expect(notificationQuickAction('reply', { route: '#chat:sam' }, 'x'.repeat(1200))).toEqual({ kind: 'reply', riderId: 'sam', text: 'x'.repeat(1000) });
+  expect(notificationQuickAction('accept', { requestId: 'r1' })).toEqual({ kind: 'accept', requestId: 'r1' });
+  expect(notificationQuickAction('decline', { requestId: 'r1' })).toEqual({ kind: 'decline', requestId: 'r1' });
+  expect(notificationQuickAction('accept', {})).toBeNull();
+  expect(notificationQuickAction('accept', null)).toBeNull();
+  expect(notificationQuickAction('expo.modules.notifications.actions.DEFAULT', { route: '#friends' })).toBeNull();
+});

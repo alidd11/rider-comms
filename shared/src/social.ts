@@ -82,7 +82,9 @@ export type SocialEventType =
   | 'friend_request'
   | 'friend_request_resolved'
   | 'friend_removed'
-  | 'social_refresh';
+  | 'social_refresh'
+  /** The actor is typing to the recipient; clients show it for a few seconds. */
+  | 'typing';
 
 /**
  * A lightweight invalidation event for authenticated social state.
