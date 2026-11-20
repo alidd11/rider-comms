@@ -2698,7 +2698,7 @@ html.map-drawer-open #ridePill{display:none}
    colour says live or not) bottom-right, Centre on me above it. */
 .map-bottom-bar{justify-content:space-between;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right))}
 .map-hazard-button{width:52px;height:52px;border-radius:14px}.map-hazard-button svg{width:24px;height:24px}
-#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button{flex:none;width:auto;min-width:52px;max-width:62%;height:52px;padding:0 16px 0 14px;border-radius:14px;font-size:.95rem;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+#app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button{flex:none;width:52px;min-width:52px;height:52px;padding:0;border-radius:14px}
 #joinNearbyLabel{overflow:hidden;text-overflow:ellipsis}
 #app:not(.nav-mode) .screen-map #joinNearbyBtn.map-live-button[data-active=true] svg{animation:live-icon-pulse 2.4s ease-in-out infinite}
 @keyframes live-icon-pulse{50%{opacity:.55}}
