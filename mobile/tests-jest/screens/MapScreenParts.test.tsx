@@ -150,7 +150,12 @@ test('the route preview lists the ways there, chooses one on a tap, and starts o
   const onChoose = jest.fn();
   const onStart = jest.fn();
   const onClose = jest.fn();
-  const view = await render(<RoutePreviewSheet bottom={0} preview={preview} unitSystem="mi" onChoose={onChoose} onStart={onStart} onClose={onClose} />);
+  const onToggleAvoid = jest.fn();
+  const avoidance = { highways: false, tolls: true, ferries: false };
+  const sheet = (extra: Partial<React.ComponentProps<typeof RoutePreviewSheet>> = {}) => (
+    <RoutePreviewSheet bottom={0} preview={preview} unitSystem="mi" avoidance={avoidance} onChoose={onChoose} onToggleAvoid={onToggleAvoid} onStart={onStart} onClose={onClose} {...extra} />
+  );
+  const view = await render(sheet());
   expect(view.getByText('Home')).toBeTruthy();
   expect(view.getByText('Fastest · +8 min traffic')).toBeTruthy();
   expect(view.getByText('Twisty · +6 min')).toBeTruthy();
@@ -172,6 +177,18 @@ test('the route preview lists the ways there, chooses one on a tap, and starts o
   expect(onClose).toHaveBeenCalled();
 
   // A place with no name still reads as somewhere.
-  await view.rerender(<RoutePreviewSheet bottom={0} preview={{ ...preview, target: { lat: 51.5, lon: -0.1 } }} unitSystem="mi" onChoose={onChoose} onStart={onStart} onClose={onClose} />);
+  // Avoid chips: the Settings choices, changeable here.
+  expect(view.getByRole('switch', { name: 'Avoid tolls' }).props.accessibilityState).toEqual({ checked: true, disabled: false });
+  expect(view.getByRole('switch', { name: 'Avoid motorways' }).props.accessibilityState).toEqual({ checked: false, disabled: false });
+  await fireEvent.press(view.getByRole('switch', { name: 'Avoid motorways' }));
+  expect(onToggleAvoid).toHaveBeenCalledWith('highways');
+
+  // While Google is asked again, neither the chips nor Start can be pressed.
+  await view.rerender(sheet({ replanning: true }));
+  expect(view.getByRole('switch', { name: 'Avoid ferries' }).props.accessibilityState).toEqual({ checked: false, disabled: true });
+  expect(view.getByTestId('route-preview-start').props.accessibilityState).toEqual({ disabled: true });
+
+  // A place with no name still reads as somewhere.
+  await view.rerender(sheet({ preview: { ...preview, target: { lat: 51.5, lon: -0.1 } } }));
   expect(view.getByText('Selected place')).toBeTruthy();
 });

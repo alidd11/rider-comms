@@ -353,3 +353,53 @@ test('PWA starts the route on show when the rider moves off with the preview ope
   await expect(page.locator('#routePreview')).toBeHidden();
   await expect(page.locator('#app')).not.toHaveClass(/route-preview-mode/);
 });
+
+test('PWA preview puts each way\'s time on the map and re-plans when told to avoid motorways', async ({ page }) => {
+  await startNavigationHome(page);
+  await page.locator('#endNavBtn').click();
+  await page.evaluate(() => {
+    const latLng = (lat, lng) => new google.maps.LatLng(lat, lng);
+    const way = (minutes, east) => {
+      const path = Array.from({ length: 20 }, (_, i) => latLng(51.5 + i * 0.001, -0.1 + east));
+      return { summary: east ? 'B road' : 'M1', overview_path: path, legs: [{
+        steps: [{ instructions: 'Head <b>north</b>', maneuver: '', distance: { value: 3000, text: '' }, duration: { value: minutes * 60, text: '' }, start_location: path[0], end_location: path[19], path }],
+        distance: { value: 3000, text: '' }, duration: { value: minutes * 60, text: '' }, start_location: path[0], end_location: path[19],
+      }] };
+    };
+    window.__way = way;
+    window.__riderCommsTestRoute = { routes: [way(20, 0), way(26, 0.002)] };
+    window.__riderCommsTestRouteRequests = [];
+    window.__riderCommsTestMarkers = [];
+  });
+  await page.locator('[data-saved-place="home"]').click();
+  await expect(page.locator('#routePreview')).toBeVisible();
+
+  const bubbles = () => page.evaluate(() => window.__riderCommsTestMarkers
+    .filter((marker) => marker.map && marker.label?.text)
+    .map((marker) => [marker.label.text, marker.label.color]));
+  await expect.poll(bubbles).toEqual(expect.arrayContaining([['20 min', '#ffffff'], ['26 min', '#0b1216']]));
+  // Tapping the other time on the map chooses that way.
+  await page.evaluate(() => window.__riderCommsTestMarkers
+    .find((marker) => marker.map && marker.label?.text === '26 min').trigger('click'));
+  await expect(page.locator('#routePreviewList [role="radio"]').nth(1)).toHaveAttribute('aria-checked', 'true');
+
+  // Avoid motorways: the same setting as Settings, and new ways asked for.
+  const motorways = page.locator('[data-preview-avoid="avoidHighways"]');
+  await expect(motorways).toHaveAttribute('aria-pressed', 'false');
+  await page.evaluate(() => { window.__riderCommsTestRoute = { routes: [window.__way(31, 0.002)] }; });
+  await motorways.click();
+  await expect(motorways).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#routePreviewList [role="radio"] strong')).toHaveText(['31 min']);
+  const requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
+  expect(requests.at(-1).avoidHighways).toBe(true);
+  expect(requests.at(-1).provideRouteAlternatives).toBe(true);
+  expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('"avoidHighways":true')))).toBe(true);
+
+  // No way without ferries: the setting goes back and the routes stay.
+  await page.evaluate(() => { window.__riderCommsTestRoute = null; });
+  const ferries = page.locator('[data-preview-avoid="avoidFerries"]');
+  await ferries.click();
+  await expect(ferries).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#routePreviewList [role="radio"] strong')).toHaveText(['31 min']);
+  await expect(page.locator('#routePreviewStart')).toBeEnabled();
+});

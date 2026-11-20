@@ -151,8 +151,11 @@ export async function mockAuthenticatedApi(page, movement = 'stationary', backen
           this.map = options.map;
           window.__riderCommsTestMarkers = window.__riderCommsTestMarkers || [];
           window.__riderCommsTestMarkers.push(this);
+          this.label = options.label;
+          this.listeners = {};
         }
-        addListener() {}
+        addListener(event, fn) { (this.listeners[event] ||= []).push(fn); }
+        trigger(event) { (this.listeners[event] || []).forEach((fn) => fn({})); }
         setMap(map) { this.map = map; }
         getMap() { return this.map; }
         setPosition(position) { this.position = position; }

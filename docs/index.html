@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=121">
+  <link rel="stylesheet" href="app.css?v=122">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -290,6 +290,7 @@
               <div class="route-preview-copy"><span>Route to</span><strong id="routePreviewTitle"></strong></div>
             </div>
             <div id="routePreviewList" class="route-preview-list" role="radiogroup" aria-label="Routes"></div>
+            <div class="route-preview-avoid" role="group" aria-label="Avoid"><span aria-hidden="true">Avoid</span><button type="button" data-preview-avoid="avoidHighways" aria-pressed="false" aria-label="Avoid motorways">Motorways</button><button type="button" data-preview-avoid="avoidTolls" aria-pressed="false" aria-label="Avoid tolls">Tolls</button><button type="button" data-preview-avoid="avoidFerries" aria-pressed="false" aria-label="Avoid ferries">Ferries</button></div>
             <button id="routePreviewStart" class="button primary wide route-preview-start" type="button"><svg aria-hidden="true"><use href="#i-nav-arrow"/></svg><span>Start</span></button>
           </section>
           <div id="navBanner" class="nav-banner" hidden>
@@ -462,6 +463,6 @@
   <script src="navigation-camera.js?v=3" defer></script>
   <script src="navigation-puck.js?v=2" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=126" defer></script>
+  <script src="app.js?v=127" defer></script>
 </body>
 </html>

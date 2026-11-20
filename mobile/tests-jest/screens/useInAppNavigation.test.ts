@@ -414,6 +414,31 @@ test('shows the ways there before Start, and starts the one chosen', async () =>
   expect(result.current.activeRoute).toBe(current);
 });
 
+test('re-plans the preview with new avoid settings, and leaves it be when none comes back', async () => {
+  const noMotorway: InAppNavigationRoute = { ...ROUTE, durationSeconds: 700 };
+  const client = { getDrivingRoute: jest.fn()
+    .mockResolvedValueOnce({ ...ROUTE, alternatives: [noMotorway] })
+    .mockResolvedValueOnce(noMotorway)
+    .mockRejectedValueOnce(new Error('directions_no_route')) };
+  const { result } = await renderNavigation({ client: client as never });
+  // Nothing to re-plan before there is a preview.
+  await act(async () => { expect(await result.current.replanRoutePreview({ highways: true, tolls: false, ferries: false })).toBe(false); });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  const avoid = { highways: true, tolls: false, ferries: false };
+  let ok = false;
+  await act(async () => { ok = await result.current.replanRoutePreview(avoid); });
+  expect(ok).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, avoid);
+  expect(result.current.routePreview?.routes).toEqual([noMotorway]);
+  expect(result.current.routePreview?.index).toBe(0);
+  expect(result.current.navigationLoading).toBe(false);
+
+  await act(async () => { ok = await result.current.replanRoutePreview({ ...avoid, ferries: true }); });
+  expect(ok).toBe(false);
+  expect(result.current.routePreview?.routes).toEqual([noMotorway]);
+  expect(result.current.navigationLoading).toBe(false);
+});
+
 test('closing the route preview starts nothing; without a preview the fastest starts at once', async () => {
   const slower: InAppNavigationRoute = { ...ROUTE, durationSeconds: 900 };
   const client = { getDrivingRoute: jest.fn(async () => ({ ...slower, alternatives: [ROUTE] })) };

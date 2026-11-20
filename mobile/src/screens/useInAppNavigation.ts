@@ -153,6 +153,9 @@ export interface InAppNavigation {
   chooseRoutePreview: (index: number) => void;
   startRoutePreview: () => void;
   closeRoutePreview: () => void;
+  /** Asks again with these avoid settings (motorways, tolls, ferries);
+   * false, with the routes shown left as they were, when none comes back. */
+  replanRoutePreview: (avoidance: RouteAvoidance) => Promise<boolean>;
   startCuratedNavigation: (route: CuratedRoute) => Promise<void>;
   curatedRemainingStops: CuratedNavigationStop[];
   stopFollowingRoute: () => void;
@@ -637,6 +640,28 @@ export function useInAppNavigation(
 
   const closeRoutePreview = React.useCallback(() => setRoutePreview(null), []);
 
+  const routePreviewRef = React.useRef(routePreview);
+  routePreviewRef.current = routePreview;
+  const replanRoutePreview = React.useCallback(async (avoidance: RouteAvoidance): Promise<boolean> => {
+    const planning = routePreviewRef.current;
+    if (!planning) return false;
+    setNavigationLoading(true);
+    try {
+      const planned = await client.getDrivingRoute(planning.origin, planning.target, avoidance);
+      if (routePreviewRef.current !== planning) return false;
+      const routes = [planned, ...(planned.alternatives ?? [])].map(withoutAlternatives);
+      const choices = routeChoices(routes);
+      const fastest = choices.find((choice) => choice.label === 'Fastest')?.index ?? 0;
+      setRoutePreview({ ...planning, routes, choices, index: fastest });
+      fitRoute({ coordinates: routes.flatMap((route) => route.coordinates) }, ROUTE_PREVIEW_SHEET_PADDING);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setNavigationLoading(false);
+    }
+  }, [client, fitRoute]);
+
   const startRoutePreview = React.useCallback(() => {
     if (!routePreview) return;
     const { routes, index, origin, target } = routePreview;
@@ -1005,6 +1030,7 @@ export function useInAppNavigation(
     chooseRoutePreview,
     startRoutePreview,
     closeRoutePreview,
+    replanRoutePreview,
     navigationStop,
     findStopsOnTheWay,
     addNavigationStop,

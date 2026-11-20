@@ -3000,6 +3000,12 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .route-preview-row strong{grid-area:time;font-size:1.15rem;font-weight:820}
 .route-preview-tag{grid-area:tag;justify-self:end;color:var(--accent-ink);font-size:.8rem;font-weight:760;text-align:right}
 .route-preview-meta{grid-area:meta;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:.85rem}
+.route-preview-avoid{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none}
+.route-preview-avoid>span{color:var(--text-secondary);font-size:.8rem;font-weight:700;margin-right:2px}
+.route-preview-avoid button{flex:none;min-height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--surface);color:var(--text);font:inherit;font-size:.85rem;font-weight:700}
+.route-preview-avoid button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.route-preview.loading .route-preview-list{opacity:.5}
+.route-preview-start:disabled{opacity:.6}
 .route-preview-start{min-height:52px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:1.05rem}
 .route-preview-start svg{width:20px;height:20px}
 #app.route-preview-mode .map-header,#app.route-preview-mode #mapDrawer,#app.route-preview-mode .map-actions,#app.route-preview-mode #joinNearbyBtn,#app.route-preview-mode #ridePill,#app.route-preview-mode #poiChipRow,#app.route-preview-mode #destinationCard{display:none}

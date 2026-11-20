@@ -12,6 +12,7 @@ import { haptics } from '../haptics';
 import { routeTrafficDelayText } from '@rider-comms/shared';
 import { styles } from './MapScreen.styles';
 import type { NavigationArrival, RoutePreview } from './useInAppNavigation';
+import type { RouteAvoidance } from '../routeOptionsPreference';
 
 export function ArrivalCard({ bottom, arrival, unitSystem, onDone }: {
   bottom: number;
@@ -156,11 +157,22 @@ function arrivalClock(seconds: number): string {
  * tap on a row or a line chooses it. Parked only: MapScreen starts the
  * shown route itself if Ride Safe locks.
  */
-export function RoutePreviewSheet({ bottom, preview, unitSystem, onChoose, onStart, onClose }: {
+const AVOID_CHIPS: ReadonlyArray<{ key: keyof RouteAvoidance; label: string }> = [
+  { key: 'highways', label: 'Motorways' },
+  { key: 'tolls', label: 'Tolls' },
+  { key: 'ferries', label: 'Ferries' },
+];
+
+export function RoutePreviewSheet({ bottom, preview, unitSystem, avoidance, replanning = false, onChoose, onToggleAvoid, onStart, onClose }: {
   bottom: number;
   preview: RoutePreview;
   unitSystem: UnitSystem;
+  /** Settings → Map & navigation's avoid choices, changeable here too. */
+  avoidance: RouteAvoidance;
+  /** Asking Google again after an avoid chip changed. */
+  replanning?: boolean;
   onChoose: (index: number) => void;
+  onToggleAvoid: (key: keyof RouteAvoidance) => void;
   onStart: () => void;
   onClose: () => void;
 }): React.JSX.Element {
@@ -181,7 +193,7 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, onChoose, onSta
           <Text numberOfLines={1} accessibilityRole="header" style={styles.destinationCardTitle}>{name}</Text>
         </View>
       </View>
-      <View accessibilityRole="radiogroup" accessibilityLabel="Routes" style={styles.routePreviewList}>
+      <View accessibilityRole="radiogroup" accessibilityLabel="Routes" accessibilityState={{ busy: replanning }} style={[styles.routePreviewList, replanning && styles.routePreviewListBusy]}>
         {preview.choices.map((choice) => {
           const route = preview.routes[choice.index]!;
           const selected = choice.index === preview.index;
@@ -209,11 +221,30 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, onChoose, onSta
           );
         })}
       </View>
+      <View style={styles.routePreviewAvoid} accessibilityLabel="Avoid">
+        <Text style={styles.routePreviewAvoidLabel} importantForAccessibility="no">Avoid</Text>
+        {AVOID_CHIPS.map(({ key, label }) => (
+          <Pressable
+            key={key}
+            testID={`route-preview-avoid-${key}`}
+            accessibilityRole="switch"
+            accessibilityLabel={`Avoid ${label.toLowerCase()}`}
+            accessibilityState={{ checked: avoidance[key], disabled: replanning }}
+            disabled={replanning}
+            onPress={() => { haptics.select(); onToggleAvoid(key); }}
+            style={({ pressed }) => [styles.routePreviewChip, avoidance[key] && styles.routePreviewChipOn, pressed && pressedFeedback]}
+          >
+            <Text style={[styles.routePreviewChipText, avoidance[key] && styles.routePreviewChipTextOn]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
       <Pressable
         testID="route-preview-start"
-        style={({ pressed }) => [styles.destinationPrimaryAction, pressed && pressedFeedback]}
+        style={({ pressed }) => [styles.destinationPrimaryAction, replanning && styles.routePreviewStartBusy, pressed && pressedFeedback]}
         accessibilityRole="button"
         accessibilityLabel={`Start route to ${name}`}
+        accessibilityState={{ disabled: replanning }}
+        disabled={replanning}
         onPress={() => { haptics.tap(); onStart(); }}
       >
         <Ionicons name="navigate" size={18} color={colors.accentText} />
