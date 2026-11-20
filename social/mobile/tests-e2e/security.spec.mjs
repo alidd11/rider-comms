@@ -1,6 +1,7 @@
 /* global window */
 import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import { URL } from 'node:url';
 
 /**
  * Security-contract tests run only against the local Playwright static server.
