@@ -256,10 +256,60 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal((await report('social_b')).status, 404);
     const queue = await getPool().query(`SELECT details FROM safety_reports WHERE reporter_id = 'social_b'`);
     assert.match(String(queue.rows[0]?.details), new RegExp(`Rider Social post ${post.id}: selling things`));
+    const socialReports = await getPool().query('SELECT reporter_id, reason FROM social_post_reports WHERE post_id = $1', [post.id]);
+    assert.equal(socialReports.rows.length, 1, 'post report and staff queue commit together');
+    assert.equal(socialReports.rows[0]?.reporter_id, 'social_b');
+    assert.equal(queue.rows.length, 1, 'one staff report for one accepted post report');
+    assert.equal(await new SocialPostStore().report('social_b', post.id, 'spam'), null,
+      'duplicate direct-store reports are rejected');
+    const queueAfterDuplicate = await getPool().query('SELECT id FROM safety_reports WHERE reporter_id = $1', ['social_b']);
+    assert.equal(queueAfterDuplicate.rows.length, 1, 'duplicate direct-store reports do not enqueue again');
     for (let i = 1; i < REPORTS_TO_HIDE; i += 1) assert.equal((await report(`social_r${i}`, { reason: 'other' })).status, 202);
     assert.deepEqual((await feed(ctx, 'social_c')).posts, [], 'hidden for everyone else');
     const own = await feed(ctx, 'social_a');
     assert.deepEqual(own.posts.map((p) => [p.id, p.hidden]), [[post.id, true]], 'its author still sees it, marked hidden');
+  });
+
+  it('rolls back both report tables when staff queue insertion fails', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    // Force a real PostgreSQL error in the second insert.
+    await getPool().query(`
+      CREATE FUNCTION social_test_reject_staff_report() RETURNS trigger
+      LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.reporter_id = 'social_b' THEN
+          RAISE EXCEPTION 'intentional_social_staff_queue_failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $$;
+      CREATE TRIGGER social_test_reject_staff_report
+        BEFORE INSERT ON safety_reports
+        FOR EACH ROW EXECUTE FUNCTION social_test_reject_staff_report();
+    `);
+    try {
+      await assert.rejects(
+        new SocialPostStore().report('social_b', post.id, 'spam'),
+        /intentional_social_staff_queue_failure/,
+      );
+      const reports = await getPool().query(
+        'SELECT post_id FROM social_post_reports WHERE post_id = $1', [post.id],
+      );
+      assert.equal(reports.rows.length, 0, 'failed staff insert rolls back Social report');
+      const staff = await getPool().query(
+        'SELECT id FROM safety_reports WHERE reporter_id = $1', ['social_b'],
+      );
+      assert.equal(staff.rows.length, 0, 'failed staff insert leaves no safety report');
+      assert.deepEqual((await feed(ctx, 'social_b')).posts.map((p) => p.id), [post.id],
+        'failed report must not revoke viewer access');
+    } finally {
+      await getPool().query(`
+        DROP TRIGGER IF EXISTS social_test_reject_staff_report ON safety_reports;
+        DROP FUNCTION IF EXISTS social_test_reject_staff_report();
+      `);
+    }
+    assert.ok(await new SocialPostStore().report('social_b', post.id, 'spam'),
+      'a subsequent report succeeds after the staff queue recovers');
   });
 
   it('leaves out posts by suspended riders', async () => {

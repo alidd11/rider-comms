@@ -2,7 +2,6 @@ import { Readable } from 'node:stream';
 import { roleCan } from '../staffRoles.ts';
 import { containsSevereText } from '../contentFilter.ts';
 import { MAX_MODERATION_NOTE_LENGTH, REPORT_REASONS } from '../moderationStore.ts';
-import type { ReportReason } from '../moderationStore.ts';
 import { bearerToken, consumeSocialWrite, readJsonBody, sendEmpty, sendJson } from '../serverHttp.ts';
 import { matchesSocialMediaSignature, validateSocialMediaIntent } from '../socialMediaPolicy.ts';
 import type { SocialMediaMime } from '../socialMediaPolicy.ts';
@@ -124,7 +123,7 @@ type SocialPostContext = RouteContext & { socialPostStore: SocialPostStore; soci
 
 /** Rider Social posting, feeds and reports. Only reached by an entitled rider. */
 export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<unknown> {
-  const { req, res, url, s, actorId, socialPostStore, socialMedia, socialRateLimitStore, moderationStore } = ctx;
+  const { req, res, url, s, actorId, socialPostStore, socialMedia, socialRateLimitStore } = ctx;
   if (s[0] !== 'social') return NOT_HANDLED;
   const route = s.slice(1);
   const viewer = async (): Promise<MediaLinkViewer> =>
@@ -253,11 +252,8 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
         return sendJson(res, 400, { error: 'invalid_reason' });
       }
       if (!(await consumeSocialWrite(res, socialRateLimitStore, actorId, 'safety_report'))) return;
-      const reported = await socialPostStore.report(actorId, postId, reason);
+      const reported = await socialPostStore.report(actorId, postId, reason, details);
       if (!reported) return sendJson(res, 404, { error: 'not_found' });
-      // The rider-level queue moderators already work from.
-      await moderationStore.report(actorId, reported.authorId, reason as ReportReason,
-        `Rider Social post ${postId}${details ? `: ${details}` : ''}`);
       return sendJson(res, 202, { reported: true });
     }
   }
