@@ -1,3 +1,4 @@
+import { providerHealthSnapshot } from '../providerHealth.ts';
 import { exportRiderData } from '../accountExport.ts';
 import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
 import { getPool } from '../db.ts';
@@ -33,6 +34,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       socialMediaScanning: Boolean(ctx.socialMedia?.scan),
       socialPosting: ctx.socialPostingEnabled,
       email: emailDeliveryStatus(),
+      ...providerHealthSnapshot(),
     });
   }
   // Request rates, errors and response times on the replica that answers.

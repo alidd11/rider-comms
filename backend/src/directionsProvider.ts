@@ -1,3 +1,4 @@
+import { noteProviderError, noteProviderOk } from './providerHealth.ts';
 import { normalizeNavigationInstructionText } from '@rider-comms/shared';
 
 export interface RouteCoordinate {
@@ -265,7 +266,11 @@ export async function fetchGoogleDrivingRoute(
       );
     }
 
-    if (!response.ok) throw new DirectionsProviderError('directions_unavailable');
+    if (!response.ok) {
+      noteProviderError('google_routes', `HTTP ${response.status}`);
+      throw new DirectionsProviderError('directions_unavailable');
+    }
+    noteProviderOk('google_routes');
 
     let payload: GoogleDirectionsResponse;
     try {
@@ -426,7 +431,11 @@ export async function fetchGoogleRoutes(
       throw new DirectionsProviderError(controller.signal.aborted ? 'directions_timeout' : 'directions_unavailable');
     }
     if (response.status === 403) throw new RoutesApiUnavailable();
-    if (!response.ok) throw new DirectionsProviderError('directions_unavailable');
+    if (!response.ok) {
+      noteProviderError('google_routes', `HTTP ${response.status}`);
+      throw new DirectionsProviderError('directions_unavailable');
+    }
+    noteProviderOk('google_routes');
 
     let payload: { routes?: RoutesRoute[] };
     try {

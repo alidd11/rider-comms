@@ -1450,9 +1450,31 @@
     return [
       setting('Email delivery', emailState, emailLabel, emailDesc),
       setting('Social media storage', system.socialMediaStorage ? 'ok' : 'down', system.socialMediaStorage ? 'On' : 'Off', system.socialMediaStorage ? 'Photos and videos are stored privately' : 'Set the SOCIAL_MEDIA_S3_* variables on the backend'),
-      setting('Social content check', system.socialMediaScanning ? 'ok' : 'down', system.socialMediaScanning ? 'On' : 'Off', system.socialMediaScanning ? 'Google SafeSearch checks every photo and Reel' : 'Set a Google key with Cloud Vision API allowed'),
+      setting('Social content check', system.socialMediaScanning ? 'ok' : 'down', system.socialMediaScanning ? 'On' : 'Off', system.socialMediaScanning ? contentCheckSummary(system.contentCheck) : 'Set a Google key with Cloud Vision API allowed'),
       setting('Social posting', system.socialPosting ? 'ok' : 'warn', system.socialPosting ? 'On' : 'Off', system.socialPosting ? 'Riders can post to Rider Social' : 'Posting is switched off'),
+      ...PROVIDER_ROWS.map(([key, name, purpose]) => providerRow(setting, name, purpose, system.providers?.[key])),
     ];
+  }
+
+  // Outside services, as this server has seen them since it started: the
+  // last refusal shows until a later call succeeds.
+  const PROVIDER_ROWS = [
+    ['google_places', 'Google place search', 'Search and stops on the way'],
+    ['google_routes', 'Google routes', 'Turn-by-turn routes and traffic'],
+    ['google_vision', 'Google Vision', 'The Social content check'],
+    ['media_storage', 'Social photo storage', 'Saving and serving photos and Reels'],
+  ];
+  function providerRow(setting, name, purpose, status) {
+    if (!status || (status.lastOkAt === null && status.lastErrorAt === null)) return setting(name, 'warn', 'Not used yet', `${purpose}. Not called since the server started.`);
+    const failing = status.lastErrorAt !== null && (status.lastOkAt === null || status.lastErrorAt > status.lastOkAt);
+    if (failing) return setting(name, 'down', 'Refusing', `${purpose}. Last refused ${new Date(status.lastErrorAt).toLocaleString()}: ${status.lastError}`);
+    return setting(name, 'ok', 'Working', `${purpose}. Last answered ${new Date(status.lastOkAt).toLocaleString()}.`);
+  }
+  function contentCheckSummary(counts) {
+    if (!counts) return 'Google SafeSearch checks every photo and Reel';
+    const total = counts.allowed + counts.rejected + counts.unavailable;
+    if (!total) return 'Google SafeSearch checks every photo and Reel. None checked since the server started.';
+    return `Since the server started: ${counts.allowed} allowed, ${counts.rejected} refused as unsafe, ${counts.unavailable} not checked (Google unavailable)`;
   }
 
   const STATE_TONES = { ok: 'success', warn: 'warning', down: 'danger' };
@@ -1493,7 +1515,7 @@
       el('h2', { class: 'section-title', text: `Traffic · last ${metrics.windowMinutes} minutes` }),
       el('div', { class: 'kpis traffic-kpis' }, [
         kpiCard({ label: 'Requests', value: formatNumber(totals.count), foot: `${formatNumber(Math.round(totals.count / Math.max(1, metrics.perMinute.length)))} a minute` }),
-        kpiCard({ label: 'Server errors', value: formatRate(totals.errorRate), foot: `${formatRate(totals.clientErrorRate)} refused (4xx)` }),
+        kpiCard({ label: 'Server errors', value: formatRate(totals.errorRate), foot: `${formatRate(totals.unavailableRate ?? 0)} unavailable (Google, storage) · ${formatRate(totals.clientErrorRate)} refused (4xx)` }),
         kpiCard({ label: 'Response time p95', value: formatMs(totals.p95Ms), foot: `Median ${formatMs(totals.p50Ms)}` }),
         kpiCard({ label: 'Database connections', value: database ? `${database.total - database.idle} / ${database.max}` : '—', foot: database ? (database.waiting ? `${database.waiting} waiting` : 'In use / limit') : 'Not connected' }),
       ]),

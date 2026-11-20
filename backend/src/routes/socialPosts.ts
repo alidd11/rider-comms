@@ -1,3 +1,4 @@
+import { noteContentCheck } from '../providerHealth.ts';
 import { Readable } from 'node:stream';
 import { roleCan } from '../staffRoles.ts';
 import { containsSevereText } from '../contentFilter.ts';
@@ -114,7 +115,15 @@ export async function handleSocialMediaRoute(
  */
 async function scanRejects(socialMedia: SocialMediaService, images: Buffer[], riderId: string): Promise<boolean> {
   if (!socialMedia.scan) throw new MediaScanUnavailableError();
-  if ((await socialMedia.scan(images)) === 'allowed') return false;
+  let verdict;
+  try {
+    verdict = await socialMedia.scan(images);
+  } catch (error) {
+    if (error instanceof MediaScanUnavailableError) noteContentCheck('unavailable');
+    throw error;
+  }
+  noteContentCheck(verdict);
+  if (verdict === 'allowed') return false;
   log('info', 'social_media_rejected', { riderId });
   return true;
 }

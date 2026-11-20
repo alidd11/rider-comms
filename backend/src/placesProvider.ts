@@ -1,4 +1,5 @@
 import { haversineMeters } from '@rider-comms/shared';
+import { noteProviderError, noteProviderOk } from './providerHealth.ts';
 import type { RouteCoordinate } from './directionsProvider.ts';
 import { log } from './log.ts';
 
@@ -155,6 +156,7 @@ async function logGoogleRefusal(response: Response): Promise<void> {
     // Not JSON: the HTTP status alone is still worth logging.
   }
   log('warn', 'places_provider_refused', { httpStatus: response.status, googleStatus: status, googleMessage: message });
+  noteProviderError('google_places', [response.status, status, message].filter(Boolean).join(' · '));
 }
 
 export async function fetchGooglePlaces(
@@ -195,6 +197,7 @@ export async function fetchGooglePlaces(
       await logGoogleRefusal(response);
       throw new PlacesProviderError('places_unavailable');
     }
+    noteProviderOk('google_places');
 
     let payload: unknown;
     try {
@@ -265,6 +268,7 @@ async function callPlaces(url: string, init: RequestInit, options: GooglePlacesO
       await logGoogleRefusal(response);
       throw new PlacesProviderError('places_unavailable');
     }
+    noteProviderOk('google_places');
     try {
       return await response.json();
     } catch {

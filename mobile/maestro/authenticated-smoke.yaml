@@ -45,6 +45,30 @@ appId: com.ridercomms.app
     commands:
       - tapOn:
           id: auth-submit
+# The iOS simulator has dropped keystrokes from the masked password, and
+# then sign-in is refused. Retype it and sign in again; a real refusal fails
+# the next step all the same.
+- runFlow:
+    when:
+      visible: "The username or password is incorrect.*"
+    commands:
+      - retry:
+          maxRetries: 2
+          commands:
+            - tapOn:
+                id: auth-password
+            - waitForAnimationToEnd
+            - eraseText: 40
+            - inputText: ${TEST_PASSWORD}
+            - waitForAnimationToEnd
+            - hideKeyboard:
+                optional: true
+            - tapOn:
+                id: auth-submit
+                optional: true
+            - extendedWaitUntil:
+                notVisible: "The username or password is incorrect.*"
+                timeout: 15000
 # First launch (clearState) shows the two-step onboarding: welcome, then
 # location. iOS adds to labels ("Get started, ", "Group Ride, tab, 2 of 5"),
 # so each match allows a comma and more after the visible text. Sign-in can

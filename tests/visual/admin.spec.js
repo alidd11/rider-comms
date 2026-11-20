@@ -188,7 +188,7 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : state.riders });
     }
     if (url.pathname === '/admin/system') {
-      return json(200, { socialMediaStorage: false, socialMediaScanning: true, socialPosting: true, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
+      return json(200, { socialMediaStorage: false, socialMediaScanning: true, socialPosting: true, contentCheck: { allowed: 7, rejected: 1, unavailable: 2 }, providers: { google_places: { lastOkAt: null, lastErrorAt: Date.now(), lastError: '403 · PERMISSION_DENIED' }, google_routes: { lastOkAt: Date.now(), lastErrorAt: null, lastError: null } }, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
     }
     if (url.pathname === `/riders/${ADMIN_ID}/profile`) return json(200, { riderId: ADMIN_ID, displayName: 'Ali', handle: '@ali' });
     if (url.pathname === '/health') return json(200, { ok: true });
@@ -719,6 +719,13 @@ test.describe('staff dashboard', () => {
     await expect(rows.nth(4)).toContainText('Social content check');
     await expect(rows.nth(4).locator('.badge')).toHaveText('On');
     await expect(rows.nth(5).locator('.badge')).toHaveText('On');
+    await expect(rows.nth(4)).toContainText('7 allowed, 1 refused as unsafe, 2 not checked');
+    // Outside services: refusing, working, and not called yet.
+    await expect(rows.nth(6)).toContainText('Google place search');
+    await expect(rows.nth(6).locator('.badge')).toHaveText('Refusing');
+    await expect(rows.nth(6)).toContainText('403 · PERMISSION_DENIED');
+    await expect(rows.nth(7).locator('.badge')).toHaveText('Working');
+    await expect(rows.nth(8).locator('.badge')).toHaveText('Not used yet');
     await expect(page.locator('#sidebarFooter')).toContainText('Signed in as Ali · @ali');
     await expect(page.locator('#sidebarFooter .badge')).toHaveText('Admin');
   });
