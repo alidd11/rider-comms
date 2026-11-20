@@ -125,16 +125,17 @@ export async function processSocialVideo(
   const run = runner(ffmpegPath);
   const safeInput = ['-hide_banner', '-nostdin', '-protocol_whitelist', 'file', '-f', container, '-i', inputPath];
 
-  // Probe: ffmpeg with no output exits non-zero, but prints the streams.
-  const probe = await run(safeInput, PROBE_TIMEOUT_MS);
-  const duration = parseFfmpegDuration(probe.stderr);
-  if (!duration || !/Stream #\d+:\d+.*: Video:/.test(probe.stderr)) {
-    throw new SocialMediaProcessingError('invalid_media');
-  }
-  // Half a second of grace for containers that round up.
-  if (duration > maxSeconds + 0.5) throw new SocialMediaProcessingError('media_too_long');
-
+  // The probe itself spawns ffmpeg and must hold the bounded video slot.
   return withVideoSlot(async () => {
+    // Probe: ffmpeg with no output exits non-zero, but prints the streams.
+    const probe = await run(safeInput, PROBE_TIMEOUT_MS);
+    const duration = parseFfmpegDuration(probe.stderr);
+    if (!duration || !/Stream #\d+:\d+.*: Video:/.test(probe.stderr)) {
+      throw new SocialMediaProcessingError('invalid_media');
+    }
+    // Half a second of grace for containers that round up.
+    if (duration > maxSeconds + 0.5) throw new SocialMediaProcessingError('media_too_long');
+
     const work = await mkdtemp(join(tmpdir(), 'social-video-'));
     try {
       const output = join(work, 'out.mp4');
