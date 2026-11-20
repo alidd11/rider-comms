@@ -11,7 +11,7 @@ import {
   navigationSpeedUnit,
   navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
-import { fasterRouteAnnouncement, fasterRouteSavingSeconds, navigationEtaShareText, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
+import { fasterRouteAnnouncement, fasterRouteSavingSeconds, navigationEtaShareText, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness, routeIndexForStyle, routeShareText, routeStyleAvoidsMotorways, routeTrafficNote } from '@rider-comms/shared';
 
 describe('navigation guidance presentation', () => {
   it('formats metric and imperial distances consistently for navigation', () => {
@@ -202,4 +202,29 @@ describe('navigationEtaShareText', () => {
       'On my way to my destination. Arriving about 16:35, 900 m to go. Sent from Rider Comms.',
     );
   });
+});
+
+it('riding styles: which way to show first, and whether to keep off motorways', () => {
+  const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+  const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+  const routes = [{ durationSeconds: 1500, coordinates: straight }, { durationSeconds: 1800, coordinates: zigzag }, { durationSeconds: 1380, coordinates: straight }];
+  assert.equal(routeIndexForStyle(routes, 'fastest'), 2);
+  assert.equal(routeIndexForStyle(routes, 'no_motorways'), 2);
+  assert.equal(routeIndexForStyle(routes, 'twisty'), 1);
+  assert.equal(routeIndexForStyle([], 'twisty'), 0);
+  assert.equal(routeStyleAvoidsMotorways('fastest', false), false);
+  assert.equal(routeStyleAvoidsMotorways('fastest', true), true);
+  assert.equal(routeStyleAvoidsMotorways('twisty', false), true);
+  assert.equal(routeStyleAvoidsMotorways('no_motorways', false), true);
+});
+
+it('the traffic note under the chosen route, and what Share sends', () => {
+  assert.equal(routeTrafficNote(1800, 1320, true), 'Fastest despite +8 min of traffic');
+  assert.equal(routeTrafficNote(1800, 1320, false), '+8 min of traffic');
+  assert.equal(routeTrafficNote(1800, 1750, true), 'Fastest route, usual traffic');
+  assert.equal(routeTrafficNote(1800, 1750, false), 'Usual traffic');
+  assert.equal(routeTrafficNote(1800, undefined, true), 'Fastest route');
+  assert.equal(routeTrafficNote(1800, null, false), '');
+  assert.equal(routeShareText('Home', '7:25 PM', 17_700, 'mi', 'A41'), 'Heading to Home via A41: 11 mi, arriving about 7:25 PM. Sent from Rider Comms.');
+  assert.equal(routeShareText(' ', '19:25', 900, 'km', ''), 'Heading to my destination: 900 m, arriving about 19:25. Sent from Rider Comms.');
 });

@@ -50,9 +50,9 @@ import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './Regro
 import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
-import { ArrivalCard, DestinationCard, RoutePreviewSheet } from './MapPlaceCards';
+import { ArrivalCard, DestinationCard, RoutePreviewSheet, RoutePreviewTopBar } from './MapPlaceCards';
 import type { RouteAvoidance } from '../routeOptionsPreference';
-import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
+import { RIDE_LOCATION_FRESH_MS, navigationManeuverArrow, regroupAnnouncement, rideBatteryAnnouncements, rideDropAnnouncements, routeTrafficDelayText, navigationEtaShareText, routeShareText, type RouteStyle, rideMemberLastSeenAgo, type RegroupPoint, type RideBatteryState, type RideDropState } from '@rider-comms/shared';
 import { speakNavigationPrompt } from '../audio/navigationSpeech';
 import { useRideProfiles } from './useRideProfiles';
 import { queuedReportsText, useHazardReports } from './useHazardReports';
@@ -270,6 +270,7 @@ export function MapScreen(): React.JSX.Element {
     startRoutePreview,
     closeRoutePreview,
     replanRoutePreview,
+    setRoutePreviewStyle,
     findStopsOnTheWay,
     addNavigationStop,
   } = useInAppNavigation(
@@ -607,6 +608,22 @@ export function MapScreen(): React.JSX.Element {
     }
   }
 
+  /** Fastest, Twisty or No motorways, for this trip only. */
+  async function chooseRoutePreviewStyle(style: RouteStyle): Promise<void> {
+    if (!(await setRoutePreviewStyle(style))) {
+      Alert.alert('No route found', 'There’s no way there like that. The routes shown are unchanged.');
+    }
+  }
+
+  function shareRoutePreview(): void {
+    if (!routePreview) return;
+    const route = routePreview.routes[routePreview.index];
+    if (!route) return;
+    const arrival = new Date(Date.now() + route.durationSeconds * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const message = routeShareText(routePreview.target.label ?? '', arrival, route.distanceMeters, unitSystem, route.summary ?? '');
+    void Share.share({ message }).then(() => haptics.success()).catch(() => undefined);
+  }
+
   async function openDirections(target: NavigationTarget): Promise<void> {
     if (navigationProvider === 'in_app') {
       // Parked: the ways there first. On the move: straight onto the fastest.
@@ -775,6 +792,9 @@ export function MapScreen(): React.JSX.Element {
                 >
                   <View style={[styles.routePreviewBubble, chosen && styles.routePreviewBubbleChosen]}>
                     <Text style={[styles.routePreviewBubbleText, chosen && styles.routePreviewBubbleTextChosen]}>{choice.time}</Text>
+                    {choice.label !== 'Alternative' ? (
+                      <Text style={[styles.routePreviewBubbleLabel, chosen && styles.routePreviewBubbleTextChosen]}>{choice.label}</Text>
+                    ) : null}
                   </View>
                 </Marker>
               );
@@ -1018,17 +1038,41 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       {segment === 'public' && !activeRoute && routePreview && (
-        <RoutePreviewSheet
-          bottom={insets.bottom + spacing.sm}
-          preview={routePreview}
-          unitSystem={unitSystem}
-          avoidance={routeAvoidance}
-          replanning={navigationLoading}
-          onChoose={chooseRoutePreview}
-          onToggleAvoid={(key) => void toggleRoutePreviewAvoid(key)}
-          onStart={startRoutePreview}
-          onClose={closeRoutePreview}
-        />
+        <>
+          <RoutePreviewTopBar
+            top={insets.top + spacing.sm}
+            preview={routePreview}
+            avoidance={routeAvoidance}
+            replanning={navigationLoading}
+            onBack={closeRoutePreview}
+            onChangeDestination={() => {
+              // Another destination: back to search, as in Google Maps.
+              closeRoutePreview();
+              setNavigationTarget(null);
+              setSelectedPlace(null);
+              setDrawerOpen(true);
+            }}
+            onStyle={(style) => void chooseRoutePreviewStyle(style)}
+            onToggleAvoid={(key) => void toggleRoutePreviewAvoid(key)}
+          />
+          <RoutePreviewSheet
+            bottom={0}
+            preview={routePreview}
+            unitSystem={unitSystem}
+            replanning={navigationLoading}
+            ride={activeRide ? {
+              count: Math.max(1, roster.length),
+              avatars: roster.slice(0, 3).map((id, index) => (
+                <View key={id} style={index > 0 ? styles.routePreviewRideAvatarOverlap : undefined}>
+                  <RiderAvatar avatarId={rideProfiles[id]?.avatarId ?? null} size={26} mapMarker={false} status="none" />
+                </View>
+              )),
+            } : null}
+            onChoose={chooseRoutePreview}
+            onStart={startRoutePreview}
+            onShare={shareRoutePreview}
+          />
+        </>
       )}
 
       {segment === 'public' && !activeRoute && !routePreview && selectedDestination && !selectedHazard && (

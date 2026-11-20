@@ -120,7 +120,19 @@ test('PWA shows the ways there before Start, with live traffic, and starts the o
   await expect(preview).toBeVisible();
   await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
   await expect(page.locator('#mapDrawer')).toBeHidden();
-  await expect(page.locator('#routePreviewTitle')).toHaveText('Home');
+  // Where from and to at the top; the chosen way's card at the bottom.
+  await expect(page.locator('#routePreviewTop')).toBeVisible();
+  await expect(page.locator('#routePreviewTo')).toHaveText('Home');
+  await expect(page.locator('#routePreviewTime')).toHaveText('23 min');
+  await expect(page.locator('#routePreviewTime')).toHaveAttribute('data-traffic', 'true');
+  await expect(page.locator('#routePreviewTag')).toHaveText('Fastest');
+  await expect(page.locator('#routePreviewNoteText')).toHaveText('Fastest despite +8 min of traffic');
+  await expect(page.locator('#routePreviewRide')).toBeHidden();
+  await expect(page.locator('#routePreviewMoreText')).toHaveText('1 other route');
+  // The list of every way and the turns opens on demand.
+  await expect(page.locator('#routePreviewList')).toBeHidden();
+  await page.locator('#routePreviewStepsBtn').click();
+  await expect(page.locator('#routePreviewSteps li')).toHaveText(['Head north1.0 mi', 'Turn left1.0 mi', 'Arrive at Home']);
 
   const request = await page.evaluate(() => window.__riderCommsTestRouteRequests[0]);
   expect(request.provideRouteAlternatives).toBe(true);
@@ -130,19 +142,22 @@ test('PWA shows the ways there before Start, with live traffic, and starts the o
   const rows = page.locator('#routePreviewList [role="radio"]');
   await expect(rows).toHaveCount(2);
   await expect(rows.locator('strong')).toHaveText(['23 min', '29 min']);
-  await expect(rows.locator('.route-preview-tag')).toHaveText(['Fastest · +8 min traffic', 'Twisty · +6 min']);
+  await expect(rows.locator('.route-preview-tag')).toHaveText(['Fastest', 'Twisty · +6 min']);
   await expect(rows.first()).toHaveAttribute('aria-checked', 'true');
-  await expect(rows.first().locator('.route-preview-meta')).toHaveText(/^Arrive .+ · 2(\.0)? mi$/);
+  await expect(rows.first().locator('.route-preview-meta')).toHaveText(/^Arrive .+ · 2(\.0)? mi · \+8 min traffic$/);
   // Every way is drawn: the chosen one in the accent colour, the other grey.
   const lines = () => page.evaluate(() => window.__riderCommsTestOverlays
     ?.filter((overlay) => overlay.options?.strokeColor && overlay.map)
     .map((overlay) => [overlay.options.strokeColor, overlay.options.strokeWeight]));
-  await expect.poll(lines).toEqual(expect.arrayContaining([['#279fc8', 8], ['#8a98a0', 6]]));
+  await expect.poll(lines).toEqual(expect.arrayContaining([['#1a73e8', 8], ['#8a98a0', 7]]));
 
   // Tapping the grey line chooses it, as does its row.
   await page.evaluate(() => window.__riderCommsTestOverlays
     .find((overlay) => overlay.map && overlay.options.strokeColor === '#8a98a0').trigger('click'));
   await expect(rows.nth(1)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#routePreviewTime')).toHaveText('29 min');
+  await expect(page.locator('#routePreviewTag')).toHaveText('Twisty');
+  await expect(page.locator('#routePreviewNoteText')).toHaveText('Usual traffic');
   await rows.first().click();
   await expect(rows.first()).toHaveAttribute('aria-checked', 'true');
   // Choose the twisty way, then Start: guidance has no route buttons.
@@ -159,8 +174,10 @@ test('PWA shows the ways there before Start, with live traffic, and starts the o
 
   // The fastest way counts today's traffic, and the back button returns to the place.
   await page.locator('[data-saved-place="home"]').click();
-  await expect(rows.first()).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#routePreviewTime')).toHaveText('23 min');
+  await expect(page.locator('#routePreviewList')).toBeHidden();
   await page.locator('#routePreviewClose').click();
+  await expect(page.locator('#routePreviewTop')).toBeHidden();
   await expect(preview).toBeHidden();
   await expect(page.locator('#destinationCard')).toBeVisible();
   await page.locator('[data-start-in-app-navigation]').click();
@@ -354,13 +371,13 @@ test('PWA starts the route on show when the rider moves off with the preview ope
   await expect(page.locator('#app')).not.toHaveClass(/route-preview-mode/);
 });
 
-test('PWA preview puts each way\'s time on the map and re-plans when told to avoid motorways', async ({ page }) => {
+test('PWA preview: times on the map, riding styles, Avoid, Share, and the group ride', async ({ page }) => {
   await startNavigationHome(page);
   await page.locator('#endNavBtn').click();
   await page.evaluate(() => {
     const latLng = (lat, lng) => new google.maps.LatLng(lat, lng);
-    const way = (minutes, east) => {
-      const path = Array.from({ length: 20 }, (_, i) => latLng(51.5 + i * 0.001, -0.1 + east));
+    const way = (minutes, east, zig = false) => {
+      const path = Array.from({ length: 20 }, (_, i) => latLng(51.5 + i * 0.001, -0.1 + east + (zig ? (i % 2) * 0.0008 : 0)));
       return { summary: east ? 'B road' : 'M1', overview_path: path, legs: [{
         steps: [{ instructions: 'Head <b>north</b>', maneuver: '', distance: { value: 3000, text: '' }, duration: { value: minutes * 60, text: '' }, start_location: path[0], end_location: path[19], path }],
         distance: { value: 3000, text: '' }, duration: { value: minutes * 60, text: '' }, start_location: path[0], end_location: path[19],
@@ -370,6 +387,8 @@ test('PWA preview puts each way\'s time on the map and re-plans when told to avo
     window.__riderCommsTestRoute = { routes: [way(20, 0), way(26, 0.002)] };
     window.__riderCommsTestRouteRequests = [];
     window.__riderCommsTestMarkers = [];
+    window.__shared = [];
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async (data) => { window.__shared.push(data.text); } });
   });
   await page.locator('[data-saved-place="home"]').click();
   await expect(page.locator('#routePreview')).toBeVisible();
@@ -381,25 +400,52 @@ test('PWA preview puts each way\'s time on the map and re-plans when told to avo
   // Tapping the other time on the map chooses that way.
   await page.evaluate(() => window.__riderCommsTestMarkers
     .find((marker) => marker.map && marker.label?.text === '26 min').trigger('click'));
-  await expect(page.locator('#routePreviewList [role="radio"]').nth(1)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#routePreviewTime')).toHaveText('26 min');
 
-  // Avoid motorways: the same setting as Settings, and new ways asked for.
-  const motorways = page.locator('[data-preview-avoid="avoidHighways"]');
-  await expect(motorways).toHaveAttribute('aria-pressed', 'false');
-  await page.evaluate(() => { window.__riderCommsTestRoute = { routes: [window.__way(31, 0.002)] }; });
-  await motorways.click();
-  await expect(motorways).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#routePreviewList [role="radio"] strong')).toHaveText(['31 min']);
-  const requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
+  // Share sends where, which way and when.
+  await page.locator('#routePreviewShare').click();
+  await expect.poll(() => page.evaluate(() => window.__shared)).toEqual([expect.stringMatching(/^Heading to Home via B road: 1\.9 mi, arriving about .+\. Sent from Rider Comms\.$/)]);
+
+  // Riding style: Twisty keeps off motorways and shows the bendiest way,
+  // for this trip only (the motorways setting isn't changed).
+  const twisty = page.locator('[data-preview-style="twisty"]');
+  await expect(page.locator('[data-preview-style="fastest"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.evaluate(() => { window.__riderCommsTestRoute = { routes: [window.__way(24, 0), window.__way(31, 0.002, true)] }; });
+  await twisty.click();
+  await expect(twisty).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#routePreviewTime')).toHaveText('31 min');
+  let requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
   expect(requests.at(-1).avoidHighways).toBe(true);
   expect(requests.at(-1).provideRouteAlternatives).toBe(true);
-  expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('"avoidHighways":true')))).toBe(true);
+  expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('"avoidHighways":true')))).toBe(false);
+  // Fastest again asks with the rider's own setting and shows the quickest.
+  await page.locator('[data-preview-style="fastest"]').click();
+  await expect(page.locator('#routePreviewTime')).toHaveText('24 min');
+  requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
+  expect(requests.at(-1).avoidHighways).toBe(false);
+
+  // Avoid tolls: the same setting as Settings, and new ways asked for.
+  await page.locator('#routePreviewAvoidBtn').click();
+  const tolls = page.locator('[data-preview-avoid="avoidTolls"]');
+  await expect(tolls).toHaveAttribute('aria-checked', 'false');
+  await tolls.click();
+  await expect(tolls).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#routePreviewAvoidCount')).toHaveText('1');
+  await expect(page.locator('#routePreviewAvoidBtn')).toHaveAttribute('aria-label', 'Avoid tolls or ferries, 1 on');
+  requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
+  expect(requests.at(-1).avoidTolls).toBe(true);
+  expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('"avoidTolls":true')))).toBe(true);
 
   // No way without ferries: the setting goes back and the routes stay.
   await page.evaluate(() => { window.__riderCommsTestRoute = null; });
   const ferries = page.locator('[data-preview-avoid="avoidFerries"]');
   await ferries.click();
-  await expect(ferries).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('#routePreviewList [role="radio"] strong')).toHaveText(['31 min']);
+  await expect(ferries).toHaveAttribute('aria-checked', 'false');
+  await expect(page.locator('#routePreviewTime')).toHaveText('24 min');
   await expect(page.locator('#routePreviewStart')).toBeEnabled();
+
+  // A different destination: back to the search box.
+  await page.locator('#routePreviewTo').click();
+  await expect(page.locator('#routePreview')).toBeHidden();
+  await expect(page.locator('#app')).not.toHaveClass(/route-preview-mode/);
 });

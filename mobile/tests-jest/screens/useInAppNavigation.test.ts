@@ -121,6 +121,7 @@ interface Props {
   setSelectedPlace: jest.Mock;
   setNavigationTarget: jest.Mock;
   setSelectedHazardId: jest.Mock;
+  routeAvoidance?: { highways: boolean; tolls: boolean; ferries: boolean };
 }
 
 const INSETS = { top: 44, bottom: 34 };
@@ -161,6 +162,7 @@ async function renderNavigation(overrides: Partial<Props> = {}) {
       p.setSelectedPlace,
       p.setNavigationTarget,
       p.setSelectedHazardId,
+      p.routeAvoidance,
     ),
     { initialProps: props },
   ) };
@@ -437,6 +439,37 @@ test('re-plans the preview with new avoid settings, and leaves it be when none c
   expect(ok).toBe(false);
   expect(result.current.routePreview?.routes).toEqual([noMotorway]);
   expect(result.current.navigationLoading).toBe(false);
+});
+
+test('a riding style asks again off motorways and shows the bendiest way, for this trip only', async () => {
+  const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+  const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+  const quick: InAppNavigationRoute = { ...ROUTE, durationSeconds: 600, coordinates: straight };
+  const bendy: InAppNavigationRoute = { ...ROUTE, durationSeconds: 900, coordinates: zigzag };
+  const client = { getDrivingRoute: jest.fn()
+    .mockResolvedValueOnce(quick)
+    .mockResolvedValueOnce({ ...quick, alternatives: [bendy] })
+    .mockRejectedValueOnce(new Error('directions_no_route')) };
+  const { result } = await renderNavigation({ client: client as never, routeAvoidance: { highways: false, tolls: true, ferries: false } });
+  await act(async () => { expect(await result.current.setRoutePreviewStyle('twisty')).toBe(false); });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  expect(result.current.routePreview?.style).toBe('fastest');
+  // The same style again asks nothing.
+  await act(async () => { expect(await result.current.setRoutePreviewStyle('fastest')).toBe(false); });
+  expect(client.getDrivingRoute).toHaveBeenCalledTimes(1);
+
+  let ok = false;
+  await act(async () => { ok = await result.current.setRoutePreviewStyle('twisty'); });
+  expect(ok).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, { highways: true, tolls: true, ferries: false });
+  expect(result.current.routePreview?.style).toBe('twisty');
+  expect(result.current.routePreview?.index).toBe(1);
+
+  // None that way: the style and the routes stay as they were.
+  await act(async () => { ok = await result.current.setRoutePreviewStyle('no_motorways'); });
+  expect(ok).toBe(false);
+  expect(result.current.routePreview?.style).toBe('twisty');
+  expect(result.current.routePreview?.routes).toHaveLength(2);
 });
 
 test('closing the route preview starts nothing; without a preview the fastest starts at once', async () => {

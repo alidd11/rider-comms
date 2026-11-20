@@ -303,6 +303,49 @@ export function routeChoices(
   });
 }
 
+/** How the rider wants to get there, chosen in the route preview (as in
+ * Calimoto and Scenic): the quickest way, the bendiest, or off motorways. */
+export type RouteStyle = 'fastest' | 'twisty' | 'no_motorways';
+
+/** Whether to ask Google to keep off motorways for a riding style. Twisty and
+ * No motorways both do (that's where the bendy roads are); Fastest follows
+ * the rider's own setting. */
+export function routeStyleAvoidsMotorways(style: RouteStyle, avoidMotorwaysSetting: boolean): boolean {
+  return style === 'fastest' ? avoidMotorwaysSetting : true;
+}
+
+/** Which of the ways to show first for a riding style: the bendiest for
+ * Twisty, otherwise the quickest. */
+export function routeIndexForStyle(
+  routes: ReadonlyArray<{ durationSeconds: number; coordinates: readonly RouteChoicePoint[] }>,
+  style: RouteStyle,
+): number {
+  let best = 0;
+  if (style === 'twisty') {
+    const twist = routes.map((route) => routeTwistiness(route.coordinates));
+    twist.forEach((value, index) => { if (value > twist[best]!) best = index; });
+    return best;
+  }
+  routes.forEach((route, index) => { if (route.durationSeconds < routes[best]!.durationSeconds) best = index; });
+  return best;
+}
+
+/** The line under the chosen route's time: "Fastest despite +8 min of
+ * traffic", "Usual traffic", or '' when Google gave no traffic figure. */
+export function routeTrafficNote(durationSeconds: number, typicalDurationSeconds: number | null | undefined, fastest: boolean): string {
+  if (typeof typicalDurationSeconds !== 'number' || !Number.isFinite(typicalDurationSeconds)) return fastest ? 'Fastest route' : '';
+  const delay = durationSeconds - typicalDurationSeconds;
+  if (delay >= 120) return `${fastest ? 'Fastest despite ' : ''}+${formatNavigationDuration(delay)} of traffic`;
+  return fastest ? 'Fastest route, usual traffic' : 'Usual traffic';
+}
+
+/** What Share sends from the route preview, before setting off. */
+export function routeShareText(destination: string, arrivalLabel: string, meters: number, unit: 'mi' | 'km', via: string): string {
+  const place = destination.trim() || 'my destination';
+  const road = via.trim() ? ` via ${via.trim()}` : '';
+  return `Heading to ${place}${road}: ${formatNavigationDistance(meters, unit)}, arriving about ${arrivalLabel}. Sent from Rider Comms.`;
+}
+
 /** "+8 min traffic" when today's traffic adds two minutes or more, else ''. */
 export function routeTrafficDelayText(durationSeconds: number, typicalDurationSeconds: number | null | undefined): string {
   if (typeof typicalDurationSeconds !== 'number' || !Number.isFinite(typicalDurationSeconds)) return '';

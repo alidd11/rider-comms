@@ -51,6 +51,8 @@ import {
   recordNavigationTripFix,
   routeAheadPath,
   routeChoices,
+  routeIndexForStyle,
+  routeStyleAvoidsMotorways,
   stopsOnTheWay,
   FASTER_ROUTE_CHECK_MS,
   fasterRouteAnnouncement,
@@ -58,6 +60,7 @@ import {
   startNavigationTrip,
   type NavigationTrip,
   type RouteChoice,
+  type RouteStyle,
   type StopOnTheWay,
   predictNavigationPuck,
 } from '@rider-comms/shared';
@@ -99,9 +102,10 @@ export interface NavigationArrival {
   distanceMeters: number;
 }
 
-/** The ways there, shown before Start (RoutePreviewSheet). */
-/** Room under the trip for the route preview sheet (about three rows and Start). */
-const ROUTE_PREVIEW_SHEET_PADDING = 380;
+/** Room under the trip for the route preview card, and above it for the
+ * from/to bar and the riding-style chips. */
+const ROUTE_PREVIEW_SHEET_PADDING = 300;
+const ROUTE_PREVIEW_TOP_PADDING = 210;
 
 function withoutAlternatives(route: InAppNavigationRoute): InAppNavigationRoute {
   if (!('alternatives' in route)) return route;
@@ -109,8 +113,11 @@ function withoutAlternatives(route: InAppNavigationRoute): InAppNavigationRoute 
   return rest;
 }
 
+/** The ways there, shown before Start (RoutePreviewSheet). */
 export interface RoutePreview {
   target: NavigationTarget;
+  /** Fastest, Twisty or No motorways, for this trip (shared RouteStyle). */
+  style: RouteStyle;
   routes: InAppNavigationRoute[];
   /** Shared routeChoices for routes: time, tag (Fastest, Twisty, +6 min). */
   choices: RouteChoice[];
@@ -156,6 +163,9 @@ export interface InAppNavigation {
   /** Asks again with these avoid settings (motorways, tolls, ferries);
    * false, with the routes shown left as they were, when none comes back. */
   replanRoutePreview: (avoidance: RouteAvoidance) => Promise<boolean>;
+  /** Asks again for a riding style (Fastest, Twisty, No motorways), for this
+   * trip only; false, with the routes left as they were, when none comes back. */
+  setRoutePreviewStyle: (style: RouteStyle) => Promise<boolean>;
   startCuratedNavigation: (route: CuratedRoute) => Promise<void>;
   curatedRemainingStops: CuratedNavigationStop[];
   stopFollowingRoute: () => void;
@@ -294,7 +304,7 @@ export function useInAppNavigation(
 
   const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
 
-  const fitRoute = React.useCallback((nextRoute: Pick<InAppNavigationRoute, 'coordinates'>, bottomPadding?: number) => {
+  const fitRoute = React.useCallback((nextRoute: Pick<InAppNavigationRoute, 'coordinates'>, bottomPadding?: number, topPadding?: number) => {
     if (!mapReady || nextRoute.coordinates.length < 2) return;
     navigationFollowingRef.current = false;
     setNavigationFollowing(false);
@@ -306,7 +316,7 @@ export function useInAppNavigation(
         // At least what the banner and trip summary cover, so the route's
         // ends aren't drawn underneath them.
         edgePadding: {
-          top: Math.max(170, insets.top + spacing.sm + navigationBannerHeight + 24),
+          top: topPadding ?? Math.max(170, insets.top + spacing.sm + navigationBannerHeight + 24),
           right: 64,
           bottom: bottomPadding ?? Math.max(180, navigationSummaryHeight + 24),
           left: 64,
@@ -589,6 +599,10 @@ export function useInAppNavigation(
     }
   }, [applyInAppRoute, currentLocation, getRouteThroughStops, navigationDestination, routeStops, setNavigationStop]);
 
+  const fitPreview = React.useCallback((routes: readonly InAppNavigationRoute[]) => {
+    fitRoute({ coordinates: routes.flatMap((route) => route.coordinates) }, ROUTE_PREVIEW_SHEET_PADDING, insets.top + ROUTE_PREVIEW_TOP_PADDING);
+  }, [fitRoute, insets.top]);
+
   const clearPlaceCards = React.useCallback(() => {
     setSelectedPlace(null);
     setNavigationTarget(null);
@@ -606,12 +620,12 @@ export function useInAppNavigation(
       updateCuratedStops([]);
       setNavigationStop(null);
       const routes = [planned, ...(planned.alternatives ?? [])].map(withoutAlternatives);
-      const choices = routeChoices(routes);
-      const fastest = choices.find((choice) => choice.label === 'Fastest')?.index ?? 0;
+      const fastest = routeIndexForStyle(routes, 'fastest');
       if (preview) {
-        // The ways there first, with the whole trip in view above the sheet.
-        setRoutePreview({ origin, target, routes, choices, index: fastest });
-        fitRoute({ coordinates: routes.flatMap((route) => route.coordinates) }, ROUTE_PREVIEW_SHEET_PADDING);
+        // The ways there first, with the whole trip in view between the
+        // from/to bar and the card.
+        setRoutePreview({ origin, target, style: 'fastest', routes, choices: routeChoices(routes), index: fastest });
+        fitPreview(routes);
       } else {
         applyInAppRoute(routes[fastest]!, origin, target, false);
         clearPlaceCards();
@@ -632,7 +646,7 @@ export function useInAppNavigation(
     } finally {
       setNavigationLoading(false);
     }
-  }, [applyInAppRoute, clearPlaceCards, currentLocation, fitRoute, getRouteThroughStops, requestCurrentLocation, setNavigationStop, updateCuratedStops]);
+  }, [applyInAppRoute, clearPlaceCards, currentLocation, fitPreview, getRouteThroughStops, requestCurrentLocation, setNavigationStop, updateCuratedStops]);
 
   const chooseRoutePreview = React.useCallback((index: number) => {
     setRoutePreview((current) => current && current.routes[index] ? { ...current, index } : current);
@@ -642,25 +656,37 @@ export function useInAppNavigation(
 
   const routePreviewRef = React.useRef(routePreview);
   routePreviewRef.current = routePreview;
-  const replanRoutePreview = React.useCallback(async (avoidance: RouteAvoidance): Promise<boolean> => {
+  /** Asks Google again for the preview's ways there: the riding style
+   * decides motorways (shared routeStyleAvoidsMotorways) and which way is
+   * shown first; tolls and ferries come from the rider's settings. */
+  const planRoutePreview = React.useCallback(async (avoidance: RouteAvoidance, style: RouteStyle): Promise<boolean> => {
     const planning = routePreviewRef.current;
     if (!planning) return false;
     setNavigationLoading(true);
     try {
-      const planned = await client.getDrivingRoute(planning.origin, planning.target, avoidance);
+      const asked = { ...avoidance, highways: routeStyleAvoidsMotorways(style, avoidance.highways) };
+      const planned = await client.getDrivingRoute(planning.origin, planning.target, asked);
       if (routePreviewRef.current !== planning) return false;
       const routes = [planned, ...(planned.alternatives ?? [])].map(withoutAlternatives);
-      const choices = routeChoices(routes);
-      const fastest = choices.find((choice) => choice.label === 'Fastest')?.index ?? 0;
-      setRoutePreview({ ...planning, routes, choices, index: fastest });
-      fitRoute({ coordinates: routes.flatMap((route) => route.coordinates) }, ROUTE_PREVIEW_SHEET_PADDING);
+      setRoutePreview({ ...planning, style, routes, choices: routeChoices(routes), index: routeIndexForStyle(routes, style) });
+      fitPreview(routes);
       return true;
     } catch {
       return false;
     } finally {
       setNavigationLoading(false);
     }
-  }, [client, fitRoute]);
+  }, [client, fitPreview]);
+
+  const replanRoutePreview = React.useCallback(
+    (avoidance: RouteAvoidance) => planRoutePreview(avoidance, routePreviewRef.current?.style ?? 'fastest'),
+    [planRoutePreview],
+  );
+
+  const setRoutePreviewStyle = React.useCallback(async (style: RouteStyle): Promise<boolean> => {
+    if (!routePreviewRef.current || routePreviewRef.current.style === style) return false;
+    return planRoutePreview(routeAvoidanceRef.current, style);
+  }, [planRoutePreview]);
 
   const startRoutePreview = React.useCallback(() => {
     if (!routePreview) return;
@@ -1026,11 +1052,12 @@ export function useInAppNavigation(
     curatedRemainingStops,
     stopFollowingRoute,
     resumeFollowingRoute,
-    routePreview: routePreview ? { target: routePreview.target, routes: routePreview.routes, choices: routePreview.choices, index: routePreview.index } : null,
+    routePreview: routePreview ? { target: routePreview.target, style: routePreview.style, routes: routePreview.routes, choices: routePreview.choices, index: routePreview.index } : null,
     chooseRoutePreview,
     startRoutePreview,
     closeRoutePreview,
     replanRoutePreview,
+    setRoutePreviewStyle,
     navigationStop,
     findStopsOnTheWay,
     addNavigationStop,

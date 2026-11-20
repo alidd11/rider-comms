@@ -20,6 +20,10 @@ import {
   stopsOnTheWay,
   navigationEtaShareText,
   routeTwistiness,
+  routeStyleAvoidsMotorways,
+  routeIndexForStyle,
+  routeTrafficNote,
+  routeShareText,
 } from '../shared/src/navigationGuidance.ts';
 
 await import('../docs/navigation-guidance.js');
@@ -143,6 +147,19 @@ console.log('Navigation guidance PWA/native parity valid');
   ]) {
     assert.deepEqual(browser.routeChoices(routes), routeChoices(routes));
   }
+  for (const routes of [
+    [{ durationSeconds: 1380, coordinates: straight }, { durationSeconds: 1740, coordinates: zigzag }, { durationSeconds: 1500, coordinates: straight }],
+    [{ durationSeconds: 1400, coordinates: straight }],
+    [],
+  ]) {
+    for (const style of ['fastest', 'twisty', 'no_motorways']) {
+      assert.equal(browser.routeIndexForStyle(routes, style), routeIndexForStyle(routes, style));
+      for (const setting of [true, false]) assert.equal(browser.routeStyleAvoidsMotorways(style, setting), routeStyleAvoidsMotorways(style, setting));
+    }
+  }
+  for (const [duration, typical, fastest] of [[1800, 1200, true], [1800, 1200, false], [1800, 1750, true], [1800, 1750, false], [1800, null, true], [1800, undefined, false]]) {
+    assert.equal(browser.routeTrafficNote(duration, typical, fastest), routeTrafficNote(duration, typical, fastest));
+  }
   for (const [duration, typical] of [[1800, 1200], [1800, 1750], [1800, null], [1800, undefined], [1800, Number.NaN]]) {
     assert.equal(browser.routeTrafficDelayText(duration, typical), routeTrafficDelayText(duration, typical));
   }
@@ -167,4 +184,7 @@ for (const saving of [180, 360, 3700]) assert.equal(browser.fasterRouteAnnouncem
 
 for (const [destination, arrival, metres, unit] of [['Box Hill', '4:35 pm', 12_400, 'mi'], ['  ', '16:35', 900, 'km'], ['Café', '9:05 am', 40, 'mi']]) {
   assert.equal(browser.navigationEtaShareText(destination, arrival, metres, unit), navigationEtaShareText(destination, arrival, metres, unit));
+}
+for (const [destination, arrival, metres, unit, via] of [['Home', '7:25 PM', 17_700, 'mi', 'A41'], ['  ', '19:25', 900, 'km', ' ']]) {
+  assert.equal(browser.routeShareText(destination, arrival, metres, unit, via), routeShareText(destination, arrival, metres, unit, via));
 }
