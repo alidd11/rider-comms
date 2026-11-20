@@ -200,6 +200,22 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.deepEqual([filtered.status, await filtered.json()], [400, { error: 'objectionable_content' }]);
   });
 
+
+  it('preserves XSS and SQL-like caption text without executing it', async () => {
+    const hostile = '<img src=x onerror="window.__socialXss=1"> ' + "'; DROP TABLE social_posts; --";
+    const created = await photoPost(ctx, 'social_a', hostile);
+    const reply = await authenticatedFetch(ctx, 'social_a', `/social/posts/${created.id}`);
+    assert.equal(reply.status, 200);
+    const byId = await reply.json() as { post: { caption: string } };
+    assert.equal(byId.post.caption, hostile);
+    const list = await authenticatedFetch(ctx, 'social_b', '/social/feed?scope=for-you');
+    assert.equal(list.status, 200);
+    const listing = await list.json() as { posts: Array<{ caption: string }> };
+    assert.equal(listing.posts[0]?.caption, hostile);
+    const present = await getPool().query('SELECT count(*)::int AS total FROM social_posts');
+    assert.equal(Number(present.rows[0]?.total), 1, 'SQL-like text never executed as a query');
+  });
+
   it('serves feeds newest first, with Following limited to friends, and pages through them', async () => {
     await getPool().query(`INSERT INTO friendships (rider_id, friend_id, created_at) VALUES ('social_a', 'social_b', 0), ('social_b', 'social_a', 0)`);
     const first = await photoPost(ctx, 'social_b', 'one');

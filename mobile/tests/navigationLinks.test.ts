@@ -63,18 +63,34 @@ describe('navigation handoff URLs', () => {
 
   it('checks URL support before asking the OS to open directions', async () => {
     const opened: string[] = [];
-    const supported = await openNavigationUrl('https://maps.example/destination', {
+    const supported = await openNavigationUrl('https://www.google.com/maps/dir/?api=1', {
       canOpenURL: async () => true,
       openURL: async (url) => { opened.push(url); },
     });
     assert.equal(supported, true);
-    assert.deepEqual(opened, ['https://maps.example/destination']);
+    assert.deepEqual(opened, ['https://www.google.com/maps/dir/?api=1']);
 
     const unsupported = await openNavigationUrl('geo:51.5,-0.1', {
       canOpenURL: async () => false,
       openURL: async () => { throw new Error('must not open'); },
     });
     assert.equal(unsupported, false);
+  });
+
+  it('blocks executable schemes, untrusted hosts and insecure navigation URLs', async () => {
+    const opened: string[] = [];
+    for (const url of [
+      'javascript:alert(1)', 'data:text/html,<script>alert(1)</script>',
+      'file:///etc/passwd', 'http://www.google.com/maps/dir/',
+      'https://www.google.com.attacker.example/maps/dir/',
+      'https://www.google.com@attacker.example/maps/dir/', 'https://www.waze.com:8443/ul',
+    ]) {
+      assert.equal(await openNavigationUrl(url, {
+        canOpenURL: async () => { throw new Error('untrusted URL must not reach the OS'); },
+        openURL: async (openedUrl) => { opened.push(openedUrl); },
+      }), false, url);
+    }
+    assert.deepEqual(opened, []);
   });
 
   it('fails safely when support checks or OS handoff throw', async () => {
