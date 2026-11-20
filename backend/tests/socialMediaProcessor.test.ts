@@ -142,7 +142,7 @@ describe('Rider Social video processing', () => {
     const results = await Promise.all(jobs);
     assert.equal(results.filter((code) => code === 'media_busy').length, 1);
     assert.equal(results.filter((code) => code === 'invalid_media').length, VIDEO_QUEUE_LIMIT + 1);
-    assert.equal((await readFile(marker, 'utf8')).trim().split('\\n').length, VIDEO_QUEUE_LIMIT + 1);
+    assert.equal((await readFile(marker, 'utf8')).trim().split('\n').length, VIDEO_QUEUE_LIMIT + 1);
   });
 
   it('reads the duration ffmpeg prints', () => {
