@@ -31,7 +31,9 @@ const MINUTE_MS = 60_000;
 const LINK_STEP_MS = 10 * MINUTE_MS;
 /** The longest a link lasts; with the step, a link lives 20 to 30 minutes. */
 export const MEDIA_LINK_LIFETIME_MS = 30 * MINUTE_MS;
-const SESSION_ID = /^[0-9a-f-]{32,36}$/;
+// Accept the legacy 32-character hex session token or a canonical UUID, not
+// arbitrary hyphen placement that merely happens to be 32–36 characters.
+const SESSION_ID = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$/;
 
 /** Who a link is for: the rider and the signed-in session that asked for it. */
 export interface MediaLinkViewer {
