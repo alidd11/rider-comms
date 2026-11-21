@@ -46,6 +46,10 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     assert.equal(prepare(geo([square.slice(0, 4)])), null);
     assert.equal(prepare(geo([[[0, 0], [2, 0], [2, 2], [0, 0], [0, 0]]])), null);
     assert.equal(prepare({ type: 'LineString', coordinates: square }), null);
+    // A self-crossing polygon can have non-zero signed area: still reject.
+    assert.equal(prepare(geo([[[0, 0], [3, 0], [0, 3], [3, 3], [1, 4], [0, 0]]])), null);
+    // A simple concave polygon remains valid.
+    assert.ok(prepare(geo([[[0, 0], [3, 0], [3, 3], [1, 1], [0, 3], [0, 0]]])));
     // A bow-tie is not a meaningful area even if its bounding box is valid.
     assert.equal(prepare(geo([[[0, 0], [2, 2], [0, 2], [2, 0], [0, 0]]])), null);
     const legacyCrs = { type: 'name', properties: { name: 'EPSG:27700' } };

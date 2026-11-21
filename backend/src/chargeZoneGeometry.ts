@@ -100,7 +100,19 @@ function validRing(value: unknown): value is Ring {
     const b = value[i] as Position;
     twiceArea += a[0]! * b[1]! - b[0]! * a[1]!;
   }
-  return Number.isFinite(twiceArea) && twiceArea !== 0;
+  if (!Number.isFinite(twiceArea) || twiceArea === 0) return false;
+  // Non-zero signed area does not exclude a self-intersecting ring.
+  // Bound the quadratic topology check; oversized rings require offline
+  // simplification/review rather than silently accepting invalid geometry.
+  const segments = value.length - 1;
+  if (segments * (segments - 3) / 2 > MAX_GEOMETRY_COMPARISONS) return false;
+  for (let i = 0; i < segments; i++) {
+    for (let j = i + 2; j < segments; j++) {
+      if (i === 0 && j === segments - 1) continue; // shared closing vertex
+      if (segmentIntersects(value[i]!, value[i + 1]!, value[j]!, value[j + 1]!)) return false;
+    }
+  }
+  return true;
 }
 
 /** Prepare an authority-reviewed local GeoJSON dataset just once. */
