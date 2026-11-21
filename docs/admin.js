@@ -79,6 +79,16 @@
   const allowed = (permission) => Boolean(me?.permissions?.includes(permission));
   let overviewCache = null;
   let chartSeq = 0;
+  // Ignore responses from a section or filter the staff member has already left.
+  let renderGeneration = 0;
+  const isCurrentRender = (generation) => generation === renderGeneration;
+  let displayedKey = null;
+  let focusHeadingOnNextRender = false;
+  const renderKey = () => JSON.stringify([view, detailRiderId,
+    view === 'riders' ? riderQuery : null,
+    view === 'moderation' ? moderationView : null,
+    view === 'audit' ? auditGroup : null,
+    view === 'audit' ? auditRider : null]);
   const names = new Map();
 
   // ------------------------------------------------------------ Utilities
@@ -115,6 +125,9 @@
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
+      credentials: 'omit',
+      redirect: 'error',
+      cache: 'no-store',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const json = await response.json().catch(() => ({}));
@@ -301,6 +314,7 @@
   }
 
   function setBusy(busy) {
+    pageEl.setAttribute('aria-busy', String(busy));
     refreshMobile.setAttribute('aria-busy', String(busy));
     for (const button of pageEl.querySelectorAll('[data-refresh]')) button.setAttribute('aria-busy', String(busy));
   }
@@ -541,7 +555,7 @@
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
     return el('div', { class: 'page-header' }, [
-      el('div', {}, [el('h1', { class: 'page-title', text: title }), subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null]),
+      el('div', {}, [el('h1', { class: 'page-title', tabindex: '-1', text: title }), subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null]),
       el('div', { class: 'actions' }, [...actions, refresh]),
     ]);
   }
@@ -673,6 +687,7 @@
       period = next;
       savePeriod(next);
       renderOverview(overviewCache);
+      pageEl.querySelector('[aria-label="Period"] [aria-pressed="true"]')?.focus({ preventScroll: true });
     }, 'Period');
     pageEl.replaceChildren(
       pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · days in UTC`, [periodControl]),
@@ -720,19 +735,21 @@
     if (rider.emailVerified || !allowed('verify_email')) return null;
     const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'verify-email' }, text: 'Verify email', 'aria-label': `Mark ${rider.username}'s email verified` });
     button.addEventListener('click', async () => {
-      const note = window.prompt(`Mark ${rider.username}'s email as verified? Only do this for riders you know. Note for the audit log:`, 'Known rider; verification email not delivered.');
-      if (note === null) return;
-      if (!note.trim()) {
-        window.alert('A note is required. Every staff action is recorded with its reason.');
-        return;
-      }
+      const choice = await actionDialog({
+        title: `Mark ${rider.username}’s email verified?`,
+        description: 'Only verify an email address after confirming the rider’s identity.',
+        confirmLabel: 'Mark verified',
+        templates: ['Known rider; verification email not delivered.'],
+      });
+      if (!choice) return;
       button.disabled = true;
       try {
-        await api('POST', `/moderation/riders/${encodeURIComponent(rider.riderId)}/verify-email`, { note: note.trim() });
+        await api('POST', `/moderation/riders/${encodeURIComponent(rider.riderId)}/verify-email`, { note: choice.note });
         await render();
+        flash('Email verified.');
       } catch (error) {
         button.disabled = false;
-        window.alert(error instanceof ApiError && error.code === 'already_verified' ? 'This rider is already verified.' : actionErrorMessage(error));
+        flash(error instanceof ApiError && error.code === 'already_verified' ? 'This rider is already verified.' : actionErrorMessage(error), 'danger');
       }
     });
     return button;
@@ -744,28 +761,33 @@
     if (!allowed('manage_staff')) return null;
     const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'export-data' }, text: 'Export data', 'aria-label': `Export ${rider.username}'s data` });
     button.addEventListener('click', async () => {
-      const note = window.prompt(`Download everything held about ${rider.username}? Reason for the audit log (e.g. the access request it answers):`);
-      if (note === null) return;
-      if (!note.trim()) {
-        window.alert('A reason is required. Every export is recorded.');
-        return;
-      }
+      const choice = await actionDialog({
+        title: `Export ${rider.username}’s account data?`,
+        description: 'For a verified access request only. This download contains personal data; store and share it securely.',
+        confirmLabel: 'Export',
+      });
+      if (!choice) return;
       button.disabled = true;
       try {
-        const data = await api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note: note.trim() });
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const link = el('a', { href: URL.createObjectURL(blob), download: `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json` });
-        document.body.append(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        const data = await api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note: choice.note });
+        downloadJson(data, `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json`);
+        flash('Data export downloaded.');
       } catch (error) {
-        window.alert(actionErrorMessage(error));
+        flash(actionErrorMessage(error), 'danger');
       } finally {
         button.disabled = false;
       }
     });
     return button;
+  }
+
+  /** Keep keyboard focus with the control that triggered a rerender, unless superseded. */
+  function renderAndFocus(selector) {
+    const completion = render();
+    const generation = renderGeneration;
+    void completion.then(() => {
+      if (isCurrentRender(generation)) pageEl.querySelector(selector)?.focus({ preventScroll: true });
+    });
   }
 
   function renderRiders(riders) {
@@ -776,7 +798,7 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       riderQuery = input.value.trim();
-      void render();
+      renderAndFocus('input[aria-label="Search riders"]');
     });
 
     const displayName = (rider) => rider.displayName || rider.username;
@@ -840,6 +862,27 @@
     return `Failed: ${error.code || error.message}`;
   }
 
+  /** Accessible confirmation for destructive actions without a browser prompt. */
+  function confirmAction({ title, description, confirmLabel, danger = false }) {
+    return new Promise((resolve) => {
+      const dialog = el('dialog', { class: 'dialog', 'aria-labelledby': 'confirmActionTitle' });
+      const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel' });
+      const accept = el('button', { type: 'button', class: danger ? 'button button-danger' : 'button button-primary', text: confirmLabel });
+      dialog.append(el('div', { class: 'dialog-body' }, [
+        el('h2', { id: 'confirmActionTitle', class: 'card-title', text: title }),
+        el('p', { class: 'card-description', text: description }),
+        el('div', { class: 'actions' }, [cancel, accept]),
+      ]));
+      let confirmed = false;
+      cancel.addEventListener('click', () => dialog.close());
+      accept.addEventListener('click', () => { confirmed = true; dialog.close(); });
+      dialog.addEventListener('close', () => { dialog.remove(); resolve(confirmed); });
+      document.body.append(dialog);
+      dialog.showModal();
+      cancel.focus();
+    });
+  }
+
   function wireAction(card, button, note, run) {
     button.addEventListener('click', async () => {
       const text = note.value.trim();
@@ -849,10 +892,18 @@
         note.focus();
         return;
       }
-      if (button.dataset.action === 'suspend'
-        && !window.confirm('Suspend this rider? They are signed out everywhere and cannot sign in until unsuspended.')) return;
-      if (button.dataset.action === 'remove'
-        && !window.confirm('Remove this post for everyone? Its photos or video are deleted. This can’t be undone.')) return;
+      if (button.dataset.action === 'suspend' && !(await confirmAction({
+        title: 'Suspend this rider?',
+        description: 'They are signed out everywhere and cannot sign in until the suspension ends or staff unsuspend them.',
+        confirmLabel: 'Suspend rider',
+        danger: true,
+      }))) return;
+      if (button.dataset.action === 'remove' && !(await confirmAction({
+        title: 'Remove this Social post?',
+        description: 'The post and its media will be removed for everyone. This cannot be undone.',
+        confirmLabel: 'Remove post',
+        danger: true,
+      }))) return;
       for (const other of card.querySelectorAll('button')) other.disabled = true;
       errorEl.textContent = '';
       try {
@@ -891,12 +942,16 @@
     const button = el('button', { type: 'button', class: 'button button-small claim', dataset: { action: mine ? 'release' : 'claim' }, text: mine ? 'You’re handling this · Let go' : 'Take this report' });
     button.addEventListener('click', async () => {
       button.disabled = true;
+      let failure = null;
       try {
         await api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/claim`, mine ? { release: true } : {});
       } catch (error) {
-        if (!(error instanceof ApiError) || error.code !== 'claimed_by_other') window.alert(actionErrorMessage(error));
+        failure = error;
       }
       await render();
+      if (failure) flash(failure instanceof ApiError && failure.code === 'claimed_by_other'
+        ? 'Another moderator is handling this report. The queue has been refreshed.'
+        : actionErrorMessage(failure), 'warning');
     });
     return button;
   }
@@ -989,10 +1044,10 @@
     return card;
   }
 
-  async function renderModeration() {
+  async function renderModeration(generation) {
     const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned']], moderationView, (next) => {
       moderationView = next;
-      void render();
+      renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
     }, 'Moderation queues');
     const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
     if (moderationView === 'social') {
@@ -1002,14 +1057,18 @@
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 404) throw error;
       }
+      if (!isCurrentRender(generation)) return;
       await loadNames(posts.map((entry) => entry.post.authorId));
+      if (!isCurrentRender(generation)) return;
       pageEl.replaceChildren(header, el('div', { class: 'reports' }, posts.length
         ? posts.map(socialPostCard)
         : [el('div', { class: 'card' }, [emptyState('inbox', 'No hidden posts', 'Posts reported by three riders are hidden here until you restore or remove them.')])]));
       return;
     }
     const { reports } = await api('GET', `/moderation/reports?status=${moderationView}&limit=100`);
+    if (!isCurrentRender(generation)) return;
     await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy]));
+    if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
     pageEl.replaceChildren(header, el('div', { class: 'reports' }, reports.length
       ? reports.map(reportCard)
@@ -1075,11 +1134,12 @@
 
   // ------------------------------------------------------------ Rider
 
-  async function renderRiderDetail(riderId) {
+  async function renderRiderDetail(riderId, generation) {
     const detail = await api('GET', `/admin/riders/${encodeURIComponent(riderId)}`).catch((error) => {
       if (error instanceof ApiError && error.status === 404) return null;
       throw error;
     });
+    if (!isCurrentRender(generation)) return;
     if (!detail) {
       pageEl.replaceChildren(pageHeader('Rider', null), el('div', { class: 'card' }, [emptyState('users', 'No such rider', 'They may have deleted their account.')]));
       return;
@@ -1090,6 +1150,7 @@
       ...(detail.reportsFiled ?? []).map((report) => report.reportedRiderId),
       ...(detail.actions ?? []).map((action) => action.moderatorId),
     ].filter((id) => id && id !== 'system'));
+    if (!isCurrentRender(generation)) return;
     const name = rider.displayName || rider.username;
     document.title = `${name} · Rider Comms staff`;
 
@@ -1157,7 +1218,7 @@
         el('div', { class: 'person' }, [
           avatar(name, rider.riderId),
           el('div', { class: 'person-text' }, [
-            el('h1', { class: 'page-title', text: name }),
+            el('h1', { class: 'page-title', tabindex: '-1', text: name }),
             el('p', { class: 'page-subtitle', text: [rider.handle, rider.email].filter(Boolean).join(' · ') }),
           ]),
         ]),
@@ -1222,16 +1283,18 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
-  async function renderAudit() {
+  async function renderAudit(generation) {
     const query = auditRider ? `&riderId=${encodeURIComponent(auditRider)}` : '';
     const { actions } = await api('GET', `/moderation/actions?limit=200${query}`);
+    if (!isCurrentRender(generation)) return;
     await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
+    if (!isCurrentRender(generation)) return;
     const group = ACTION_GROUPS.find(([id]) => id === auditGroup) ?? ACTION_GROUPS[0];
     const shown = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
 
     const filters = segmented(ACTION_GROUPS.map(([id, label]) => [id, label]), auditGroup, (next) => {
       auditGroup = next;
-      void render();
+      renderAndFocus('[aria-label="Filter the audit log"] [aria-pressed="true"]');
     }, 'Filter the audit log');
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', placeholder: 'Rider ID, e.g. rider_ab12cd34', 'aria-label': 'Show actions for one rider', maxlength: 100, autocomplete: 'off' });
@@ -1240,7 +1303,7 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       auditRider = input.value.trim();
-      void render();
+      renderAndFocus('input[aria-label="Show actions for one rider"]');
     });
     const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
     exportButton.addEventListener('click', () => downloadAuditCsv(shown));
@@ -1313,37 +1376,50 @@
     if (member.role === 'admin') return el('span', { class: 'muted', text: 'Set on the backend' });
     const select = roleSelect(member.role, `Role for ${member.displayName || member.riderId}`);
     const remove = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'remove-staff' }, text: 'Remove' });
-    const ask = (question) => {
-      const note = window.prompt(question);
-      if (note === null) return null;
-      if (!note.trim()) {
-        window.alert('A reason is required. Every staff change is recorded.');
-        return null;
-      }
-      return note.trim();
-    };
     select.addEventListener('change', async () => {
-      const note = ask(`Change ${member.displayName || member.riderId} to ${ROLE_LABELS[select.value]}? Reason for the audit log:`);
-      if (note === null) {
+      const nextRole = select.value;
+      const choice = await actionDialog({
+        title: `Change ${member.displayName || member.riderId} to ${ROLE_LABELS[nextRole]}?`,
+        description: 'Their dashboard permissions change immediately. A reason goes in the audit log.',
+        confirmLabel: 'Change role',
+      });
+      if (!choice) {
         select.value = member.role;
         return;
       }
+      select.disabled = true;
+      remove.disabled = true;
       try {
-        await api('POST', '/admin/staff', { rider: member.riderId, role: select.value, note });
+        await api('POST', '/admin/staff', { rider: member.riderId, role: nextRole, note: choice.note });
         await render();
+        flash('Staff role updated.');
       } catch (error) {
         select.value = member.role;
-        window.alert(staffErrorMessage(error));
+        flash(staffErrorMessage(error), 'danger');
+      } finally {
+        select.disabled = false;
+        remove.disabled = false;
       }
     });
     remove.addEventListener('click', async () => {
-      const note = ask(`Remove ${member.displayName || member.riderId} from staff? Reason for the audit log:`);
-      if (note === null) return;
+      const choice = await actionDialog({
+        title: `Remove ${member.displayName || member.riderId} from staff?`,
+        description: 'Dashboard access ends immediately. Their rider account is not deleted.',
+        confirmLabel: 'Remove staff',
+        danger: true,
+      });
+      if (!choice) return;
+      select.disabled = true;
+      remove.disabled = true;
       try {
-        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/remove`, { note });
+        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/remove`, { note: choice.note });
         await render();
+        flash('Staff access removed.');
       } catch (error) {
-        window.alert(staffErrorMessage(error));
+        flash(staffErrorMessage(error), 'danger');
+      } finally {
+        select.disabled = false;
+        remove.disabled = false;
       }
     });
     return el('div', { class: 'row-actions' }, [select, remove]);
@@ -1386,17 +1462,20 @@
     ];
   }
 
-  async function renderStaff() {
+  async function renderStaff(generation) {
     const [{ staff }, events] = await Promise.all([
       api('GET', '/admin/staff'),
       api('GET', '/admin/security-events?staff=1&limit=20').then((body) => body.events).catch(() => null),
     ]);
+    if (!isCurrentRender(generation)) return;
     await loadNames((events ?? []).map((event) => event.riderId));
+    if (!isCurrentRender(generation)) return;
     const counts = staff.reduce((total, member) => ({ ...total, [member.role]: (total[member.role] ?? 0) + 1 }), {});
     const name = (member) => member.displayName || member.handle || member.riderId;
     const sub = (member) => [member.handle, member.email].filter(Boolean).join(' · ') || member.riderId;
     const granted = (member) => member.grantedAt ? el('span', {}, [timeEl(member.grantedAt), ` by ${riderLabel(member.grantedBy).name}`]) : el('span', { class: 'muted', text: 'ADMIN_RIDER_IDS' });
     await loadNames(staff.map((member) => member.grantedBy).filter(Boolean));
+    if (!isCurrentRender(generation)) return;
     pageEl.replaceChildren(
       pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
       addStaffForm(),
@@ -1524,8 +1603,17 @@
     ];
   }
 
-  async function renderSystem() {
-    const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null), api('GET', '/admin/metrics').catch(() => null)]);
+  async function renderSystem(generation) {
+    const detail = async (path) => {
+      try { return await api('GET', path); }
+      catch (error) {
+        // A revoked session or staff role must not look like missing monitoring data.
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw error;
+        return null;
+      }
+    };
+    const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), detail('/admin/system'), detail('/admin/metrics')]);
+    if (!isCurrentRender(generation)) return;
     const row = (name, description, result) => el('li', { class: 'status-row' }, [
       el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
       el('span', { class: 'status-value' }, [
@@ -1534,9 +1622,17 @@
       ]),
     ]);
     const setup = setupRows(system);
+    const missing = [!system ? 'Service setup' : null, !metrics ? 'Traffic metrics' : null].filter(Boolean);
+    const retry = el('button', { type: 'button', class: 'button', text: 'Retry details' });
+    retry.addEventListener('click', () => void render());
     const runbook = (file, label) => el('li', {}, [el('a', { href: `https://github.com/alidd11/rider-comms/blob/main/${file}`, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: label }), icon('external')])]);
     pageEl.replaceChildren(
       pageHeader('System', `Checked ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} from this browser`),
+      ...(missing.length ? [el('section', { class: 'card system-warning', role: 'status' }, [
+        el('div', {}, [el('div', { class: 'status-name', text: 'Some system details are unavailable' }),
+          el('p', { class: 'card-description', text: `${missing.join(' and ')} could not be loaded. Other results below may still be current.` })]),
+        retry,
+      ])] : []),
       el('section', { class: 'card' }, [el('ul', { class: 'status-list' }, [
         row('API', 'Backend process is running', health),
         row('Database', 'Postgres reachable and migrations applied', ready),
@@ -1563,35 +1659,58 @@
   }
 
   async function render() {
+    const generation = ++renderGeneration;
+    const key = renderKey();
+    const focusHeading = focusHeadingOnNextRender;
+    focusHeadingOnNextRender = false;
     for (const button of navEl.querySelectorAll('[data-view]')) {
       if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
-    if (view === 'overview' && !overviewCache) pageEl.replaceChildren(...skeletonOverview());
-    else if (view !== 'overview') pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
+    // Refresh the current section in place; skeletons are for navigation only.
+    const refreshing = key === displayedKey;
+    if (!refreshing) {
+      if (view === 'overview') pageEl.replaceChildren(...skeletonOverview());
+      else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
+    }
     setBusy(true);
     try {
       if (view === 'overview') {
-        overviewCache = await api('GET', '/admin/overview');
+        const overview = await api('GET', '/admin/overview');
+        if (!isCurrentRender(generation)) return;
+        overviewCache = overview;
         updateReportCount(overviewCache.safety.openReports);
         renderOverview(overviewCache);
       } else if (view === 'riders') {
         const { riders } = await api('GET', `/admin/riders?limit=50&q=${encodeURIComponent(riderQuery)}`);
+        if (!isCurrentRender(generation)) return;
         renderRiders(riders);
       } else if (view === 'moderation') {
-        await renderModeration();
+        await renderModeration(generation);
       } else if (view === 'audit') {
-        await renderAudit();
+        await renderAudit(generation);
       } else if (view === 'staff') {
-        await renderStaff();
+        await renderStaff(generation);
       } else if (view === 'rider') {
-        await renderRiderDetail(detailRiderId);
+        await renderRiderDetail(detailRiderId, generation);
       } else {
-        await renderSystem();
+        await renderSystem(generation);
+      }
+      if (isCurrentRender(generation)) {
+        displayedKey = key;
+        if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav'))) {
+          pageEl.querySelector('.page-title')?.focus({ preventScroll: true });
+        }
       }
     } catch (error) {
+      if (!isCurrentRender(generation)) return;
+      if (refreshing && !(error instanceof ApiError && (error.status === 401 || error.status === 403))) {
+        flash('Couldn’t refresh this section. Showing the last loaded data; try refreshing again.', 'warning');
+        return;
+      }
+      displayedKey = null;
       if (error instanceof ApiError && error.code === 'permission_required') {
         pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('lock', 'Your role doesn’t include this page', 'Ask an admin if you need it.')]));
       } else if (error instanceof ApiError && error.status === 403) {
@@ -1599,18 +1718,30 @@
       } else if (error instanceof ApiError && error.status === 401) {
         notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
       } else {
-        pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('wifiOff', 'Couldn’t load this section', 'Check your connection, then refresh.')]));
+        const retry = el('button', { type: 'button', class: 'button button-primary', text: 'Retry' });
+        retry.addEventListener('click', () => void render());
+        pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [
+          emptyState('wifiOff', 'Couldn’t load this section', 'Check your connection and try again.'),
+          el('div', { class: 'retry-action' }, [retry]),
+        ]));
       }
     } finally {
-      setBusy(false);
+      if (isCurrentRender(generation)) setBusy(false);
     }
   }
 
   function selectView(hash) {
     const next = parseHash(hash);
-    if ((next.view === 'overview' && hash !== 'overview' && hash !== '') || (me && !allowed(VIEW_PERMISSIONS[next.view]))) return;
+    if ((next.view === 'overview' && hash !== 'overview' && hash !== '')
+      || (me && !allowed(VIEW_PERMISSIONS[next.view]))) {
+      const current = view === 'rider' ? `rider/${detailRiderId}` : view;
+      history.replaceState(null, '', `#${current}`);
+      return;
+    }
+    if (next.view === view && next.riderId === detailRiderId) return;
     view = next.view;
     detailRiderId = next.riderId;
+    focusHeadingOnNextRender = true;
     const target = view === 'rider' ? `rider/${detailRiderId}` : view;
     if (location.hash !== `#${target}`) history.pushState(null, '', `#${target}`);
     window.scrollTo(0, 0);
@@ -1624,6 +1755,7 @@
   const menuBackdrop = document.getElementById('menuBackdrop');
   function setMenu(open) {
     appEl.classList.toggle('menu-open', open);
+    document.body.classList.toggle('menu-visible', open);
     menuBackdrop.hidden = !open;
     menuToggle.setAttribute('aria-expanded', String(open));
     menuToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
@@ -1636,7 +1768,21 @@
   });
   menuBackdrop.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
+    if (!appEl.classList.contains('menu-open')) return;
+    if (event.key === 'Escape') { setMenu(false); menuToggle.focus(); return; }
+    if (event.key !== 'Tab') return;
+    const focusables = [...document.querySelectorAll('.sidebar button:not([disabled]):not([hidden])')]
+      .filter((element) => element.getClientRects().length > 0);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !focusables.includes(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !focusables.includes(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
   });
   for (const button of navEl.querySelectorAll('[data-view]')) button.addEventListener('click', () => {
     if (appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
@@ -1645,14 +1791,16 @@
   // Links to a rider (#rider/<id>) open their page.
   pageEl.addEventListener('click', (event) => {
     const link = event.target.closest?.('a[data-rider-link]');
-    if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     selectView(`rider/${link.dataset.riderLink}`);
   });
   window.addEventListener('hashchange', () => selectView(location.hash.slice(1)));
+  window.addEventListener('popstate', () => selectView(location.hash.slice(1)));
   refreshMobile.addEventListener('click', () => void render());
   let resizeTimer;
   window.addEventListener('resize', () => {
+    if (innerWidth >= 900 && appEl.classList.contains('menu-open')) setMenu(false);
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (view === 'overview') for (const chart of pageEl.querySelectorAll('.chart-card')) chart.redraw?.();
@@ -1677,13 +1825,24 @@
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
       else if (error instanceof ApiError && error.status === 401) notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
-      else pageEl.replaceChildren(el('div', { class: 'card notice' }, [emptyState('wifiOff', 'Couldn’t reach the server', 'Check your connection, then reload.')]));
+      else {
+        const retry = el('button', { type: 'button', class: 'button button-primary', text: 'Try again' });
+        retry.addEventListener('click', () => void start());
+        pageEl.replaceChildren(el('div', { class: 'card notice' }, [
+          emptyState('wifiOff', 'Couldn’t reach the server', 'Check your connection and try again.'),
+          el('div', { class: 'retry-action' }, [retry]),
+        ]));
+      }
       return;
     }
     for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
     footerRole.replaceChildren(roleBadge(me.role));
     if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
-    if (!allowed(VIEW_PERMISSIONS[view])) view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
+    if (!allowed(VIEW_PERMISSIONS[view])) {
+      view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
+      detailRiderId = null;
+      history.replaceState(null, '', `#${view}`);
+    }
     navEl.hidden = false;
     void render();
   }
