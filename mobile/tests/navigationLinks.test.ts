@@ -77,6 +77,22 @@ describe('navigation handoff URLs', () => {
     assert.equal(unsupported, false);
   });
 
+  it('accepts only the generated HTTPS directions endpoints for all three providers', async () => {
+    const target = { lat: 51.5074, lon: -0.1278, label: 'Safe test destination' };
+    const opened: string[] = [];
+    const opener = {
+      canOpenURL: async () => true,
+      openURL: async (url: string) => { opened.push(url); },
+    };
+    for (const provider of ['google_maps', 'waze', 'apple_maps'] as const) {
+      const url = buildNavigationProviderUrl(target, provider);
+      assert.ok(url, provider);
+      assert.equal(await openNavigationUrl(url, opener), true, provider);
+      assert.equal(opened.at(-1), url, provider);
+    }
+    assert.equal(opened.length, 3);
+  });
+
   it('blocks executable schemes, untrusted hosts and insecure navigation URLs', async () => {
     const opened: string[] = [];
     for (const url of [
