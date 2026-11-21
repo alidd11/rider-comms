@@ -129,10 +129,12 @@ test('PWA shows the ways there before Start, with live traffic, and starts the o
   await expect(page.locator('#routePreviewNoteText')).toHaveText('Fastest despite +8 min of traffic');
   await expect(page.locator('#routePreviewRide')).toBeHidden();
   await expect(page.locator('#routePreviewMoreText')).toHaveText('1 other route');
-  // The list of every way and the turns opens on demand.
+  // No turn list here (the trip card has it once riding); the other ways open on demand.
+  await expect(page.locator('#routePreview')).not.toContainText('Head north');
   await expect(page.locator('#routePreviewList')).toBeHidden();
-  await page.locator('#routePreviewStepsBtn').click();
-  await expect(page.locator('#routePreviewSteps li')).toHaveText(['Head north1.0 mi', 'Turn left1.0 mi', 'Arrive at Home']);
+  await page.locator('#routePreviewMore').click();
+  await expect(page.locator('#routePreviewList')).toBeVisible();
+  await expect(page.locator('#routePreviewMoreText')).toHaveText('Hide other routes');
 
   const request = await page.evaluate(() => window.__riderCommsTestRouteRequests[0]);
   expect(request.provideRouteAlternatives).toBe(true);
@@ -407,20 +409,62 @@ test('PWA preview: times on the map, riding styles, Avoid, Share, and the group 
   await page.locator('#routePreviewShare').click();
   await expect.poll(() => page.evaluate(() => window.__shared)).toEqual([expect.stringMatching(/^Heading to Home via B road: 1\.9 mi, arriving about .+\. Sent from Rider Comms\.$/)]);
 
-  // Riding style: Twisty keeps off motorways and shows the bendiest way,
-  // for this trip only (the motorways setting isn't changed).
+  // Swipe the card down to make it small (time and Start), and up again.
+  const card = page.locator('#routePreview');
+  const swipe = async (from, to) => {
+    await card.dispatchEvent('pointerdown', { clientY: from });
+    await card.dispatchEvent('pointerup', { clientY: to });
+  };
+  await swipe(700, 780);
+  await expect(card).toHaveClass(/minimised/);
+  await expect(page.locator('#routePreviewMeta')).toBeHidden();
+  await expect(page.locator('#routePreviewStart')).toBeVisible();
+  await swipe(780, 790);
+  await expect(card).toHaveClass(/minimised/);
+  await swipe(780, 700);
+  await expect(card).not.toHaveClass(/minimised/);
+  await swipe(700, 600);
+  await expect(card).toHaveClass(/expanded/);
+  await expect(page.locator('#routePreviewList')).toBeVisible();
+  await swipe(600, 700);
+  await expect(card).not.toHaveClass(/expanded/);
+  // A drag that starts on a button stays a tap.
+  await page.locator('#routePreviewShare').dispatchEvent('pointerdown', { clientY: 700 });
+  await card.dispatchEvent('pointerup', { clientY: 800 });
+  await expect(card).not.toHaveClass(/minimised/);
+  // The handle: small to the chosen way, then to every way, then back.
+  await swipe(700, 800);
+  await page.locator('#routePreviewHandle').click();
+  await expect(card).not.toHaveClass(/minimised/);
+  await page.locator('#routePreviewHandle').click();
+  await expect(card).toHaveClass(/expanded/);
+  await page.locator('#routePreviewHandle').click();
+  await expect(card).not.toHaveClass(/expanded/);
+
+  // Riding style, in Route options: Twisty keeps off motorways and shows the
+  // bendiest way, for this trip only (the motorways setting isn't changed).
+  const options = page.locator('#routePreviewAvoidBtn');
+  await expect(options).toHaveAttribute('aria-label', 'Route options, Fastest');
+  await expect(page.locator('#routePreviewOptions')).toBeHidden();
+  await options.click();
   const twisty = page.locator('[data-preview-style="twisty"]');
-  await expect(page.locator('[data-preview-style="fastest"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-preview-style="fastest"]')).toHaveAttribute('aria-checked', 'true');
   await page.evaluate(() => { window.__riderCommsTestRoute = { routes: [window.__way(24, 0), window.__way(31, 0.002, true)] }; });
   await twisty.click();
-  await expect(twisty).toHaveAttribute('aria-pressed', 'true');
+  // Picking a style closes the menu.
+  await expect(page.locator('#routePreviewOptions')).toBeHidden();
   await expect(page.locator('#routePreviewTime')).toHaveText('31 min');
+  await expect(options).toHaveAttribute('aria-label', 'Route options, Twisty');
+  await expect(page.locator('#routePreviewAvoidCount')).toHaveText('1');
+  await options.click();
+  await expect(twisty).toHaveAttribute('aria-checked', 'true');
   let requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
   expect(requests.at(-1).avoidHighways).toBe(true);
   expect(requests.at(-1).provideRouteAlternatives).toBe(true);
   expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('"avoidHighways":true')))).toBe(false);
   // Fastest again asks with the rider's own setting and shows the quickest.
   await page.locator('[data-preview-style="fastest"]').click();
+  await expect(page.locator('#routePreviewAvoidCount')).toBeHidden();
   await expect(page.locator('#routePreviewTime')).toHaveText('24 min');
   requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
   expect(requests.at(-1).avoidHighways).toBe(false);
@@ -432,7 +476,7 @@ test('PWA preview: times on the map, riding styles, Avoid, Share, and the group 
   await tolls.click();
   await expect(tolls).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('#routePreviewAvoidCount')).toHaveText('1');
-  await expect(page.locator('#routePreviewAvoidBtn')).toHaveAttribute('aria-label', 'Avoid tolls or ferries, 1 on');
+  await expect(page.locator('#routePreviewAvoidBtn')).toHaveAttribute('aria-label', 'Route options, Fastest, avoiding tolls or ferries');
   requests = await page.evaluate(() => window.__riderCommsTestRouteRequests);
   expect(requests.at(-1).avoidTolls).toBe(true);
   expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('"avoidTolls":true')))).toBe(true);
@@ -502,4 +546,25 @@ test('PWA keeps a voice button while navigating: tap to mute, hold to leave Near
   await expect.poll(() => presenceDeletes).toBeGreaterThan(0);
   await expect(page.locator('#app')).toHaveClass(/nav-mode/);
   await expect(voice).toBeHidden();
+});
+
+test('PWA preview says when Twisty found nothing bendier than the fastest way', async ({ page }) => {
+  await startNavigationHome(page);
+  await page.locator('#endNavBtn').click();
+  await page.evaluate(() => {
+    const latLng = (lat, lng) => new google.maps.LatLng(lat, lng);
+    const path = Array.from({ length: 20 }, (_, i) => latLng(51.5 + i * 0.001, -0.1 + (i % 2) * 0.0008));
+    const way = (minutes) => ({ summary: 'A1', overview_path: path, legs: [{
+      steps: [{ instructions: 'Head <b>north</b>', maneuver: '', distance: { value: 3000, text: '' }, duration: { value: minutes * 60, text: '' }, start_location: path[0], end_location: path[19], path }],
+      distance: { value: 3000, text: '' }, duration: { value: minutes * 60, text: '' }, start_location: path[0], end_location: path[19],
+    }] });
+    window.__riderCommsTestRoute = { routes: [way(20)] };
+  });
+  await page.locator('[data-saved-place="home"]').click();
+  await page.locator('#routePreviewAvoidBtn').click();
+  await page.locator('[data-preview-style="twisty"]').click();
+  await expect(page.locator('#routePreviewNoteText')).toHaveText('Also the twistiest way Google found');
+  await expect(page.locator('#routePreviewNote')).toHaveAttribute('data-traffic', 'false');
+  // One way only: no list to open, so a swipe up from the card does nothing more.
+  await expect(page.locator('#routePreviewMore')).toBeHidden();
 });
