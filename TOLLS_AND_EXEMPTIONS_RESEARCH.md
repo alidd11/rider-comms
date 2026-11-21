@@ -156,3 +156,7 @@ Official sources checked:
 - Oxfordshire ZEZ: 07:00–19:00 daily; motorcycles with non-zero emissions fall into a paid category, while zero-emission vehicles are charged £0: https://www.oxfordshire.gov.uk/transport-and-travel/oxford-zero-emission-zone-zez/charges-oxfords-zez
 
 These are documentary **ordinary-window references** only. Holiday closures must be separately checked in \`ChargingRule.exceptions\`, and zone-specific source/road-level charging rules must be independently verified before any production use. No extra paid API, fee catalogue or government dataset redistribution.
+
+## Commercial-use approval required for imported zone files (21 November 2026)
+
+The *future-only* checksum-pinned data loader now fails closed unless the manifest includes an explicit human-approved commercial redistribution review: approval state, valid review date, traceable internal approval reference, and a licence URL that exactly matches the source provenance. Rejection returns `licence_not_approved` rather than accepting any HTTPS URL as a legal licence. Regression tests exercise absent, false, malformed, inconsistent and excessively long approval metadata. **This technical attestation is not proof of legal rights; the real rights, source terms, attribution and applicable version must be checked by a responsible reviewer before setting the flag.** All current test data remains synthetic: the project still ships no production boundary assets, no unlicensed map data and no live navigation integration.

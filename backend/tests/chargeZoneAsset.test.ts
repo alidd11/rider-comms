@@ -13,6 +13,14 @@ const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('h
 const bytes = encode(geojson);
 const manifest: ReviewedChargeZoneAsset = {
   sha256: hash(bytes),
+  // Synthetic geometry authored exclusively for tests; no production asset
+  // or authority licence is asserted by the following fixture.
+  licenceReview: {
+    commercialRedistributionApproved: true,
+    reviewedOn: '2026-11-21',
+    approvalReference: 'SYNTHETIC-TEST-GEOMETRY-ONLY',
+    licenceUrl: 'https://www.nationalarchives.gov.uk/doc/open-government-licence/version/2/',
+  },
   provenance: {
     schemeId: 'london_ulez', sourceUrl: 'https://data.london.gov.uk/',
     licenceUrl: 'https://www.nationalarchives.gov.uk/doc/open-government-licence/version/2/',
@@ -40,6 +48,29 @@ describe('checksum-pinned, offline zone asset loading', () => {
       'invalid_manifest');
     assert.equal(loadReviewedChargeZone(bytes, null as unknown as ReviewedChargeZoneAsset).reason,
       'invalid_manifest');
+  });
+  it('fails closed when commercial redistribution was not separately approved', () => {
+    assert.equal(loadReviewedChargeZone(bytes, {
+      ...manifest, licenceReview: undefined as unknown as ReviewedChargeZoneAsset['licenceReview'],
+    }).reason, 'licence_not_approved');
+    assert.equal(loadReviewedChargeZone(bytes, {
+      ...manifest, licenceReview: {
+        ...manifest.licenceReview, commercialRedistributionApproved: false as unknown as true,
+      },
+    }).reason, 'licence_not_approved');
+    assert.equal(loadReviewedChargeZone(bytes, {
+      ...manifest, licenceReview: { ...manifest.licenceReview, approvalReference: '  ' },
+    }).reason, 'licence_not_approved');
+    assert.equal(loadReviewedChargeZone(bytes, {
+      ...manifest, licenceReview: { ...manifest.licenceReview, reviewedOn: '2026-02-30' },
+    }).reason, 'licence_not_approved');
+    assert.equal(loadReviewedChargeZone(bytes, {
+      ...manifest, licenceReview: { ...manifest.licenceReview,
+        licenceUrl: 'https://another-publisher.example/terms' },
+    }).reason, 'licence_not_approved');
+    assert.equal(loadReviewedChargeZone(bytes, {
+      ...manifest, licenceReview: { ...manifest.licenceReview, approvalReference: 'x'.repeat(201) },
+    }).reason, 'licence_not_approved');
   });
   it('bounds resource use and rejects empty data', () => {
     assert.equal(loadReviewedChargeZone(new Uint8Array(), manifest).reason, 'too_large');

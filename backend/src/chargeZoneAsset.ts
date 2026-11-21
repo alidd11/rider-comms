@@ -10,15 +10,42 @@ import { compileChargeZoneGeoJson, type ChargeZoneProvenance,
 
 const MAX_ZONE_ASSET_BYTES = 5 * 1024 * 1024;
 const SHA256 = /^[a-f0-9]{64}$/;
+function validDay(value: unknown): boolean {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+function hasHumanApprovedCommercialLicence(asset: ReviewedChargeZoneAsset): boolean {
+  const review = asset.licenceReview;
+  return Boolean(review && typeof review === 'object'
+    && review.commercialRedistributionApproved === true
+    && validDay(review.reviewedOn)
+    && typeof review.approvalReference === 'string'
+    && review.approvalReference.trim().length > 3
+    && review.approvalReference.length <= 200
+    && review.licenceUrl === asset.provenance.licenceUrl);
+}
+export interface ZoneCommercialLicenceReview {
+  /** An explicit human approval is required; HTTPS metadata alone is NOT a licence. */
+  commercialRedistributionApproved: true;
+  /** Date on which the linked licence and attribution were reviewed. */
+  reviewedOn: string;
+  /** Traceable internal approval/ticket ID. Not a substitute for legal rights. */
+  approvalReference: string;
+  /** Must match the licence URL recorded in the boundary provenance. */
+  licenceUrl: string;
+}
 export interface ReviewedChargeZoneAsset {
   /** Human-reviewed SHA-256 digest of the exact source bytes. */
   sha256: string;
   /** Source/licence metadata, reviewed independently of the checksum. */
   provenance: ChargeZoneProvenance;
+  /** Explicitly approved commercial redistribution rights; never auto-infer from URL. */
+  licenceReview: ZoneCommercialLicenceReview;
 }
 export type ChargeZoneLoadReason =
   | 'ok' | 'invalid_manifest' | 'too_large' | 'checksum_mismatch'
-  | 'invalid_geojson' | 'invalid_zone';
+  | 'invalid_geojson' | 'invalid_zone' | 'licence_not_approved';
 export type ChargeZoneLoadResult =
   | { ok: true; reason: 'ok'; zone: PreparedChargeZone }
   | { ok: false; reason: Exclude<ChargeZoneLoadReason, 'ok'> };
@@ -43,6 +70,7 @@ export function loadReviewedChargeZone(
     ({ ok: false, reason });
   if (!asset || typeof asset !== 'object'
     || !SHA256.test(asset.sha256) || !asset.provenance) return fail('invalid_manifest');
+  if (!hasHumanApprovedCommercialLicence(asset)) return fail('licence_not_approved');
   if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1
     || bytes.byteLength > MAX_ZONE_ASSET_BYTES) return fail('too_large');
   const digest = createHash('sha256').update(bytes).digest('hex');
