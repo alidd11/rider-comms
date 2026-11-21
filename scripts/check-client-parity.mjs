@@ -163,7 +163,7 @@ for (const token of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehi
     throw new Error(`Settings page drifted for ${token}`);
   }
 }
-for (const token of ['navigationApp', 'blockedRiders', 'email', 'devices']) {
+for (const token of ['navigationApp', 'tollsExemptions', 'blockedRiders', 'email', 'devices']) {
   if (!pwaMapSource.includes(`${token}: {`) || !pwaMapSource.includes(`settingsLink('${token}'`) || !nativeSettingsSource.includes(`page === '${token}'`) || !nativeSettingsSource.includes(`page: '${token}'`)) {
     throw new Error(`Settings page drifted for ${token}`);
   }
