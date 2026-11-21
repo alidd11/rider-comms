@@ -723,19 +723,21 @@
     if (rider.emailVerified || !allowed('verify_email')) return null;
     const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'verify-email' }, text: 'Verify email', 'aria-label': `Mark ${rider.username}'s email verified` });
     button.addEventListener('click', async () => {
-      const note = window.prompt(`Mark ${rider.username}'s email as verified? Only do this for riders you know. Note for the audit log:`, 'Known rider; verification email not delivered.');
-      if (note === null) return;
-      if (!note.trim()) {
-        window.alert('A note is required. Every staff action is recorded with its reason.');
-        return;
-      }
+      const choice = await actionDialog({
+        title: `Mark ${rider.username}’s email verified?`,
+        description: 'Only verify an email address after confirming the rider’s identity.',
+        confirmLabel: 'Mark verified',
+        templates: ['Known rider; verification email not delivered.'],
+      });
+      if (!choice) return;
       button.disabled = true;
       try {
-        await api('POST', `/moderation/riders/${encodeURIComponent(rider.riderId)}/verify-email`, { note: note.trim() });
+        await api('POST', `/moderation/riders/${encodeURIComponent(rider.riderId)}/verify-email`, { note: choice.note });
         await render();
+        flash('Email verified.');
       } catch (error) {
         button.disabled = false;
-        window.alert(error instanceof ApiError && error.code === 'already_verified' ? 'This rider is already verified.' : actionErrorMessage(error));
+        flash(error instanceof ApiError && error.code === 'already_verified' ? 'This rider is already verified.' : actionErrorMessage(error), 'danger');
       }
     });
     return button;
@@ -747,23 +749,19 @@
     if (!allowed('manage_staff')) return null;
     const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'export-data' }, text: 'Export data', 'aria-label': `Export ${rider.username}'s data` });
     button.addEventListener('click', async () => {
-      const note = window.prompt(`Download everything held about ${rider.username}? Reason for the audit log (e.g. the access request it answers):`);
-      if (note === null) return;
-      if (!note.trim()) {
-        window.alert('A reason is required. Every export is recorded.');
-        return;
-      }
+      const choice = await actionDialog({
+        title: `Export ${rider.username}’s account data?`,
+        description: 'For a verified access request only. This download contains personal data; store and share it securely.',
+        confirmLabel: 'Export',
+      });
+      if (!choice) return;
       button.disabled = true;
       try {
-        const data = await api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note: note.trim() });
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const link = el('a', { href: URL.createObjectURL(blob), download: `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json` });
-        document.body.append(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        const data = await api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note: choice.note });
+        downloadJson(data, `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json`);
+        flash('Data export downloaded.');
       } catch (error) {
-        window.alert(actionErrorMessage(error));
+        flash(actionErrorMessage(error), 'danger');
       } finally {
         button.disabled = false;
       }
@@ -1324,37 +1322,50 @@
     if (member.role === 'admin') return el('span', { class: 'muted', text: 'Set on the backend' });
     const select = roleSelect(member.role, `Role for ${member.displayName || member.riderId}`);
     const remove = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'remove-staff' }, text: 'Remove' });
-    const ask = (question) => {
-      const note = window.prompt(question);
-      if (note === null) return null;
-      if (!note.trim()) {
-        window.alert('A reason is required. Every staff change is recorded.');
-        return null;
-      }
-      return note.trim();
-    };
     select.addEventListener('change', async () => {
-      const note = ask(`Change ${member.displayName || member.riderId} to ${ROLE_LABELS[select.value]}? Reason for the audit log:`);
-      if (note === null) {
+      const nextRole = select.value;
+      const choice = await actionDialog({
+        title: `Change ${member.displayName || member.riderId} to ${ROLE_LABELS[nextRole]}?`,
+        description: 'Their dashboard permissions change immediately. A reason goes in the audit log.',
+        confirmLabel: 'Change role',
+      });
+      if (!choice) {
         select.value = member.role;
         return;
       }
+      select.disabled = true;
+      remove.disabled = true;
       try {
-        await api('POST', '/admin/staff', { rider: member.riderId, role: select.value, note });
+        await api('POST', '/admin/staff', { rider: member.riderId, role: nextRole, note: choice.note });
         await render();
+        flash('Staff role updated.');
       } catch (error) {
         select.value = member.role;
-        window.alert(staffErrorMessage(error));
+        flash(staffErrorMessage(error), 'danger');
+      } finally {
+        select.disabled = false;
+        remove.disabled = false;
       }
     });
     remove.addEventListener('click', async () => {
-      const note = ask(`Remove ${member.displayName || member.riderId} from staff? Reason for the audit log:`);
-      if (note === null) return;
+      const choice = await actionDialog({
+        title: `Remove ${member.displayName || member.riderId} from staff?`,
+        description: 'Dashboard access ends immediately. Their rider account is not deleted.',
+        confirmLabel: 'Remove staff',
+        danger: true,
+      });
+      if (!choice) return;
+      select.disabled = true;
+      remove.disabled = true;
       try {
-        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/remove`, { note });
+        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/remove`, { note: choice.note });
         await render();
+        flash('Staff access removed.');
       } catch (error) {
-        window.alert(staffErrorMessage(error));
+        flash(staffErrorMessage(error), 'danger');
+      } finally {
+        select.disabled = false;
+        remove.disabled = false;
       }
     });
     return el('div', { class: 'row-actions' }, [select, remove]);
