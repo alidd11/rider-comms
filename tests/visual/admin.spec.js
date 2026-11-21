@@ -500,6 +500,7 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page);
     let first = true;
     await page.route((url) => url.pathname === '/admin/riders', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
       if (first) {
         first = false;
         await route.fulfill({
@@ -820,6 +821,7 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page);
     let first = true;
     await page.route(`${API}/admin/system`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
       if (first) {
         first = false;
         await route.fulfill({
