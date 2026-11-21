@@ -27,10 +27,10 @@ export interface SocialMediaService {
 export type MediaVariant = 'file' | 'poster';
 
 const MINUTE_MS = 60_000;
-/** Links are issued in 10-minute steps, so a refreshed feed reuses the same URL. */
-const LINK_STEP_MS = 10 * MINUTE_MS;
-/** The longest a link lasts; with the step, a link lives 20 to 30 minutes. */
-export const MEDIA_LINK_LIFETIME_MS = 30 * MINUTE_MS;
+/** Links are issued in one-minute steps to limit replay exposure. */
+const LINK_STEP_MS = MINUTE_MS;
+/** The longest a link lasts; with the step, a link lives 4 to 5 minutes. */
+export const MEDIA_LINK_LIFETIME_MS = 5 * MINUTE_MS;
 const SESSION_ID = /^[0-9a-f-]{32,36}$/;
 
 /** Who a link is for: the rider and the signed-in session that asked for it. */
