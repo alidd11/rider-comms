@@ -4,7 +4,7 @@
 
 ## What Waze actually does
 
-1. Waze offers **Toll and HOV passes**, a recognised pass/vignette catalogue. Users can select multiple passes, inspect all available passes and remove them. Names vary by country and the catalogue changes. On **CarPlay** passes must be managed on the phone; **Android Auto/AAOS** expose pass controls and search.
+1. Waze offers **Toll and HOV passes**, a recognised pass/vignette catalogue. Users can select multiple passes, inspect all available passes and remove them. Names vary by country and the catalogue changes. Waze **does not currently support clean-air passes on CarPlay** according to its own clean-air-pass Help page; **Android Auto/AAOS** expose pass controls and search. Avoid promising CarPlay parity based on Waze.
 2. UK Waze supports clean-air passes for **CAZ, CCZ, LEZ and ULEZ**. Waze's map editors maintain **restricted areas** with vehicle types, permitted passes and time/date restrictions, plus toll-road segments where appropriate.
 3. London's **Congestion Charge is not an ordinary toll** in Waze. Its UK guide explicitly states that `Avoid Toll` does not control CCZ; routing avoids the mapped restricted zone during operating hours by default unless the appropriate pass is added (subject to feasibility).
 4. Ordinary toll avoidance is **preferential**, not an unconditional prohibition. Waze usually offers a toll-free route first when one exists. Waze's toll estimates factor in date/time, vehicle, route and passes; they are not guaranteed and some variable congestion prices cannot be calculated.
@@ -12,7 +12,7 @@
 
 **Waze references**
 - [Adding passes and vignettes](https://support.google.com/waze/answer/9214833?hl=en)
-- [Clean-air passes](https://support.google.com/waze/answer/7670108?hl=en)
+- [Clean-air passes, including CarPlay limitation](https://support.google.com/waze/answer/7670108?hl=en)
 - [Avoiding toll roads](https://support.google.com/waze/answer/6262566?hl=en)
 - [Toll estimates](https://support.google.com/waze/answer/9370512?hl=en)
 - [UK Wazeopedia: roads, tolls and restrictions](https://www.waze.com/discuss/t/roads/379230)
@@ -27,7 +27,7 @@
 | **London LEZ** | Different vehicle categories, operates all day including Christmas Day. Not interchangeable with ULEZ. | [TfL where and when](https://tfl.gov.uk/modes/driving/congestion-charge/congestion-charge-zone) |
 | **Blackwall & Silvertown tunnels** | Crossing-specific (not daily zone) charging, **06:00–22:00** except 25 December. Motorcycles generally pay, unlike CCZ. Fees changed on **21 September 2026**. Off-peak/discount rules may require Auto Pay or prior registration. | [TfL tunnels](https://tfl.gov.uk/modes/driving/silvertown-blackwall-tunnels-charge/new-silvertown-tunnel), [TfL exemptions](https://tfl.gov.uk/modes/driving/discounts-and-exemptions) |
 | **English CAZs** | GOV.UK currently lists Bath, Birmingham, Bradford, Bristol, Portsmouth, Sheffield and Tyneside. Different Class A–D coverage; Class D *may* include motorcycles at the local authority's discretion. Do not offer a universal 'CAZ exempt' guarantee. | [GOV.UK CAZ](https://www.gov.uk/guidance/driving-in-a-clean-air-zone) |
-| **Dart Charge** | Separate tolled crossing. Determine segment, vehicle-specific charge, applicable times and exemptions from the current operator data. | [GOV.UK Dart Charge](https://www.gov.uk/pay-dartford-crossing-charge) |
+| **Dart Charge** | Separate tolled crossing. GOV.UK says motorcycles, mopeds and quad bikes cross free of charge; cars and vans can be charged. Confirm applicability by vehicle and route rather than making riders select a blanket exemption. | [GOV.UK Dart Charge](https://www.gov.uk/pay-dartford-crossing-charge/charges) |
 
 **Rules change.** Do not hard-code current prices or schedules into a long-lived app build without effective dates, update process and expiry validation. Official checkers must remain available to the user.
 
@@ -67,3 +67,12 @@ The current backend uses Google Routes (`computeRoutes`) with legacy Directions 
 The PR currently saves *user-declared, device-local* selections with an on-screen warning. They **do not yet alter routes, fees, legal eligibility or external provider settings**. Do not merge as a completed Waze-equivalent feature.
 
 After modifying `docs/app/*.js`, regenerate and commit `docs/app.js` using `npm run build:pwa-app`; CI rejects stale generated output. Test lint, typecheck, unit tests, native Jest/coverage and affected PWA Playwright interactions on the **exact PR head** before marking ready. **All work for this effort remains in PR #566; no sibling PRs.**
+
+## Implemented development increment — charging rule evaluator (future only)
+
+- `backend/src/chargingRules.ts` implements a typed, **unwired**, fail-closed contract to evaluate a charging exposure only when road-level crossing evidence, the exact passage time, vehicle class and an authority-backed scheme rule are present. **No production rule feed or geography is bundled.**
+- Every rule must carry HTTPS source attribution, an effective date range and a date through which *all exceptions* (for example, bank holidays and Christmas) have been reviewed. Invalid, unsupported or out-of-coverage information yields `unknown`, never an unsupported fee or charge-free claim.
+- Daily charges and per-crossing charges remain distinct. The evaluator converts an offset-aware crossing instant to `Europe/London`, handling summertime correctly; charging windows are start-inclusive and end-exclusive. Calendar exceptions override ordinary weekdays. **Passage time is not necessarily route departure time.**
+- `operator_verified` eligibility for the exact scheme and vehicle can only suppress a potential charge if the waiver type is scheme-appropriate, has a checked timestamp and has not expired. A self-declared checkbox, discount, Auto Pay registration or unverified emissions claim does **not** produce an exemption.
+- `backend/tests/chargingRules.test.ts` checks invalid/stale inputs, polygon-only uncertainty, scheme and vehicle mismatches, London BST, bank holidays, Christmas, pass proof requirements and daily/per-crossing classification.
+- This is an engine foundation, **not** a charge schedule or route avoidance system. Until a licensed road/zone dataset, versioned policy feed, reliable crossing geometry and route alternatives exist, keep `TOLLS_EXEMPTIONS_RELEASED = false` on both clients and do **not** call this evaluator from live route previews or endpoints.

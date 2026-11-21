@@ -412,7 +412,7 @@ function TollsExemptionsPage(): React.JSX.Element {
       <SettingsGroup title="Routing" note="Avoid tolls prefers toll-free roads where available. It may still include toll roads when no suitable alternative exists.">
         <SwitchRow first title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
       </SettingsGroup>
-      <SettingsGroup title="My exemptions" note="Only select charges you have confirmed you do not need to pay. These selections are stored on this device but do not currently change routing, prices or legal eligibility.">
+      <SettingsGroup title="My exemptions" note="Only select charges you’ve confirmed you don’t need to pay. These selections are stored on this device, but they don’t yet change routing, prices or legal eligibility.">
         {TOLL_EXEMPTION_OPTIONS.map(({ id, label }, index) => (
           <SwitchRow key={id} first={index === 0} title={label} value={tollExemptions.includes(id)}
             onValueChange={(enabled) => setTollExemptions(enabled ? [...tollExemptions, id] : tollExemptions.filter((item) => item !== id))} />

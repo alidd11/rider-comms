@@ -220,7 +220,7 @@
         ], 'Avoid tolls prefers toll-free roads where available. It may still include toll roads when no suitable alternative exists.')}
         <h3 class="settings-page-heading">My exemptions</h3>${settingsRowsMarkup(
           TOLL_EXEMPTION_OPTIONS.map(([id, label]) => `<div class="settings-row settings-row-toggle"><span class="settings-row-label">${escapeHtml(label)}</span><button type="button" class="toggle" data-toll-exemption="${id}" aria-label="${escapeHtml(label)}" aria-pressed="${(state.tollExemptions || []).includes(id)}"></button></div>`),
-          'Only select charges you have confirmed you do not need to pay. Selections are stored on this device but do not currently change routing, prices or legal eligibility.'
+          'Only select charges you’ve confirmed you don’t need to pay. Selections are stored on this device, but they don’t yet change routing, prices or legal eligibility.'
         )}
         ${settingsRowsMarkup(['<a class="settings-row" href="https://tfl.gov.uk/modes/driving/check-your-vehicle/" target="_blank" rel="noopener noreferrer"><span class="settings-row-label">Check London charges with TfL</span><span class="settings-row-chevron">' + icon('chevron') + '</span></a>'], 'Confirm your eligibility with the charging authority before travelling.')}`,
         ready: () => {
