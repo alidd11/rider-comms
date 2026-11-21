@@ -1591,7 +1591,15 @@
   }
 
   async function renderSystem(generation) {
-    const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null), api('GET', '/admin/metrics').catch(() => null)]);
+    const detail = async (path) => {
+      try { return await api('GET', path); }
+      catch (error) {
+        // A revoked session or staff role must not look like missing monitoring data.
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw error;
+        return null;
+      }
+    };
+    const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), detail('/admin/system'), detail('/admin/metrics')]);
     if (!isCurrentRender(generation)) return;
     const row = (name, description, result) => el('li', { class: 'status-row' }, [
       el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
@@ -1799,7 +1807,14 @@
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
       else if (error instanceof ApiError && error.status === 401) notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
-      else pageEl.replaceChildren(el('div', { class: 'card notice' }, [emptyState('wifiOff', 'Couldn’t reach the server', 'Check your connection, then reload.')]));
+      else {
+        const retry = el('button', { type: 'button', class: 'button button-primary', text: 'Try again' });
+        retry.addEventListener('click', () => void start());
+        pageEl.replaceChildren(el('div', { class: 'card notice' }, [
+          emptyState('wifiOff', 'Couldn’t reach the server', 'Check your connection and try again.'),
+          el('div', { class: 'retry-action' }, [retry]),
+        ]));
+      }
       return;
     }
     for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
