@@ -95,3 +95,25 @@ Primary standards:
 5. **Medium priority — deployed headers and dependency hygiene.** Verify effective CSP, HSTS, CORS, cache policy, dependency advisories and release signing on staging.
 
 **Merge gate:** exact-head CI green and security regressions reviewed; unresolved high-risk issues documented with owners and release-blocking status. A green test suite does not mean the app has passed an independent penetration test.
+
+
+### Research follow-up: authorization and privacy verification cases
+
+OWASP WSTG API BOLA guidance requires checking authorization for **every object reference and operation**, including list endpoints; MASVS-AUTH requires remote authorization enforcement, and MASVS-PRIVACY calls for assessing actual personal-data collection and sharing:
+- https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/12-API_Testing/02-API_Broken_Object_Level_Authorization/
+- https://mas.owasp.org/MASVS/07-MASVS-AUTH/
+- https://mas.owasp.org/MASVS/12-MASVS-PRIVACY/
+- https://cheatsheetseries.owasp.org/cheatsheets/Mobile_Application_Security_Cheat_Sheet.html
+
+Run the following on an **isolated backend with synthetic riders A, B and C**. These are pending test cases, not claims that production is vulnerable.
+
+| Boundary | Positive control | Negative / revocation control |
+| --- | --- | --- |
+| Private group ride | Consenting active member A reads member B's fresh location | Nonmember C, removed member A, former member after ride end, and member after sharing disabled cannot read B's location or receive it through events/voice |
+| Direct messages | A and B exchange messages when authorized | C cannot fetch, delete, mark read, or enumerate their conversation; blocked/unfriended accounts cannot continue forbidden operations |
+| Account sessions | A lists/revokes their own device sessions | B cannot revoke A's session by changing an ID; revoked tokens fail across REST, long-poll and media endpoints |
+| Social posts/media | Owner can create/delete; authorized viewer reads file | Another user cannot reuse uploads, delete posts or forge media session/expiry/signature; private visibility and blocks rechecked on every read |
+| Staff actions | Authorized moderator can perform an allowed action | Ordinary account cannot reach moderator routes via ID substitution, role claims or extra JSON properties |
+| Sensitive input | Valid captions, metadata and media are accepted | Oversized, wrong-MIME, polyglot, malformed JSON, unexpected fields and script-like input are rejected or safely treated as data |
+
+For each negative test, assert the HTTP status **and** no unauthorized state mutation or private data disclosure. Re-test after membership/consent/session changes, not only at initial login. Preserve normal legitimate workflows as positive controls. Use separate tests for list, detail, mutation, streaming/event and cached responses. Track any failure to a reproducible isolated fixture before changing production code.
