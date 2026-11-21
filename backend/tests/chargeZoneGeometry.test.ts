@@ -70,6 +70,23 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     const bradford = compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'uk_caz', zoneId: 'bradford_caz' });
     assert.equal(screen([[0.2, 0.2], [0.3, 0.3]], bradford).zoneId, 'bradford_caz');
   });
+  it('rejects holes outside, crossing or nested within other holes', () => {
+    const rect = (a: number, b: number, c: number, d: number) =>
+      [[a,b],[c,b],[c,d],[a,d],[a,b]];
+    assert.equal(prepare(geo([square, rect(3,3,4,4)])), null);
+    assert.equal(prepare(geo([square, rect(1,1,3,3)])), null);
+    assert.equal(prepare(geo([square, rect(0,0.5,1,1.5)])), null);
+    assert.equal(prepare(geo([square, hole, rect(0.8,0.8,1,1)])), null);
+    assert.equal(prepare(geo([square, hole, rect(1,1,1.5,1.5)])), null);
+    assert.ok(prepare(geo([square, hole, rect(0.1,0.1,0.3,0.3)])));
+  });
+  it('bounds cumulative topology work across polygons', () => {
+    const ring = Array.from({ length: 1800 }, (_, i) =>
+      [Math.cos(i * 2 * Math.PI / 1800), Math.sin(i * 2 * Math.PI / 1800)]);
+    ring.push([...ring[0]!]);
+    assert.ok(prepare(geo([ring])));
+    assert.equal(prepare({ type: 'MultiPolygon', coordinates: [[ring], [ring]] }), null);
+  });
   it('snapshots supplied geometry and source metadata so callers cannot alter validated zones', () => {
     const sourceRing = square.map(point => [...point]);
     const data = geo([sourceRing]);

@@ -79,7 +79,7 @@ function rejectsCoordinateOverride(geojson: unknown): boolean {
     && obj.features.some((feature: unknown) => rejectsCoordinateOverride(feature));
 }
 
-function validRing(value: unknown): value is Ring {
+function validRing(value: unknown, budget: { remaining: number }): value is Ring {
   if (!Array.isArray(value) || value.length < 4 || value.length > MAX_VERTICES) return false;
   if (!value.every(isValidPosition)) return false;
   const first = value[0] as Position, last = value[value.length - 1] as Position;
@@ -105,7 +105,8 @@ function validRing(value: unknown): value is Ring {
   // Bound the quadratic topology check; oversized rings require offline
   // simplification/review rather than silently accepting invalid geometry.
   const segments = value.length - 1;
-  if (segments * (segments - 3) / 2 > MAX_GEOMETRY_COMPARISONS) return false;
+  budget.remaining -= segments * (segments - 3) / 2;
+  if (budget.remaining < 0) return false;
   for (let i = 0; i < segments; i++) {
     for (let j = i + 2; j < segments; j++) {
       if (i === 0 && j === segments - 1) continue; // shared closing vertex
@@ -135,17 +136,19 @@ export function compileChargeZoneGeoJson(geojson: unknown, provenance: ChargeZon
   if (!geometries.length || geometries.length > MAX_POLYGONS) return null;
   const polygons: PreparedPolygon[] = [];
   let totalVertices = 0;
+  const budget = { remaining: MAX_GEOMETRY_COMPARISONS };
   for (const geometry of geometries) {
     if (!geometry || typeof geometry !== 'object') return null;
     const g = geometry as { type?: unknown; coordinates?: unknown };
     const sets = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : null;
     if (!Array.isArray(sets)) return null;
     for (const candidate of sets) {
-      if (!Array.isArray(candidate) || !candidate.length || !candidate.every(validRing)) return null;
+      if (!Array.isArray(candidate) || !candidate.length || !candidate.every(ring => validRing(ring, budget))) return null;
       const rings = candidate as Polygon;
       const vertices = rings.reduce((sum, ring) => sum + ring.length, 0);
       totalVertices += vertices;
       if (totalVertices > MAX_VERTICES || polygons.length >= MAX_POLYGONS) return null;
+      if (!validHoles(rings, budget)) return null;
       // Snapshot the validated coordinates. External GeoJSON must not be able
       // to mutate the compiled zone after its integrity checks have passed.
       const snapshot: Polygon = Object.freeze(rings.map(ring =>
@@ -182,6 +185,30 @@ function insideRing(point: Position, ring: Ring): boolean {
       && point[0]! < (b[0]! - a[0]!) * (point[1]! - a[1]!) / (b[1]! - a[1]!) + a[0]!) inside = !inside;
   }
   return inside;
+}
+// Conservatively reject touching or intersecting hole boundaries and nested holes.
+function validHoles(rings: Polygon, budget: { remaining: number }): boolean {
+  for (let i = 1; i < rings.length; i++) {
+    const hole = rings[i]!;
+    const outer = rings[0]!;
+    budget.remaining -= outer.length;
+    if (budget.remaining < 0 || !insideRing(hole[0]!, outer)) return false;
+    for (let j = 0; j < i; j++) {
+      const other = rings[j]!;
+      budget.remaining -= (hole.length - 1) * (other.length - 1);
+      if (budget.remaining < 0) return false;
+      for (let a = 1; a < hole.length; a++) {
+        for (let b = 1; b < other.length; b++) {
+          if (segmentIntersects(hole[a - 1]!, hole[a]!, other[b - 1]!, other[b]!)) return false;
+        }
+      }
+      if (j > 0) {
+        budget.remaining -= hole.length + other.length;
+        if (budget.remaining < 0 || insideRing(hole[0]!, other) || insideRing(other[0]!, hole)) return false;
+      }
+    }
+  }
+  return true;
 }
 function insidePolygon(point: Position, rings: Polygon): boolean {
   return insideRing(point, rings[0]!) && !rings.slice(1).some(ring => insideRing(point, ring));
