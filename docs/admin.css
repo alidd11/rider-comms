@@ -704,3 +704,14 @@ a { color: inherit; }
 .flash[data-tone="success"] { border-color: var(--success); color: var(--success); background: var(--success-soft); }
 .flash[data-tone="warning"] { border-color: var(--warning); color: var(--warning); background: var(--warning-soft); }
 .flash[data-tone="danger"] { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+
+/* Mobile dashboard interaction: readable inputs, reachable actions, no iOS zoom. */
+@media (max-width: 899px) {
+  input, select, textarea, .row-actions .select { font-size: 16px; }
+  .toolbar .button, .dialog .button, .rider-actions .button, .staff-form .button { min-height: 40px; }
+  .toolbar .input, .dialog .input, .staff-form .input { min-height: 44px; }
+  .row-actions .select, .row-actions .button-small { min-height: 40px; }
+  .dialog { max-height: calc(100dvh - 24px); }
+}
+body.menu-visible { overflow: hidden; }
+.retry-action { display: flex; justify-content: center; padding: 0 24px 24px; }
