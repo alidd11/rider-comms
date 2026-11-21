@@ -55,6 +55,45 @@
     ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away.'],
   ];
 
+  // Server-validated admin map beta entry. The standalone map reads no
+  // session token, private position, Google route or Place data.
+  async function revealAdminMapBeta() {
+    const entry = $('#mapBetaAdminEntry');
+    if (!entry) return;
+    entry.hidden = true;
+    const tokenAtStart = session?.token;
+    if (!tokenAtStart) return;
+    try {
+      const access = await apiFetch('GET', '/admin/me');
+      if (!entry.isConnected || tokenAtStart !== session?.token || access?.role !== 'admin') return;
+      entry.hidden = false;
+      entry.querySelector('#openMapBetaPreview')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
+          showToast('Map beta testing is only available while stationary.');
+          return;
+        }
+        button.disabled = true;
+        try {
+          const fresh = await apiFetch('GET', '/admin/me');
+          if (fresh?.role !== 'admin' || tokenAtStart !== session?.token) {
+            entry.hidden = true;
+            showToast('Admin access is required to open Rider Comms Maps beta.');
+            return;
+          }
+          window.location.assign('./map-beta/');
+        } catch {
+          entry.hidden = true;
+          showToast('Couldn’t verify admin access. Try again when connected.');
+        } finally {
+          if (button.isConnected) button.disabled = false;
+        }
+      });
+    } catch {
+      entry.hidden = true;
+    }
+  }
+
   function openSheet(type) {
     const templates = {
       blocked: () => ({
@@ -206,8 +245,10 @@
           settingsToggle('avoidHighways', 'Avoid motorways', state.avoidHighways),
           settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
           settingsToggle('avoidFerries', 'Avoid ferries', state.avoidFerries),
-        ], 'Route options apply to routes Rider Comms plans.')}`,
-        ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
+        ], 'Route options apply to routes Rider Comms plans.')}<section id="mapBetaAdminEntry" hidden><h3 class="settings-page-heading">Admin beta</h3>${settingsRowsMarkup([
+          '<button type="button" class="settings-row" id="openMapBetaPreview"><span class="settings-row-label">Rider Comms Maps (beta)</span><span class="settings-row-chevron">' + icon('chevron') + '</span></button>',
+        ], 'Experimental map-only preview. Navigation, search and rider locations remain on the classic map.')}</section>`,
+        ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); void revealAdminMapBeta(); },
       }),
       savedPlacesSettings: () => {
         const saved = loadSavedPlaces();

@@ -68,3 +68,10 @@ Allowed open-basemap layers need provenance and licences:
 - Valhalla: https://valhalla.github.io/valhalla/start/introduction/
 - Valhalla API response, polyline6 and motorcycle/motor_scooter costing: https://valhalla.github.io/valhalla/api/route/api-reference/ and https://valhalla.github.io/valhalla/api/decoding/
 - OSRM GeoJSON route response: https://project-osrm.org/docs/v26.6.1/http.html
+
+
+## Admin beta launch — draft only
+- Under Map & navigation, admins have a server-verified entry after `GET /admin/me` returns `role: "admin"`; support/moderator/analyst and unreachable sessions fail closed. Re-check at tap to handle role revocation.
+- The PWA navigates to `docs/map-beta/`; the native build launches that same stand-alone beta in the system browser. MapLibre Native is not installed yet. Both provide a return to classic map. This is a **map-only preview, not an in-app routing mode**; Google Directions/Places, rider positions, overlays and active navigation are untouched.
+- The static preview URL is accessible by direct link because it serves public OSM data only; the **button is admin-only**, not the static public geography. Never add confidential rider/admin data there.
+- No automatic rollout, preference persistence, Google content mixing or cost-bearing API calls. Do not merge/deploy without owner approval.

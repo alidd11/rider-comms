@@ -111,6 +111,21 @@ for (const trip of [
 ]) assert.throws(() => fromValhallaTrip({ trip }), 'Invalid Valhalla trip must fail');
 assert.throws(() => fromValhallaTrip(null));
 
+const webSettings = read('../docs/app/10-settings.js');
+const nativeSettings = read('../mobile/src/screens/SettingsScreen.tsx');
+const nativeClient = read('../mobile/src/api/client.ts');
+const betaHtml = read('../docs/map-beta/index.html');
+assert.match(webSettings, /fresh\?\.role !== 'admin'/);
+assert.match(webSettings, /apiFetch\('GET', '\/admin\/me'\)/);
+assert.match(webSettings, /window\.RiderMovementSafety\.isLockedForSafety/);
+assert.match(nativeSettings, /access\.role === 'admin'/);
+assert.match(nativeSettings, /access\.role !== 'admin'/);
+assert.match(nativeClient, /getStaffAccess\(\).*\/admin\/me/);
+assert.match(betaHtml, /Use classic map/);
+assert.match(betaHtml, /noindex,nofollow/);
+assert.equal(read('../docs/map-beta/preview.mjs'), js);
+assert.equal(read('../docs/map-beta/config.mjs'), read('../map-lab/config.mjs'));
+assert.equal(read('../docs/map-beta/open-route.mjs'), read('../map-lab/open-route.mjs'));
 assert.match(html, /Content-Security-Policy/);
 assert.match(html, /OpenStreetMap contributors/);
 assert.match(html, /OpenFreeMap/);
