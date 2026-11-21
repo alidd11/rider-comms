@@ -434,9 +434,10 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
         [blocker, blocked],
       );
       assert.equal((await read()).status, 404, 'blocked post is no longer readable');
-      assert.equal((await fetchMedia()).status, 403, 'old signed URL cannot bypass a new block');
+      assert.equal((await fetchMedia()).status, 404, 'old signed URL cannot bypass a new block; hide inaccessible objects');
       await getPool().query('DELETE FROM rider_blocks WHERE rider_id = $1 AND blocked_rider_id = $2', [blocker, blocked]);
       assert.equal((await read()).status, 200, 'access returns after block is removed');
+      assert.equal((await fetchMedia()).status, 200, 'existing link respects restored authorization');
     }
   });
 
