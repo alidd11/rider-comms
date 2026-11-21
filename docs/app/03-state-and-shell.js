@@ -46,6 +46,15 @@
   let destinationMarker;
   let navigationTrafficLayer;
 
+  // Both clients must remain disabled until the feature is ready to launch.
+  const TOLLS_EXEMPTIONS_RELEASED = false;
+  // Keep these IDs aligned with mobile/src/tollExemptionPreference.ts.
+  const TOLL_EXEMPTION_OPTIONS = [
+    ['london_congestion', 'London Congestion Charge'],
+    ['london_ulez', 'London ULEZ'],
+    ['blackwall_silvertown', 'Blackwall & Silvertown tunnels'],
+    ['dart_charge', 'Dartford Crossing'],
+  ];
   function loadState() {
     try {
       const stored = JSON.parse(localStorage.getItem(stateStorageKey()) || 'null');
@@ -60,6 +69,9 @@
         avoidHighways: stored.avoidHighways === true,
         avoidTolls: stored.avoidTolls === true,
         avoidFerries: stored.avoidFerries === true,
+        tollExemptions: Array.isArray(stored.tollExemptions)
+          ? TOLL_EXEMPTION_OPTIONS.filter(([id]) => stored.tollExemptions.includes(id)).map(([id]) => id)
+          : [],
         spokenDirections: stored.spokenDirections !== false,
         vehicleCategory: RIDER_VEHICLE_OPTIONS.some(([option]) => option === stored.vehicleCategory) ? stored.vehicleCategory : 'motorcycle_large',
         unit: storedProfile.unitSystem === 'km' ? 'km' : storedProfile.unitSystem === 'mi' ? 'mi' : stored.unit === 'km' ? 'km' : 'mi',

@@ -329,3 +329,31 @@ test('saves units, social visibility and route options', async () => {
   expect(result.current.routeAvoidance).toEqual({ highways: true, tolls: false, ferries: true });
   expect(JSON.parse((await AsyncStorage.getItem(`@rider-comms/settings/route-avoidance/${RIDER_ID}`)) ?? 'null')).toEqual({ highways: true, tolls: false, ferries: true });
 });
+
+test('restores, normalises and clears future toll declarations without affecting other riders', async () => {
+  await seedCache({});
+  const key = `@rider-comms/settings/toll-exemptions/${RIDER_ID}`;
+  await AsyncStorage.setItem(key, JSON.stringify(['dart_charge', 'london_ulez', 'invalid']));
+  const otherRiderKey = '@rider-comms/settings/toll-exemptions/another-rider';
+  await AsyncStorage.setItem(otherRiderKey, JSON.stringify(['blackwall_silvertown']));
+  const updateProfile = jest.fn(async () => fakeProfile());
+  const { result } = await renderSettings({
+    getProfile: jest.fn(async () => fakeProfile()),
+    updateProfile,
+  });
+  await waitFor(() => expect(result.current.tollExemptions).toEqual(['london_ulez', 'dart_charge']));
+
+  await act(async () => {
+    result.current.setTollExemptions(['london_congestion', 'london_congestion', 'dart_charge']);
+  });
+  expect(result.current.tollExemptions).toEqual(['london_congestion', 'dart_charge']);
+  await waitFor(async () => {
+    expect(JSON.parse((await AsyncStorage.getItem(key)) ?? 'null')).toEqual(['london_congestion', 'dart_charge']);
+  });
+
+  await act(() => { result.current.resetAll(); });
+  expect(result.current.tollExemptions).toEqual([]);
+  await waitFor(async () => { expect(await AsyncStorage.getItem(key)).toBeNull(); });
+  expect(JSON.parse((await AsyncStorage.getItem(otherRiderKey)) ?? 'null')).toEqual(['blackwall_silvertown']);
+  await waitFor(() => expect(updateProfile).toHaveBeenCalledWith(RIDER_ID, expect.objectContaining({ displayName: 'Rider' })));
+});

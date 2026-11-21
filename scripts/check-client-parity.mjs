@@ -53,6 +53,7 @@ const [
   nativeGuidanceSource,
   nativeMenuSource,
   nativeRiderPreferencesSource,
+  nativeTollExemptionSource,
   pwaRoutesSource,
   nativeCuratedRoutesSource,
 ] = await Promise.all([
@@ -71,6 +72,7 @@ const [
   readFile(new URL('../mobile/src/navigationGuidance.ts', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/screens/MenuScreen.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/riderPreferences.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../mobile/src/tollExemptionPreference.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/routes.js', import.meta.url), 'utf8'),
   readFile(new URL('../mobile/src/routes/curatedRoutes.ts', import.meta.url), 'utf8'),
 ]);
@@ -116,7 +118,7 @@ for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#EF4444', '#F2802A', '#8E5
   }
 }
 assertSameOrder(
-  ['Distance units', 'Navigation app', 'Avoid motorways', 'Avoid tolls', 'Avoid ferries', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Ride Safe auto-lock',
+  ['Distance units', 'Navigation app', 'Tolls & exemptions', 'Avoid motorways', 'Avoid tolls', 'Avoid ferries', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Ride Safe auto-lock',
     'Nearby rider visibility', 'Blocked riders', 'Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account'],
   pwaMapSource.slice(pwaMapSource.indexOf('generalSettings: () =>')),
   nativeSettingsSource.slice(nativeSettingsSource.indexOf('function GeneralPage(')),
@@ -163,10 +165,37 @@ for (const token of ['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehi
     throw new Error(`Settings page drifted for ${token}`);
   }
 }
-for (const token of ['navigationApp', 'blockedRiders', 'email', 'devices']) {
+for (const token of ['navigationApp', 'tollsExemptions', 'blockedRiders', 'email', 'devices']) {
   if (!pwaMapSource.includes(`${token}: {`) || !pwaMapSource.includes(`settingsLink('${token}'`) || !nativeSettingsSource.includes(`page === '${token}'`) || !nativeSettingsSource.includes(`page: '${token}'`)) {
     throw new Error(`Settings page drifted for ${token}`);
   }
+}
+// Tolls & exemptions is a future-gated child page with the same recognised options
+// on native and PWA. It must remain distinct from ordinary toll avoidance.
+for (const [id, label] of [
+  ['london_congestion', 'London Congestion Charge'],
+  ['london_ulez', 'London ULEZ'],
+  ['blackwall_silvertown', 'Blackwall & Silvertown tunnels'],
+  ['dart_charge', 'Dartford Crossing'],
+]) {
+  if (!pwaMapSource.includes(`['${id}', '${label}']`)
+      || !nativeTollExemptionSource.includes(`{ id: '${id}', label: '${label}' }`)) {
+    throw new Error(`Tolls & exemptions drifted for ${id}`);
+  }
+}
+if (!pwaMapSource.includes("state.tollExemptions = []")
+    || !nativeSettingsSource.includes("title=\"Tolls & exemptions\"")) {
+  throw new Error('Tolls & exemptions must be visible and resettable in both clients');
+}
+// Shipping this branch before the launch must NOT expose the incomplete
+// charging feature or remove the existing Avoid tolls control.
+if (!nativeTollExemptionSource.includes('export const TOLLS_EXEMPTIONS_RELEASED = false;')
+    || !pwaMapSource.includes('const TOLLS_EXEMPTIONS_RELEASED = false;')
+    || !nativeSettingsSource.includes('{!TOLLS_EXEMPTIONS_RELEASED ? <SwitchRow title="Avoid tolls"')
+    || !pwaMapSource.includes('...(!TOLLS_EXEMPTIONS_RELEASED ? [settingsToggle(\'avoidTolls\'')
+    || !pwaMapSource.includes("if (type === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED) type = 'mapNavigation';")
+    || !nativeSettingsSource.includes("if (page === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED)")) {
+  throw new Error('Tolls & exemptions must remain gated while existing toll avoidance is available');
 }
 // About is the last section of Help & Support on both clients.
 if (!pwaMapSource.includes("['Legal', 'legalLinks'], ['About', 'aboutCard']") || !nativeSettingsSource.includes('<AboutPage title="About" />')) {
