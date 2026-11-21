@@ -1601,9 +1601,17 @@
       ]),
     ]);
     const setup = setupRows(system);
+    const missing = [!system ? 'Service setup' : null, !metrics ? 'Traffic metrics' : null].filter(Boolean);
+    const retry = el('button', { type: 'button', class: 'button', text: 'Retry details' });
+    retry.addEventListener('click', () => void render());
     const runbook = (file, label) => el('li', {}, [el('a', { href: `https://github.com/alidd11/rider-comms/blob/main/${file}`, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: label }), icon('external')])]);
     pageEl.replaceChildren(
       pageHeader('System', `Checked ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} from this browser`),
+      ...(missing.length ? [el('section', { class: 'card system-warning', role: 'status' }, [
+        el('div', {}, [el('div', { class: 'status-name', text: 'Some system details are unavailable' }),
+          el('p', { class: 'card-description', text: `${missing.join(' and ')} could not be loaded. Other results below may still be current.` })]),
+        retry,
+      ])] : []),
       el('section', { class: 'card' }, [el('ul', { class: 'status-list' }, [
         row('API', 'Backend process is running', health),
         row('Database', 'Postgres reachable and migrations applied', ready),
