@@ -1,4 +1,6 @@
 import { providerHealthSnapshot } from '../providerHealth.ts';
+import { buildActionInbox, INBOX_FILTERS, INBOX_SAMPLE_SIZE, MAX_INBOX_PAGE_SIZE } from '../actionInbox.ts';
+import type { InboxFilter } from '../actionInbox.ts';
 import { exportRiderData } from '../accountExport.ts';
 import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
 import { getPool } from '../db.ts';
@@ -25,6 +27,28 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   if (req.method === 'GET' && url.pathname === '/admin/overview') {
     if (lacks('view_overview')) return refuse('view_overview');
     return sendJson(res, 200, await adminStatsStore.overview());
+  }
+  // Phase 2: one view of real work waiting for a moderator. Source workflows
+  // retain their own claim, reauthentication and audit rules.
+  if (req.method === 'GET' && url.pathname === '/admin/action-inbox') {
+    if (lacks('moderate')) return refuse('moderate');
+    const rawLimit = url.searchParams.get('limit');
+    const limit = rawLimit === null ? 25 : Number(rawLimit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_INBOX_PAGE_SIZE) {
+      return sendJson(res, 400, { error: `limit must be an integer from 1 to ${MAX_INBOX_PAGE_SIZE}` });
+    }
+    const filter = url.searchParams.get('type') ?? 'all';
+    if (!(INBOX_FILTERS as readonly string[]).includes(filter)) {
+      return sendJson(res, 400, { error: 'type must be all, rider_report or social_post' });
+    }
+    const type = filter as InboxFilter;
+    const [reports, socialPosts] = await Promise.all([
+      type === 'social_post' ? Promise.resolve([]) : moderationStore.listReports('open', INBOX_SAMPLE_SIZE),
+      type === 'rider_report' ? Promise.resolve([]) : ctx.socialPostStore.listHidden(INBOX_SAMPLE_SIZE),
+    ]);
+    return sendJson(res, 200, buildActionInbox(reports, socialPosts, {
+      limit, filter: type, sampleLimit: INBOX_SAMPLE_SIZE,
+    }));
   }
   // What the running backend is set up to do, for the dashboard's System page.
   if (req.method === 'GET' && url.pathname === '/admin/system') {

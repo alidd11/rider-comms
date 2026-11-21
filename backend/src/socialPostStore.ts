@@ -347,7 +347,7 @@ export class SocialPostStore {
   }
 
   /** Hidden posts waiting for a moderator, most reported first. */
-  async listHidden(limit = 50): Promise<Array<{ post: SocialPost; reports: number; reasons: string[] }>> {
+  async listHidden(limit = 50): Promise<Array<{ post: SocialPost; reports: number; reasons: string[]; hiddenAt: number }>> {
     await ensureMigrated();
     const result = await getPool().query(
       `SELECT q.*, (SELECT count(*)::int FROM social_post_reports r WHERE r.post_id = q.id) AS reports,
@@ -360,6 +360,7 @@ export class SocialPostStore {
       post: toPost(row, ''),
       reports: Number(row.reports),
       reasons: (row.reasons as string[] | null) ?? [],
+      hiddenAt: Number(row.hidden_at),
     }));
   }
 

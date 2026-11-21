@@ -162,6 +162,40 @@ describe('staff tools', { skip: !hasDatabase && 'DATABASE_URL not set' }, () => 
     assert.deepEqual(actions.sort(), ['password_reset_sent', 'sign_out_everywhere']);
   });
 
+  it('serves a role-gated action inbox backed by the live moderation queue', async () => {
+    await report('rep-tool-inbox', 1_000);
+    assert.equal((await fetch(`${ctx.baseUrl()}/admin/action-inbox`)).status, 401);
+    assert.equal((await authenticatedFetch(ctx, SUPPORT, '/admin/action-inbox')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, ANALYST, '/admin/action-inbox')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/admin/action-inbox?limit=0')).status, 400);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/admin/action-inbox?limit=51')).status, 400);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/admin/action-inbox?type=unapproved')).status, 400);
+
+    const response = await authenticatedFetch(ctx, MOD, '/admin/action-inbox?type=rider_report&limit=5');
+    assert.equal(response.status, 200);
+    const body = await response.json() as {
+      items: Array<{ type: string; id: string; reportId: string; riderId: string; claimedBy: string | null }>;
+      filter: string; mayHaveMore: boolean; generatedAt: number;
+    };
+    assert.equal(body.filter, 'rider_report');
+    assert.deepEqual(body.items.map((item) => item.id), ['rider_report:rep-tool-inbox']);
+    assert.equal(body.items[0]?.riderId, TARGET);
+    assert.equal(body.items[0]?.claimedBy, null);
+    assert.equal(typeof body.generatedAt, 'number');
+    assert.equal(body.mayHaveMore, false);
+
+    assert.equal((await postJson(ctx, MOD, '/moderation/reports/rep-tool-inbox/claim', {})).status, 200);
+    const claimed = await (await authenticatedFetch(ctx, MOD2, '/admin/action-inbox?type=rider_report')).json() as
+      { items: Array<{ claimedBy: string | null }> };
+    assert.equal(claimed.items[0]?.claimedBy, MOD);
+
+    assert.equal((await postJson(ctx, MOD, '/moderation/reports/rep-tool-inbox/resolve',
+      { resolution: 'dismiss', note: 'Investigated evidence' })).status, 200);
+    const cleared = await (await authenticatedFetch(ctx, MOD, '/admin/action-inbox?type=rider_report')).json() as
+      { items: unknown[] };
+    assert.deepEqual(cleared.items, []);
+  });
+
   it('shows each role the parts of a rider’s record it needs', async () => {
     await report('rep-tool-4');
     const detail = async (riderId: string) => authenticatedFetch(ctx, riderId, `/admin/riders/${TARGET}`);
