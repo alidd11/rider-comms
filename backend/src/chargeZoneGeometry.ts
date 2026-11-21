@@ -70,6 +70,15 @@ function boxForRing(ring: Ring): BoundingBox {
 function overlaps(a: BoundingBox, b: BoundingBox): boolean {
   return a.minLon <= b.maxLon && b.minLon <= a.maxLon && a.minLat <= b.maxLat && b.minLat <= a.maxLat;
 }
+function rejectsCoordinateOverride(geojson: unknown): boolean {
+  if (!geojson || typeof geojson !== 'object') return false;
+  if (Object.prototype.hasOwnProperty.call(geojson, 'crs')) return true;
+  const obj = geojson as { type?: unknown; geometry?: unknown; features?: unknown };
+  if (obj.type === 'Feature') return rejectsCoordinateOverride(obj.geometry);
+  return obj.type === 'FeatureCollection' && Array.isArray(obj.features)
+    && obj.features.some((feature: unknown) => rejectsCoordinateOverride(feature));
+}
+
 function validRing(value: unknown): value is Ring {
   if (!Array.isArray(value) || value.length < 4 || value.length > MAX_VERTICES) return false;
   if (!value.every(isValidPosition)) return false;
@@ -82,7 +91,16 @@ function validRing(value: unknown): value is Ring {
     if (Math.abs(a[0]! - b[0]!) > 180) return false;
   }
   const box = boxForRing(value);
-  return box.maxLon > box.minLon && box.maxLat > box.minLat;
+  if (box.maxLon <= box.minLon || box.maxLat <= box.minLat) return false;
+  // Catch folded/zero-area loops without an expensive O(n²) topology pass.
+  // Full topology must still be verified during the offline data review.
+  let twiceArea = 0;
+  for (let i = 1; i < value.length; i++) {
+    const a = value[i - 1] as Position;
+    const b = value[i] as Position;
+    twiceArea += a[0]! * b[1]! - b[0]! * a[1]!;
+  }
+  return Number.isFinite(twiceArea) && twiceArea !== 0;
 }
 
 /** Prepare an authority-reviewed local GeoJSON dataset just once. */
@@ -96,7 +114,7 @@ export function compileChargeZoneGeoJson(geojson: unknown, provenance: ChargeZon
     || typeof provenance.checkedAt !== 'string' || !INSTANT.test(provenance.checkedAt)
     || !validDate(provenance.checkedAt.slice(0, 10))
     || !Number.isFinite(Date.parse(provenance.checkedAt))) return null;
-  if (!geojson || typeof geojson !== 'object') return null;
+  if (!geojson || typeof geojson !== 'object' || rejectsCoordinateOverride(geojson)) return null;
   const obj = geojson as { type?: unknown; features?: unknown; geometry?: unknown; coordinates?: unknown };
   const geometries: unknown[] = obj.type === 'FeatureCollection' && Array.isArray(obj.features)
     ? obj.features.map((item: unknown) => item && typeof item === 'object'

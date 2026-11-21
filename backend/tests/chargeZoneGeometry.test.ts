@@ -46,6 +46,14 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     assert.equal(prepare(geo([square.slice(0, 4)])), null);
     assert.equal(prepare(geo([[[0, 0], [2, 0], [2, 2], [0, 0], [0, 0]]])), null);
     assert.equal(prepare({ type: 'LineString', coordinates: square }), null);
+    // A bow-tie is not a meaningful area even if its bounding box is valid.
+    assert.equal(prepare(geo([[[0, 0], [2, 2], [0, 2], [2, 0], [0, 0]]])), null);
+    const legacyCrs = { type: 'name', properties: { name: 'EPSG:27700' } };
+    assert.equal(prepare({ ...geo([square]), crs: legacyCrs }), null);
+    assert.equal(prepare({ type: 'Feature', geometry: { ...geo([square]), crs: legacyCrs } }), null);
+    assert.equal(prepare({ type: 'FeatureCollection', features: [
+      { type: 'Feature', geometry: geo([square]), crs: legacyCrs },
+    ] }), null);
     assert.equal(prepare({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: null }] }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, sourceUrl: 'http://example.com' }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, attribution: '' }), null);
