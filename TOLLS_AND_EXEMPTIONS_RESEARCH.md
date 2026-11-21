@@ -91,3 +91,9 @@ Official source catalogue to assess before real imports:
 - [Google Routes API terms](https://cloud.google.com/maps-platform/terms/maps-service-terms) — respect map/route content caching, downstream use, attribution and relevant EEA restrictions; **do not persist or redistribute Google polylines** as a new zone mapping database.
 
 A future server integration may screen a licensed, current route line **transiently in memory** when already available from the user's normal route request. It must avoid extra paid `computeRoutes` calls and must not become a public route-data ingestion endpoint. The production feature flag remains `false` on native and PWA.
+
+## Offline route-level assessment (21 Nov 2026)
+
+`backend/src/routeChargeSummary.ts` now brings together **two deliberately separate, future-only stages**. `screenChargeAreasForRoute` screens existing route geometry against reviewed charging polygons, returning possible contacts and always requiring road-level review. `summarizeRouteChargePassages` aggregates **separately verified road-passage events** through `assessChargeExposure` and counts potential *daily charges once per scheme/zone/London-local day* while counting *per-crossing events individually*. It cannot determine an amount due, does not make any extra Google Routes calls, never attempts charge-free rerouting, and is not imported by live navigation. Empty, malformed or duplicate evidence is explicitly marked for verification. Tests use synthetic fixtures.
+
+**Release remains off:** no real road-passage detector, no licensed production zone dataset and no authoritative fee catalogue yet. Never convert polygon contact into confirmed crossing evidence, and never treat the output count as a payable price or verified free route.

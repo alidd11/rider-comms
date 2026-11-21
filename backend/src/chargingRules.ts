@@ -132,7 +132,7 @@ function validRule(rule: ChargingRule, scheme: ChargingSchemeId): boolean {
     || !rule.waivingStatuses.every(v => WAIVERS.has(v))
     || (rule.waivingStatuses.includes('compliant') && !EMISSIONS_SCHEMES.has(scheme))
     || rule.weeklyWindows.some(w => !w || !Number.isInteger(w.dayOfWeek) || w.dayOfWeek < 0 || w.dayOfWeek > 6 || !validPeriod(w))
-    || rule.exceptions.some(d => !d || !validDate(d.date) || !Array.isArray(d.periods) || d.periods.some(p => !validPeriod(p)))) return false;
+    || rule.exceptions.some(d => !d || !validDate(d.date) || !Array.isArray(d.periods) || d.periods.some((p: unknown) => !validPeriod(p)))) return false;
   const days = rule.exceptions.map(d => d.date);
   return new Set(days).size === days.length;
 }
