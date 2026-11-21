@@ -84,6 +84,9 @@ export function verifyMediaSignature(
 ): boolean {
   if (!Number.isSafeInteger(expiresAt) || expiresAt < now || expiresAt > now + MEDIA_LINK_LIFETIME_MS) return false;
   if (!isMediaSessionId(viewer.sessionId)) return false;
+  // HMAC-SHA256 encoded as unpadded base64url is exactly 43 characters.
+  // Reject malformed/oversized attacker-controlled signatures before allocation.
+  if (!/^[A-Za-z0-9_-]{43}$/.test(sig)) return false;
   const expected = Buffer.from(signature(secret, viewer, mediaId, variant, expiresAt));
   const given = Buffer.from(sig);
   return given.length === expected.length && timingSafeEqual(given, expected);
