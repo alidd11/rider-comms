@@ -84,6 +84,9 @@ describe('navigation handoff URLs', () => {
       'file:///etc/passwd', 'http://www.google.com/maps/dir/',
       'https://www.google.com.attacker.example/maps/dir/',
       'https://www.google.com@attacker.example/maps/dir/', 'https://www.waze.com:8443/ul',
+      'https://www.google.com/search?q=maps', 'https://www.google.com/maps/dir/extra',
+      'https://www.waze.com/ul/extra', 'https://maps.apple.com/account',
+      'https://www.waze.com/ul.attacker',
     ]) {
       assert.equal(await openNavigationUrl(url, {
         canOpenURL: async () => { throw new Error('untrusted URL must not reach the OS'); },
