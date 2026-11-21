@@ -664,7 +664,9 @@ test('PWA preview says what riders have reported on each way', async ({ page }) 
   await expect(row).toHaveAttribute('aria-label', /, reported on the way: road closure, police$/);
   await expect(page.locator('[data-preview-route="1"] .route-hazard-chip')).toHaveCount(0);
   await page.locator('#routePreviewMore').click();
-  // Swiped small, the card keeps only the time and Start.
+  // Swiped small, the card keeps only the time and Start. (A card scrolled
+  // down, as on a short landscape screen, scrolls back first.)
+  await page.locator('#routePreview').evaluate((node) => { node.scrollTop = 0; });
   await page.locator('#routePreview').dispatchEvent('pointerdown', { clientY: 600 });
   await page.locator('#routePreview').dispatchEvent('pointerup', { clientY: 700 });
   await expect(page.locator('#routePreview')).toHaveClass(/minimised/);
