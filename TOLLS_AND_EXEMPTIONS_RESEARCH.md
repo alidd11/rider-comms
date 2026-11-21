@@ -76,3 +76,18 @@ After modifying `docs/app/*.js`, regenerate and commit `docs/app.js` using `npm 
 - `operator_verified` eligibility for the exact scheme and vehicle can only suppress a potential charge if the waiver type is scheme-appropriate, has a checked timestamp and has not expired. A self-declared checkbox, discount, Auto Pay registration or unverified emissions claim does **not** produce an exemption.
 - `backend/tests/chargingRules.test.ts` checks invalid/stale inputs, polygon-only uncertainty, scheme and vehicle mismatches, London BST, bank holidays, Christmas, pass proof requirements and daily/per-crossing classification.
 - This is an engine foundation, **not** a charge schedule or route avoidance system. Until a licensed road/zone dataset, versioned policy feed, reliable crossing geometry and route alternatives exist, keep `TOLLS_EXEMPTIONS_RELEASED = false` on both clients and do **not** call this evaluator from live route previews or endpoints.
+
+## Free-first geospatial screening increment (draft feature)
+
+`backend/src/chargeZoneGeometry.ts` now compiles **in-memory**, separately reviewed GeoJSON `Polygon`/`MultiPolygon`/`FeatureCollection` sources with source and licence attribution, strict coordinate validation, effective dates and a CPU budget. Its companion tests use **synthetic geometries only**. It neither downloads GeoJSON nor calls Google, Waze, TfL or a plate/compliance provider. There are **no new external API calls or subscriptions**.
+
+The screening output is deliberately `possible_polygon_contact`, `no_polygon_contact` or `unknown`. It is **never** a verified legal charging verdict. Line/polygon intersection alone cannot distinguish exempt road corridors, bridges, tunnels, crossing direction, uncertain/sparse polylines or the relevant fee and passage time; those require independently verified road-level restrictions, per-scheme eligibility and updated charging policy. Never convert `no_polygon_contact` into `confirmed_no_crossing` in the existing charge assessor.
+
+Official source catalogue to assess before real imports:
+- [GLA London-wide ULEZ GeoJSON](https://data.london.gov.uk/dataset/london-wide-ultra-low-emission-zone-2023-vd455) — **OGL v2**, attribution required, one-off 2024 boundary, refresh/revalidation needed before enabling.
+- [TfL Congestion Charge GIS feature layer](https://services1.arcgis.com/YswvgzOodUvqkoCN/arcgis/rest/services/Congestion_Charge_Zone/FeatureServer/8) — original TfL copyright, **confirm specific licence rights** before redistribution.
+- [TfL open data users](https://tfl.gov.uk/info-for/open-data-users) — access and data reuse conditions. An API key may be required for live feeds; don't assume one is necessary for downloaded GeoJSON.
+- [OpenStreetMap ODbL reuse](https://osmfoundation.org/wiki/License/Licence_and_Legal_FAQ) — **no data licence fee**, but attribution and database share-alike obligations apply. Public OSM tile servers are not unlimited free commercial infrastructure.
+- [Google Routes API terms](https://cloud.google.com/maps-platform/terms/maps-service-terms) — respect map/route content caching, downstream use, attribution and relevant EEA restrictions; **do not persist or redistribute Google polylines** as a new zone mapping database.
+
+A future server integration may screen a licensed, current route line **transiently in memory** when already available from the user's normal route request. It must avoid extra paid `computeRoutes` calls and must not become a public route-data ingestion endpoint. The production feature flag remains `false` on native and PWA.
