@@ -65,6 +65,7 @@ describe('draft UK route-level charging preview combines independent fee units',
       { ...sample, chargePassages: null as unknown as UKRoadChargePreviewInput['chargePassages'] },
       { ...sample, m6Journeys: null as unknown as UKRoadChargePreviewInput['m6Journeys'] },
       { ...sample, m6Journeys: [{ ...sample.m6Journeys[0]!, riderVehicle: 'van' }] },
+      { ...sample, m6Journeys: [null as unknown as UKRoadChargePreviewInput['m6Journeys'][number]] },
       { ...sample, possibleTollInfrastructureIds: null as unknown as string[] },
       { ...sample, possibleTollInfrastructureIds: ['m6_toll', 'm6_toll'] },
       { ...sample, possibleTollInfrastructureIds: ['../../toll'] },
@@ -95,12 +96,15 @@ describe('draft UK route-level charging preview combines independent fee units',
       assert.equal(result.needsOperatorReview, true);
     }
   });
-  it('rejects unknown vehicle choices instead of silently assuming a motorcycle', () => {
+  it('classifies an unknown vehicle before comparing it with motorway hints', () => {
     for (const riderVehicle of [null, 'motorbike_car', '__proto__', {}]) {
-      const out = previewUKRoadCharges({ ...sample, riderVehicle });
-      assert.equal(out.status, 'unknown_vehicle');
-      assert.equal(out.possibleM6TollJourneys, 0);
-      assert.equal(out.completeRouteCoverageVerified, false);
+      for (const m6Journeys of [sample.m6Journeys, []]) {
+        const out = previewUKRoadCharges({ ...sample, riderVehicle, m6Journeys });
+        assert.equal(out.status, 'unknown_vehicle');
+        assert.equal(out.possibleM6TollJourneys, 0);
+        assert.equal(out.completeRouteCoverageVerified, false);
+        assert.equal(out.needsOperatorReview, true);
+      }
     }
   });
   it('remains incomplete with absolutely no route observations', () => {

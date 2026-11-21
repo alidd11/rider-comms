@@ -42,16 +42,19 @@ export function previewUKRoadCharges(input: UKRoadChargePreviewInput): UKRoadCha
   });
   if (!input || !Array.isArray(input.chargePassages) || !Array.isArray(input.m6Journeys)
     || !Array.isArray(input.possibleTollInfrastructureIds)
-    // A route preview cannot mix motorway candidate observations from a
-    // different user-selected vehicle with the rest of this same journey.
-    || input.m6Journeys.some(journey => !journey || journey.riderVehicle !== input.riderVehicle)
-    || input.possibleTollInfrastructureIds.length > MAX_HINTS
+     || input.possibleTollInfrastructureIds.length > MAX_HINTS
     || input.possibleTollInfrastructureIds.some(id =>
       typeof id !== 'string' || !/^[a-z][a-z0-9_-]{2,63}$/.test(id))
     || new Set(input.possibleTollInfrastructureIds).size !== input.possibleTollInfrastructureIds.length)
     return empty('invalid_input');
   const rider = previewRiderChargeExposure(input.riderVehicle, input.chargePassages);
+  // Vehicle validity takes precedence over consistency across journey hints.
+  // A malformed/unknown vehicle cannot be authoritatively compared to the
+  // vehicle declared by a motorway candidate.
   if (rider.status === 'unknown_vehicle') return empty('unknown_vehicle');
+  // A preview for a known vehicle must never mix another vehicle's journeys.
+  if (input.m6Journeys.some(journey => !journey || journey.riderVehicle !== input.riderVehicle))
+    return empty('invalid_input');
   if (rider.summary.reason === 'invalid_event_list'
     || rider.summary.reason === 'duplicate_event') return empty('invalid_input');
   const motorway = reviewM6TollRoute(input.m6Journeys);
