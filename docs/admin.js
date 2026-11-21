@@ -849,6 +849,27 @@
     return `Failed: ${error.code || error.message}`;
   }
 
+  /** Accessible confirmation for destructive actions without a browser prompt. */
+  function confirmAction({ title, description, confirmLabel, danger = false }) {
+    return new Promise((resolve) => {
+      const dialog = el('dialog', { class: 'dialog', 'aria-labelledby': 'confirmActionTitle' });
+      const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel' });
+      const accept = el('button', { type: 'button', class: danger ? 'button button-danger' : 'button button-primary', text: confirmLabel });
+      dialog.append(el('div', { class: 'dialog-body' }, [
+        el('h2', { id: 'confirmActionTitle', class: 'card-title', text: title }),
+        el('p', { class: 'card-description', text: description }),
+        el('div', { class: 'actions' }, [cancel, accept]),
+      ]));
+      let confirmed = false;
+      cancel.addEventListener('click', () => dialog.close());
+      accept.addEventListener('click', () => { confirmed = true; dialog.close(); });
+      dialog.addEventListener('close', () => { dialog.remove(); resolve(confirmed); });
+      document.body.append(dialog);
+      dialog.showModal();
+      cancel.focus();
+    });
+  }
+
   function wireAction(card, button, note, run) {
     button.addEventListener('click', async () => {
       const text = note.value.trim();
@@ -858,10 +879,18 @@
         note.focus();
         return;
       }
-      if (button.dataset.action === 'suspend'
-        && !window.confirm('Suspend this rider? They are signed out everywhere and cannot sign in until unsuspended.')) return;
-      if (button.dataset.action === 'remove'
-        && !window.confirm('Remove this post for everyone? Its photos or video are deleted. This can’t be undone.')) return;
+      if (button.dataset.action === 'suspend' && !(await confirmAction({
+        title: 'Suspend this rider?',
+        description: 'They are signed out everywhere and cannot sign in until the suspension ends or staff unsuspend them.',
+        confirmLabel: 'Suspend rider',
+        danger: true,
+      }))) return;
+      if (button.dataset.action === 'remove' && !(await confirmAction({
+        title: 'Remove this Social post?',
+        description: 'The post and its media will be removed for everyone. This cannot be undone.',
+        confirmLabel: 'Remove post',
+        danger: true,
+      }))) return;
       for (const other of card.querySelectorAll('button')) other.disabled = true;
       errorEl.textContent = '';
       try {
@@ -900,12 +929,16 @@
     const button = el('button', { type: 'button', class: 'button button-small claim', dataset: { action: mine ? 'release' : 'claim' }, text: mine ? 'You’re handling this · Let go' : 'Take this report' });
     button.addEventListener('click', async () => {
       button.disabled = true;
+      let failure = null;
       try {
         await api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/claim`, mine ? { release: true } : {});
       } catch (error) {
-        if (!(error instanceof ApiError) || error.code !== 'claimed_by_other') window.alert(actionErrorMessage(error));
+        failure = error;
       }
       await render();
+      if (failure) flash(failure instanceof ApiError && failure.code === 'claimed_by_other'
+        ? 'Another moderator is handling this report. The queue has been refreshed.'
+        : actionErrorMessage(failure), 'warning');
     });
     return button;
   }
