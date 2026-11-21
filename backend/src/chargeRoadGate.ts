@@ -45,6 +45,17 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_GATE_COUNT = 128;
 const MAX_ROUTE_POINTS = 10_000;
 const MAX_CANDIDATES = 256;
+const SCHEMES = new Set<ChargingSchemeId>([
+  'london_congestion', 'london_ulez', 'london_lez',
+  'blackwall_silvertown', 'dart_charge', 'uk_caz', 'oxford_zez',
+]);
+function validHttps(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && Boolean(url.hostname);
+  } catch { return false; }
+}
 function validDay(value: unknown): value is string {
   if (typeof value !== 'string' || !DAY.test(value)) return false;
   const timestamp = Date.parse(value + 'T00:00:00Z');
@@ -58,8 +69,8 @@ function validPosition(value: unknown): value is RoutePosition {
 }
 function validGate(gate: ReviewedRoadGate, date: string): boolean {
   if (!gate || typeof gate.id !== 'string' || !/^[a-z][a-z0-9_-]{2,63}$/.test(gate.id)
-    || !validChargingZoneId(gate.schemeId, gate.zoneId)
-    || typeof gate.sourceUrl !== 'string' || !/^https:\/\/[^/]+/.test(gate.sourceUrl)
+    || !SCHEMES.has(gate.schemeId) || !validChargingZoneId(gate.schemeId, gate.zoneId)
+    || !validHttps(gate.sourceUrl)
     || !validDay(gate.effectiveFrom) || !validDay(gate.effectiveThrough) || !validDay(gate.reviewedThrough)
     || gate.effectiveFrom > gate.effectiveThrough || date < gate.effectiveFrom
     || date > gate.effectiveThrough || date > gate.reviewedThrough
@@ -90,9 +101,13 @@ export function screenReviewedRoadGates(
   const date = londonChargingDate(passageAt);
   if (!date || !Array.isArray(route) || route.length < 2 || route.length > MAX_ROUTE_POINTS
     || route.some(p => !validPosition(p))) return unknown('invalid_route_or_date');
+  let hasMovement = false;
   for (let i = 1; i < route.length; i++) {
-    if (Math.abs(route[i]!.lon - route[i - 1]!.lon) > 180) return unknown('invalid_route_or_date');
+    const from = route[i - 1]!, to = route[i]!;
+    if (Math.abs(to.lon - from.lon) > 180) return unknown('invalid_route_or_date');
+    if (to.lon !== from.lon || to.lat !== from.lat) hasMovement = true;
   }
+  if (!hasMovement) return unknown('invalid_route_or_date');
   if (!Array.isArray(gates) || gates.length === 0 || gates.length > MAX_GATE_COUNT
     || new Set(gates.map(g => g?.id)).size !== gates.length
     || gates.some(g => !validGate(g, date))) return unknown('invalid_gate_data');

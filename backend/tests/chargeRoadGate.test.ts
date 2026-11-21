@@ -52,6 +52,9 @@ describe('offline candidate road gate screening', () => {
   });
   it('rejects untrusted, expired or mismatched authority gate metadata', () => {
     assert.equal(screenReviewedRoadGates(north, date, [{ ...gate, sourceUrl: 'http://example.com' }]).reason, 'invalid_gate_data');
+    assert.equal(screenReviewedRoadGates(north, date, [{ ...gate, sourceUrl: 'https://' }]).reason, 'invalid_gate_data');
+    assert.equal(screenReviewedRoadGates(north, date, [{ ...gate,
+      schemeId: 'fabricated' as ReviewedRoadGate['schemeId'] }]).reason, 'invalid_gate_data');
     assert.equal(screenReviewedRoadGates(north, date, [{ ...gate, effectiveThrough: '2026-11-22' }]).reason, 'invalid_gate_data');
     assert.equal(screenReviewedRoadGates(north, date, [{ ...gate, reviewedThrough: '2026-11-22' }]).reason, 'invalid_gate_data');
     assert.equal(screenReviewedRoadGates(north, date, [{ ...gate, start: gate.end }]).reason, 'invalid_gate_data');
@@ -63,6 +66,7 @@ describe('offline candidate road gate screening', () => {
   });
   it('fails closed on missing, malformed, duplicated or too-long inputs', () => {
     assert.equal(screenReviewedRoadGates([], date, [gate]).reason, 'invalid_route_or_date');
+    assert.equal(screenReviewedRoadGates([north[0]!, north[0]!], date, [gate]).reason, 'invalid_route_or_date');
     assert.equal(screenReviewedRoadGates(north, 'bad', [gate]).reason, 'invalid_route_or_date');
     assert.equal(screenReviewedRoadGates([{ lon: 200, lat: 0 }, ...north], date, [gate]).reason, 'invalid_route_or_date');
     assert.equal(screenReviewedRoadGates([{ lon: 179, lat: 1 }, { lon: -179, lat: 1 }], date, [gate]).reason, 'invalid_route_or_date');
