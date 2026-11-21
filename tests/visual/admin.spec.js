@@ -285,6 +285,68 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('#nav')).toBeHidden();
   });
 
+
+  test('operations home links real work to existing staff sections', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const operations = page.getByRole('region', { name: 'Operations at a glance' });
+    await expect(operations).toContainText('Reports awaiting review');
+    await expect(operations).toContainText('Rides in progress');
+    await operations.getByRole('button', { name: 'Review reports' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+    await openSection(page, 'Overview');
+    await operations.getByRole('button', { name: 'Find riders' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+  });
+
+  test('command search shows permitted pages and opens a rider record without exposing markup', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const trigger = await page.locator('#globalSearchMobile').isVisible()
+      ? page.locator('#globalSearchMobile') : page.locator('#globalSearchTrigger');
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Moderation/ })).toBeVisible();
+    await dialog.getByRole('searchbox', { name: 'Search pages and riders' }).fill('maya');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(2);
+    await expect.poll(() => state.riderQueries).toContain('maya');
+    await dialog.getByRole('button', { name: /Maya.*Rider/ }).click();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
+    await expect(page.locator('.rider-header h1')).toHaveText('Maya');
+    await expect(dialog).not.toBeVisible();
+  });
+
+  test('command search respects analyst permissions and closes with Escape', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { role: 'analyst' });
+    await page.goto('/admin.html');
+    await page.keyboard.press('ControlOrMeta+k');
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Overview/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /System/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Riders/ })).toHaveCount(0);
+    await dialog.getByRole('searchbox', { name: 'Search pages and riders' }).fill('maya');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(0);
+    expect(state.riderQueries).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+  });
+
+  test('rider 360 section shortcuts scroll without changing the record route', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#rider/rider_maya');
+    const jump = page.getByRole('navigation', { name: 'Rider record sections' });
+    await expect(jump.getByRole('button', { name: 'Account details' })).toBeVisible();
+    await jump.getByRole('button', { name: 'Sign-in history' }).click();
+    await expect(page.locator('#rider-section-sign-in-history')).toBeFocused();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
+  });
+
   test('reviews a hidden Rider Social post: its photo, a required note, and the audit log', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
