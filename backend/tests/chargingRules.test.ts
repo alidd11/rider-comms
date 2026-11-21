@@ -97,6 +97,20 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(run({ entitlement: { ...official, validThrough: 'bad' } }).outcome, 'possible_charge');
     assert.equal(run({ entitlement: { ...official, checkedAt: undefined } }).outcome, 'possible_charge');
   });
+  it('cannot transfer a verified CAZ exemption between different local authorities', () => {
+    const bradford = { ...congestionRule, schemeId: 'uk_caz' as const, zoneId: 'bradford_caz',
+      waivingStatuses: ['exempt', 'compliant'] as const };
+    const official = { schemeId: 'uk_caz' as const, zoneId: 'bradford_caz', vehicleClass: 'car' as const,
+      status: 'exempt' as const, source: 'operator_verified' as const,
+      checkedAt: '2026-01-01T00:00:00Z', validThrough: '2026-12-31' };
+    assert.equal(run({ schemeId: 'uk_caz', rule: { ...bradford, zoneId: undefined } }).outcome, 'unknown');
+    assert.equal(run({ schemeId: 'uk_caz', rule: { ...bradford, zoneId: 'Invalid City Name' } }).outcome, 'unknown');
+    assert.equal(run({ schemeId: 'uk_caz', rule: bradford, entitlement: official }).outcome, 'verified_exempt');
+    assert.equal(run({ schemeId: 'uk_caz', rule: bradford,
+      entitlement: { ...official, zoneId: 'birmingham_caz' } }).outcome, 'possible_charge');
+    assert.equal(run({ schemeId: 'uk_caz', rule: bradford,
+      entitlement: { ...official, zoneId: undefined } }).outcome, 'possible_charge');
+  });
   it('handles emission compliance separately from generic passes and preserves charge units', () => {
     const rule: ChargingRule = { ...congestionRule, schemeId: 'london_ulez', unit: 'daily', waivingStatuses: ['exempt', 'compliant'],
       weeklyWindows: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, startMinute: 0, endMinute: 1440 })) };

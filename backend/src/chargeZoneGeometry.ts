@@ -3,7 +3,7 @@
  * hint, never verification that a road is chargeable (or charge-free).
  * The caller supplies correctly licensed, separately reviewed geographic data.
  */
-import type { ChargingSchemeId } from './chargingRules.ts';
+import { validChargingZoneId, type ChargingSchemeId } from './chargingRules.ts';
 
 type Position = readonly number[];
 type Ring = readonly Position[];
@@ -12,6 +12,8 @@ interface BoundingBox { minLon: number; maxLon: number; minLat: number; maxLat: 
 interface PreparedPolygon { rings: Polygon; bounds: BoundingBox; vertices: number }
 export interface ChargeZoneProvenance {
   schemeId: ChargingSchemeId;
+  /** Stable authority-specific identifier for a UK Clean Air Zone. */
+  zoneId?: string;
   sourceUrl: string;
   licenceUrl: string;
   attribution: string;
@@ -29,7 +31,9 @@ export type ZoneScreenStatus = 'unknown' | 'possible_polygon_contact' | 'no_poly
 export type ZoneScreenReason = 'missing_or_invalid_data' | 'outside_verified_period'
   | 'route_on_or_inside_polygon' | 'route_intersects_polygon' | 'geometry_does_not_contact_polygon'
   | 'too_complex';
-export interface ZoneScreenResult { status: ZoneScreenStatus; reason: ZoneScreenReason; schemeId: ChargingSchemeId }
+export interface ZoneScreenResult {
+  status: ZoneScreenStatus; reason: ZoneScreenReason; schemeId: ChargingSchemeId; zoneId?: string;
+}
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
@@ -83,7 +87,8 @@ function validRing(value: unknown): value is Ring {
 
 /** Prepare an authority-reviewed local GeoJSON dataset just once. */
 export function compileChargeZoneGeoJson(geojson: unknown, provenance: ChargeZoneProvenance): PreparedChargeZone | null {
-  if (!provenance || !SCHEMES.has(provenance.schemeId) || !httpsUrl(provenance.sourceUrl) || !httpsUrl(provenance.licenceUrl)
+  if (!provenance || !SCHEMES.has(provenance.schemeId)
+    || !validChargingZoneId(provenance.schemeId, provenance.zoneId) || !httpsUrl(provenance.sourceUrl) || !httpsUrl(provenance.licenceUrl)
     || typeof provenance.attribution !== 'string' || !provenance.attribution.trim()
     || !validDate(provenance.effectiveFrom) || !validDate(provenance.effectiveThrough)
     || !validDate(provenance.reviewedThrough) || provenance.effectiveFrom > provenance.effectiveThrough
@@ -164,7 +169,8 @@ export function screenRouteAgainstChargeZone(
   route: readonly RoutePosition[], zone: PreparedChargeZone | null, asOfLocalDate: string,
 ): ZoneScreenResult {
   const schemeId = zone?.provenance.schemeId ?? 'uk_caz';
-  const answer = (status: ZoneScreenStatus, reason: ZoneScreenReason): ZoneScreenResult => ({ schemeId, status, reason });
+  const answer = (status: ZoneScreenStatus, reason: ZoneScreenReason): ZoneScreenResult =>
+    ({ schemeId, ...(zone?.provenance.zoneId ? { zoneId: zone.provenance.zoneId } : {}), status, reason });
   if (!zone || !validDate(asOfLocalDate) || !Array.isArray(route) || route.length < 2
     || route.length > MAX_ROUTE_POINTS || route.some(p => !p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)
       || Math.abs(p.lon) > 180 || Math.abs(p.lat) > 90)) return answer('unknown', 'missing_or_invalid_data');

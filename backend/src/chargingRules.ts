@@ -25,6 +25,8 @@ export interface ChargeDayOverride {
 }
 export interface ChargingRule {
   schemeId: ChargingSchemeId;
+  /** Required for UK CAZs: a verified local authority scheme ID, not a generic CAZ entitlement. */
+  zoneId?: string;
   unit: ChargeUnit;
   sourceUrl: string;
   checkedAt: string; // Offset-bearing ISO instant
@@ -41,6 +43,8 @@ export interface ChargingRule {
 }
 export interface ChargeEntitlement {
   schemeId: ChargingSchemeId;
+  /** Prevent an exemption issued for one city's CAZ applying to another city. */
+  zoneId?: string;
   vehicleClass: ChargeVehicleClass;
   status: EntitlementStatus;
   source: 'user_declared' | 'operator_verified';
@@ -86,6 +90,9 @@ const UNIT_BY_SCHEME: Record<ChargingSchemeId, ChargeUnit> = {
   blackwall_silvertown: 'per_crossing', dart_charge: 'per_crossing', uk_caz: 'daily',
 };
 const EMISSIONS_SCHEMES = new Set<ChargingSchemeId>(['london_ulez', 'london_lez', 'uk_caz']);
+export function validChargingZoneId(schemeId: ChargingSchemeId, zoneId: string | undefined): boolean {
+  return schemeId !== 'uk_caz' || (typeof zoneId === 'string' && /^[a-z][a-z0-9_-]{2,63}$/.test(zoneId));
+}
 
 function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !ISO_DATE.test(value)) return false;
@@ -113,7 +120,8 @@ function validHttpsSource(value: unknown): boolean {
   } catch { return false; }
 }
 function validRule(rule: ChargingRule, scheme: ChargingSchemeId): boolean {
-  if (rule.schemeId !== scheme || !SCHEMES.has(scheme) || rule.unit !== UNIT_BY_SCHEME[scheme]
+  if (rule.schemeId !== scheme || !SCHEMES.has(scheme) || !validChargingZoneId(scheme, rule.zoneId)
+    || rule.unit !== UNIT_BY_SCHEME[scheme]
     || !validHttpsSource(rule.sourceUrl)
     || !parseInstant(rule.checkedAt)
     || !validDate(rule.effectiveFrom) || !validDate(rule.effectiveThrough)
@@ -161,6 +169,7 @@ export function assessChargeExposure(input: ChargeAssessmentInput): ChargeAssess
   // Never treat a user-declared toggle, discount, payment registration or
   // stale/incorrect vehicle entitlement as a verified full exemption.
   if (entitlement?.schemeId === schemeId && entitlement.vehicleClass === vehicleClass
+    && (schemeId !== 'uk_caz' || entitlement.zoneId === rule.zoneId)
     && entitlement.source === 'operator_verified' && rule.waivingStatuses.includes(entitlement.status as 'exempt' | 'compliant')
     && parseInstant(entitlement.checkedAt) && validDate(entitlement.validThrough)
     && entitlement.validThrough >= local.localDate && parseInstant(entitlement.checkedAt)!.getTime() <= when.getTime()) {

@@ -53,6 +53,10 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'invalid' as typeof source.schemeId }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, checkedAt: '2026-02-30T00:00:00Z' }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, reviewedThrough: '2025-12-31' }), null);
+    assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'uk_caz', zoneId: undefined }), null);
+    assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'uk_caz', zoneId: 'UNKNOWN AREA' }), null);
+    const bradford = compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'uk_caz', zoneId: 'bradford_caz' });
+    assert.equal(screen([[0.2, 0.2], [0.3, 0.3]], bradford).zoneId, 'bradford_caz');
   });
   it('snapshots supplied geometry and source metadata so callers cannot alter validated zones', () => {
     const sourceRing = square.map(point => [...point]);
