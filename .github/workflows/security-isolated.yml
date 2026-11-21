@@ -45,14 +45,14 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      # First-run Postgres migrations can take over 80 seconds on GitHub runners.
+      # The base URL includes a trailing slash; append paths without another slash.
       - name: Start disposable loopback-only backend
         shell: bash
         run: |
           node --experimental-strip-types scripts/run-isolated-security-api.mjs > /tmp/security-api.log 2>&1 &
           echo "$!" > /tmp/security-api.pid
-          for attempt in $(seq 1 150); do
-            if curl --fail --silent --output /dev/null "$SECURITY_API_BASE_URL/ready"; then
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --output /dev/null "${SECURITY_API_BASE_URL}ready"; then
               exit 0
             fi
             sleep 2
@@ -71,7 +71,7 @@ jobs:
           docker run --rm --network host \
             -v "$PWD/security-reports:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py -t "$SECURITY_API_BASE_URL/openapi.json" -m 1 -I \
+            zap-baseline.py -t "${SECURITY_API_BASE_URL}openapi.json" -m 1 -I \
             -J zap-baseline.json -r zap-baseline.html
       - name: Collect disposable server log
         if: always()
