@@ -23,6 +23,18 @@ export type ChargeZoneLoadResult =
   | { ok: true; reason: 'ok'; zone: PreparedChargeZone }
   | { ok: false; reason: Exclude<ChargeZoneLoadReason, 'ok'> };
 
+/** Reject old-style CRS overrides at all structural GeoJSON levels. */
+function hasLegacyCrs(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false;
+  if (Object.prototype.hasOwnProperty.call(data, 'crs')) return true;
+  const item = data as { type?: unknown; geometry?: unknown; features?: unknown };
+  if (item.type === 'Feature') return hasLegacyCrs(item.geometry);
+  if (item.type === 'FeatureCollection' && Array.isArray(item.features)) {
+    return item.features.some((feature: unknown) => hasLegacyCrs(feature));
+  }
+  return false;
+}
+
 export function loadReviewedChargeZone(
   bytes: Uint8Array,
   asset: ReviewedChargeZoneAsset,
@@ -45,7 +57,7 @@ export function loadReviewedChargeZone(
   // GeoJSON RFC 7946 uses WGS84 longitude/latitude. Do not accept a legacy
   // CRS override that might silently reinterpret British National Grid data.
   if (!data || typeof data !== 'object'
-    || Object.prototype.hasOwnProperty.call(data, 'crs')) return fail('invalid_geojson');
+    || hasLegacyCrs(data)) return fail('invalid_geojson');
   const zone = compileChargeZoneGeoJson(data, asset.provenance);
   return zone ? { ok: true, reason: 'ok', zone } : fail('invalid_zone');
 }

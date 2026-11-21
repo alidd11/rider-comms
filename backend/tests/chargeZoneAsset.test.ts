@@ -56,6 +56,16 @@ describe('checksum-pinned, offline zone asset loading', () => {
     const legacyCrs = encode({ ...geojson, crs: { type: 'name', properties: { name: 'EPSG:27700' } } });
     assert.equal(loadReviewedChargeZone(legacyCrs,
       { ...manifest, sha256: hash(legacyCrs) }).reason, 'invalid_geojson');
+    const embeddedCrs = encode({ ...geojson, geometry: {
+      ...geojson.geometry, crs: { type: 'name', properties: { name: 'EPSG:27700' } },
+    } });
+    assert.equal(loadReviewedChargeZone(embeddedCrs,
+      { ...manifest, sha256: hash(embeddedCrs) }).reason, 'invalid_geojson');
+    const featureCollectionCrs = encode({ type: 'FeatureCollection', features: [
+      { ...geojson, crs: { type: 'name', properties: { name: 'EPSG:27700' } } },
+    ] });
+    assert.equal(loadReviewedChargeZone(featureCollectionCrs,
+      { ...manifest, sha256: hash(featureCollectionCrs) }).reason, 'invalid_geojson');
   });
   it('rejects a reviewed checksum whose underlying polygon is invalid', () => {
     const wrong = encode({ type: 'Point', coordinates: [0, 0] });
