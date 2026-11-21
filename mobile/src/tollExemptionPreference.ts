@@ -1,4 +1,6 @@
 /** User declarations, not verified exemption or routing eligibility. */
+/** Disabled until charging rules, route detection and safety testing are complete. */
+export const TOLLS_EXEMPTIONS_RELEASED = false;
 export const TOLL_EXEMPTION_OPTIONS = [
   { id: 'london_congestion', label: 'London Congestion Charge' },
   { id: 'london_ulez', label: 'London ULEZ' },

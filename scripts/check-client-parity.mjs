@@ -118,7 +118,7 @@ for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#EF4444', '#F2802A', '#8E5
   }
 }
 assertSameOrder(
-  ['Distance units', 'Navigation app', 'Tolls & exemptions', 'Avoid motorways', 'Avoid ferries', 'Avoid tolls', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Ride Safe auto-lock',
+  ['Distance units', 'Navigation app', 'Tolls & exemptions', 'Avoid motorways', 'Avoid tolls', 'Avoid ferries', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Ride Safe auto-lock',
     'Nearby rider visibility', 'Blocked riders', 'Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account'],
   pwaMapSource.slice(pwaMapSource.indexOf('generalSettings: () =>')),
   nativeSettingsSource.slice(nativeSettingsSource.indexOf('function GeneralPage(')),
@@ -170,7 +170,7 @@ for (const token of ['navigationApp', 'tollsExemptions', 'blockedRiders', 'email
     throw new Error(`Settings page drifted for ${token}`);
   }
 }
-// Tolls & exemptions is a visible child page with the same recognised options
+// Tolls & exemptions is a future-gated child page with the same recognised options
 // on native and PWA. It must remain distinct from ordinary toll avoidance.
 for (const [id, label] of [
   ['london_congestion', 'London Congestion Charge'],
@@ -186,6 +186,16 @@ for (const [id, label] of [
 if (!pwaMapSource.includes("state.tollExemptions = []")
     || !nativeSettingsSource.includes("title=\"Tolls & exemptions\"")) {
   throw new Error('Tolls & exemptions must be visible and resettable in both clients');
+}
+// Shipping this branch before the launch must NOT expose the incomplete
+// charging feature or remove the existing Avoid tolls control.
+if (!nativeTollExemptionSource.includes('export const TOLLS_EXEMPTIONS_RELEASED = false;')
+    || !pwaMapSource.includes('const TOLLS_EXEMPTIONS_RELEASED = false;')
+    || !nativeSettingsSource.includes('{!TOLLS_EXEMPTIONS_RELEASED ? <SwitchRow title="Avoid tolls"')
+    || !pwaMapSource.includes('...(!TOLLS_EXEMPTIONS_RELEASED ? [settingsToggle(\'avoidTolls\'')
+    || !pwaMapSource.includes("if (type === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED) type = 'mapNavigation';")
+    || !nativeSettingsSource.includes("if (page === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED)")) {
+  throw new Error('Tolls & exemptions must remain gated while existing toll avoidance is available');
 }
 // About is the last section of Help & Support on both clients.
 if (!pwaMapSource.includes("['Legal', 'legalLinks'], ['About', 'aboutCard']") || !nativeSettingsSource.includes('<AboutPage title="About" />')) {

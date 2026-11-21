@@ -46,6 +46,8 @@
   let destinationMarker;
   let navigationTrafficLayer;
 
+  // Both clients must remain disabled until the feature is ready to launch.
+  const TOLLS_EXEMPTIONS_RELEASED = false;
   // Keep these IDs aligned with mobile/src/tollExemptionPreference.ts.
   const TOLL_EXEMPTION_OPTIONS = [
     ['london_congestion', 'London Congestion Charge'],

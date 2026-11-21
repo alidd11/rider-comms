@@ -20,7 +20,7 @@ import { useAuth } from '../auth/AuthContext';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { ApiError, type AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
-import { TOLL_EXEMPTION_OPTIONS } from '../tollExemptionPreference';
+import { TOLL_EXEMPTION_OPTIONS, TOLLS_EXEMPTIONS_RELEASED } from '../tollExemptionPreference';
 import { CategoryRow, CheckRow, InfoRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
 import { RIDER_VEHICLE_GROUPS, RIDER_VEHICLE_OPTIONS, riderVehicleLabel } from '../riderPreferences';
 import { MotorbikeIcon } from '../components/MotorbikeIcon';
@@ -390,12 +390,13 @@ function MapNavigationPage(): React.JSX.Element {
   const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
   return (
     <>
-      <SettingsGroup note="Choose your navigation provider and configure road charges.">
+      <SettingsGroup note={TOLLS_EXEMPTIONS_RELEASED ? 'Choose your navigation provider and configure road charges.' : 'Where a route opens when you tap Go.'}>
         <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
-        <PlainRow title="Tolls & exemptions" onPress={() => navigation.push('SettingsPage', { page: 'tollsExemptions' })} />
+        {TOLLS_EXEMPTIONS_RELEASED ? <PlainRow title="Tolls & exemptions" onPress={() => navigation.push('SettingsPage', { page: 'tollsExemptions' })} /> : null}
       </SettingsGroup>
       <SettingsGroup title="Route options" note="Route options apply to routes Rider Comms plans.">
         <SwitchRow first title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
+        {!TOLLS_EXEMPTIONS_RELEASED ? <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} /> : null}
         <SwitchRow title="Avoid ferries" value={routeAvoidance.ferries} onValueChange={(ferries) => setRouteAvoidance({ ...routeAvoidance, ferries })} />
       </SettingsGroup>
       <SavedPlacesGroup />
@@ -1057,6 +1058,10 @@ type SettingsPageProps = NativeStackScreenProps<RootStackParamList, 'SettingsPag
 /** One full page per Settings option, everything for it shown directly. */
 export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Element {
   const { page } = route.params;
+  // Guard direct/internal navigation as well as the entry row until launch.
+  if (page === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED) {
+    return <SettingsPageLayout title="Map & navigation" page="mapNavigation"><MapNavigationPage /></SettingsPageLayout>;
+  }
   return (
     <SettingsPageLayout title={SETTINGS_PAGE_TITLES[page]} page={page}>
       {page === 'myProfile' ? <MyProfilePage /> : null}

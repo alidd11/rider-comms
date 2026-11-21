@@ -57,6 +57,8 @@
   ];
 
   function openSheet(type) {
+    // A hidden future feature must not be accessible through internal page tokens.
+    if (type === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED) type = 'mapNavigation';
     const templates = {
       blocked: () => ({
         title: 'Blocked riders',
@@ -203,9 +205,10 @@
         title: 'Map & navigation',
         body: `${settingsRowsMarkup([
           settingsLink('navigationApp', 'Navigation app', NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label),
-          settingsLink('tollsExemptions', 'Tolls & exemptions'),
-        ], 'Choose your navigation provider and configure road charges.')}<h3 class="settings-page-heading">Route options</h3>${settingsRowsMarkup([
+          ...(TOLLS_EXEMPTIONS_RELEASED ? [settingsLink('tollsExemptions', 'Tolls & exemptions')] : []),
+        ], TOLLS_EXEMPTIONS_RELEASED ? 'Choose your navigation provider and configure road charges.' : 'Where a route opens when you tap Go.')}<h3 class="settings-page-heading">Route options</h3>${settingsRowsMarkup([
           settingsToggle('avoidHighways', 'Avoid motorways', state.avoidHighways),
+          ...(!TOLLS_EXEMPTIONS_RELEASED ? [settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls)] : []),
           settingsToggle('avoidFerries', 'Avoid ferries', state.avoidFerries),
         ], 'Route options apply to routes Rider Comms plans.')}`,
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
