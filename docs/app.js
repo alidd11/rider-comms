@@ -3225,11 +3225,18 @@
     const entry = $('#mapBetaAdminEntry');
     if (!entry) return;
     entry.hidden = true;
+    entry.replaceChildren();
     const tokenAtStart = session?.token;
     if (!tokenAtStart) return;
     try {
       const access = await apiFetch('GET', '/admin/me');
       if (!entry.isConnected || tokenAtStart !== session?.token || access?.role !== 'admin') return;
+      // Only construct the privileged settings UI after the server says admin.
+      // A hidden section with headings would still enter DOM-based settings
+      // tests and could expose a misleading control to assistive technology.
+      entry.innerHTML = `<h3 class="settings-page-heading">Admin beta</h3>${settingsRowsMarkup([
+        '<button type="button" class="settings-row" id="openMapBetaPreview"><span class="settings-row-label">Rider Comms Maps (beta)</span><span class="settings-row-chevron">' + icon('chevron') + '</span></button>',
+      ], 'Experimental map-only preview. Navigation, search and rider locations remain on the classic map.')}`;
       entry.hidden = false;
       entry.querySelector('#openMapBetaPreview')?.addEventListener('click', async (event) => {
         const button = event.currentTarget;
@@ -3242,12 +3249,14 @@
           const fresh = await apiFetch('GET', '/admin/me');
           if (fresh?.role !== 'admin' || tokenAtStart !== session?.token) {
             entry.hidden = true;
+            entry.replaceChildren();
             showToast('Admin access is required to open Rider Comms Maps beta.');
             return;
           }
           window.location.assign('./map-beta/');
         } catch {
           entry.hidden = true;
+          entry.replaceChildren();
           showToast('Couldn’t verify admin access. Try again when connected.');
         } finally {
           if (button.isConnected) button.disabled = false;
@@ -3409,9 +3418,7 @@
           settingsToggle('avoidHighways', 'Avoid motorways', state.avoidHighways),
           settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
           settingsToggle('avoidFerries', 'Avoid ferries', state.avoidFerries),
-        ], 'Route options apply to routes Rider Comms plans.')}<section id="mapBetaAdminEntry" hidden><h3 class="settings-page-heading">Admin beta</h3>${settingsRowsMarkup([
-          '<button type="button" class="settings-row" id="openMapBetaPreview"><span class="settings-row-label">Rider Comms Maps (beta)</span><span class="settings-row-chevron">' + icon('chevron') + '</span></button>',
-        ], 'Experimental map-only preview. Navigation, search and rider locations remain on the classic map.')}</section>`,
+        ], 'Route options apply to routes Rider Comms plans.')}<section id="mapBetaAdminEntry" hidden></section>`,
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); void revealAdminMapBeta(); },
       }),
       savedPlacesSettings: () => {

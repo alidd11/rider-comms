@@ -23,6 +23,40 @@ test('PWA Notifications page: this device, then which kinds', async ({ page }) =
   expect(profile.notifyChat).toBe(false);
 });
 
+
+test('PWA Rider Comms Maps beta entry is absent for non-admin roles', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/admin/me'
+    ? { body: { role: 'moderator', permissions: [] } } : null);
+  await page.goto('/#settings');
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  await expect(page.locator('#sheetBody .settings-page-heading')).toHaveText(['Route options', 'Saved places']);
+  await expect(page.locator('#openMapBetaPreview')).toHaveCount(0);
+  await expect(page.locator('#mapBetaAdminEntry')).toBeHidden();
+});
+
+test('PWA Rider Comms Maps beta requires fresh admin permission at launch', async ({ page }) => {
+  let role = 'admin';
+  let roleChecks = 0;
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname !== '/admin/me') return null;
+    roleChecks += 1;
+    return { body: { role, permissions: [] } };
+  });
+  await page.goto('/#settings');
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  const beta = page.locator('#openMapBetaPreview');
+  await expect(beta).toBeVisible();
+  await expect(page.locator('#sheetBody .settings-page-heading')).toHaveText(['Route options', 'Admin beta', 'Saved places']);
+
+  // The staff role can be revoked while Settings remains open.
+  role = 'moderator';
+  await beta.click();
+  await expect(page.locator('#openMapBetaPreview')).toHaveCount(0);
+  await expect(page.locator('#mapBetaAdminEntry')).toBeHidden();
+  expect(roleChecks).toBeGreaterThanOrEqual(2);
+  await expect(page).toHaveURL(/#settings$/);
+});
+
 test('PWA Settings is a real settings list matching the native app', async ({ page }, testInfo) => {
   let profile = { ...PROFILE };
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
