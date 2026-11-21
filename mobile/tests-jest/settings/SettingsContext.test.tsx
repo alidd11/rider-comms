@@ -334,7 +334,13 @@ test('restores, normalises and clears future toll declarations without affecting
   await seedCache({});
   const key = `@rider-comms/settings/toll-exemptions/${RIDER_ID}`;
   await AsyncStorage.setItem(key, JSON.stringify(['dart_charge', 'london_ulez', 'invalid']));
-  const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile()) });
+  const otherRiderKey = '@rider-comms/settings/toll-exemptions/another-rider';
+  await AsyncStorage.setItem(otherRiderKey, JSON.stringify(['blackwall_silvertown']));
+  const updateProfile = jest.fn(async () => fakeProfile());
+  const { result } = await renderSettings({
+    getProfile: jest.fn(async () => fakeProfile()),
+    updateProfile,
+  });
   await waitFor(() => expect(result.current.tollExemptions).toEqual(['london_ulez', 'dart_charge']));
 
   await act(async () => {
@@ -348,5 +354,6 @@ test('restores, normalises and clears future toll declarations without affecting
   await act(() => { result.current.resetAll(); });
   expect(result.current.tollExemptions).toEqual([]);
   await waitFor(async () => { expect(await AsyncStorage.getItem(key)).toBeNull(); });
-  expect(await AsyncStorage.getItem('@rider-comms/settings/toll-exemptions/another-rider')).toBeNull();
+  expect(JSON.parse((await AsyncStorage.getItem(otherRiderKey)) ?? 'null')).toEqual(['blackwall_silvertown']);
+  await waitFor(() => expect(updateProfile).toHaveBeenCalledWith(RIDER_ID, expect.objectContaining({ displayName: 'Rider' })));
 });
