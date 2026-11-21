@@ -662,6 +662,37 @@ test.describe('staff dashboard', () => {
     await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
   });
 
+  test('expired staff access on System is not disguised as missing metrics', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.route(`${API}/admin/system`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      await route.fulfill({ status: 401, headers: { 'Access-Control-Allow-Origin': '*' },
+        contentType: 'application/json', body: JSON.stringify({ error: 'session_expired' }) });
+    });
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.empty-title')).toHaveText('Your session has expired');
+    await expect(page.locator('#nav')).toBeHidden();
+  });
+
+  test('an unavailable staff access check offers a retry', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route(`${API}/admin/me`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (first) {
+        first = false;
+        await route.fulfill({ status: 503, headers: { 'Access-Control-Allow-Origin': '*' },
+          contentType: 'application/json', body: JSON.stringify({ error: 'temporarily_unavailable' }) });
+      } else await route.fallback();
+    });
+    await page.goto('/admin.html');
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+  });
+
   test('a page the role lacks says so', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page, { role: 'analyst' });
@@ -848,6 +879,9 @@ test.describe('staff dashboard', () => {
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#nav').getByRole('button', { name: 'Overview' })).toBeFocused();
     await expect(page.locator('#sidebarFooter')).toBeVisible();
+    await page.locator('#nav [data-view="system"]').focus();
+    await page.keyboard.press('Tab');
+    await expect(toggle).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(toggle).toBeFocused();
