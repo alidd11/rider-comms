@@ -77,6 +77,24 @@ describe('draft UK route-level charging preview combines independent fee units',
       assert.equal(out.possibleCrossingCharges, 0);
     }
   });
+  it('does not silently suppress duplicate or malformed crossing and motorway events', () => {
+    const crossing = sample.chargePassages[0]!;
+    const motorway = sample.m6Journeys[0]!;
+    const invalid = [
+      { ...sample, chargePassages: [crossing, crossing] },
+      { ...sample, m6Journeys: [motorway, motorway] },
+      { ...sample, m6Journeys: [{ ...motorway, entry: 'T2' as typeof motorway.entry }] },
+      { ...sample, chargePassages: Array(257).fill(crossing) },
+      { ...sample, m6Journeys: Array(65).fill(motorway) },
+    ];
+    for (const input of invalid) {
+      const result = previewUKRoadCharges(input);
+      assert.equal(result.status, 'invalid_input');
+      assert.equal(result.possibleDailyChargeDays + result.possibleCrossingCharges
+        + result.possibleM6TollJourneys, 0);
+      assert.equal(result.needsOperatorReview, true);
+    }
+  });
   it('rejects unknown vehicle choices instead of silently assuming a motorcycle', () => {
     for (const riderVehicle of [null, 'motorbike_car', '__proto__', {}]) {
       const out = previewUKRoadCharges({ ...sample, riderVehicle });

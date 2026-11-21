@@ -52,7 +52,11 @@ export function previewUKRoadCharges(input: UKRoadChargePreviewInput): UKRoadCha
     return empty('invalid_input');
   const rider = previewRiderChargeExposure(input.riderVehicle, input.chargePassages);
   if (rider.status === 'unknown_vehicle') return empty('unknown_vehicle');
+  if (rider.summary.reason === 'invalid_event_list'
+    || rider.summary.reason === 'duplicate_event') return empty('invalid_input');
   const motorway = reviewM6TollRoute(input.m6Journeys);
+  if (motorway.reason === 'invalid_journeys' || motorway.reason === 'duplicate_journey'
+    || motorway.journeyReviews.some(j => j.status === 'unknown')) return empty('invalid_input');
   const known: string[] = [];
   const unknown: string[] = [];
   for (const id of input.possibleTollInfrastructureIds) {
