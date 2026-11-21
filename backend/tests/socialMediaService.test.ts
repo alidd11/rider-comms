@@ -78,7 +78,7 @@ describe('Rider Social media service', () => {
     for (const invalidExpiry of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
       assert.equal(check(viewer, 'file', invalidExpiry, link.sig), false);
     }
-    for (const invalidSignature of ['', 'x'.repeat(1000), link.sig.slice(1), link.sig + '=']) {
+    for (const invalidSignature of ['', 'x'.repeat(1000), link.sig.slice(1), link.sig + '=', '!'.repeat(43), link.sig.slice(0, -1) + '!']) {
       assert.equal(check(viewer, 'file', link.exp, invalidSignature), false);
     }
   });
