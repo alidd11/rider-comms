@@ -82,6 +82,13 @@
   // Ignore responses from a section or filter the staff member has already left.
   let renderGeneration = 0;
   const isCurrentRender = (generation) => generation === renderGeneration;
+  let displayedKey = null;
+  let focusHeadingOnNextRender = false;
+  const renderKey = () => JSON.stringify([view, detailRiderId,
+    view === 'riders' ? riderQuery : null,
+    view === 'moderation' ? moderationView : null,
+    view === 'audit' ? auditGroup : null,
+    view === 'audit' ? auditRider : null]);
   const names = new Map();
 
   // ------------------------------------------------------------ Utilities
@@ -304,6 +311,7 @@
   }
 
   function setBusy(busy) {
+    pageEl.setAttribute('aria-busy', String(busy));
     refreshMobile.setAttribute('aria-busy', String(busy));
     for (const button of pageEl.querySelectorAll('[data-refresh]')) button.setAttribute('aria-busy', String(busy));
   }
@@ -544,7 +552,7 @@
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
     return el('div', { class: 'page-header' }, [
-      el('div', {}, [el('h1', { class: 'page-title', text: title }), subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null]),
+      el('div', {}, [el('h1', { class: 'page-title', tabindex: '-1', text: title }), subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null]),
       el('div', { class: 'actions' }, [...actions, refresh]),
     ]);
   }
@@ -1164,7 +1172,7 @@
         el('div', { class: 'person' }, [
           avatar(name, rider.riderId),
           el('div', { class: 'person-text' }, [
-            el('h1', { class: 'page-title', text: name }),
+            el('h1', { class: 'page-title', tabindex: '-1', text: name }),
             el('p', { class: 'page-subtitle', text: [rider.handle, rider.email].filter(Boolean).join(' · ') }),
           ]),
         ]),
@@ -1590,14 +1598,20 @@
 
   async function render() {
     const generation = ++renderGeneration;
+    const key = renderKey();
+    const focusHeading = focusHeadingOnNextRender;
+    focusHeadingOnNextRender = false;
     for (const button of navEl.querySelectorAll('[data-view]')) {
       if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
-    if (view === 'overview' && !overviewCache) pageEl.replaceChildren(...skeletonOverview());
-    else if (view !== 'overview') pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
+    // Refresh the current section in place; skeletons are for navigation only.
+    if (key !== displayedKey) {
+      if (view === 'overview') pageEl.replaceChildren(...skeletonOverview());
+      else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
+    }
     setBusy(true);
     try {
       if (view === 'overview') {
@@ -1621,8 +1635,15 @@
       } else {
         await renderSystem(generation);
       }
+      if (isCurrentRender(generation)) {
+        displayedKey = key;
+        if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav'))) {
+          pageEl.querySelector('.page-title')?.focus({ preventScroll: true });
+        }
+      }
     } catch (error) {
       if (!isCurrentRender(generation)) return;
+      displayedKey = null;
       if (error instanceof ApiError && error.code === 'permission_required') {
         pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('lock', 'Your role doesn’t include this page', 'Ask an admin if you need it.')]));
       } else if (error instanceof ApiError && error.status === 403) {
@@ -1630,7 +1651,12 @@
       } else if (error instanceof ApiError && error.status === 401) {
         notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
       } else {
-        pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('wifiOff', 'Couldn’t load this section', 'Check your connection, then refresh.')]));
+        const retry = el('button', { type: 'button', class: 'button button-primary', text: 'Retry' });
+        retry.addEventListener('click', () => void render());
+        pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [
+          emptyState('wifiOff', 'Couldn’t load this section', 'Check your connection and try again.'),
+          el('div', { class: 'retry-action' }, [retry]),
+        ]));
       }
     } finally {
       if (isCurrentRender(generation)) setBusy(false);
@@ -1639,9 +1665,16 @@
 
   function selectView(hash) {
     const next = parseHash(hash);
-    if ((next.view === 'overview' && hash !== 'overview' && hash !== '') || (me && !allowed(VIEW_PERMISSIONS[next.view]))) return;
+    if ((next.view === 'overview' && hash !== 'overview' && hash !== '')
+      || (me && !allowed(VIEW_PERMISSIONS[next.view]))) {
+      const current = view === 'rider' ? `rider/${detailRiderId}` : view;
+      history.replaceState(null, '', `#${current}`);
+      return;
+    }
+    if (next.view === view && next.riderId === detailRiderId) return;
     view = next.view;
     detailRiderId = next.riderId;
+    focusHeadingOnNextRender = true;
     const target = view === 'rider' ? `rider/${detailRiderId}` : view;
     if (location.hash !== `#${target}`) history.pushState(null, '', `#${target}`);
     window.scrollTo(0, 0);
@@ -1655,6 +1688,7 @@
   const menuBackdrop = document.getElementById('menuBackdrop');
   function setMenu(open) {
     appEl.classList.toggle('menu-open', open);
+    document.body.classList.toggle('menu-visible', open);
     menuBackdrop.hidden = !open;
     menuToggle.setAttribute('aria-expanded', String(open));
     menuToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
@@ -1667,7 +1701,21 @@
   });
   menuBackdrop.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
+    if (!appEl.classList.contains('menu-open')) return;
+    if (event.key === 'Escape') { setMenu(false); menuToggle.focus(); return; }
+    if (event.key !== 'Tab') return;
+    const focusables = [...document.querySelectorAll('.sidebar button:not([disabled]):not([hidden])')]
+      .filter((element) => element.getClientRects().length > 0);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !focusables.includes(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !focusables.includes(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
   });
   for (const button of navEl.querySelectorAll('[data-view]')) button.addEventListener('click', () => {
     if (appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
@@ -1676,14 +1724,16 @@
   // Links to a rider (#rider/<id>) open their page.
   pageEl.addEventListener('click', (event) => {
     const link = event.target.closest?.('a[data-rider-link]');
-    if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     selectView(`rider/${link.dataset.riderLink}`);
   });
   window.addEventListener('hashchange', () => selectView(location.hash.slice(1)));
+  window.addEventListener('popstate', () => selectView(location.hash.slice(1)));
   refreshMobile.addEventListener('click', () => void render());
   let resizeTimer;
   window.addEventListener('resize', () => {
+    if (innerWidth >= 900 && appEl.classList.contains('menu-open')) setMenu(false);
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (view === 'overview') for (const chart of pageEl.querySelectorAll('.chart-card')) chart.redraw?.();
@@ -1714,7 +1764,11 @@
     for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
     footerRole.replaceChildren(roleBadge(me.role));
     if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
-    if (!allowed(VIEW_PERMISSIONS[view])) view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
+    if (!allowed(VIEW_PERMISSIONS[view])) {
+      view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
+      detailRiderId = null;
+      history.replaceState(null, '', `#${view}`);
+    }
     navEl.hidden = false;
     void render();
   }
