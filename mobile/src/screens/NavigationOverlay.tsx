@@ -202,6 +202,9 @@ export function NavigationTripSummary({
     destinationLabel: string;
     onAddStop: () => void;
     onShareEta: () => void;
+    /** The stop on the way, if any: Add stop becomes Skip it. */
+    stopLabel?: string | null;
+    onSkipStop?: () => void;
   };
 }): React.JSX.Element {
   const { night: isNight, palette } = useNavigationPalette();
@@ -231,10 +234,17 @@ export function NavigationTripSummary({
       {open && tripDetails ? (
         <View testID="navigation-trip-details" style={styles.navigationTripDetails}>
           <View style={styles.navigationTripActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Add stop" onPress={() => { setExpanded(false); tripDetails.onAddStop(); }} style={({ pressed }) => [styles.navigationTripAction, isNight && night.endButton, pressed && pressedFeedback]}>
-              <Ionicons name="add" size={22} color={palette.textPrimary} />
-              <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationTripActionText, isNight && night.primaryText]}>Add stop</Text>
-            </Pressable>
+            {tripDetails.stopLabel && tripDetails.onSkipStop ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Skip the stop at ${tripDetails.stopLabel}`} onPress={() => { setExpanded(false); haptics.select(); tripDetails.onSkipStop?.(); }} style={({ pressed }) => [styles.navigationTripAction, isNight && night.endButton, pressed && pressedFeedback]}>
+                <Ionicons name="play-skip-forward" size={22} color={palette.textPrimary} />
+                <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationTripActionText, isNight && night.primaryText]}>Skip stop</Text>
+              </Pressable>
+            ) : (
+              <Pressable accessibilityRole="button" accessibilityLabel="Add stop" onPress={() => { setExpanded(false); tripDetails.onAddStop(); }} style={({ pressed }) => [styles.navigationTripAction, isNight && night.endButton, pressed && pressedFeedback]}>
+                <Ionicons name="add" size={22} color={palette.textPrimary} />
+                <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationTripActionText, isNight && night.primaryText]}>Add stop</Text>
+              </Pressable>
+            )}
             <Pressable accessibilityRole="button" accessibilityLabel="Share ETA" onPress={tripDetails.onShareEta} style={({ pressed }) => [styles.navigationTripAction, isNight && night.endButton, pressed && pressedFeedback]}>
               <Ionicons name="share-outline" size={22} color={palette.textPrimary} />
               <Text maxFontSizeMultiplier={GLANCE_TEXT_MAX_SCALE} style={[styles.navigationTripActionText, isNight && night.primaryText]}>Share ETA</Text>

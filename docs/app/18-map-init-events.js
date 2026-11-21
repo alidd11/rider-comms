@@ -479,6 +479,7 @@
     $('#navTripEnd').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
     $('#navTripShare').addEventListener('click', () => void shareNavigationEta());
     $('#navTripAddStop').addEventListener('click', () => { setNavTripDetailsOpen(false); openSheet('stopsOnTheWay'); });
+    $('#navTripSkipStop')?.addEventListener('click', () => { setNavTripDetailsOpen(false); haptic('select'); skipNavStop(); });
   }
 
   // --- Auth screen -----------------------------------------------------

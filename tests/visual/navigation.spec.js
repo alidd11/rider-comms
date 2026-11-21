@@ -33,8 +33,8 @@ async function provideRoute(page, steps = [
   }, steps);
 }
 
-async function startNavigationHome(page) {
-  await mockAuthenticatedApi(page, 'stationary');
+async function startNavigationHome(page, backendOverride = null, { start = true } = {}) {
+  await mockAuthenticatedApi(page, 'stationary', backendOverride);
   await page.addInitScript(({ riderId, home }) => {
     localStorage.setItem(`riderComms.savedPlaces:${riderId}`, JSON.stringify({ home }));
     // Guidance in Rider Comms rather than handed to another app.
@@ -51,6 +51,7 @@ async function startNavigationHome(page) {
   await page.waitForFunction(() => Boolean(window.google?.maps?.LatLng && window.__riderCommsTestMap));
   await provideRoute(page);
   await page.locator('[data-saved-place="home"]').click();
+  if (!start) return;
   await page.locator('#routePreviewStart').click();
   await expect(page.locator('#app')).toHaveClass(/nav-mode/);
 }
@@ -281,6 +282,21 @@ test('PWA finds petrol along the rest of the route and routes through it', async
   expect(request.provideRouteAlternatives).toBe(false);
   await expect(page.locator('#navGpsNotice')).toHaveText('Stop added: Shell.');
   await expect.poll(() => page.evaluate(() => window.__spoken)).toContain('Stop added: Shell.');
+
+  // Not stopping after all: the trip card's Add stop is now Skip stop, and
+  // the way goes straight on without it.
+  await page.locator('#navTripToggle').click();
+  await expect(page.locator('#navTripAddStop')).toBeHidden();
+  const skip = page.locator('#navTripSkipStop');
+  await expect(skip).toHaveAttribute('aria-label', 'Skip the stop at Shell');
+  await page.evaluate(() => { window.__riderCommsTestRouteRequests = []; });
+  await skip.click();
+  await expect(page.locator('#navGpsNotice')).toHaveText('Skipped Shell.');
+  const straight = await page.evaluate(() => window.__riderCommsTestRouteRequests[0]);
+  expect(straight.waypoints).toBeUndefined();
+  await page.locator('#navTripToggle').click();
+  await expect(page.locator('#navTripAddStop')).toBeVisible();
+  await expect(skip).toBeHidden();
 });
 
 test('PWA guidance looks like Google Maps: coloured banner, End in the trip card, Re-centre after moving the map', async ({ page }) => {
@@ -368,10 +384,45 @@ test('PWA starts the route on show when the rider moves off with the preview ope
   await provideRoute(page);
   await page.locator('[data-saved-place="home"]').click();
   await expect(page.locator('#routePreview')).toBeVisible();
+  // The stops list open as they set off: it closes (a list to read).
+  await page.route('**/places/along-route', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ places: [] }) }));
+  await page.locator('#routePreviewAddStop').click();
+  await expect(page.locator('#sheetTitle')).toHaveText('On the way');
   await fixes(12);
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
   await expect(page.locator('#app')).toHaveClass(/nav-mode/);
   await expect(page.locator('#routePreview')).toBeHidden();
   await expect(page.locator('#app')).not.toHaveClass(/route-preview-mode/);
+});
+
+test('PWA Start route on a place says it is planning, and asks once', async ({ page }) => {
+  await startNavigationHome(page, null, { start: false });
+  // Back from the preview: the place card.
+  await page.locator('#routePreviewClose').click();
+  const start = page.locator('[data-start-in-app-navigation]');
+  await expect(start).toBeVisible();
+  // Google slow to answer: hold each reply until the test lets it go.
+  await page.evaluate(() => {
+    const service = google.maps.DirectionsService.prototype;
+    const route = service.route;
+    window.__held = [];
+    service.route = function held(request, callback) {
+      window.__held.push(() => route.call(this, request, callback));
+    };
+    window.__release = () => { window.__held.splice(0).forEach((go) => go()); };
+  });
+  await start.click();
+  await expect(start).toBeDisabled();
+  await expect(start).toHaveAttribute('aria-label', 'Starting route to Home');
+  await expect(start).toContainText('Planning route…');
+  await start.dispatchEvent('click');
+  await expect.poll(() => page.evaluate(() => window.__held.length)).toBe(1);
+  await page.evaluate(() => window.__release());
+  await expect(page.locator('#routePreview')).toBeVisible();
+  // Back again: the card is as it was.
+  await page.locator('#routePreviewClose').click();
+  await expect(start).toBeEnabled();
+  await expect(start).toContainText('In Rider Comms');
 });
 
 test('PWA preview: times on the map, riding styles, Avoid, Share, and the group ride', async ({ page }) => {
@@ -567,4 +618,161 @@ test('PWA preview says when Twisty found nothing bendier than the fastest way', 
   await expect(page.locator('#routePreviewNote')).toHaveAttribute('data-traffic', 'false');
   // One way only: no list to open, so a swipe up from the card does nothing more.
   await expect(page.locator('#routePreviewMore')).toBeHidden();
+});
+
+test('PWA preview says what riders have reported on each way', async ({ page }) => {
+  const report = (id, type, lat, lon = -0.1) => ({
+    id, type, lat, lon, reportedBy: 'rider_other', createdAt: 1, expiresAt: Number.MAX_SAFE_INTEGER, confirmations: 0, denials: 0,
+  });
+  await startNavigationHome(page, ({ url }) => (url.pathname === '/hazards/nearby'
+    ? { body: { hazards: [
+      report('police', 'police', 51.505),
+      report('closure', 'road_closure', 51.515),
+      report('elsewhere', 'accident', 51.505, -0.09),
+    ] } }
+    : null), { start: false });
+  const hazards = page.locator('#routePreviewHazards');
+  await expect(hazards).toBeVisible();
+  // Along a line from you to the destination, each where it is, as in Waze;
+  // one sentence for a screen reader.
+  await expect(hazards).toHaveAttribute('aria-label', 'Reported on the way: road closure, police');
+  const markers = hazards.locator('.route-hazard-marker');
+  await expect(markers).toHaveCount(2);
+  await expect(markers.first()).toHaveAttribute('data-type', 'police');
+  await expect(markers.nth(1)).toHaveAttribute('data-type', 'road_closure');
+  await expect(markers.nth(1)).toHaveAttribute('data-serious', 'true');
+  await expect(hazards).not.toContainText('Reported');
+  // Police a quarter of the way to the closure at three quarters: in order, left to right.
+  const [police, closure] = await markers.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().x));
+  const box = await hazards.boundingBox();
+  expect(police).toBeLessThan(box.x + box.width / 2);
+  expect(closure).toBeGreaterThan(box.x + box.width / 2);
+  // With another way: each row has its own icons, small; one with none has none.
+  await page.locator('#routePreviewClose').click();
+  await page.evaluate(() => {
+    const latLng = (lat, lng) => new google.maps.LatLng(lat, lng);
+    const way = (lng, minutes) => {
+      const path = [latLng(51.5, lng), latLng(51.52, lng)];
+      return { summary: '', overview_path: path, legs: [{ steps: [{ instructions: 'Head <b>north</b>', maneuver: '', distance: { value: 2200, text: '' }, duration: { value: minutes * 60, text: '' }, start_location: path[0], end_location: path[1], path }], distance: { value: 2200, text: '' }, duration: { value: minutes * 60, text: '' }, start_location: path[0], end_location: path[1] }] };
+    };
+    window.__riderCommsTestRoute = { routes: [way(-0.1, 10), way(-0.08, 14)] };
+  });
+  await page.locator('[data-start-in-app-navigation]').click();
+  await page.locator('#routePreviewMore').click();
+  const row = page.locator('[data-preview-route="0"]');
+  await expect(row.locator('.route-hazard-chip')).toHaveCount(2);
+  await expect(row).toHaveAttribute('aria-label', /, reported on the way: road closure, police$/);
+  await expect(page.locator('[data-preview-route="1"] .route-hazard-chip')).toHaveCount(0);
+  await page.locator('#routePreviewMore').click();
+  // Swiped small, the card keeps only the time and Start.
+  await page.locator('#routePreview').dispatchEvent('pointerdown', { clientY: 600 });
+  await page.locator('#routePreview').dispatchEvent('pointerup', { clientY: 700 });
+  await expect(page.locator('#routePreview')).toHaveClass(/minimised/);
+  await expect(hazards).toBeHidden();
+});
+
+test('PWA preview adds a stop on the way before Start, and Start keeps it', async ({ page }) => {
+  const searches = [];
+  await page.clock.install();
+  await startNavigationHome(page, ({ request, url }) => {
+    if (url.pathname !== '/places/along-route') return null;
+    searches.push(request.postDataJSON());
+    return { body: { places: [{ id: 'shell', name: 'Shell', address: 'Mill Lane', lat: 51.505, lon: -0.1, travelSeconds: 30 }] } };
+  }, { start: false });
+  // In the top bar, above Route options.
+  const addStop = page.locator('#routePreviewTop #routePreviewAddStop');
+  await expect(addStop).toBeVisible();
+  const [plus, options] = await Promise.all([addStop.boundingBox(), page.locator('#routePreviewAvoidBtn').boundingBox()]);
+  expect(plus.y + plus.height).toBeLessThanOrEqual(options.y);
+  expect(Math.abs(plus.x - options.x)).toBeLessThan(2);
+  await addStop.click();
+  await expect(page.locator('#sheetTitle')).toHaveText('On the way');
+  const rows = page.locator('#stopList [data-stop-index]');
+  await expect(rows).toHaveCount(1);
+  // Along the whole of the way shown, from where it starts.
+  expect(searches[0].path[0]).toEqual({ lat: 51.5, lon: -0.1 });
+  expect(searches[0].path.at(-1)).toEqual({ lat: 51.52, lon: -0.1 });
+
+  await page.evaluate(() => { window.__riderCommsTestRouteRequests = []; });
+  await rows.first().click();
+  await expect(page.locator('#sheetBackdrop')).toBeHidden();
+  await expect(page.locator('#routePreviewStopText')).toHaveText('Stop: Shell');
+  await expect(addStop).toBeHidden();
+  const asked = await page.evaluate(() => window.__riderCommsTestRouteRequests[0]);
+  expect(asked.waypoints).toEqual([{ location: { lat: 51.505, lng: -0.1 }, stopover: true }]);
+  expect(asked.provideRouteAlternatives).toBe(false);
+
+  // A riding style keeps the stop.
+  await page.locator('#routePreviewAvoidBtn').click();
+  await page.locator('[data-preview-style="twisty"]').click();
+  await expect.poll(() => page.evaluate(() => window.__riderCommsTestRouteRequests.length)).toBe(2);
+  expect((await page.evaluate(() => window.__riderCommsTestRouteRequests[1])).waypoints).toHaveLength(1);
+
+  // Taken out again: the ways there without it.
+  await page.locator('#routePreviewStopRemove').click();
+  await expect(page.locator('#routePreviewStop')).toBeHidden();
+  await expect(addStop).toBeVisible();
+  expect((await page.evaluate(() => window.__riderCommsTestRouteRequests[2])).waypoints).toBeUndefined();
+
+  // Added again and started: navigation follows the way through it.
+  await addStop.click();
+  await rows.first().click();
+  await expect(page.locator('#routePreviewStopText')).toHaveText('Stop: Shell');
+  await page.locator('#routePreviewStart').click();
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  // The faster-route check five minutes on still goes through the stop.
+  await page.evaluate(() => { window.__riderCommsTestRouteRequests = []; });
+  await page.clock.runFor(5 * 60_000 + 1000);
+  await expect.poll(() => page.evaluate(() => window.__riderCommsTestRouteRequests.length)).toBeGreaterThanOrEqual(1);
+  expect((await page.evaluate(() => window.__riderCommsTestRouteRequests[0])).waypoints).toEqual([{ location: { lat: 51.505, lng: -0.1 }, stopover: true }]);
+});
+
+test('PWA arrives at the end point, or parked close to it on a good fix', async ({ page }) => {
+  await startNavigationHome(page, null, { start: false });
+  // Hear every GPS watch started from here on (navigation's own).
+  await page.evaluate(() => {
+    const geo = navigator.geolocation;
+    const watch = geo.watchPosition.bind(geo);
+    window.__watchers = [];
+    geo.watchPosition = (success, error, options) => { window.__watchers.push(success); return watch(success, error, options); };
+  });
+  await page.locator('#routePreviewStart').click();
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  await expect.poll(() => page.evaluate(() => window.__watchers.length)).toBeGreaterThan(0);
+  const fix = (lat, { speed = 0, accuracy = 5, at = 0 } = {}) => page.evaluate(({ lat, speed, accuracy, at }) => {
+    const position = { timestamp: Date.now() + at, coords: { latitude: lat, longitude: -0.1, accuracy, speed, heading: 0 } };
+    window.__watchers.forEach((success) => success(position));
+  }, { lat, speed, accuracy, at });
+  await fix(51.505, { speed: 10 });
+  await fix(51.512, { speed: 10 });
+  // About 90 m short of Home, still riding: not yet.
+  await fix(51.5192, { speed: 6 });
+  await fix(51.5192, { speed: 6, at: 20_000 });
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  // On a poor fix, stopping there doesn't count.
+  await fix(51.5192, { accuracy: 80, at: 21_000 });
+  await fix(51.5192, { accuracy: 80, at: 40_000 });
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  // Parked there on a good fix: after 15 seconds, arrived.
+  await fix(51.5192, { at: 41_000 });
+  await fix(51.5192, { at: 50_000 });
+  await expect(page.locator('#app')).toHaveClass(/nav-mode/);
+  await fix(51.5192, { at: 57_000 });
+  await expect(page.locator('#app')).not.toHaveClass(/nav-mode/);
+  await expect(page.locator('#destinationCard')).toContainText('You’ve arrived');
+});
+
+test('PWA preview shows reports along the whole way, beyond the 40 miles round the rider', async ({ page }) => {
+  const asked = [];
+  await startNavigationHome(page, ({ request, url }) => {
+    if (url.pathname === '/hazards/nearby') return { body: { hazards: [] } };
+    if (url.pathname !== '/hazards/along-route') return null;
+    asked.push(request.postDataJSON());
+    return { body: { hazards: [{ id: 'far', type: 'road_closure', lat: 51.515, lon: -0.1, createdAt: 1, expiresAt: Number.MAX_SAFE_INTEGER, confirmations: 0, denials: 0 }] } };
+  }, { start: false });
+  const hazards = page.locator('#routePreviewHazards');
+  await expect(hazards).toHaveAttribute('aria-label', 'Reported on the way: road closure');
+  // The way shown, as { lat, lon } points from its start to its end.
+  expect(asked[0].path[0]).toEqual({ lat: 51.5, lon: -0.1 });
+  expect(asked[0].path.at(-1)).toEqual({ lat: 51.52, lon: -0.1 });
 });

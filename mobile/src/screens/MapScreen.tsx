@@ -34,6 +34,8 @@ import { MapDrawer } from './MapDrawer';
 import { useFriends } from '../friends/FriendsContext';
 import type { PlaceResult } from '../api/places';
 import { HazardReportSheet } from './HazardReportSheet';
+import type { HazardReport } from '@rider-comms/shared';
+import { simplifyRoutePath } from '../navigationRoadEvents';
 import { HazardDetailCard } from '../components/HazardDetailCard';
 import { useNavigationLiveActivity, useRideLiveActivity } from './useNavigationLiveActivity';
 import { buildNavigationProviderUrl, navigationTargetFromValues, openNavigationUrl } from '../navigationLinks';
@@ -281,8 +283,11 @@ export function MapScreen(): React.JSX.Element {
     closeRoutePreview,
     replanRoutePreview,
     setRoutePreviewStyle,
+    removeRoutePreviewStop,
     findStopsOnTheWay,
     addNavigationStop,
+    skipNavigationStop,
+    navigationStop,
   } = useInAppNavigation(
     client,
     mapRef,
@@ -441,11 +446,13 @@ export function MapScreen(): React.JSX.Element {
     upcomingSteps: activeRoute.steps.slice(navigationStepIndex + 1),
     destinationLabel: navigationDestination?.label ?? '',
     onAddStop: () => setStopsSheetOpen(true),
+    stopLabel: navigationStop?.label ?? null,
+    onSkipStop: () => { void skipNavigationStop(); },
     onShareEta: () => {
       const message = navigationEtaShareText(navigationDestination?.label ?? '', navigationArrivalLabel, remainingNavigationMeters, unitSystem);
       void Share.share({ message }).then(() => haptics.success()).catch(() => undefined);
     },
-  } : undefined), [activeRoute, lockedForSafety, navigationStepIndex, navigationDestination, navigationArrivalLabel, remainingNavigationMeters, unitSystem]);
+  } : undefined), [activeRoute, lockedForSafety, navigationStepIndex, navigationDestination, navigationArrivalLabel, navigationStop, remainingNavigationMeters, skipNavigationStop, unitSystem]);
   useRideLiveActivity(activeRide && !activeRoute
     ? { riderCount: roster.length, code: activeRide.code, regroupLabel: regroup?.label }
     : null);
@@ -683,6 +690,27 @@ export function MapScreen(): React.JSX.Element {
   // The drawer steps aside while navigating, while Ride Safe locks the
   // controls, and while a place or hazard card owns the bottom of the map.
   const friendsAttention = incomingRequests.length + unreadMessageCount;
+  // The route preview's hazards: the whole of each way, not only the 40
+  // miles round the rider that the map's reports cover (PWA:
+  // loadRoutePreviewHazards).
+  const [routeHazardReports, setRouteHazardReports] = React.useState<HazardReport[]>([]);
+  const previewRoutes = routePreview?.routes;
+  React.useEffect(() => {
+    setRouteHazardReports([]);
+    if (!previewRoutes) return undefined;
+    let current = true;
+    void Promise.resolve()
+      .then(() => Promise.all(previewRoutes.map((way) => client.getHazardsAlongRoute(simplifyRoutePath(way.coordinates)))))
+      .then((answers) => { if (current) setRouteHazardReports(answers.flatMap((answer) => answer.hazards)); })
+      .catch(() => { /* The reports round the rider still show. */ });
+    return () => { current = false; };
+  }, [client, previewRoutes]);
+  const previewHazards = React.useMemo(() => {
+    const byId = new Map<string, HazardReport>();
+    [...hazards, ...routeHazardReports].forEach((report) => byId.set(report.id, report));
+    return [...byId.values()];
+  }, [hazards, routeHazardReports]);
+
   const drawerVisible = segment === 'public' && !lockedForSafety && !activeRoute && !routePreview && !selectedDestination && !selectedHazard && !navigationArrival;
   // Moving off with the route preview open: go, on the route it shows.
   React.useEffect(() => {
@@ -1067,7 +1095,7 @@ export function MapScreen(): React.JSX.Element {
       )}
 
       <StopsOnTheWaySheet
-        visible={stopsSheetOpen && Boolean(activeRoute) && !lockedForSafety}
+        visible={stopsSheetOpen && Boolean(activeRoute || routePreview) && !lockedForSafety}
         onClose={() => setStopsSheetOpen(false)}
         findStops={findStopsOnTheWay}
         onChoose={(place) => {
@@ -1118,6 +1146,7 @@ export function MapScreen(): React.JSX.Element {
             }}
             onStyle={(style) => void chooseRoutePreviewStyle(style)}
             onToggleAvoid={(key) => void toggleRoutePreviewAvoid(key)}
+            onAddStop={() => setStopsSheetOpen(true)}
           />
           <RoutePreviewSheet
             bottom={0}
@@ -1132,6 +1161,8 @@ export function MapScreen(): React.JSX.Element {
                 </View>
               )),
             } : null}
+            hazards={previewHazards}
+            onRemoveStop={() => { void removeRoutePreviewStop(); }}
             onChoose={chooseRoutePreview}
             onStart={startRoutePreview}
             onShare={shareRoutePreview}

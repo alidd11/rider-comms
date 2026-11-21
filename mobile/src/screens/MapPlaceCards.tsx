@@ -13,6 +13,9 @@ import { routeTrafficDelayText, routeTrafficNote, type RouteStyle } from '@rider
 import { styles } from './MapScreen.styles';
 import type { NavigationArrival, RoutePreview } from './useInAppNavigation';
 import type { RouteAvoidance } from '../routeOptionsPreference';
+import type { HazardReport } from '@rider-comms/shared';
+import { routeHazardStrip, routeHazards, routeHazardsSummary, type RouteHazardMarker } from '../navigationRoadEvents';
+import { HazardNavigationIcon } from '../components/HazardIcon';
 
 export function ArrivalCard({ bottom, arrival, unitSystem, onDone }: {
   bottom: number;
@@ -167,7 +170,7 @@ const AVOID_CHIPS: ReadonlyArray<{ key: 'tolls' | 'ferries'; label: string }> = 
  * Twisty, No motorways, as in Calimoto and Scenic) and Avoid (tolls,
  * ferries). Tapping the destination goes back to search for another.
  */
-export function RoutePreviewTopBar({ top, preview, avoidance, replanning = false, onBack, onChangeDestination, onStyle, onToggleAvoid }: {
+export function RoutePreviewTopBar({ top, preview, avoidance, replanning = false, onBack, onChangeDestination, onStyle, onToggleAvoid, onAddStop }: {
   top: number;
   preview: RoutePreview;
   /** Settings → Map & navigation's avoid choices, changeable here too. */
@@ -178,6 +181,8 @@ export function RoutePreviewTopBar({ top, preview, avoidance, replanning = false
   onChangeDestination: () => void;
   onStyle: (style: RouteStyle) => void;
   onToggleAvoid: (key: 'tolls' | 'ferries') => void;
+  /** Petrol, a café or food on the way (StopsOnTheWaySheet); one stop. */
+  onAddStop?: () => void;
 }): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   const avoiding = AVOID_CHIPS.filter(({ key }) => avoidance[key]).length;
@@ -202,17 +207,33 @@ export function RoutePreviewTopBar({ top, preview, avoidance, replanning = false
             </Pressable>
           </View>
         </View>
-        <Pressable
-          testID="route-preview-options"
-          accessibilityRole="button"
-          accessibilityLabel={`Route options, ${styleName}${avoiding ? ', avoiding tolls or ferries' : ''}`}
-          accessibilityState={{ expanded: open }}
-          onPress={() => { haptics.select(); setOpen((value) => !value); }}
-          style={({ pressed }) => [styles.routePreviewAvoidButton, open && styles.routePreviewAvoidButtonOpen, pressed && pressedFeedback]}
-        >
-          <Ionicons name="options-outline" size={21} color={colors.textPrimary} />
-          {changed ? <Text style={styles.routePreviewAvoidCount}>{changed}</Text> : null}
-        </Pressable>
+        <View style={styles.routePreviewTools}>
+          {onAddStop && !preview.stop ? (
+            <Pressable
+              testID="route-preview-add-stop"
+              accessibilityRole="button"
+              accessibilityLabel="Add a stop"
+              accessibilityHint="Petrol, cafés or food on the way"
+              accessibilityState={{ disabled: replanning }}
+              disabled={replanning}
+              onPress={() => { haptics.select(); onAddStop(); }}
+              style={({ pressed }) => [styles.routePreviewAvoidButton, replanning && styles.routePreviewBusy, pressed && pressedFeedback]}
+            >
+              <Ionicons name="add" size={24} color={colors.textPrimary} />
+            </Pressable>
+          ) : null}
+          <Pressable
+            testID="route-preview-options"
+            accessibilityRole="button"
+            accessibilityLabel={`Route options, ${styleName}${avoiding ? ', avoiding tolls or ferries' : ''}`}
+            accessibilityState={{ expanded: open }}
+            onPress={() => { haptics.select(); setOpen((value) => !value); }}
+            style={({ pressed }) => [styles.routePreviewAvoidButton, open && styles.routePreviewAvoidButtonOpen, pressed && pressedFeedback]}
+          >
+            <Ionicons name="options-outline" size={21} color={colors.textPrimary} />
+            {changed ? <Text style={styles.routePreviewAvoidCount}>{changed}</Text> : null}
+          </Pressable>
+        </View>
       </View>
       {open ? (
         <View testID="route-preview-options-menu" style={[styles.routePreviewOptions, replanning && styles.routePreviewBusy]} accessibilityLabel="Route options">
@@ -266,6 +287,60 @@ export function RoutePreviewTopBar({ top, preview, avoidance, replanning = false
   );
 }
 
+const ROUTE_HAZARD_CHIPS_SHOWN = 4;
+
+/**
+ * The reports on one of the other ways, small, under its row: the map pins'
+ * glyphs, one per kind with how many, four at most then +N. The row reads
+ * them out (PWA: routeHazardChipsMarkup).
+ */
+function RouteHazardChips({ summary }: { summary: NonNullable<ReturnType<typeof routeHazardsSummary>> }): React.JSX.Element {
+  const more = summary.groups.length - ROUTE_HAZARD_CHIPS_SHOWN;
+  return (
+    <View style={[styles.routeHazardChips, styles.routePreviewRowHazards]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      {summary.groups.slice(0, ROUTE_HAZARD_CHIPS_SHOWN).map(({ type, count, serious }) => (
+        <View key={type} testID={`route-hazard-${type}`} style={[styles.routeHazardChip, serious && styles.routeHazardChipSerious]}>
+          <HazardNavigationIcon type={type} size={18} />
+          {count > 1 ? <Text style={styles.routeHazardChipCount}>{count}</Text> : null}
+        </View>
+      ))}
+      {more > 0 ? (
+        <View style={styles.routeHazardChip}>
+          <Text style={[styles.routeHazardChipCount, styles.routeHazardChipMore]}>{`+${more}`}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * The chosen way as a straight line from you to the destination with each
+ * report where it is on it, as in Waze's trip overview; close ones share an
+ * icon with a count, closures and accidents ringed red. Read out as one
+ * sentence (PWA: routeHazardStripMarkup).
+ */
+function RouteHazardStrip({ markers, label, testID }: { markers: readonly RouteHazardMarker[]; label: string; testID?: string }): React.JSX.Element {
+  return (
+    <View testID={testID} style={styles.routeHazardStrip} accessible accessibilityRole="image" accessibilityLabel={label}>
+      <View style={styles.routeHazardStripLine} />
+      <View style={[styles.routeHazardStripEnd, styles.routeHazardStripStart]} />
+      <View style={[styles.routeHazardStripEnd, styles.routeHazardStripDestination]} />
+      <View style={styles.routeHazardStripTrack}>
+        {markers.map(({ at, type, count, serious }) => (
+          <View
+            key={`${type}-${at}`}
+            testID={`route-hazard-marker-${type}`}
+            style={[styles.routeHazardMarker, serious && styles.routeHazardChipSerious, { left: `${Math.round(at * 1000) / 10}%` }]}
+          >
+            <HazardNavigationIcon type={type} size={24} />
+            {count > 1 ? <Text style={styles.routeHazardMarkerCount}>{count}</Text> : null}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 type SheetSize = 'min' | 'peek' | 'list';
 
 /**
@@ -277,7 +352,7 @@ type SheetSize = 'min' | 'peek' | 'list';
  * chooses one, as on the map). Parked only: MapScreen starts the shown route
  * itself if Ride Safe locks.
  */
-export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = false, ride, onChoose, onStart, onShare }: {
+export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = false, ride, hazards = [], onChoose, onStart, onShare, onRemoveStop }: {
   bottom: number;
   preview: RoutePreview;
   unitSystem: UnitSystem;
@@ -285,11 +360,21 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
   replanning?: boolean;
   /** In a group ride: up to three riders' avatars and how many there are. */
   ride?: { count: number; avatars: React.ReactNode[] } | null;
+  /** Riders' hazard reports: each way says what's been reported on it. */
+  hazards?: readonly HazardReport[];
   onChoose: (index: number) => void;
   onStart: () => void;
   onShare: () => void;
+  /** Takes out the stop added from the top bar's Add a stop. */
+  onRemoveStop?: () => void;
 }): React.JSX.Element {
   const [size, setSize] = React.useState<SheetSize>('peek');
+  // The arrival time moves on while the card is open, as in Google Maps.
+  const [, setClock] = React.useState(0);
+  React.useEffect(() => {
+    const timer = setInterval(() => setClock((tick) => tick + 1), 30_000);
+    return () => clearInterval(timer);
+  }, []);
   const name = preview.target.label ?? 'Selected place';
   const choice = preview.choices.find((item) => item.index === preview.index) ?? preview.choices[0];
   const route = preview.routes[preview.index] ?? preview.routes[0]!;
@@ -300,6 +385,17 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
   const note = twistyIsFastest
     ? 'Also the twistiest way Google found'
     : routeTrafficNote(route.durationSeconds, route.typicalDurationSeconds, choice?.label === 'Fastest');
+  // What riders have reported on each way (PWA: routeHazards).
+  const reported = React.useMemo(
+    () => preview.routes.map((way) => routeHazards(way.coordinates, hazards)),
+    [preview.routes, hazards],
+  );
+  const summaries = React.useMemo(() => reported.map(routeHazardsSummary), [reported]);
+  const hazardSummary = summaries[preview.index] ?? null;
+  const hazardMarkers = React.useMemo(
+    () => routeHazardStrip(reported[preview.index] ?? [], preview.routes[preview.index]?.coordinates ?? []),
+    [preview.index, preview.routes, reported],
+  );
   const others = preview.choices.length - 1;
   const sizes: SheetSize[] = others > 0 ? ['min', 'peek', 'list'] : ['min', 'peek'];
   const step = React.useCallback((direction: 1 | -1) => {
@@ -333,7 +429,7 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
         >
           <View style={styles.routePreviewHandleBar} />
         </Pressable>
-        <View style={[styles.routePreviewSummary, replanning && styles.routePreviewBusy]} accessibilityLabel={[choice?.text ?? '', formatNavigationDistance(route.distanceMeters, unitSystem), meta, note].filter(Boolean).join(', ')}>
+        <View style={[styles.routePreviewSummary, replanning && styles.routePreviewBusy]} accessibilityLabel={[choice?.text ?? '', formatNavigationDistance(route.distanceMeters, unitSystem), meta, note, hazardSummary?.label ?? ''].filter(Boolean).join(', ')}>
           <Text style={[styles.routePreviewBigTime, traffic ? styles.routePreviewTimeTraffic : null]}>{choice?.time ?? formatNavigationDuration(route.durationSeconds)}</Text>
           <Text style={styles.routePreviewDistance}>{formatNavigationDistance(route.distanceMeters, unitSystem)}</Text>
           {choice && choice.label !== 'Alternative' ? <Text style={styles.routePreviewTagPill}>{choice.label}</Text> : null}
@@ -347,10 +443,24 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
                 <Text style={[styles.routePreviewNoteText, traffic && !twistyIsFastest ? styles.routePreviewNoteTraffic : null]}>{note}</Text>
               </View>
             ) : null}
+            {hazardSummary ? (
+              <RouteHazardStrip testID="route-preview-hazards" markers={hazardMarkers} label={hazardSummary.label} />
+            ) : null}
           </>
         )}
       </View>
       <ScrollView style={size === 'list' ? styles.routePreviewScrollOpen : undefined} scrollEnabled={size === 'list'} showsVerticalScrollIndicator={false}>
+        {preview.stop && !small ? (
+          <View testID="route-preview-stop" style={styles.routePreviewRide}>
+            <Ionicons name="flag-outline" size={18} color={colors.accentInk} />
+            <Text style={styles.routePreviewRideText} numberOfLines={1}>{`Stop: ${preview.stop.label}`}</Text>
+            {onRemoveStop ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Remove the stop at ${preview.stop.label}`} accessibilityState={{ disabled: replanning }} disabled={replanning} onPress={() => { haptics.select(); onRemoveStop(); }} hitSlop={6} style={({ pressed }) => [styles.routePreviewRideShare, pressed && pressedFeedback]}>
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         {ride && !small ? (
           <View testID="route-preview-ride" style={styles.routePreviewRide}>
             <View style={styles.routePreviewRideAvatars}>{ride.avatars}</View>
@@ -402,13 +512,14 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
                 const distance = formatNavigationDistance(way.distanceMeters, unitSystem);
                 const via = way.summary ? `via ${way.summary}` : '';
                 const delay = routeTrafficDelayText(way.durationSeconds, way.typicalDurationSeconds);
+                const hazardsOnWay = summaries[item.index] ?? null;
                 return (
                   <Pressable
                     key={item.index}
                     testID={`route-preview-row-${item.index}`}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
-                    accessibilityLabel={[item.text, arrive.toLowerCase(), distance, via, delay].filter(Boolean).join(', ')}
+                    accessibilityLabel={[item.text, arrive.toLowerCase(), distance, via, delay, hazardsOnWay?.label.toLowerCase() ?? ''].filter(Boolean).join(', ')}
                     onPress={() => { if (!selected) { haptics.select(); onChoose(item.index); } }}
                     style={({ pressed }) => [styles.routePreviewRow, selected && styles.routePreviewRowSelected, pressed && pressedFeedback]}
                   >
@@ -417,6 +528,7 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
                       <Text numberOfLines={1} style={styles.routePreviewTag}>{item.tag.toUpperCase()}</Text>
                     </View>
                     <Text numberOfLines={1} style={styles.routePreviewMeta}>{[arrive, distance, via, delay].filter(Boolean).join(' · ')}</Text>
+                    {hazardsOnWay ? <RouteHazardChips summary={hazardsOnWay} /> : null}
                   </Pressable>
                 );
               })}

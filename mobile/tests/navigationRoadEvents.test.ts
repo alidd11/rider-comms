@@ -5,6 +5,10 @@ import type { HazardReport } from '@rider-comms/shared';
 import {
   navigationHazardLabel,
   navigationHazardsAhead,
+  routeHazards,
+  routeHazardsSummary,
+  routeHazardStrip,
+  simplifyRoutePath,
 } from '../src/navigationRoadEvents.ts';
 
 const route = [
@@ -275,5 +279,87 @@ describe('route-ahead hazard ties', () => {
     );
     assert.equal(alerts.length > 0, true);
     assert.equal(new Set(alerts.map((alert) => alert.distanceAheadMeters)).size, 1);
+  });
+});
+
+describe('hazards on a whole route, before Start', () => {
+  it('finds every live report along the way, from the start, and none off it', () => {
+    const found = routeHazards(route, [
+      hazard('far', 'camera', 51.5090),
+      hazard('start', 'police', 51.5001),
+      hazard('off-route', 'accident', 51.5050, -0.0950),
+      { ...hazard('expired', 'road_closure', 51.5040), expiresAt: 1 },
+    ], { nowMs: 10 });
+    assert.deepEqual(found.map((item) => item.hazard.id), ['start', 'far']);
+    assert.deepEqual(routeHazards([], [hazard('a', 'police', 51.5)]), []);
+  });
+
+  it('groups what was reported for icons, most serious first, with counts and words to read out', () => {
+    assert.equal(routeHazardsSummary([]), null);
+    const summary = routeHazardsSummary(routeHazards(route, [
+      hazard('p1', 'police', 51.5010),
+      hazard('cam1', 'camera', 51.5030),
+      hazard('closure', 'road_closure', 51.5080),
+      hazard('cam2', 'camera', 51.5090),
+    ]));
+    assert.deepEqual(summary, {
+      groups: [
+        { type: 'road_closure', count: 1, serious: true },
+        { type: 'camera', count: 2, serious: false },
+        { type: 'police', count: 1, serious: false },
+      ],
+      label: 'Reported on the way: road closure, 2 speed cameras, police',
+      serious: true,
+    });
+    const every = routeHazardsSummary(routeHazards(route, [
+      hazard('a', 'accident', 51.5010), hazard('b', 'police_checkpoint', 51.5020), hazard('b2', 'police_checkpoint', 51.5040),
+      hazard('c', 'hidden_police', 51.5060), hazard('c2', 'hidden_police', 51.5075), hazard('d', 'police', 51.5090),
+      hazard('d2', 'police', 51.5099), hazard('e', 'accident', 51.5050),
+    ]));
+    assert.equal(every?.label, 'Reported on the way: 2 accidents, 2 police reports, 2 police checks, 2 hidden police reports');
+    assert.equal(routeHazardsSummary(routeHazards(route, [hazard('cam', 'camera', 51.5040)]))?.serious, false);
+  });
+});
+
+describe('hazards as points along a straight line, as in Waze', () => {
+  it('puts each where it is on the way, merging close ones under the most serious', () => {
+    const found = routeHazards(route, [
+      hazard('p', 'police', 51.5025),
+      hazard('c', 'road_closure', 51.5030),
+      hazard('k', 'camera', 51.5090),
+    ]);
+    const strip = routeHazardStrip(found, route);
+    assert.equal(strip.length, 2);
+    assert.deepEqual(strip.map(({ type, count, serious }) => ({ type, count, serious })), [
+      { type: 'road_closure', count: 2, serious: true },
+      { type: 'camera', count: 1, serious: false },
+    ]);
+    assert.ok(Math.abs(strip[0]!.at - 0.275) < 0.01);
+    assert.ok(Math.abs(strip[1]!.at - 0.9) < 0.01);
+    // A wider gap merges all; no line or no reports, nothing.
+    assert.equal(routeHazardStrip(found, route, 1).length, 1);
+    assert.deepEqual(routeHazardStrip([], route), []);
+    assert.deepEqual(routeHazardStrip(found, []), []);
+  });
+});
+
+describe('a route line cut down for the server', () => {
+  it('keeps short lines, and keeps a long one within 400 points and close to the road', () => {
+    assert.deepEqual(simplifyRoutePath(route), route);
+    // 3,000 points of a winding road: about 30 km, bending every 100 m.
+    const winding = Array.from({ length: 3000 }, (_, i) => ({ lat: 51.5 + i * 0.0001, lon: -0.1 + Math.sin(i / 10) * 0.002 }));
+    const cut = simplifyRoutePath(winding);
+    assert.ok(cut.length <= 400 && cut.length > 50, `kept ${cut.length}`);
+    assert.deepEqual(cut[0], winding[0]);
+    assert.deepEqual(cut.at(-1), winding.at(-1));
+    // Every point of the road stays within 100 m of the cut line.
+    const worst = Math.max(...winding.filter((_, i) => i % 7 === 0).map((point) => {
+      const found = routeHazards(cut, [{ id: 'p', type: 'police', lat: point.lat, lon: point.lon, reportedBy: 'x', createdAt: 1, expiresAt: Number.MAX_SAFE_INTEGER, confirmations: 0, denials: 0 }], { nowMs: 2 });
+      return found[0]?.distanceFromRouteMeters ?? Number.POSITIVE_INFINITY;
+    }));
+    assert.ok(worst <= 70, `worst ${Math.round(worst)} m`);
+    // A smaller limit loosens further; bad points are dropped.
+    assert.ok(simplifyRoutePath(winding, 20).length <= 20);
+    assert.deepEqual(simplifyRoutePath([{ lat: Number.NaN, lon: 0 }, ...route]), route);
   });
 });

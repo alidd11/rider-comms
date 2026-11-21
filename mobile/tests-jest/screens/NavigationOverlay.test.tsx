@@ -121,4 +121,12 @@ test('the trip card opens while parked with the turns left, Add stop, Share ETA 
   await view.rerender(summary({ ...details, upcomingSteps: [], destinationLabel: '' }));
   await fireEvent.press(view.getByLabelText('Show trip details'));
   expect(view.getByText('Arrive at your destination')).toBeTruthy();
+
+  // With a stop on the way, Add stop becomes Skip it.
+  const onSkipStop = jest.fn();
+  await view.rerender(summary({ ...details, stopLabel: 'Shell', onSkipStop } as typeof details));
+  expect(view.queryByLabelText('Add stop')).toBeNull();
+  await fireEvent.press(view.getByLabelText('Skip the stop at Shell'));
+  expect(onSkipStop).toHaveBeenCalledTimes(1);
+  expect(view.queryByTestId('navigation-trip-details')).toBeNull();
 });

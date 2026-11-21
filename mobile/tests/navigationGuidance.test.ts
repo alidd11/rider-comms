@@ -11,7 +11,7 @@ import {
   navigationSpeedUnit,
   navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
-import { fasterRouteAnnouncement, fasterRouteSavingSeconds, navigationEtaShareText, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness, routeIndexForStyle, routeShareText, routeStyleAvoidsMotorways, routeTrafficNote } from '@rider-comms/shared';
+import { ARRIVAL_NEAR_METERS, ARRIVAL_STOPPED_MS, navigationArrival, fasterRouteAnnouncement, fasterRouteSavingSeconds, navigationEtaShareText, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness, routeIndexForStyle, routeShareText, routeStyleAvoidsMotorways, routeTrafficNote } from '@rider-comms/shared';
 
 describe('navigation guidance presentation', () => {
   it('formats metric and imperial distances consistently for navigation', () => {
@@ -227,4 +227,26 @@ it('the traffic note under the chosen route, and what Share sends', () => {
   assert.equal(routeTrafficNote(1800, null, false), '');
   assert.equal(routeShareText('Home', '7:25 PM', 17_700, 'mi', 'A41'), 'Heading to Home via A41: 11 mi, arriving about 7:25 PM. Sent from Rider Comms.');
   assert.equal(routeShareText(' ', '19:25', 900, 'km', ''), 'Heading to my destination: 900 m, arriving about 19:25. Sent from Rider Comms.');
+});
+
+describe('arriving', () => {
+  const base = { distanceMeters: 80, rawDistanceMeters: 80, accuracyMeters: 8, speedMps: 0, nowMs: 100_000, stoppedSinceMs: null as number | null };
+  it('arrives at the end point at once, moving or not, whatever the fix', () => {
+    assert.deepEqual(navigationArrival({ ...base, distanceMeters: 25, speedMps: 12, accuracyMeters: null }), { arrived: true, stoppedSinceMs: null });
+  });
+  it('arrives parked close by once stopped there for 15 seconds on a good fix', () => {
+    const first = navigationArrival(base);
+    assert.deepEqual(first, { arrived: false, stoppedSinceMs: 100_000 });
+    assert.equal(navigationArrival({ ...base, nowMs: 100_000 + ARRIVAL_STOPPED_MS - 1, stoppedSinceMs: first.stoppedSinceMs }).arrived, false);
+    assert.equal(navigationArrival({ ...base, nowMs: 100_000 + ARRIVAL_STOPPED_MS, stoppedSinceMs: first.stoppedSinceMs }).arrived, true);
+  });
+  it('starts the wait again on moving, a poor or missing fix, or too far away', () => {
+    for (const change of [
+      { speedMps: 3 }, { speedMps: null }, { speedMps: Number.NaN }, { speedMps: -1 },
+      { accuracyMeters: 60 }, { accuracyMeters: null }, { accuracyMeters: -1 },
+      { rawDistanceMeters: ARRIVAL_NEAR_METERS + 1 }, { rawDistanceMeters: Number.NaN, distanceMeters: Number.NaN },
+    ]) {
+      assert.deepEqual(navigationArrival({ ...base, ...change, stoppedSinceMs: 1 }), { arrived: false, stoppedSinceMs: null }, JSON.stringify(change));
+    }
+  });
 });

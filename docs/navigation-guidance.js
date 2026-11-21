@@ -153,6 +153,27 @@
   }
 
   /** How often a route in progress is checked against live traffic. */
+  const ARRIVAL_RADIUS_METERS = 30;
+  const ARRIVAL_NEAR_METERS = 100;
+  const ARRIVAL_STOPPED_MPS = 1.5;
+  const ARRIVAL_STOPPED_MS = 15_000;
+  const ARRIVAL_MAX_ACCURACY_METERS = 50;
+
+  /** At the end point, or stopped close to it on a good fix for 15 seconds
+   * (shared navigationArrival). */
+  function navigationArrival(check) {
+    if (Number.isFinite(check.distanceMeters) && check.distanceMeters <= ARRIVAL_RADIUS_METERS) return { arrived: true, stoppedSinceMs: null };
+    const accuracy = check.accuracyMeters;
+    const speed = check.speedMps;
+    const near = Number.isFinite(check.rawDistanceMeters)
+      && typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= ARRIVAL_MAX_ACCURACY_METERS
+      && check.rawDistanceMeters <= ARRIVAL_NEAR_METERS;
+    const stopped = typeof speed === 'number' && Number.isFinite(speed) && speed >= 0 && speed <= ARRIVAL_STOPPED_MPS;
+    if (!near || !stopped) return { arrived: false, stoppedSinceMs: null };
+    const since = check.stoppedSinceMs ?? check.nowMs;
+    return { arrived: check.nowMs - since >= ARRIVAL_STOPPED_MS, stoppedSinceMs: since };
+  }
+
   const FASTER_ROUTE_CHECK_MS = 5 * 60_000;
 
   /**
@@ -335,6 +356,9 @@
     routeTrafficNote,
     routeShareText,
     FASTER_ROUTE_CHECK_MS,
+    navigationArrival,
+    ARRIVAL_NEAR_METERS,
+    ARRIVAL_STOPPED_MS,
     fasterRouteSavingSeconds,
     fasterRouteAnnouncement,
     routeAheadPath,
