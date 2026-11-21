@@ -373,6 +373,28 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal((await get(link)).status, 404);
   });
 
+  it('prevents cross-account post deletion and media reuse without affecting the owner', async () => {
+    const ownerPost = await photoPost(ctx, 'social_a');
+    const ownerLink = ownerPost.media[0]!.url;
+    const attackerDelete = await authenticatedFetch(ctx, 'social_b', `/social/posts/${ownerPost.id}`, { method: 'DELETE' });
+    assert.notEqual(attackerDelete.status, 200);
+    assert.notEqual(attackerDelete.status, 204);
+    assert.equal((await authenticatedFetch(ctx, 'social_a', `/social/posts/${ownerPost.id}`)).status, 200);
+    assert.equal((await fetch(ctx.baseUrl() + ownerLink)).status, 200, 'attacker cannot revoke the owner media');
+
+    const ownerUpload = await upload(ctx, 'social_a', JPEG, 'image/jpeg');
+    assert.equal(ownerUpload.status, 201);
+    const { media } = await ownerUpload.json() as { media: { id: string } };
+    const stolen = await postJson(ctx, 'social_b', '/social/posts', {
+      kind: 'photo', caption: 'attempted cross-account media reuse', mediaIds: [media.id],
+    });
+    assert.equal(stolen.status, 404, 'upload belongs to a different account');
+    const legitimate = await postJson(ctx, 'social_a', '/social/posts', {
+      kind: 'photo', caption: 'owner retains the upload', mediaIds: [media.id],
+    });
+    assert.equal(legitimate.status, 201);
+  });
+
   it('stops a link working once the session it was issued to signs out', async () => {
     const post = await photoPost(ctx, 'social_a');
     const { token } = ctx.authStore.createTestSession('social_b');
