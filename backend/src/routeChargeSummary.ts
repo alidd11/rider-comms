@@ -91,10 +91,8 @@ export function summarizeRouteChargePassages(
       : { schemeId: passage.schemeId, outcome: 'unknown', reason: 'missing_or_invalid_data' } as ChargeAssessment;
     results.push({ eventId: passage.eventId, schemeId: passage.schemeId,
       ...(passage.zoneId ? { zoneId: passage.zoneId } : {}), assessment });
-      if (assessment.outcome !== 'possible_charge') continue;
-    // A future rule returning a potential charge without a known charge unit
-    // or date remains unverified, rather than looking charge-free.
-      if (assessment.unit === 'daily' && assessment.localDate) {
+    if (assessment.outcome !== 'possible_charge') continue;
+    if (assessment.unit === 'daily' && assessment.localDate) {
       daily.add(JSON.stringify([passage.schemeId, passage.zoneId ?? '', assessment.localDate]));
     } else if (assessment.unit === 'per_crossing') {
       crossingCount += 1;
