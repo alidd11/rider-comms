@@ -185,7 +185,11 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     }
     if (url.pathname === '/admin/riders') {
       state.riderQueries.push(url.searchParams.get('q'));
-      return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : state.riders });
+      const query = (url.searchParams.get('q') || '').toLowerCase();
+      const matches = state.riders.filter((rider) => [
+        rider.displayName, rider.username, rider.handle, rider.email, rider.riderId,
+      ].some((value) => String(value ?? '').toLowerCase().includes(query)));
+      return json(200, { riders: matches });
     }
     if (url.pathname === '/admin/system') {
       return json(200, { socialMediaStorage: false, socialMediaScanning: true, socialPosting: true, contentCheck: { allowed: 7, rejected: 1, unavailable: 2 }, providers: { google_places: { lastOkAt: null, lastErrorAt: Date.now(), lastError: '403 · PERMISSION_DENIED' }, google_routes: { lastOkAt: Date.now(), lastErrorAt: null, lastError: null } }, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
@@ -311,7 +315,7 @@ test.describe('staff dashboard', () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: /Moderation/ })).toBeVisible();
     await dialog.getByRole('searchbox', { name: 'Search pages and riders' }).fill('maya');
-    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(2);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
     await expect.poll(() => state.riderQueries).toContain('maya');
     await dialog.getByRole('button', { name: /Maya.*Rider/ }).click();
     await expect(page).toHaveURL(/#rider\/rider_maya$/);
@@ -334,6 +338,20 @@ test.describe('staff dashboard', () => {
     expect(state.riderQueries).toEqual([]);
     await page.keyboard.press('Escape');
     await expect(dialog).not.toBeVisible();
+  });
+
+
+  test('global search never replaces an open staff confirmation dialog', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#rider/rider_maya');
+    await page.locator('.rider-actions').getByRole('button', { name: 'Suspend' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Suspend Maya?' });
+    await expect(confirmation).toBeVisible();
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(page.getByRole('dialog', { name: 'Search operations' })).toBeHidden();
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
   });
 
   test('rider 360 section shortcuts scroll without changing the record route', async ({ page }) => {

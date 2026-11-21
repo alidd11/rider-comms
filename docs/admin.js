@@ -1922,7 +1922,8 @@
     }, 220);
   }
   function openCommandSearch(trigger) {
-    if (!me || searchDialog.open) return;
+    // Never cover a password confirmation or another sensitive staff action.
+    if (!me || searchDialog.open || document.querySelector('dialog[open]')) return;
     searchOpener = appEl.classList.contains('menu-open') ? mobileSearchTrigger : trigger;
     if (appEl.classList.contains('menu-open')) setMenu(false);
     searchInput.value = '';
