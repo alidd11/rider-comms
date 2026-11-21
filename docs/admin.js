@@ -1721,7 +1721,7 @@
       if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
-    document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
+    document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
     // Refresh the current section in place; skeletons are for navigation only.
     const refreshing = key === displayedKey;

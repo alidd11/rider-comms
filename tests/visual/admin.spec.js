@@ -308,6 +308,7 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     const state = await mockModerationApi(page);
     await page.goto('/admin.html');
+    await expect(page.locator('#nav')).toBeVisible();
     const trigger = await page.locator('#globalSearchMobile').isVisible()
       ? page.locator('#globalSearchMobile') : page.locator('#globalSearchTrigger');
     await trigger.click();
@@ -323,10 +324,40 @@ test.describe('staff dashboard', () => {
     await expect(dialog).not.toBeVisible();
   });
 
+
+  test('a late search response cannot replace newer results or execute rider markup', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(page,
+      (url) => url.pathname === '/admin/riders' && url.searchParams.get('q') === 'maya',
+      200, { riders: [RIDERS[0]] });
+    await page.goto('/admin.html');
+    await expect(page.locator('#nav')).toBeVisible();
+    await page.keyboard.press('/');
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    const input = dialog.getByRole('searchbox', { name: 'Search pages and riders' });
+    await input.fill('maya');
+    await hold.received;
+    await input.fill('rex');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toContainText('<b>Rex</b>');
+    await expect(dialog.locator('#globalSearchRiders .search-result b')).toHaveCount(0);
+    const stale = page.waitForResponse((item) => new URL(item.url()).pathname === '/admin/riders'
+      && new URL(item.url()).searchParams.get('q') === 'maya');
+    hold.release();
+    await stale;
+    await page.waitForTimeout(100);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toContainText('<b>Rex</b>');
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
+
   test('command search respects analyst permissions and closes with Escape', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page, { role: 'analyst' });
     await page.goto('/admin.html');
+    await expect(page.locator('#nav')).toBeVisible();
     await page.keyboard.press('ControlOrMeta+k');
     const dialog = page.getByRole('dialog', { name: 'Search operations' });
     await expect(dialog).toBeVisible();
