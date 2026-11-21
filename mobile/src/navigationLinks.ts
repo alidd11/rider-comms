@@ -86,6 +86,17 @@ export function buildNavigationProviderUrl(
  * so screens can retain context and offer a retry/provider change. */
 export async function openNavigationUrl(url: string, opener: NavigationUrlOpener): Promise<boolean> {
   try {
+    // Reject executable URLs and lookalike hosts before handing control to the OS.
+    const target = new URL(url);
+    if (target.protocol !== 'https:' || target.username || target.password ||
+        (target.port && target.port !== '443')) return false;
+    // Restrict handoff to the navigation endpoints this app actually generates.
+    // A trusted hostname alone would also permit unrelated web pages.
+    const isNavigationEndpoint =
+      (target.hostname === 'www.google.com' && target.pathname === '/maps/dir/') ||
+      (target.hostname === 'www.waze.com' && target.pathname === '/ul') ||
+      (target.hostname === 'maps.apple.com' && target.pathname === '/');
+    if (!isNavigationEndpoint) return false;
     if (!(await opener.canOpenURL(url))) return false;
     await opener.openURL(url);
     return true;

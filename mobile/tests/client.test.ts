@@ -509,3 +509,17 @@ describe('RiderCommsClient places and friends', () => {
     ]);
   });
 });
+
+
+describe('RiderCommsClient authenticated request hardening', () => {
+  it('refuses redirects with bearer credentials, omits ambient cookies, and disables API caching', async () => {
+    const client = new RiderCommsClient('https://api.example.test', fakeFetch((_url, init) => {
+      assert.equal(init.redirect, 'error');
+      assert.equal(init.credentials, 'omit');
+      assert.equal(init.cache, 'no-store');
+      assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer synthetic-token');
+      return { status: 200, body: { sessions: [] } };
+    }), 'synthetic-token');
+    assert.deepEqual(await client.getSessions(), { sessions: [] });
+  });
+});

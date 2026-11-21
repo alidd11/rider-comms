@@ -200,6 +200,22 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.deepEqual([filtered.status, await filtered.json()], [400, { error: 'objectionable_content' }]);
   });
 
+
+  it('preserves XSS and SQL-like caption text without executing it', async () => {
+    const hostile = '<img src=x onerror="window.__socialXss=1"> ' + "'; DROP TABLE social_posts; --";
+    const created = await photoPost(ctx, 'social_a', hostile);
+    const reply = await authenticatedFetch(ctx, 'social_a', `/social/posts/${created.id}`);
+    assert.equal(reply.status, 200);
+    const byId = await reply.json() as { post: { caption: string } };
+    assert.equal(byId.post.caption, hostile);
+    const list = await authenticatedFetch(ctx, 'social_b', '/social/feed?scope=for-you');
+    assert.equal(list.status, 200);
+    const listing = await list.json() as { posts: Array<{ caption: string }> };
+    assert.equal(listing.posts[0]?.caption, hostile);
+    const present = await getPool().query('SELECT count(*)::int AS total FROM social_posts');
+    assert.equal(Number(present.rows[0]?.total), 1, 'SQL-like text never executed as a query');
+  });
+
   it('serves feeds newest first, with Following limited to friends, and pages through them', async () => {
     await getPool().query(`INSERT INTO friendships (rider_id, friend_id, created_at) VALUES ('social_a', 'social_b', 0), ('social_b', 'social_a', 0)`);
     const first = await photoPost(ctx, 'social_b', 'one');
@@ -355,6 +371,74 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     // Once the post is gone, so is the file — even with a still-valid link.
     await authenticatedFetch(ctx, 'social_a', `/social/posts/${post.id}`, { method: 'DELETE' });
     assert.equal((await get(link)).status, 404);
+  });
+
+  it('prevents cross-account post deletion and media reuse without affecting the owner', async () => {
+    const ownerPost = await photoPost(ctx, 'social_a');
+    const ownerLink = ownerPost.media[0]!.url;
+    const attackerDelete = await authenticatedFetch(ctx, 'social_b', `/social/posts/${ownerPost.id}`, { method: 'DELETE' });
+    assert.notEqual(attackerDelete.status, 200);
+    assert.notEqual(attackerDelete.status, 204);
+    assert.equal((await authenticatedFetch(ctx, 'social_a', `/social/posts/${ownerPost.id}`)).status, 200);
+    assert.equal((await fetch(ctx.baseUrl() + ownerLink)).status, 200, 'attacker cannot revoke the owner media');
+
+    const ownerUpload = await upload(ctx, 'social_a', JPEG, 'image/jpeg');
+    assert.equal(ownerUpload.status, 201);
+    const { media } = await ownerUpload.json() as { media: { id: string } };
+    const stolen = await postJson(ctx, 'social_b', '/social/posts', {
+      kind: 'photo', caption: 'attempted cross-account media reuse', mediaIds: [media.id],
+    });
+    assert.equal(stolen.status, 404, 'upload belongs to a different account');
+    const legitimate = await postJson(ctx, 'social_a', '/social/posts', {
+      kind: 'photo', caption: 'owner retains the upload', mediaIds: [media.id],
+    });
+    assert.equal(legitimate.status, 201);
+  });
+
+  it('rejects tampered signed media parameters while preserving the valid owner link', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    const valid = post.media[0]!.url;
+    const base = ctx.baseUrl();
+    const mutate = (key: string, value: string) => {
+      const url = new URL(valid, base);
+      url.searchParams.set(key, value);
+      return url.toString();
+    };
+    assert.equal((await fetch(base + valid)).status, 200);
+    for (const [key, value] of [
+      ['exp', 'Infinity'], ['exp', '-1'], ['exp', '1.5'],
+      ['exp', String(Number.MAX_SAFE_INTEGER + 1)],
+      ['sig', ''], ['sig', 'x'.repeat(1024)],
+      ['s', 'aaaaaaaa--1111-4111-8111-aaaaaaaaaaa'],
+    ] as const) {
+      const result = await fetch(mutate(key, value));
+      assert.equal(result.status, 403, `tampered ${key}=${value.slice(0, 32)}`);
+    }
+    assert.equal((await fetch(base + valid)).status, 200, 'tampering cannot revoke legitimate access');
+  });
+
+  it('revokes previously issued media links when either rider blocks the other', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    const { token } = ctx.authStore.createTestSession('social_b');
+    const read = async () => fetch(ctx.baseUrl() + `/social/posts/${post.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const first = await read();
+    assert.equal(first.status, 200);
+    const link = (await first.json() as { post: { media: Array<{ url: string }> } }).post.media[0]!.url;
+    const fetchMedia = () => fetch(ctx.baseUrl() + link);
+    assert.equal((await fetchMedia()).status, 200);
+    for (const [blocker, blocked] of [['social_a', 'social_b'], ['social_b', 'social_a']] as const) {
+      await getPool().query(
+        'INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at) VALUES ($1, $2, 0)',
+        [blocker, blocked],
+      );
+      assert.equal((await read()).status, 404, 'blocked post is no longer readable');
+      assert.equal((await fetchMedia()).status, 404, 'old signed URL cannot bypass a new block; hide inaccessible objects');
+      await getPool().query('DELETE FROM rider_blocks WHERE rider_id = $1 AND blocked_rider_id = $2', [blocker, blocked]);
+      assert.equal((await read()).status, 200, 'access returns after block is removed');
+      assert.equal((await fetchMedia()).status, 200, 'existing link respects restored authorization');
+    }
   });
 
   it('stops a link working once the session it was issued to signs out', async () => {

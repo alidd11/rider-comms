@@ -78,6 +78,10 @@
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
+        // Reject authenticated API redirects and avoid ambient browser credentials.
+        redirect: 'error',
+        credentials: 'omit',
+        cache: 'no-store',
       });
     } catch (error) {
       clearTimeout(timeout);
