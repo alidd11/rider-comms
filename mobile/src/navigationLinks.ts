@@ -44,8 +44,11 @@ export function parseNavigationLink(rawUrl: string | null | undefined): Navigati
     const url = new URL(rawUrl);
     const isWebLink = url.protocol === 'https:' &&
       (url.pathname === '/navigate' || url.pathname === '/rider-comms/navigate');
+    // A custom-scheme link must use the canonical navigation authority.
+    // Checking only the path would accept ridercomms://untrusted/navigate.
     const isAppLink = url.protocol === 'ridercomms:' &&
-      (url.hostname === 'navigate' || url.pathname === '/navigate');
+      url.hostname === 'navigate' &&
+      (url.pathname === '' || url.pathname === '/');
     if (!isWebLink && !isAppLink) return null;
 
     const latText = url.searchParams.get('lat');
