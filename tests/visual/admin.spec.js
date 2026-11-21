@@ -256,6 +256,7 @@ async function holdApiResponse(page, matcher, status, body) {
   const received = new Promise((resolve) => { requested = resolve; });
   const gate = new Promise((resolve) => { release = resolve; });
   await page.route(matcher, async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
     requested();
     await gate;
     await route.fulfill({
