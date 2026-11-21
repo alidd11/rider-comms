@@ -37,16 +37,16 @@ describe('Rider Social media service', () => {
     await assert.rejects(service.processVideo('/nonexistent', 'mov'), /invalid_media/);
   });
 
-  it('signs a link for one rider session and one file, lasting 20 to 30 minutes', () => {
+  it('signs a link for one rider session and one file, lasting 4 to 5 minutes', () => {
     const secret = Buffer.alloc(32, 7);
     const viewer = { riderId: 'rider_a', sessionId: SESSION };
     const link = parts(signedMediaPath(secret, viewer, MEDIA, 'file', NOW));
     assert.equal(link.path, `/social/media/${MEDIA}/file`);
     assert.deepEqual([link.v, link.s], ['rider_a', SESSION]);
-    assert.equal(link.exp, Date.UTC(2026, 10, 15, 10, 50));
-    // The same link for the rest of its 10-minute step, so a refreshed feed reuses it.
-    assert.equal(signedMediaPath(secret, viewer, MEDIA, 'file', NOW + 9 * MINUTE), signedMediaPath(secret, viewer, MEDIA, 'file', NOW));
-    assert.notEqual(signedMediaPath(secret, viewer, MEDIA, 'file', NOW + 10 * MINUTE), signedMediaPath(secret, viewer, MEDIA, 'file', NOW));
+    assert.equal(link.exp, Date.UTC(2026, 10, 15, 10, 25));
+    // The same link for the rest of its one-minute step, so a refreshed feed reuses it.
+    assert.equal(signedMediaPath(secret, viewer, MEDIA, 'file', NOW + 30_000), signedMediaPath(secret, viewer, MEDIA, 'file', NOW));
+    assert.notEqual(signedMediaPath(secret, viewer, MEDIA, 'file', NOW + MINUTE), signedMediaPath(secret, viewer, MEDIA, 'file', NOW));
     const check = (who: { riderId: string; sessionId: string }, variant: 'file' | 'poster', exp: number, sig: string, now = NOW, key = secret) =>
       verifyMediaSignature(key, who, MEDIA, variant, exp, sig, now);
     assert.equal(check(viewer, 'file', link.exp, link.sig), true);
@@ -54,12 +54,12 @@ describe('Rider Social media service', () => {
     assert.equal(check({ riderId: 'rider_a', sessionId: OTHER_SESSION }, 'file', link.exp, link.sig), false, 'another session');
     assert.equal(check({ riderId: 'rider_a', sessionId: 'not-a-session' }, 'file', link.exp, link.sig), false);
     assert.equal(check(viewer, 'poster', link.exp, link.sig), false);
-    assert.equal(check(viewer, 'file', link.exp + 10 * MINUTE, link.sig), false);
+    assert.equal(check(viewer, 'file', link.exp + MINUTE, link.sig), false);
     assert.equal(check(viewer, 'file', link.exp, link.sig, NOW, Buffer.alloc(32, 8)), false);
     assert.equal(check(viewer, 'file', link.exp, 'short'), false);
     // Expired, or claiming to last longer than any link we issue.
     assert.equal(check(viewer, 'file', link.exp, link.sig, link.exp + 1), false);
-    assert.equal(check(viewer, 'file', NOW + 31 * MINUTE, link.sig), false);
+    assert.equal(check(viewer, 'file', NOW + 6 * MINUTE, link.sig), false);
     assert.equal(check(viewer, 'file', Number.NaN, link.sig), false);
   });
 
