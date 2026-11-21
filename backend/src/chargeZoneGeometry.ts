@@ -234,9 +234,15 @@ export function screenRouteAgainstChargeZone(
   const { provenance, polygons } = zone;
   if (asOfLocalDate < provenance.effectiveFrom || asOfLocalDate > provenance.effectiveThrough
     || asOfLocalDate > provenance.reviewedThrough) return answer('unknown', 'outside_verified_period');
-  for (let i = 1; i < route.length; i++) if (Math.abs(route[i]!.lon - route[i - 1]!.lon) > 180) {
-    return answer('unknown', 'missing_or_invalid_data');
+  let hasMovement = false;
+  for (let i = 1; i < route.length; i++) {
+    const previous = route[i - 1]!, current = route[i]!;
+    if (Math.abs(current.lon - previous.lon) > 180)
+      return answer('unknown', 'missing_or_invalid_data');
+    if (current.lon !== previous.lon || current.lat !== previous.lat) hasMovement = true;
   }
+  // A repeated GPS fix is not a route. It cannot establish a polygon miss.
+  if (!hasMovement) return answer('unknown', 'missing_or_invalid_data');
   const bounds = routeBox(route);
   let comparisons = 0;
   for (const polygon of polygons) {

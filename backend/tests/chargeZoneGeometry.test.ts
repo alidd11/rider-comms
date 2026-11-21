@@ -108,6 +108,11 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     assert.equal(screen([[200, 0], [201, 0]]).status, 'unknown');
     assert.equal(screen([[179, 0], [-179, 0]]).status, 'unknown');
     assert.equal(screen([[0, 0]]).status, 'unknown');
+    assert.deepEqual(
+      { status: screen([[3, 3], [3, 3]]).status, reason: screen([[3, 3], [3, 3]]).reason },
+      { status: 'unknown', reason: 'missing_or_invalid_data' },
+    );
+    assert.equal(screen([[3, 3], [3, 3], [4, 4]]).status, 'no_polygon_contact');
     assert.equal(screen([[0, 0], [0, 0]], prepare(), 'invalid').status, 'unknown');
   });
 });
