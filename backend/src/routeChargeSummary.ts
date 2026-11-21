@@ -6,6 +6,7 @@
  */
 import {
   assessChargeExposure,
+  londonChargingDate,
   type ChargeAssessment,
   type ChargeEntitlement,
   type ChargeVehicleClass,
@@ -111,7 +112,7 @@ export interface RouteZoneScreening {
 }
 export function screenChargeAreasForRoute(
   route: readonly RoutePosition[],
-  londonLocalDate: string,
+  passageAt: string,
   zones: readonly (PreparedChargeZone | null)[],
 ): RouteZoneScreening {
   // Missing coverage or too many independently supplied zones means we do not
@@ -119,6 +120,8 @@ export function screenChargeAreasForRoute(
   if (!Array.isArray(zones) || zones.length === 0 || zones.length > 64) {
     return { possibleContacts: 0, requiresReview: true, results: [] };
   }
+  const londonLocalDate = londonChargingDate(passageAt);
+  if (!londonLocalDate) return { possibleContacts: 0, requiresReview: true, results: [] };
   const results = zones.map(zone => screenRouteAgainstChargeZone(route, zone, londonLocalDate));
   return {
     possibleContacts: results.filter(result => result.status === 'possible_polygon_contact').length,

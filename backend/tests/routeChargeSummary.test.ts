@@ -89,21 +89,29 @@ describe('offline future-route charging summary', () => {
       effectiveFrom: '2026-01-01', effectiveThrough: '2026-12-31', reviewedThrough: '2026-12-31' };
     const zone = compileChargeZoneGeoJson(polygon, source);
     assert.ok(zone);
-    const inside = screenChargeAreasForRoute([{ lon: 0.1, lat: 0.1 }, { lon: 1, lat: 1 }], '2026-07-06', [zone]);
+    const inside = screenChargeAreasForRoute([{ lon: 0.1, lat: 0.1 }, { lon: 1, lat: 1 }], '2026-07-06T12:00:00Z', [zone]);
     assert.equal(inside.possibleContacts, 1);
     assert.equal(inside.results[0]?.status, 'possible_polygon_contact');
     assert.equal(inside.requiresReview, true);
-    const outside = screenChargeAreasForRoute([{ lon: 10, lat: 10 }, { lon: 11, lat: 11 }], '2026-07-06', [zone]);
+    const midnightBoundary = compileChargeZoneGeoJson(polygon,
+      { ...source, effectiveThrough: '2026-07-06' });
+    assert.equal(screenChargeAreasForRoute([{ lon: 0.1, lat: 0.1 }, { lon: 1, lat: 1 }],
+      '2026-07-06T22:59:00Z', [midnightBoundary]).results[0]?.status, 'possible_polygon_contact');
+    // Local midnight is 23:00 UTC in British Summer Time.
+    assert.equal(screenChargeAreasForRoute([{ lon: 0.1, lat: 0.1 }, { lon: 1, lat: 1 }],
+      '2026-07-06T23:00:00Z', [midnightBoundary]).results[0]?.status, 'unknown');
+    const outside = screenChargeAreasForRoute([{ lon: 10, lat: 10 }, { lon: 11, lat: 11 }], '2026-07-06T12:00:00Z', [zone]);
     assert.equal(outside.possibleContacts, 0);
     assert.equal(outside.requiresReview, true);
     assert.equal(outside.results[0]?.status, 'no_polygon_contact');
-    const expired = screenChargeAreasForRoute([{ lon: 0.1, lat: 0.1 }, { lon: 1, lat: 1 }], '2027-07-06', [zone]);
+    const expired = screenChargeAreasForRoute([{ lon: 0.1, lat: 0.1 }, { lon: 1, lat: 1 }], '2027-07-06T12:00:00Z', [zone]);
     assert.equal(expired.results[0]?.status, 'unknown');
     assert.equal(screenChargeAreasForRoute([], 'invalid', []).requiresReview, true);
+    assert.deepEqual(screenChargeAreasForRoute([], '2026-07-06', [zone]).results, []);
     assert.equal(screenChargeAreasForRoute([{ lon: 0, lat: 0 }, { lon: 1, lat: 1 }],
-      '2026-07-06', Array(65).fill(zone)).requiresReview, true);
+      '2026-07-06T12:00:00Z', Array(65).fill(zone)).requiresReview, true);
     assert.equal(screenChargeAreasForRoute([{ lon: 0, lat: 0 }, { lon: 1, lat: 1 }],
-      '2026-07-06', [null]).results[0]?.status, 'unknown');
+      '2026-07-06T12:00:00Z', [null]).results[0]?.status, 'unknown');
   });
   it('does not call any network provider to calculate a fee', () => {
     const output = summarizeRouteChargePassages('car', []);

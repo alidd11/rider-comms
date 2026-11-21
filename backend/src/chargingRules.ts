@@ -146,6 +146,12 @@ function londonParts(date: Date): { localDate: string; day: number; minute: numb
   return { localDate: [parts.year, parts.month, parts.day].join('-'), day, minute: hour * 60 + minute };
 }
 
+/** Derive the UK charging calendar date from the actual passage instant. */
+export function londonChargingDate(passageAt: string): string | null {
+  const instant = parseInstant(passageAt);
+  return instant ? londonParts(instant)?.localDate ?? null : null;
+}
+
 /** A cautious, deterministic assessment, NOT a price quote or navigation instruction. */
 export function assessChargeExposure(input: ChargeAssessmentInput): ChargeAssessment {
   const { schemeId, roadEvidence, vehicleClass, entitlement, rule } = input;
