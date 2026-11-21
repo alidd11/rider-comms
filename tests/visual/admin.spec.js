@@ -308,7 +308,8 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     const state = await mockModerationApi(page);
     await page.goto('/admin.html');
-    await expect(page.locator('#nav')).toBeVisible();
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
     const trigger = await page.locator('#globalSearchMobile').isVisible()
       ? page.locator('#globalSearchMobile') : page.locator('#globalSearchTrigger');
     await trigger.click();
@@ -332,7 +333,8 @@ test.describe('staff dashboard', () => {
       (url) => url.pathname === '/admin/riders' && url.searchParams.get('q') === 'maya',
       200, { riders: [RIDERS[0]] });
     await page.goto('/admin.html');
-    await expect(page.locator('#nav')).toBeVisible();
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
     await page.keyboard.press('/');
     const dialog = page.getByRole('dialog', { name: 'Search operations' });
     await expect(dialog).toBeVisible();
@@ -357,7 +359,8 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     const state = await mockModerationApi(page, { role: 'analyst' });
     await page.goto('/admin.html');
-    await expect(page.locator('#nav')).toBeVisible();
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
     await page.keyboard.press('ControlOrMeta+k');
     const dialog = page.getByRole('dialog', { name: 'Search operations' });
     await expect(dialog).toBeVisible();
