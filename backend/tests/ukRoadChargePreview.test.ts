@@ -64,6 +64,7 @@ describe('draft UK route-level charging preview combines independent fee units',
     const invalid = [
       { ...sample, chargePassages: null as unknown as UKRoadChargePreviewInput['chargePassages'] },
       { ...sample, m6Journeys: null as unknown as UKRoadChargePreviewInput['m6Journeys'] },
+      { ...sample, m6Journeys: [{ ...sample.m6Journeys[0]!, riderVehicle: 'van' }] },
       { ...sample, possibleTollInfrastructureIds: null as unknown as string[] },
       { ...sample, possibleTollInfrastructureIds: ['m6_toll', 'm6_toll'] },
       { ...sample, possibleTollInfrastructureIds: ['../../toll'] },

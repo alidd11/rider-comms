@@ -42,6 +42,9 @@ export function previewUKRoadCharges(input: UKRoadChargePreviewInput): UKRoadCha
   });
   if (!input || !Array.isArray(input.chargePassages) || !Array.isArray(input.m6Journeys)
     || !Array.isArray(input.possibleTollInfrastructureIds)
+    // A route preview cannot mix motorway candidate observations from a
+    // different user-selected vehicle with the rest of this same journey.
+    || input.m6Journeys.some(journey => !journey || journey.riderVehicle !== input.riderVehicle)
     || input.possibleTollInfrastructureIds.length > MAX_HINTS
     || input.possibleTollInfrastructureIds.some(id =>
       typeof id !== 'string' || !/^[a-z][a-z0-9_-]{2,63}$/.test(id))
