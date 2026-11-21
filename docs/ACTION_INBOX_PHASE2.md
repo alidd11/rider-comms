@@ -17,9 +17,11 @@ This draft adds an **actual staff work-queue API** using sources already availab
 
 Use the existing moderation endpoints for actual decisions; their note, recent reauthentication, atomic report claim and audit requirements remain in force.
 
-## Frontend integration after Phase 1
+## Staff frontend in this draft
 
-Once Operations Hub PR #573 is merged, add `Action inbox` to its grouped navigation only for `moderate` staff. Show separate Source/Status/Age/Assigned columns in a readable desktop list and stacked rows on iPhone. Each row links into existing `#moderation` views and then evolves into an entity-specific detail panel. New case types (support tickets, appeals) must have their own server-side access model, durable schema, assignment semantics and tests before appearing here.
+The existing `docs/admin.html` app now includes an **Action inbox** section for roles with `moderate` access. It offers all-work, rider-report and Social-post filters, readable mobile cards, waiting-time and existing claim-owner labels, and buttons that open the matching report/post in the established Moderation page. There are no direct decision buttons in the inbox: the existing notes, claim constraints, reauthentication and audit remain authoritative. The inbox retains its filter controls while data refreshes, ignores outdated responses, and gives keyboard focus to the selected moderation record. All content is rendered as text instead of injecting server-supplied HTML.
+
+**Integration dependency:** This feature branch started from `main` before Phase 1 PR #573 merged. Before merging #574, reconcile its navigation markup with #573's grouped Operations Hub shell and run the complete CI/browser suite against that exact integrated head. New case types (support tickets, appeals) still require their own backend access model, durable schema, assignment semantics and tests.
 
 ## Follow-up engineering
 

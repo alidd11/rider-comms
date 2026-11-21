@@ -320,6 +320,36 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.page-title')).toHaveText('Moderation');
   });
 
+  test('inbox filter changes keep controls available and ignore late source responses', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(
+      page,
+      (url) => url.pathname === '/admin/action-inbox' && url.searchParams.get('type') === 'rider_report',
+      200,
+      { generatedAt: Date.now(), filter: 'rider_report', limit: 50, sourceSampleLimit: 100,
+        mayHaveMore: false, items: [{ type: 'rider_report', id: 'rider_report:stale',
+          reportId: 'stale', riderId: 'rider_reporter', eventAt: Date.now(),
+          reason: 'spam', claimedBy: null, reportsAgainstRider: 1 }] },
+    );
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Rider reports' }).click();
+    await hold.received;
+    await expect(sources.getByRole('button', { name: 'Social posts' })).toBeVisible();
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item')).toContainText('Rider Social');
+    const stale = page.waitForResponse((response) => new URL(response.url()).pathname === '/admin/action-inbox'
+      && new URL(response.url()).searchParams.get('type') === 'rider_report');
+    hold.release();
+    await stale;
+    await page.waitForTimeout(100);
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item')).toContainText('Rider Social');
+  });
+
   test('support and analyst accounts cannot access the action inbox', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page, { role: 'support' });

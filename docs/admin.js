@@ -1750,7 +1750,10 @@
     document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
     // Refresh the current section in place; skeletons are for navigation only.
-    const refreshing = key === displayedKey;
+    // Keep the inbox filter controls usable while a newer source loads.
+    // Switching sections still shows a normal navigation skeleton.
+    const refreshing = key === displayedKey ||
+      (view === 'inbox' && displayedKey?.startsWith('["inbox",'));
     if (!refreshing) {
       if (view === 'overview') pageEl.replaceChildren(...skeletonOverview());
       else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
@@ -1837,6 +1840,7 @@
       return;
     }
     if (next.view === view && next.riderId === detailRiderId) return;
+    if (next.view !== 'moderation') inboxFocusTarget = null;
     view = next.view;
     detailRiderId = next.riderId;
     focusHeadingOnNextRender = true;
