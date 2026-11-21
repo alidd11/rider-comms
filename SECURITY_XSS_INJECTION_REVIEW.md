@@ -117,3 +117,18 @@ Run the following on an **isolated backend with synthetic riders A, B and C**. T
 | Sensitive input | Valid captions, metadata and media are accepted | Oversized, wrong-MIME, polyglot, malformed JSON, unexpected fields and script-like input are rejected or safely treated as data |
 
 For each negative test, assert the HTTP status **and** no unauthorized state mutation or private data disclosure. Re-test after membership/consent/session changes, not only at initial login. Preserve normal legitimate workflows as positive controls. Use separate tests for list, detail, mutation, streaming/event and cached responses. Track any failure to a reproducible isolated fixture before changing production code.
+
+## Isolated security verification after merging the latest main — 21 November 2026
+
+The Railway environment inventory shows only a production Rider Comms backend (with its production database) and a separate Social web preview, **not an isolated staging backend**. No destructive or exploit-oriented testing was performed on the production backend or real rider accounts. The Social preview may use production services, so do not assume it is an isolated security-test target.
+
+Instead, the existing GitHub Actions PostgreSQL and local HTTP test-server workflow is the authorized synthetic-account integration environment. New OWASP WSTG-APIT-02 and WSTG-APIT-04 regressions cover:
+
+- Cross-account device-session listing/revocation, including proving unauthorized attempts do not revoke the token and a permitted revocation does.
+- Forged rider/role HTTP headers on administrator endpoints, with a check that denied role grants do not mutate the staff table.
+- A three-user direct-message isolation case: unrelated rider cannot read, mark read, enumerate or delete another pair's messages; the authorized recipient can read but cannot delete the sender's message.
+- Earlier tests already cover private-ride consent withdrawal, non-member access, blocking and Social private-media authorization.
+
+Source methodology: https://wstg.owasp.org/latest/16-API_Testing/02-API_Broken_Object_Level_Authorization/ and https://wstg.owasp.org/latest/16-API_Testing/04-API_Broken_Function_Level_Authorization/.
+
+**Remaining release gate:** Provision an explicitly isolated backend and Postgres staging environment before conducting external dynamic security testing. A preview frontend or live production backend is not an acceptable substitute. These CI regression tests are not a full penetration test.
