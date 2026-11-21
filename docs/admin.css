@@ -715,3 +715,7 @@ a { color: inherit; }
 }
 body.menu-visible { overflow: hidden; }
 .retry-action { display: flex; justify-content: center; padding: 0 24px 24px; }
+
+.system-warning { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px; margin-bottom: 16px; border-color: var(--warning); }
+.system-warning .card-description { margin: 4px 0 0; }
+.system-warning .button { flex: none; }
