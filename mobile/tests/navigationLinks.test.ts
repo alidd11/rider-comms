@@ -20,6 +20,19 @@ describe('parseNavigationLink', () => {
     assert.deepEqual(parseNavigationLink('ridercomms://navigate?lat=-33.8&lon=151.2'), { lat: -33.8, lon: 151.2 });
   });
 
+  it('rejects custom-scheme links with an untrusted authority', () => {
+    // Synthetic links must not be treated as first-party navigation intents.
+    for (const link of [
+      'ridercomms://attacker.example/navigate?lat=51.5&lon=-0.1',
+      'ridercomms://other/navigate?lat=51.5&lon=-0.1',
+      'ridercomms:///navigate?lat=51.5&lon=-0.1',
+      'ridercomms://navigate.evil.example/?lat=51.5&lon=-0.1',
+    ]) {
+      assert.equal(parseNavigationLink(link), null, link);
+    }
+    assert.deepEqual(parseNavigationLink('ridercomms://navigate/?lat=51.5&lon=-0.1'), { lat: 51.5, lon: -0.1 });
+  });
+
   it('rejects missing, non-numeric, and out-of-range coordinates', () => {
     assert.equal(parseNavigationLink('https://example.com/navigate?lon=1'), null);
     assert.equal(parseNavigationLink('https://example.com/navigate?lat=one&lon=1'), null);
