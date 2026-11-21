@@ -125,6 +125,9 @@
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
+      credentials: 'omit',
+      redirect: 'error',
+      cache: 'no-store',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const json = await response.json().catch(() => ({}));
@@ -684,6 +687,7 @@
       period = next;
       savePeriod(next);
       renderOverview(overviewCache);
+      pageEl.querySelector('[aria-label="Period"] [aria-pressed="true"]')?.focus({ preventScroll: true });
     }, 'Period');
     pageEl.replaceChildren(
       pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · days in UTC`, [periodControl]),
@@ -777,6 +781,15 @@
     return button;
   }
 
+  /** Keep keyboard focus with the control that triggered a rerender, unless superseded. */
+  function renderAndFocus(selector) {
+    const completion = render();
+    const generation = renderGeneration;
+    void completion.then(() => {
+      if (isCurrentRender(generation)) pageEl.querySelector(selector)?.focus({ preventScroll: true });
+    });
+  }
+
   function renderRiders(riders) {
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', name: 'q', placeholder: 'Search name, username, email or ID', 'aria-label': 'Search riders', maxlength: 100, autocomplete: 'off' });
@@ -785,7 +798,7 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       riderQuery = input.value.trim();
-      void render();
+      renderAndFocus('input[aria-label="Search riders"]');
     });
 
     const displayName = (rider) => rider.displayName || rider.username;
@@ -1034,7 +1047,7 @@
   async function renderModeration(generation) {
     const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned']], moderationView, (next) => {
       moderationView = next;
-      void render();
+      renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
     }, 'Moderation queues');
     const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
     if (moderationView === 'social') {
@@ -1281,7 +1294,7 @@
 
     const filters = segmented(ACTION_GROUPS.map(([id, label]) => [id, label]), auditGroup, (next) => {
       auditGroup = next;
-      void render();
+      renderAndFocus('[aria-label="Filter the audit log"] [aria-pressed="true"]');
     }, 'Filter the audit log');
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', placeholder: 'Rider ID, e.g. rider_ab12cd34', 'aria-label': 'Show actions for one rider', maxlength: 100, autocomplete: 'off' });
@@ -1290,7 +1303,7 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       auditRider = input.value.trim();
-      void render();
+      renderAndFocus('input[aria-label="Show actions for one rider"]');
     });
     const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
     exportButton.addEventListener('click', () => downloadAuditCsv(shown));
@@ -1657,7 +1670,8 @@
     document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
     // Refresh the current section in place; skeletons are for navigation only.
-    if (key !== displayedKey) {
+    const refreshing = key === displayedKey;
+    if (!refreshing) {
       if (view === 'overview') pageEl.replaceChildren(...skeletonOverview());
       else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
     }
@@ -1692,6 +1706,10 @@
       }
     } catch (error) {
       if (!isCurrentRender(generation)) return;
+      if (refreshing && !(error instanceof ApiError && (error.status === 401 || error.status === 403))) {
+        flash('Couldn’t refresh this section. Showing the last loaded data; try refreshing again.', 'warning');
+        return;
+      }
       displayedKey = null;
       if (error instanceof ApiError && error.code === 'permission_required') {
         pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('lock', 'Your role doesn’t include this page', 'Ask an admin if you need it.')]));

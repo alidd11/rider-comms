@@ -290,7 +290,8 @@ test.describe('staff dashboard', () => {
     const state = await mockModerationApi(page);
     await page.goto('/admin.html#moderation');
     await page.getByRole('button', { name: 'Social posts' }).click();
-    // Five tabs are wider than a small phone: the tab row scrolls, the page doesn't.
+    await expect(page.getByRole('button', { name: 'Social posts' })).toBeFocused();
+    // Tabs scroll horizontally on phones without widening the page.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     const card = page.locator('article[data-post-id]');
     await expect(card).toContainText('3 reports');
@@ -391,6 +392,7 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('body')).toContainText('Blocked by the content filter this week');
 
     await page.getByRole('button', { name: '30 days' }).click();
+    await expect(page.getByRole('button', { name: '30 days' })).toBeFocused();
     await expect(kpi('New riders').locator('.kpi-value')).toHaveText('310');
     await expect(kpi('New riders').locator('.delta')).toHaveText('0%');
     await expect(page.locator('.chart-card').first().locator('.card-description')).toHaveText('Sign-ups in the last 30 days');
@@ -534,6 +536,35 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
   });
 
+  test('a failed refresh keeps previously loaded rider results visible', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    let fail = true;
+    await page.route((url) => url.pathname === '/admin/riders', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (fail) {
+        fail = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else await route.fallback();
+    });
+    const refresh = await page.locator('#refreshMobile').isVisible()
+      ? page.locator('#refreshMobile')
+      : page.locator('.desktop-refresh');
+    await refresh.click();
+    await expect(page.locator('.flash[data-tone="warning"]')).toContainText('Showing the last loaded data');
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    await refresh.click();
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+  });
+
   test('rider lookup searches and shows account details as text', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
@@ -547,6 +578,7 @@ test.describe('staff dashboard', () => {
     await page.getByRole('searchbox', { name: 'Search riders' }).fill('nobody');
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.locator('.empty-title')).toHaveText('No riders found');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeFocused();
     expect(state.riderQueries).toEqual(['', 'nobody']);
   });
 
@@ -622,11 +654,13 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#audit');
     await expect(page.locator('.list-row')).toHaveCount(2);
     await page.getByRole('button', { name: 'Accounts' }).click();
+    await expect(page.getByRole('button', { name: 'Accounts' })).toBeFocused();
     await expect(page.locator('.list-row')).toHaveCount(1);
     await expect(page.locator('.list-row .person-name')).toHaveText('Verified email: Maya');
     await page.getByRole('button', { name: 'All actions' }).click();
     await page.getByLabel('Show actions for one rider').fill('rider_badactor');
     await page.getByRole('button', { name: 'Filter' }).click();
+    await expect(page.getByRole('searchbox', { name: 'Show actions for one rider' })).toBeFocused();
     await expect(page.locator('.list-row')).toHaveCount(1);
     await expect(page.locator('.page-subtitle')).toContainText('for rider_badactor');
 
