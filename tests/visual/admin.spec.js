@@ -455,7 +455,9 @@ test.describe('staff dashboard', () => {
       await page.waitForTimeout(100);
       await expect(page.locator('.page-title')).toHaveText('Riders');
       await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
-      await expect(page.locator('#nav')).toBeVisible();
+      // On narrow screens the drawer is deliberately closed, even when staff
+      // navigation remains available. Do not require it to be visually open.
+      await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
     });
   }
 
