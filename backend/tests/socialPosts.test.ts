@@ -417,6 +417,29 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal((await fetch(base + valid)).status, 200, 'tampering cannot revoke legitimate access');
   });
 
+  it('revokes previously issued media links when either rider blocks the other', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    const { token } = ctx.authStore.createTestSession('social_b');
+    const read = async () => fetch(ctx.baseUrl() + `/social/posts/${post.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const first = await read();
+    assert.equal(first.status, 200);
+    const link = (await first.json() as { post: { media: Array<{ url: string }> } }).post.media[0]!.url;
+    const fetchMedia = () => fetch(ctx.baseUrl() + link);
+    assert.equal((await fetchMedia()).status, 200);
+    for (const [blocker, blocked] of [['social_a', 'social_b'], ['social_b', 'social_a']] as const) {
+      await getPool().query(
+        'INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at) VALUES ($1, $2, 0)',
+        [blocker, blocked],
+      );
+      assert.equal((await read()).status, 404, 'blocked post is no longer readable');
+      assert.equal((await fetchMedia()).status, 403, 'old signed URL cannot bypass a new block');
+      await getPool().query('DELETE FROM rider_blocks WHERE rider_id = $1 AND blocked_rider_id = $2', [blocker, blocked]);
+      assert.equal((await read()).status, 200, 'access returns after block is removed');
+    }
+  });
+
   it('stops a link working once the session it was issued to signs out', async () => {
     const post = await photoPost(ctx, 'social_a');
     const { token } = ctx.authStore.createTestSession('social_b');
