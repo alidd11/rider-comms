@@ -249,6 +249,25 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
   return state;
 }
 
+/** Hold one response until a newer dashboard view has finished loading. */
+async function holdApiResponse(page, matcher, status, body) {
+  let requested;
+  let release;
+  const received = new Promise((resolve) => { requested = resolve; });
+  const gate = new Promise((resolve) => { release = resolve; });
+  await page.route(matcher, async (route) => {
+    requested();
+    await gate;
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify(body),
+    });
+  });
+  return { received, release };
+}
+
 test.describe('staff dashboard', () => {
   test('asks a signed-out visitor to sign in to the app first', async ({ page }) => {
     await mockModerationApi(page);
@@ -408,6 +427,52 @@ test.describe('staff dashboard', () => {
     await signups.getByRole('button', { name: 'View as table' }).click();
     await expect(signups.locator('tbody tr')).toHaveCount(7);
     await expect(signups.locator('thead')).toContainText('Previous period');
+  });
+
+  for (const [status, body] of [
+    [200, OVERVIEW],
+    [403, { error: 'permission_required', permission: 'view_overview' }],
+  ]) {
+    test(`a late overview ${status} response cannot replace the current riders page`, async ({ page }) => {
+      await signIn(page);
+      await mockModerationApi(page);
+      const hold = await holdApiResponse(page, `${API}/admin/overview`, status, body);
+      await page.goto('/admin.html');
+      await hold.received;
+
+      await openSection(page, 'Riders');
+      await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+      const response = page.waitForResponse((item) => item.url() === `${API}/admin/overview`);
+      hold.release();
+      await response;
+      // Give the browser an opportunity to process the earlier request's continuation.
+      await page.waitForTimeout(100);
+      await expect(page.locator('.page-title')).toHaveText('Riders');
+      await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+      await expect(page.locator('#nav')).toBeVisible();
+    });
+  }
+
+  test('a late moderation queue cannot overwrite the riders page', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(
+      page,
+      (url) => url.pathname === '/moderation/reports' && url.searchParams.get('status') === 'open',
+      200,
+      { reports: [OPEN_REPORT] },
+    );
+    await page.goto('/admin.html#moderation');
+    await hold.received;
+
+    await openSection(page, 'Riders');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    const response = page.waitForResponse((item) => new URL(item.url()).pathname === '/moderation/reports');
+    hold.release();
+    await response;
+    await page.waitForTimeout(100);
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+    await expect(page.locator('.report')).toHaveCount(0);
   });
 
   test('rider lookup searches and shows account details as text', async ({ page }) => {
