@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=125">
+  <link rel="stylesheet" href="app.css?v=126">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -300,7 +300,10 @@
                 <span class="route-preview-dots" aria-hidden="true"></span><span></span>
                 <span class="route-preview-dot to" aria-hidden="true"></span><button id="routePreviewTo" class="route-preview-field" type="button" aria-label="Change destination"></button>
               </div>
+              <div class="route-preview-tools">
+              <button type="button" id="routePreviewAddStop" class="route-preview-avoid-btn" aria-label="Add a stop" title="Petrol, cafés or food on the way"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
               <button type="button" id="routePreviewAvoidBtn" class="route-preview-avoid-btn" aria-label="Route options" aria-haspopup="dialog" aria-expanded="false" aria-controls="routePreviewOptions"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><b id="routePreviewAvoidCount" hidden></b></button>
+              </div>
             </div>
             <div id="routePreviewOptions" class="route-preview-options" role="dialog" aria-label="Route options" hidden>
               <p class="route-preview-options-title">How to get there</p>
@@ -324,6 +327,12 @@
             </div>
             <p id="routePreviewMeta" class="route-preview-meta-line"></p>
             <p id="routePreviewNote" class="route-preview-traffic-note"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="routePreviewNoteText"></span></p>
+            <div id="routePreviewHazards" class="route-hazard-strip route-preview-hazards" role="img" hidden></div>
+            <div id="routePreviewStop" class="route-preview-ride route-preview-stop" hidden>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>
+              <span id="routePreviewStopText"></span>
+              <button id="routePreviewStopRemove" type="button" aria-label="Remove the stop">✕</button>
+            </div>
             <div id="routePreviewRide" class="route-preview-ride" hidden>
               <span id="routePreviewRideAvatars" class="route-preview-ride-avatars"></span>
               <span id="routePreviewRideText"></span>
@@ -360,6 +369,7 @@
           <div id="navTripDetails" class="nav-trip-details" role="region" aria-label="Trip details" hidden>
             <div class="nav-trip-actions">
               <button id="navTripAddStop" class="nav-trip-action" type="button"><svg aria-hidden="true"><use href="#i-plus"/></svg><span>Add stop</span></button>
+              <button id="navTripSkipStop" class="nav-trip-action" type="button" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5l9 7-9 7zM18 5v14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Skip stop</span></button>
               <button id="navTripShare" class="nav-trip-action" type="button"><svg aria-hidden="true"><use href="#i-share"/></svg><span>Share ETA</span></button>
               <button id="navTripEnd" class="nav-trip-action danger" type="button"><svg aria-hidden="true"><use href="#i-close"/></svg><span>End</span></button>
             </div>
@@ -503,12 +513,12 @@
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=2" defer></script>
   <script src="avatar-system.js?v=1" defer></script>
-  <script src="navigation-road-events.js?v=1" defer></script>
+  <script src="navigation-road-events.js?v=2" defer></script>
   <script src="position-interpolation.js?v=1" defer></script>
-  <script src="navigation-guidance.js?v=4" defer></script>
+  <script src="navigation-guidance.js?v=5" defer></script>
   <script src="navigation-camera.js?v=3" defer></script>
   <script src="navigation-puck.js?v=3" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=130" defer></script>
+  <script src="app.js?v=131" defer></script>
 </body>
 </html>

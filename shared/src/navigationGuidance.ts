@@ -354,6 +354,45 @@ export function routeTrafficDelayText(durationSeconds: number, typicalDurationSe
 }
 
 /** How often a route in progress is checked against live traffic. */
+/** At the destination's end point: arrived. */
+export const ARRIVAL_RADIUS_METERS = 30;
+/** Stopped this close to it, for ARRIVAL_STOPPED_MS, also counts. */
+export const ARRIVAL_NEAR_METERS = 100;
+export const ARRIVAL_STOPPED_MPS = 1.5;
+export const ARRIVAL_STOPPED_MS = 15_000;
+const ARRIVAL_MAX_ACCURACY_METERS = 50;
+
+export interface NavigationArrivalCheck {
+  /** From the rider's place on the route (the puck) to the end point. */
+  distanceMeters: number;
+  /** From the raw GPS fix to the end point. */
+  rawDistanceMeters: number;
+  accuracyMeters: number | null | undefined;
+  speedMps: number | null | undefined;
+  nowMs: number;
+  /** When the rider stopped near the end, carried from the last fix. */
+  stoppedSinceMs: number | null;
+}
+
+/**
+ * Whether the rider has arrived: at the end point Google gave, or parked
+ * close to it (a car park, a house back from the road), stopped on a good
+ * fix for 15 seconds, as Google Maps and Waze end the trip. Pass back
+ * `stoppedSinceMs` with the next fix.
+ */
+export function navigationArrival(check: NavigationArrivalCheck): { arrived: boolean; stoppedSinceMs: number | null } {
+  if (Number.isFinite(check.distanceMeters) && check.distanceMeters <= ARRIVAL_RADIUS_METERS) return { arrived: true, stoppedSinceMs: null };
+  const accuracy = check.accuracyMeters;
+  const speed = check.speedMps;
+  const near = Number.isFinite(check.rawDistanceMeters)
+    && typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= ARRIVAL_MAX_ACCURACY_METERS
+    && check.rawDistanceMeters <= ARRIVAL_NEAR_METERS;
+  const stopped = typeof speed === 'number' && Number.isFinite(speed) && speed >= 0 && speed <= ARRIVAL_STOPPED_MPS;
+  if (!near || !stopped) return { arrived: false, stoppedSinceMs: null };
+  const since = check.stoppedSinceMs ?? check.nowMs;
+  return { arrived: check.nowMs - since >= ARRIVAL_STOPPED_MS, stoppedSinceMs: since };
+}
+
 export const FASTER_ROUTE_CHECK_MS = 5 * 60_000;
 
 /**

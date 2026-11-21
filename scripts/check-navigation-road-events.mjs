@@ -181,4 +181,58 @@ assert.match(
   'PWA GPS health changes must immediately clear road-ahead guidance',
 );
 
+// Before Start: every report along the whole way, said the same in both apps.
+const wholeRoute = pwa.routeHazards(route, [
+  hazard('far', 'camera', 51.5090),
+  hazard('start', 'police', 51.5001),
+  hazard('off-route', 'accident', 51.5050, -0.0950),
+  hazard('closure', 'road_closure', 51.5060),
+  hazard('police-again', 'hidden_police', 51.5040),
+]);
+assert.deepEqual(wholeRoute.map((item) => item.hazard.id), ['start', 'police-again', 'closure', 'far']);
+assert.deepEqual(pwa.routeHazardsSummary(wholeRoute), {
+  groups: [
+    { type: 'road_closure', count: 1, serious: true },
+    { type: 'camera', count: 1, serious: false },
+    { type: 'police', count: 1, serious: false },
+    { type: 'hidden_police', count: 1, serious: false },
+  ],
+  label: 'Reported on the way: road closure, speed camera, police, hidden police',
+  serious: true,
+});
+assert.equal(pwa.routeHazardsSummary([]), null);
+assert.deepEqual(pwa.routeHazards([], []), []);
+for (const name of ['road closures', 'speed cameras', 'police reports', 'police checks', 'hidden police reports', 'Reported on the way: ']) {
+  assert.ok(nativeSource.includes(name), `native and PWA route hazard words must both say "${name}"`);
+}
+
+// The line, as in Waze: the same points and merging in both apps.
+const strip = pwa.routeHazardStrip(wholeRoute, route);
+assert.deepEqual(strip.map(({ type, count, serious }) => ({ type, count, serious })), [
+  { type: 'police', count: 1, serious: false },
+  { type: 'hidden_police', count: 1, serious: false },
+  { type: 'road_closure', count: 1, serious: true },
+  { type: 'camera', count: 1, serious: false },
+]);
+assert.deepEqual(strip.map(({ at }) => Math.round(at * 100)), [1, 40, 60, 90]);
+// A wider gap merges them under the most serious, with the count.
+assert.deepEqual(pwa.routeHazardStrip(wholeRoute, route, 1).map(({ type, count, serious }) => ({ type, count, serious })), [
+  { type: 'road_closure', count: 4, serious: true },
+]);
+assert.equal(pwa.ROUTE_HAZARD_STRIP_GAP, 0.1);
+assert.match(nativeSource, /export const ROUTE_HAZARD_STRIP_GAP = 0\.1;/, 'native and PWA must merge nearby reports at the same gap');
+assert.deepEqual(pwa.routeHazardStrip([], route), []);
+assert.deepEqual(pwa.routeHazardStrip(wholeRoute, []), []);
+
+// Cutting a route line for the server: the same points in both apps.
+{
+  const winding = Array.from({ length: 3000 }, (_, i) => ({ lat: 51.5 + i * 0.0001, lng: -0.1 + Math.sin(i / 10) * 0.002 }));
+  const cut = pwa.simplifyRoutePath(winding);
+  assert.ok(cut.length <= pwa.ROUTE_PATH_MAX_POINTS && cut.length > 50);
+  const { simplifyRoutePath } = await import('../mobile/src/navigationRoadEvents.ts');
+  const native = simplifyRoutePath(winding.map(({ lat, lng }) => ({ lat, lon: lng })));
+  assert.deepEqual(cut.map(({ lat, lng }) => ({ lat, lon: lng })), native);
+  assert.equal(pwa.ROUTE_PATH_MAX_POINTS, 400);
+}
+
 console.log('Navigation road-ahead parity core valid');

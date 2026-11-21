@@ -2,6 +2,7 @@ import { consumeRateLimit, isCoordinate, rateLimitSubject, readJsonBody, sendJso
 import type { HazardType } from '@rider-comms/shared';
 import { HAZARD_TYPES, NOT_HANDLED } from './context.ts';
 import type { RouteContext } from './context.ts';
+import { normalizeRoutePath } from '../placesProvider.ts';
 
 export async function handleHazardRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, actorId, s, hazardStore, rateLimitStore } = ctx;
@@ -21,6 +22,16 @@ export async function handleHazardRoutes(ctx: RouteContext): Promise<unknown> {
     // The reporter's rider ID is kept server-side (it authorises DELETE) and is
     // never published, so a hazard's location can't be tied to a rider.
     const hazards = (await hazardStore.nearby(lat, lon, Date.now())).map(({ reportedBy: _reportedBy, ...hazard }) => hazard);
+    return sendJson(res, 200, { hazards });
+  }
+  // The route preview: what riders reported along each way, the whole way
+  // (GET /hazards/nearby covers 40 miles from the rider).
+  if (req.method === 'POST' && url.pathname === '/hazards/along-route') {
+    const body = await readJsonBody(req);
+    const path = normalizeRoutePath(body.path);
+    if (!path) return sendJson(res, 400, { error: 'a route of 2-400 coordinates is required' });
+    // As with nearby: the reporter's rider ID is never published.
+    const hazards = (await hazardStore.alongRoute(path, Date.now())).map(({ reportedBy: _reportedBy, ...hazard }) => hazard);
     return sendJson(res, 200, { hazards });
   }
   if (req.method === 'POST' && s[0] === 'hazards' && s[1] && s.length === 3 && (s[2] === 'confirm' || s[2] === 'deny')) {

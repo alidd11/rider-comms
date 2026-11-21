@@ -11,6 +11,29 @@ export type VoteResult = { ok: true } | { ok: false; reason: 'not_found' };
 
 export const HAZARD_SEARCH_RADIUS_MILES = 40;
 const MAX_NEARBY_RESULTS = 500;
+/** Reports this close to a route's line count as on it (the apps' own
+ * corridor is 70 m; a little more here so the edge cases reach them). */
+export const ALONG_ROUTE_CORRIDOR_METERS = 100;
+const MAX_ALONG_ROUTE_CANDIDATES = 2000;
+const METERS_PER_DEGREE_LAT = 111_320;
+
+/** Metres from a point to a route line, on a local flat projection: plenty
+ * for a 100 m corridor. */
+export function metersFromPath(point: { lat: number; lon: number }, path: readonly { lat: number; lon: number }[]): number {
+  let best = Number.POSITIVE_INFINITY;
+  const xScale = METERS_PER_DEGREE_LAT * Math.cos(point.lat * Math.PI / 180);
+  const project = (p: { lat: number; lon: number }) => ({ x: (p.lon - point.lon) * xScale, y: (p.lat - point.lat) * METERS_PER_DEGREE_LAT });
+  for (let i = 0; i < path.length - 1; i += 1) {
+    const a = project(path[i]!);
+    const b = project(path[i + 1]!);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = dx * dx + dy * dy;
+    const t = length > 0 ? Math.max(0, Math.min(1, -(a.x * dx + a.y * dy) / length)) : 0;
+    best = Math.min(best, Math.hypot(a.x + t * dx, a.y + t * dy));
+  }
+  return best;
+}
 /** Another report of the same type this close is the same hazard. */
 export const DUPLICATE_RADIUS_METERS = 150;
 
@@ -162,6 +185,35 @@ export class HazardStore {
       values,
     );
     return rows.map(rowToReport);
+  }
+
+  /** Active reports along a whole route, however long: the route preview's
+   * hazards beyond the 40 miles `nearby()` covers. The route's bounding box
+   * (padded by the corridor) narrows the indexed read; each report is then
+   * kept only within ALONG_ROUTE_CORRIDOR_METERS of the line. */
+  async alongRoute(path: readonly { lat: number; lon: number }[], nowMs: number): Promise<HazardReport[]> {
+    if (path.length < 2) return [];
+    await ensureMigrated();
+    const lats = path.map((p) => p.lat);
+    const lons = path.map((p) => p.lon);
+    const pad = ALONG_ROUTE_CORRIDOR_METERS / METERS_PER_DEGREE_LAT;
+    const maxAbsLat = Math.min(89, Math.max(...lats.map(Math.abs)) + pad);
+    const lonPad = pad / Math.max(0.01, Math.cos(maxAbsLat * Math.PI / 180));
+    const { rows } = await getPool().query<HazardReportRow>(
+      `SELECT id, type, lat, lon, reported_by, created_at, expires_at, confirmations, denials
+       FROM hazard_reports
+       WHERE expires_at > $1
+         AND denials - confirmations < $2
+         AND lat BETWEEN $3 AND $4
+         AND lon BETWEEN $5 AND $6
+       ORDER BY created_at DESC
+       LIMIT ${MAX_ALONG_ROUTE_CANDIDATES}`,
+      [nowMs, HIDE_NET_DENIAL_THRESHOLD, Math.min(...lats) - pad, Math.max(...lats) + pad, Math.min(...lons) - lonPad, Math.max(...lons) + lonPad],
+    );
+    return rows
+      .map(rowToReport)
+      .filter((report) => metersFromPath(report, path) <= ALONG_ROUTE_CORRIDOR_METERS)
+      .slice(0, MAX_NEARBY_RESULTS);
   }
 
   async confirm(id: string, riderId: string): Promise<VoteResult> {

@@ -1,7 +1,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AccountDeletionStore } from '../src/accountDeletionStore.ts';
-import { HAZARD_SEARCH_RADIUS_MILES, HazardStore } from '../src/hazardStore.ts';
+import { HAZARD_SEARCH_RADIUS_MILES, HazardStore, metersFromPath } from '../src/hazardStore.ts';
 import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 
 // HazardStore is now Postgres-backed (see db.ts) — these tests need
@@ -38,6 +38,35 @@ describe('HazardStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping 
     const found = await store.nearby(40.0, -74.0, report.createdAt);
     assert.equal(found.length, 1);
     assert.equal(found[0].id, report.id);
+  });
+
+  it('finds reports along a whole route, however long, and only near its line', async () => {
+    const store = new HazardStore();
+    // A 150-mile ride north: reports at each end, one just off the line, one 2 km away.
+    const route = [{ lat: 40.0, lon: -74.0 }, { lat: 41.0, lon: -74.0 }, { lat: 42.2, lon: -74.0 }];
+    await store.create('police', 40.01, -74.0, 'start');
+    await store.create('road_closure', 42.15, -74.0, 'far-end');
+    await store.create('camera', 41.5, -73.9995, 'just-off');
+    await store.create('accident', 41.5, -73.976, 'two-km-away');
+    await store.create('accident', 30.0, -74.0, 'elsewhere');
+    const found = await store.alongRoute(route, Date.now());
+    assert.deepEqual(found.map((report) => report.reportedBy).sort(), ['far-end', 'just-off', 'start']);
+    // Expired or crowd-hidden reports are left out, as nearby() does.
+    const hidden = await store.create('police', 41.0, -74.0, 'hidden');
+    for (const voter of ['v1', 'v2', 'v3']) await store.deny(hidden.id, voter);
+    assert.ok(!(await store.alongRoute(route, Date.now())).some((report) => report.id === hidden.id));
+    assert.deepEqual(await store.alongRoute(route, Date.now() + 365 * 24 * 3600_000), []);
+    assert.deepEqual(await store.alongRoute([route[0]!], Date.now()), []);
+  });
+
+  it('measures how far a report is from a route line', () => {
+    const line = [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.1 }];
+    assert.ok(metersFromPath({ lat: 51.505, lon: -0.1 }, line) < 1);
+    assert.ok(Math.abs(metersFromPath({ lat: 51.505, lon: -0.0986 }, line) - 97) < 3);
+    // Past the end, it's the distance to the end point; a one-point line is never near.
+    assert.ok(Math.abs(metersFromPath({ lat: 51.511, lon: -0.1 }, line) - 111) < 2);
+    assert.equal(metersFromPath({ lat: 51.5, lon: -0.1 }, [line[0]!]), Number.POSITIVE_INFINITY);
+    assert.equal(metersFromPath({ lat: 51.5, lon: -0.1 }, [line[0]!, line[0]!]), 0);
   });
 
   it('does not surface reports far outside the geo-bucket neighborhood', async () => {

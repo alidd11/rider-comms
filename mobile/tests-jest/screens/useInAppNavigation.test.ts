@@ -337,6 +337,37 @@ test('advances steps as the rider reaches each maneuver, and arrives at the dest
   expect(mockRemove).toHaveBeenCalled();
 });
 
+test('parked close to the destination, not on its end point, still arrives', async () => {
+  const { result } = await startNavigation();
+  await sendFix(51.502, -0.1);
+  await sendFix(51.502, -0.097);
+  expect(result.current.navigationStepIndex).toBe(2);
+  // About 90 m short, still moving: not yet.
+  await sendFix(51.5032, -0.097, 6);
+  await act(async () => { jest.advanceTimersByTime(20_000); });
+  await sendFix(51.5032, -0.097, 6);
+  expect(result.current.activeRoute).not.toBeNull();
+  // Stopped there: after 15 seconds, arrived.
+  await sendFix(51.5032, -0.097, 0);
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  await sendFix(51.5032, -0.097, 0);
+  expect(result.current.activeRoute).not.toBeNull();
+  await act(async () => { jest.advanceTimersByTime(6_000); });
+  await sendFix(51.5032, -0.097, 0);
+  expect(result.current.activeRoute).toBeNull();
+  expect(result.current.navigationNotice).toBe('You’ve arrived.');
+});
+
+test('stopped close by on a poor fix keeps guiding', async () => {
+  const { result } = await startNavigation();
+  await sendFix(51.502, -0.1);
+  await sendFix(51.502, -0.097);
+  await sendFix(51.5032, -0.097, 0, 0, 80);
+  await act(async () => { jest.advanceTimersByTime(30_000); });
+  await sendFix(51.5032, -0.097, 0, 0, 80);
+  expect(result.current.activeRoute).not.toBeNull();
+});
+
 test('arriving shows the ride time and the distance actually ridden, until dismissed', async () => {
   const { result } = await startNavigation();
   expect(result.current.navigationArrival).toBeNull();
@@ -565,6 +596,128 @@ test('finds stops along the rest of the route and routes through one until the r
   expect(added).toBe(false);
   expect(result.current.navigationStop).toBeNull();
   expect(result.current.navigationNotice).toBe('Couldn’t add that stop. Try again.');
+});
+
+test('adds a stop before Start: searched along the way shown, kept through styles, and into navigation', async () => {
+  const quick: InAppNavigationRoute = { ...ROUTE, durationSeconds: 600 };
+  const viaShell: InAppNavigationRoute = { ...ROUTE, durationSeconds: 700 };
+  const shell = { lat: 51.502, lon: -0.099, label: 'Shell' };
+  const client = {
+    getDrivingRoute: jest.fn()
+      .mockResolvedValueOnce(quick) // the preview
+      .mockResolvedValueOnce(viaShell) // through Shell
+      .mockResolvedValueOnce(viaShell) // Twisty, still through Shell
+      .mockRejectedValueOnce(new Error('directions_no_route')) // a stop that can't be routed
+      .mockResolvedValueOnce(quick) // Shell taken out
+      .mockResolvedValueOnce(viaShell), // Shell again
+    searchAlongRoute: jest.fn(async () => ({ places: [{ id: 'near', name: 'Shell', address: '', lat: 51.502, lon: -0.099, travelSeconds: 100 }] })),
+  };
+  const { result } = await renderNavigation({ client: client as never });
+  // Nothing to take out before there is a preview.
+  await act(async () => { expect(await result.current.removeRoutePreviewStop()).toBe(false); });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  expect(result.current.routePreview?.stop).toBeNull();
+
+  let stops: Awaited<ReturnType<typeof result.current.findStopsOnTheWay>> = [];
+  await act(async () => { stops = await result.current.findStopsOnTheWay('petrol station'); });
+  // The whole of the way shown, from where it starts.
+  expect(client.searchAlongRoute).toHaveBeenCalledWith('petrol station', quick.coordinates);
+  expect(stops.map((stop) => stop.place.name)).toEqual(['Shell']);
+
+  let ok = false;
+  await act(async () => { ok = await result.current.addNavigationStop({ lat: 51.502, lon: -0.099, name: 'Shell' }); });
+  expect(ok).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, expect.anything(), shell);
+  expect(result.current.routePreview?.stop).toEqual(shell);
+  expect(result.current.routePreview?.routes).toEqual([viaShell]);
+  expect(result.current.activeRoute).toBeNull();
+
+  await act(async () => { ok = await result.current.setRoutePreviewStyle('twisty'); });
+  expect(ok).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, expect.objectContaining({ highways: true }), shell);
+  expect(result.current.routePreview?.stop).toEqual(shell);
+
+  // One that can't be routed: told so, and the preview stays as it was.
+  await act(async () => { ok = await result.current.addNavigationStop({ lat: 51.6, lon: -0.2, name: 'BP' }); });
+  expect(ok).toBe(false);
+  expect(Alert.alert).toHaveBeenCalledWith('Couldn’t add that stop', 'The route shown is unchanged. Try again.');
+  expect(result.current.routePreview?.stop).toEqual(shell);
+
+  await act(async () => { ok = await result.current.removeRoutePreviewStop(); });
+  expect(ok).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, expect.anything());
+  expect(result.current.routePreview?.stop).toBeNull();
+
+  await act(async () => { await result.current.addNavigationStop({ lat: 51.502, lon: -0.099, name: 'Shell' }); });
+  await act(async () => { result.current.startRoutePreview(); });
+  expect(result.current.activeRoute).toBe(viaShell);
+  // Navigation goes on through it until the rider gets there.
+  expect(result.current.navigationStop).toEqual(shell);
+});
+
+test('a stop still being asked for when the route starts (Ride Safe) fails quietly', async () => {
+  let answer: (route: InAppNavigationRoute) => void = () => undefined;
+  const client = {
+    getDrivingRoute: jest.fn()
+      .mockResolvedValueOnce(ROUTE)
+      .mockImplementationOnce(() => new Promise<InAppNavigationRoute>((resolve) => { answer = resolve; }))
+      .mockResolvedValueOnce(ROUTE),
+  };
+  const { result } = await renderNavigation({ client: client as never });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  let adding: Promise<boolean> = Promise.resolve(true);
+  await act(async () => { adding = result.current.addNavigationStop({ lat: 51.502, lon: -0.099, name: 'Shell' }); });
+  // Moving: MapScreen starts the route shown while Google is still asked.
+  await act(async () => { result.current.startRoutePreview(); });
+  let added = true;
+  await act(async () => { answer({ ...ROUTE, durationSeconds: 1 }); added = await adding; });
+  expect(added).toBe(false);
+  expect(Alert.alert).not.toHaveBeenCalled();
+  expect(result.current.activeRoute).toBe(ROUTE);
+
+  // Taking a stop out that can't be routed, while still choosing, says so.
+  await act(async () => { result.current.finishInAppNavigation(false); });
+  await act(async () => { await result.current.startInAppNavigation(DESTINATION); });
+  (client.getDrivingRoute as jest.Mock).mockResolvedValueOnce(ROUTE);
+  await act(async () => { await result.current.addNavigationStop({ lat: 51.502, lon: -0.099, name: 'Shell' }); });
+  (client.getDrivingRoute as jest.Mock).mockRejectedValueOnce(new Error('no signal'));
+  let removed = true;
+  await act(async () => { removed = await result.current.removeRoutePreviewStop(); });
+  expect(removed).toBe(false);
+  expect(Alert.alert).toHaveBeenCalledWith('Couldn’t remove the stop', 'The route shown is unchanged. Try again.');
+});
+
+test('a stop not wanted after all is skipped: the route goes straight on from here', async () => {
+  const viaShell: InAppNavigationRoute = { ...ROUTE, durationSeconds: 700 };
+  const direct: InAppNavigationRoute = { ...ROUTE, durationSeconds: 500 };
+  const client = {
+    getDrivingRoute: jest.fn()
+      .mockResolvedValueOnce(ROUTE)
+      .mockResolvedValueOnce(viaShell)
+      .mockRejectedValueOnce(new Error('no signal'))
+      .mockResolvedValueOnce(direct),
+  };
+  const { result } = await startNavigation({ client: client as never });
+  // Nothing to skip yet.
+  await act(async () => { expect(await result.current.skipNavigationStop()).toBe(false); });
+  await sendFix(51.5, -0.1);
+  await act(async () => { await result.current.addNavigationStop({ lat: 51.502, lon: -0.099, name: 'Shell' }); });
+  expect(result.current.navigationStop?.label).toBe('Shell');
+
+  // No answer: the stop stays, and the rider is told.
+  let skipped = true;
+  await act(async () => { skipped = await result.current.skipNavigationStop(); });
+  expect(skipped).toBe(false);
+  expect(result.current.navigationStop?.label).toBe('Shell');
+  expect(result.current.navigationNotice).toBe('Couldn’t skip that stop. Try again.');
+
+  mockSpeakNavigationPrompt.mockClear();
+  await act(async () => { skipped = await result.current.skipNavigationStop(); });
+  expect(skipped).toBe(true);
+  expect(client.getDrivingRoute).toHaveBeenLastCalledWith({ lat: 51.5, lon: -0.1 }, DESTINATION, expect.anything());
+  expect(result.current.navigationStop).toBeNull();
+  expect(result.current.activeRoute).toBe(direct);
+  expect(mockSpeakNavigationPrompt).toHaveBeenCalledWith('Skipped Shell.');
 });
 
 test('finding or adding stops needs a route and a position', async () => {

@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { StyleSheet } from 'react-native';
+import type { HazardType } from '@rider-comms/shared';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { RidingHud } from '../../src/screens/RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
@@ -311,6 +313,70 @@ test('the route preview card: swipe sizes, the small card, twisty and group ride
   create.mockRestore();
 });
 
+test('the route preview card: what riders reported, along a line from you to the destination', async () => {
+  const report = (id: string, type: HazardType, lat: number) => ({
+    id, type, lat, lon: -0.1, reportedBy: 'rider', createdAt: 1, expiresAt: Number.MAX_SAFE_INTEGER, confirmations: 0, denials: 0,
+  });
+  const line = [{ lat: 51.5, lon: -0.1 }, { lat: 51.51, lon: -0.1 }];
+  const preview = {
+    ...PREVIEW,
+    routes: [{ ...PREVIEW.routes[0]!, coordinates: line }, PREVIEW.routes[1]!],
+  };
+  const sheet = (hazards: ReturnType<typeof report>[]) => (
+    <RoutePreviewSheet bottom={0} preview={preview} unitSystem="mi" hazards={hazards} onChoose={jest.fn()} onStart={jest.fn()} onShare={jest.fn()} />
+  );
+  const view = await render(sheet([report('p', 'police', 51.5025)]));
+  // On the line where it is, a quarter of the way; read out as one sentence.
+  const strip = () => view.getByTestId('route-preview-hazards');
+  expect(strip().props.accessibilityLabel).toBe('Reported on the way: police');
+  const at = (type: string) => StyleSheet.flatten(view.getByTestId(`route-hazard-marker-${type}`).props.style);
+  expect(at('police').left).toBe('25%');
+  await fireEvent.press(view.getByTestId('route-preview-more'));
+  expect(view.getByTestId('route-preview-row-0').props.accessibilityLabel).toMatch(/, reported on the way: police$/);
+  expect(view.getByTestId('route-preview-row-1').props.accessibilityLabel).not.toMatch(/reported/);
+  expect(view.getByTestId('route-hazard-police', { includeHiddenElements: true })).toBeTruthy();
+
+  // Two close together share an icon, the most serious, with a count; one
+  // further on has its own; closures are ringed red.
+  await view.rerender(sheet([report('p', 'police', 51.5025), report('c', 'road_closure', 51.503), report('k', 'camera', 51.509)]));
+  expect(strip().props.accessibilityLabel).toBe('Reported on the way: road closure, speed camera, police');
+  expect(view.queryByTestId('route-hazard-marker-police')).toBeNull();
+  expect(at('road_closure').left).toBe('27.5%');
+  expect(at('camera').left).toBe('90%');
+  expect(at('road_closure').borderColor).not.toBe(at('camera').borderColor);
+  expect(view.getAllByText('2').length).toBeGreaterThan(0);
+  // In the list, small icons, one per kind; five kinds show four, then +1.
+  await view.rerender(sheet([
+    report('p', 'police', 51.501), report('c', 'road_closure', 51.502), report('a', 'accident', 51.503),
+    report('k', 'camera', 51.504), report('h', 'hidden_police', 51.506), report('h2', 'hidden_police', 51.5095),
+  ]));
+  expect(view.getAllByText('+1', { includeHiddenElements: true }).length).toBeGreaterThan(0);
+  expect(view.queryByTestId('route-hazard-hidden_police', { includeHiddenElements: true })).toBeNull();
+  expect(view.getByTestId('route-hazard-road_closure', { includeHiddenElements: true })).toBeTruthy();
+  await view.rerender(sheet([]));
+  expect(view.queryByTestId('route-preview-hazards')).toBeNull();
+});
+
+test('the route preview card: a stop added before Start, and taking it out again', async () => {
+  const onRemoveStop = jest.fn();
+  const shell = { lat: 51.5, lon: -0.1, label: 'Shell' };
+  const sheet = (extra: Partial<React.ComponentProps<typeof RoutePreviewSheet>> = {}) => (
+    <RoutePreviewSheet bottom={0} preview={{ ...PREVIEW, stop: shell }} unitSystem="mi" onChoose={jest.fn()} onStart={jest.fn()} onShare={jest.fn()} onRemoveStop={onRemoveStop} {...extra} />
+  );
+  const view = await render(sheet());
+  expect(view.getByText('Stop: Shell')).toBeTruthy();
+  await fireEvent.press(view.getByRole('button', { name: 'Remove the stop at Shell' }));
+  expect(onRemoveStop).toHaveBeenCalledTimes(1);
+  // While Google is asked again, it waits.
+  await view.rerender(sheet({ replanning: true }));
+  expect(view.getByRole('button', { name: 'Remove the stop at Shell' }).props.accessibilityState).toEqual({ disabled: true });
+  // Without the handler (nothing to take out), no button; no stop, no row.
+  await view.rerender(sheet({ onRemoveStop: undefined }));
+  expect(view.queryByRole('button', { name: /Remove the stop/ })).toBeNull();
+  await view.rerender(sheet({ preview: PREVIEW }));
+  expect(view.queryByTestId('route-preview-stop')).toBeNull();
+});
+
 test('the route preview bar: back, another destination, and Route options', async () => {
   const onBack = jest.fn();
   const onChangeDestination = jest.fn();
@@ -353,6 +419,17 @@ test('the route preview bar: back, another destination, and Route options', asyn
   await view.rerender(bar({ preview: { ...PREVIEW, style: 'no_motorways' } }));
   expect(options().props.accessibilityLabel).toBe('Route options, No motorways, avoiding tolls or ferries');
   expect(view.getByText('2')).toBeTruthy();
+
+  // Add a stop sits above Route options; once there's a stop, it goes.
+  expect(view.queryByRole('button', { name: 'Add a stop' })).toBeNull();
+  const onAddStop = jest.fn();
+  await view.rerender(bar({ onAddStop }));
+  await fireEvent.press(view.getByRole('button', { name: 'Add a stop' }));
+  expect(onAddStop).toHaveBeenCalledTimes(1);
+  await view.rerender(bar({ onAddStop, replanning: true }));
+  expect(view.getByTestId('route-preview-add-stop').props.accessibilityState).toEqual({ disabled: true });
+  await view.rerender(bar({ onAddStop, preview: { ...PREVIEW, stop: { lat: 51.5, lon: -0.1, label: 'Shell' } } }));
+  expect(view.queryByRole('button', { name: 'Add a stop' })).toBeNull();
 
   // While Google is asked again, the options wait; nothing changed reads plainly.
   await view.rerender(bar({ replanning: true, avoidance: { highways: false, tolls: false, ferries: false }, preview: { ...PREVIEW, target: { lat: 0, lon: 0 } } }));
