@@ -784,6 +784,31 @@ test.describe('staff dashboard', () => {
     await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Harassment of other riders.' } });
   });
 
+  test('system view labels unavailable details and can retry just that view', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route(`${API}/admin/system`, async (route) => {
+      if (first) {
+        first = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.system-warning')).toContainText('Service setup could not be loaded');
+    await expect(page.locator('.traffic-kpis')).toBeVisible();
+    await page.getByRole('button', { name: 'Retry details' }).click();
+    await expect(page.locator('.system-warning')).toHaveCount(0);
+    await expect(page.locator('.status-row', { hasText: 'Email delivery' })).toBeVisible();
+  });
+
   test('system view shows the last hour of traffic', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
