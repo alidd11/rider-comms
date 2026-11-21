@@ -13,9 +13,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'riders', 'moderation', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', riders: 'Riders', moderation: 'Moderation', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', riders: 'view_riders', moderation: 'moderate', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'inbox', 'riders', 'moderation', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -72,6 +72,8 @@
   let { view, riderId: detailRiderId } = parseHash(location.hash.slice(1));
   let period = readPeriod();
   let moderationView = 'open';
+  let inboxFilter = 'all';
+  let inboxFocusTarget = null;
   let riderQuery = '';
   let auditGroup = 'all';
   let auditRider = '';
@@ -87,6 +89,7 @@
   const renderKey = () => JSON.stringify([view, detailRiderId,
     view === 'riders' ? riderQuery : null,
     view === 'moderation' ? moderationView : null,
+    view === 'inbox' ? inboxFilter : null,
     view === 'audit' ? auditGroup : null,
     view === 'audit' ? auditRider : null]);
   const names = new Map();
@@ -1044,6 +1047,83 @@
     return card;
   }
 
+
+  // An operational reading view: decisions still happen on the existing
+  // moderation screens, so their notes, claims and reauthentication remain.
+  async function renderInbox(generation) {
+    const filter = inboxFilter;
+    const response = await api('GET', `/admin/action-inbox?type=${filter}&limit=50`);
+    if (!isCurrentRender(generation)) return;
+    const items = Array.isArray(response.items) ? response.items : [];
+    await loadNames(items.flatMap((item) => [item.riderId, item.claimedBy]));
+    if (!isCurrentRender(generation)) return;
+
+    const tabs = segmented([
+      ['all', 'All work'], ['rider_report', 'Rider reports'], ['social_post', 'Social posts'],
+    ], filter, (next) => {
+      inboxFilter = next;
+      renderAndFocus('[aria-label="Action inbox sources"] [aria-pressed="true"]');
+    }, 'Action inbox sources');
+
+    const itemCard = (item) => {
+      const isReport = item.type === 'rider_report';
+      const title = isReport ? `Rider report · ${REASON_LABELS[item.reason] || item.reason}`
+        : `Rider Social · ${item.kind === 'reel' ? 'Reel' : 'Photo post'}`;
+      const status = isReport
+        ? (item.claimedBy ? `Being handled by ${item.claimedBy === session.riderId ? 'you' : riderLabel(item.claimedBy).name}` : 'Unassigned')
+        : `${formatNumber(item.reportCount)} reports`;
+      const description = isReport
+        ? `${formatNumber(item.reportsAgainstRider)} reports against this rider`
+        : (item.reasons?.length ? item.reasons.map((reason) => REASON_LABELS[reason] || reason).join(', ') : 'Reported content');
+      const button = el('button', { type: 'button', class: 'button', text: isReport ? 'Review rider report' : 'Review Social post' });
+      button.addEventListener('click', () => {
+        inboxFocusTarget = {
+          type: item.type,
+          id: isReport ? item.reportId : item.postId,
+        };
+        moderationView = isReport ? 'open' : 'social';
+        selectView('moderation');
+      });
+      return el('article', { class: 'card inbox-item', dataset: { inboxId: item.id } }, [
+        el('div', { class: 'inbox-item-main' }, [
+          el('div', { class: 'inbox-item-top' }, [
+            el('h2', { class: 'inbox-item-title', text: title }),
+            waitingBadge(item.eventAt),
+          ]),
+          person(riderLabel(item.riderId).name, riderLabel(item.riderId).sub, item.riderId),
+          el('div', { class: 'inbox-item-meta' }, [
+            badge(status, isReport && item.claimedBy ? 'accent' : isReport ? 'warning' : null),
+            el('span', { text: description }),
+            el('span', { class: 'inbox-item-time' }, [timeEl(item.eventAt)]),
+          ]),
+        ]),
+        el('div', { class: 'inbox-item-actions' }, [button]),
+      ]);
+    };
+
+    const content = items.length
+      ? el('div', { class: 'inbox-items' }, items.filter((item) =>
+        (item.type === 'rider_report' && typeof item.reportId === 'string') ||
+        (item.type === 'social_post' && typeof item.postId === 'string')).map(itemCard))
+      : el('div', { class: 'card' }, [emptyState('inbox', 'Nothing waiting in this view',
+        'No open reports or reported Social posts were returned for this source. Refresh to check again.')]);
+
+    const note = response.mayHaveMore
+      ? el('p', { class: 'inbox-limit-note', role: 'status',
+        text: 'Showing up to 50 items from a bounded sample. More work may be waiting in Moderation.' })
+      : el('p', { class: 'inbox-limit-note', text: 'Queue summary · refresh to check for new work.' });
+
+    pageEl.replaceChildren(
+      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.', [tabs]),
+      el('div', { class: 'inbox-intro', role: 'note' }, [
+        el('strong', { text: 'Review and assign work in Moderation' }),
+        el('span', { text: 'This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
+      ]),
+      content,
+      note,
+    );
+  }
+
   async function renderModeration(generation) {
     const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned']], moderationView, (next) => {
       moderationView = next;
@@ -1683,6 +1763,8 @@
         overviewCache = overview;
         updateReportCount(overviewCache.safety.openReports);
         renderOverview(overviewCache);
+      } else if (view === 'inbox') {
+        await renderInbox(generation);
       } else if (view === 'riders') {
         const { riders } = await api('GET', `/admin/riders?limit=50&q=${encodeURIComponent(riderQuery)}`);
         if (!isCurrentRender(generation)) return;
@@ -1700,12 +1782,28 @@
       }
       if (isCurrentRender(generation)) {
         displayedKey = key;
+        if (view === 'moderation' && inboxFocusTarget) {
+          // Match data values as strings, not interpolated CSS selectors.
+          const { type, id } = inboxFocusTarget;
+          inboxFocusTarget = null;
+          const attribute = type === 'rider_report' ? 'reportId' : 'postId';
+          const target = [...pageEl.querySelectorAll(type === 'rider_report' ? '[data-report-id]' : '[data-post-id]')]
+            .find((element) => element.dataset[attribute] === id);
+          if (target) {
+            target.setAttribute('tabindex', '-1');
+            target.focus({ preventScroll: true });
+            target.scrollIntoView({ block: 'start', behavior: 'instant' });
+          } else {
+            flash('The selected item may have been resolved or moved. The current queue is shown.', 'warning');
+          }
+        }
         if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav'))) {
           pageEl.querySelector('.page-title')?.focus({ preventScroll: true });
         }
       }
     } catch (error) {
       if (!isCurrentRender(generation)) return;
+      inboxFocusTarget = null;
       if (refreshing && !(error instanceof ApiError && (error.status === 401 || error.status === 403))) {
         flash('Couldn’t refresh this section. Showing the last loaded data; try refreshing again.', 'warning');
         return;

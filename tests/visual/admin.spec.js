@@ -150,6 +150,27 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.staff = state.staff.filter((member) => member.riderId !== decodeURIComponent(removeStaff[1]));
       return json(200, { ok: true });
     }
+    if (url.pathname === '/admin/action-inbox') {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const type = url.searchParams.get('type') ?? 'all';
+      const riderReports = state.reports.filter((report) => report.status === 'open')
+        .map((report) => ({
+          type: 'rider_report', id: `rider_report:${report.id}`,
+          reportId: report.id, riderId: report.reportedRiderId, eventAt: report.createdAt,
+          reason: report.reason, claimedBy: report.claimedBy ?? null, reportsAgainstRider: report.reportsAgainstRider,
+        }));
+      const posts = state.socialPosts.map((entry) => ({
+        type: 'social_post', id: `social_post:${entry.post.id}`,
+        postId: entry.post.id, riderId: entry.post.authorId,
+        eventAt: entry.hiddenAt ?? entry.post.createdAt,
+        kind: entry.post.kind, reportCount: entry.reports, reasons: entry.reasons,
+      }));
+      const items = [
+        ...(type === 'social_post' ? [] : riderReports),
+        ...(type === 'rider_report' ? [] : posts),
+      ].sort((a, b) => a.eventAt - b.eventAt);
+      return json(200, { generatedAt: Date.now(), items, filter: type, limit: 50, mayHaveMore: false, sourceSampleLimit: 100 });
+    }
     if (url.pathname === '/admin/overview') return json(200, OVERVIEW);
     const riderDetail = url.pathname.match(/^\/admin\/riders\/(rider_[a-z0-9]+)$/);
     if (riderDetail && request.method() === 'GET') {
@@ -270,6 +291,60 @@ async function holdApiResponse(page, matcher, status, body) {
 }
 
 test.describe('staff dashboard', () => {
+
+  test('action inbox shows true moderation sources and opens the selected rider report', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+    const list = page.locator('.inbox-item');
+    await expect(list).toHaveCount(2);
+    await expect(list.first()).toContainText('Rider report');
+    await expect(list.last()).toContainText('Rider Social');
+    await list.first().getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page).toHaveURL(/#moderation$/);
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+    await expect(page.locator('[data-report-id="report-1"]')).toBeFocused();
+  });
+
+  test('action inbox filters sources and opens the selected Social post', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(sources.getByRole('button', { name: 'Social posts' })).toBeFocused();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toBeFocused();
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+  });
+
+  test('support and analyst accounts cannot access the action inbox', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'support' });
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('#nav [data-view="inbox"]')).toBeHidden();
+    await expect(page).toHaveURL(/#overview$/);
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+  });
+
+  test('action inbox shows an honest empty state without fabricated tickets', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    const post = page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]');
+    await post.locator('textarea').fill('Removed impersonation scam.');
+    await post.getByRole('button', { name: 'Restore post' }).click();
+    await openSection(page, 'Action inbox');
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('Nothing waiting in this view');
+  });
+
   test('asks a signed-out visitor to sign in to the app first', async ({ page }) => {
     await mockModerationApi(page);
     await page.goto('/admin.html');
