@@ -35,6 +35,28 @@ Date: 20 November 2026. Security work is consolidated into PR #562.
 - GitHub dependency alerts and non-blocking npm audit reports need explicit review. CI green does not certify freedom from vulnerabilities.
 - Never test live accounts or third-party users with exploit payloads; the new tests use mocked browser APIs and isolated CI PostgreSQL.
 
+
+## Additional independent research — 21 November 2026 (pre-merge)
+
+Sources: [OWASP XSS Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet), [OWASP API Security Top 10](https://api-security.owasp.org/editions/2023/en/0x11-t10/), [Google Maps CSP](https://developers.google.com/maps/documentation/javascript/content-security-policy), [MDN CSP implementation](https://developer.mozilla.org/en-US/docs/Web/Security/Practical_implementation_guides/CSP), [MDN Trusted Types](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/require-trusted-types-for).
+
+These are **review targets, not proven vulnerabilities**. Do not introduce unrelated feature changes into this PR.
+
+### Prioritized verification before approval
+
+1. **Inventory DOM execution sinks** in `docs/`, `social/` and shared web rendering: `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval`, `new Function`, HTML-capable markdown, embedded media, dynamic URL assignments and third-party widgets. Trace each untrusted source to its final context; prefer text sinks and URL scheme/host allowlists. Add focused regression tests only for actual reachable paths.
+2. **Check authorization independently of injection** for message/conversation IDs, private ride and member locations, social post/media IDs, account sessions, block/report and admin routes. Test cross-account access and mass-assignment/property allowlists with isolated accounts. Passing a SQL-injection test does not establish object-level authorization.
+3. **Evaluate strict CSP in report-only staging first.** Google's Maps documentation supports nonce-based `script-src` with `strict-dynamic` and nonce-bearing styles; its example still includes `'unsafe-eval'`. Verify maps, Places search, route previews, navigation and voice in Chromium, WebKit/iOS and Android before changing enforcement. Do not assume a Maps-compatible CSP eliminates all XSS exposure.
+4. **Evaluate Trusted Types as defense-in-depth** after inventorying sinks and testing supported browsers. Policies must sanitize or validate, not pass arbitrary strings through; report-only and browser compatibility must be assessed before enforcement.
+5. **Review API trust boundaries**: redirect behavior on web/native transports, token-bearing requests, response content types, cache-control, CORS origins, SSRF-capable URL fetches, rate limits, upload MIME/signature validation and response headers on the deployed backend. Native fetch implementations may not enforce browser options identically; verify behavior rather than relying only on mocked option assertions.
+6. **Inspect CI evidence and dependency advisories** at the final PR head. Existing green CI confirms tested paths, not full penetration-test coverage. Keep independent security review and staging DAST as release gates.
+
+### Compatibility and scope constraints
+
+- Preserve PWA/native parity, existing authentication, routing, Google Maps/Waze/Apple Maps handoff and voice functionality.
+- Never migrate token storage or tighten Maps CSP in this PR without a tested cross-platform rollout and rollback plan.
+- Keep exploit probes limited to synthetic fixtures and authorized staging; do not target production users.
+
 ## Merge gates
 
 - [ ] Repository lint, typecheck, Postgres tests and Playwright Chromium/WebKit green at exact PR head.
