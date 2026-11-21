@@ -141,3 +141,18 @@ Only import or redistribute charging polygons **after an exact-source commercial
 - **TfL Congestion Charge GIS data**: identify exact licensed source/reuse terms and road-level restrictions separately; publisher copyright is not automatically an OGL grant. Official TfL open data hub: https://tfl.gov.uk/info-for/open-data-users
 
 **Prioritisation:** start with reusable, attributed GLA OGL geometry after independent coverage verification. Do not ship unlicensed Oxford/CAZ geometry or assert road-level charges from 2D polygon/gate intersections. No new paid map, licence or API subscription is approved.
+
+## Official hours audit reference — 21 November 2026
+
+The offline \`backend/src/officialChargingHoursReference.ts\` provides a frozen, documented, **source-backed ordinary weekly-hours reference** for the seven supported charging schemes, plus \`auditChargingHoursAgainstOfficialReference\` to detect imported rules with missing days, wrong periods or incorrect per-day/per-crossing units. A matching result is **NOT an approval**, proof of complete road coverage, holiday coverage, a charge quote, or verification of emissions/discounts: \`requiresAuthorityReview\` is always true. Reference data becomes due for rechecking after 30 days and is **not connected to live navigation or automatically imported into the charge engine**.
+
+Official sources checked:
+- TfL Congestion Charge: 07:00–18:00 Mon–Fri, 12:00–18:00 weekends and bank holidays; suspended from Christmas Day through the New Year's Day bank holiday inclusive: https://tfl.gov.uk/modes/driving/congestion-charge
+- TfL ULEZ: 24 hours daily, except 25 December (including chargeable motorcycles that do not meet emissions rules): https://tfl.gov.uk/modes/driving/ultra-low-emission-zone
+- TfL LEZ: 24 hours every day of the year, with a separate heavy-vehicle applicability regime: https://tfl.gov.uk/modes/driving/low-emission-zone
+- TfL Blackwall/Silvertown: 06:00–22:00 daily, except Christmas Day; motorcycle charges are not universally waived; the amount differs by registration, vehicle and direction/peak, and TfL increased charges in September 2026: https://tfl.gov.uk/modes/driving/silvertown-blackwall-tunnels-charge
+- GOV.UK Dartford Crossing: 06:00–22:00 daily including holidays, motorcycles and mopeds listed as **free** in official class A; cannot automatically verify whether a selected vehicle really belongs to that class: https://www.gov.uk/pay-dartford-crossing-charge/charges
+- National England CAZ: 24h each day, midnight-to-midnight charging; Class D motorcycle inclusion is *optional for each authority*: https://www.gov.uk/guidance/driving-in-a-clean-air-zone
+- Oxfordshire ZEZ: 07:00–19:00 daily; motorcycles with non-zero emissions fall into a paid category, while zero-emission vehicles are charged £0: https://www.oxfordshire.gov.uk/transport-and-travel/oxford-zero-emission-zone-zez/charges-oxfords-zez
+
+These are documentary **ordinary-window references** only. Holiday closures must be separately checked in \`ChargingRule.exceptions\`, and zone-specific source/road-level charging rules must be independently verified before any production use. No extra paid API, fee catalogue or government dataset redistribution.
