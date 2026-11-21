@@ -27,6 +27,16 @@ describe('offline future-route charging summary', () => {
     assert.equal(output.needsVerification, true);
     assert.equal(output.routeCoverageComplete, false);
   });
+  it('rejects non-CAZ zone IDs so arbitrary labels cannot inflate daily counts', () => {
+    const output = summarizeRouteChargePassages('car', [
+      event('a', { zoneId: 'fake_a' }), event('b', { zoneId: 'fake_b' }),
+      event('c', { rule: { ...dailyRule, zoneId: 'fake_c' } }),
+    ]);
+    assert.equal(output.possibleDailyChargeDays, 0);
+    assert.equal(output.needsVerification, true);
+    assert.ok(output.results.every(result => result.assessment.outcome === 'unknown'));
+    assert.equal(summarizeRouteChargePassages('car', [event('clean')]).possibleDailyChargeDays, 1);
+  });
   it('counts independent crossings without turning them into a daily fee', () => {
     const tunnel: ChargingRule = { ...dailyRule, schemeId: 'blackwall_silvertown', unit: 'per_crossing' };
     const output = summarizeRouteChargePassages('car', [

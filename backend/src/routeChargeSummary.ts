@@ -84,8 +84,9 @@ export function summarizeRouteChargePassages(
     ids.add(passage.eventId);
     // The zone and rule must describe the *same* local charging authority.
     // Generic CAZ passes cannot be reused between unrelated cities.
-    const zoneMatches = passage.schemeId !== 'uk_caz'
-      || Boolean(passage.zoneId && passage.rule?.zoneId === passage.zoneId);
+    const zoneMatches = passage.schemeId === 'uk_caz'
+      ? Boolean(passage.zoneId && passage.rule?.zoneId === passage.zoneId)
+      : passage.zoneId === undefined && passage.rule?.zoneId === undefined;
     const assessment = zoneMatches
       ? assessChargeExposure({ ...passage, vehicleClass })
       : { schemeId: passage.schemeId, outcome: 'unknown', reason: 'missing_or_invalid_data' } as ChargeAssessment;

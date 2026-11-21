@@ -29,6 +29,7 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(run({ passageAt: '2026-15-05T08:00:00Z' }).outcome, 'unknown');
     assert.equal(run({ passageAt: '2026-02-30T08:00:00Z' }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, sourceUrl: 'http://example.com' } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, zoneId: 'fake_city' } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, sourceUrl: 'https://' } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, checkedAt: 'broken' } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, effectiveFrom: '2026-02-30' } }).outcome, 'unknown');

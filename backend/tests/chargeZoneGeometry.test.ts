@@ -44,6 +44,7 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
   });
   it('rejects malformed, unlicensed, degenerate or unsupported datasets', () => {
     assert.equal(prepare(geo([square.slice(0, 4)])), null);
+    assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, zoneId: 'fake_city' }), null);
     assert.equal(prepare(geo([[[0, 0], [2, 0], [2, 2], [0, 0], [0, 0]]])), null);
     assert.equal(prepare({ type: 'LineString', coordinates: square }), null);
     // A self-crossing polygon can have non-zero signed area: still reject.

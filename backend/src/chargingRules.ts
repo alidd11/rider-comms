@@ -91,7 +91,9 @@ const UNIT_BY_SCHEME: Record<ChargingSchemeId, ChargeUnit> = {
 };
 const EMISSIONS_SCHEMES = new Set<ChargingSchemeId>(['london_ulez', 'london_lez', 'uk_caz']);
 export function validChargingZoneId(schemeId: ChargingSchemeId, zoneId: string | undefined): boolean {
-  return schemeId !== 'uk_caz' || (typeof zoneId === 'string' && /^[a-z][a-z0-9_-]{2,63}$/.test(zoneId));
+  return schemeId === 'uk_caz'
+    ? typeof zoneId === 'string' && /^[a-z][a-z0-9_-]{2,63}$/.test(zoneId)
+    : zoneId === undefined;
 }
 
 function validDate(value: unknown): value is string {
