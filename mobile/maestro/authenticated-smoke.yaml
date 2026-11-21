@@ -45,6 +45,30 @@ appId: com.ridercomms.app
     commands:
       - tapOn:
           id: auth-submit
+# The iOS simulator has dropped keystrokes from the masked password, and
+# then sign-in is refused. Retype it and sign in again; a real refusal fails
+# the next step all the same.
+- runFlow:
+    when:
+      visible: "The username or password is incorrect.*"
+    commands:
+      - retry:
+          maxRetries: 2
+          commands:
+            - tapOn:
+                id: auth-password
+            - waitForAnimationToEnd
+            - eraseText: 40
+            - inputText: ${TEST_PASSWORD}
+            - waitForAnimationToEnd
+            - hideKeyboard:
+                optional: true
+            - tapOn:
+                id: auth-submit
+                optional: true
+            - extendedWaitUntil:
+                notVisible: "The username or password is incorrect.*"
+                timeout: 15000
 # First launch (clearState) shows the two-step onboarding: welcome, then
 # location. iOS adds to labels ("Get started, ", "Group Ride, tab, 2 of 5"),
 # so each match allows a comma and more after the visible text. Sign-in can
@@ -52,23 +76,30 @@ appId: com.ridercomms.app
 # next step shows: the iOS simulator drops taps (see #461, #463), and a
 # dropped "Get started" once left the run on this screen. Only forms used
 # elsewhere in this flow appear here.
+# The buttons are tapped by test ID, after the screen settles: on #564 four
+# taps on the "Get started" text in a row were dropped while the welcome
+# step was still animating in.
 - extendedWaitUntil:
-    visible: "Get [Ss]tarted(,.*)?"
+    visible:
+      id: onboarding-get-started
     timeout: 15000
 - retry:
-    maxRetries: 3
+    maxRetries: 4
     commands:
+      - waitForAnimationToEnd
       - tapOn:
-          text: "Get [Ss]tarted(,.*)?"
+          id: onboarding-get-started
           optional: true
       - extendedWaitUntil:
-          visible: "Continue(,.*)?"
+          visible:
+            id: onboarding-continue
           timeout: 5000
 - retry:
-    maxRetries: 3
+    maxRetries: 4
     commands:
+      - waitForAnimationToEnd
       - tapOn:
-          text: "Continue(,.*)?"
+          id: onboarding-continue
           optional: true
       - extendedWaitUntil:
           visible:

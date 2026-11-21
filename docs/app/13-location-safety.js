@@ -174,6 +174,11 @@
     if (locked && activeChat) closeChat({ restoreFocus: false });
     if (locked) closeAppMenu({ restoreFocus: false });
     if (locked) setNavTripDetailsOpen(false);
+    // The stops list is a list to read and choose from: not while moving
+    // (native: StopsOnTheWaySheet's visible needs !lockedForSafety).
+    if (locked && $('#stopList')) closeSheet();
+    // Moving with the route preview open: go, on the route it shows.
+    if (locked) startRoutePreview();
   }
 
   function stopMovementSafetyTracking() {

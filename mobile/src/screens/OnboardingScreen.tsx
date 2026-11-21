@@ -12,9 +12,10 @@ import * as Location from 'expo-location';
 
 export const ONBOARDING_COMPLETED_KEY = '@rider-comms/onboarding/completed';
 
-function PrimaryButton({ label, onPress }: { label: string; onPress: () => void }): React.JSX.Element {
+function PrimaryButton({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }): React.JSX.Element {
   return (
     <Pressable accessibilityRole="button"
+      testID={testID}
       style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
       onPress={onPress}
     >
@@ -37,7 +38,7 @@ function ValuePropStep({ onNext }: { onNext: () => void }): React.JSX.Element {
           See which riders in your group are nearby, host or join a ride, and talk over group audio while you ride.
         </Text>
       </View>
-      <PrimaryButton label="Get started" onPress={onNext} />
+      <PrimaryButton label="Get started" testID="onboarding-get-started" onPress={onNext} />
     </View>
   );
 }
@@ -56,7 +57,7 @@ function LocationPrimingStep({ onContinue }: { onContinue: () => Promise<void> }
           riders see you only while you’re live.
         </Text>
       </View>
-      <PrimaryButton label="Continue" onPress={() => { void onContinue(); }} />
+      <PrimaryButton label="Continue" testID="onboarding-continue" onPress={() => { void onContinue(); }} />
     </View>
   );
 }

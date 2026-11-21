@@ -79,6 +79,7 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('POST', '/places/nearby', 'Navigation', 'rider', 'Places nearby'),
   e('POST', '/hazards', 'Hazards', 'rider', 'Report a road hazard'),
   e('GET', '/hazards/nearby', 'Hazards', 'rider', 'Hazards nearby'),
+  e('POST', '/hazards/along-route', 'Hazards', 'rider', 'Hazards along a route'),
   e('POST', '/hazards/{hazardId}/confirm', 'Hazards', 'rider', 'Confirm a hazard is still there'),
   e('POST', '/hazards/{hazardId}/deny', 'Hazards', 'rider', 'Say a hazard has gone'),
   e('DELETE', '/hazards/{hazardId}', 'Hazards', 'rider', 'Delete your hazard report'),

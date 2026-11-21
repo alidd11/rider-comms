@@ -265,8 +265,12 @@ export function routeTwistiness(points: readonly RouteChoicePoint[]): number {
 export interface RouteChoice {
   index: number;
   label: 'Fastest' | 'Twisty' | 'Alternative';
-  /** "Twisty · 29 min · +6 min" */
+  /** "Twisty · 29 min · +6 min": the spoken label. */
   text: string;
+  /** "29 min": the big line on the route button. */
+  time: string;
+  /** "Twisty · +6 min", "+2 min", "Fastest": the small line under it. */
+  tag: string;
 }
 
 /**
@@ -290,10 +294,56 @@ export function routeChoices(
   return routes.map((route, index) => {
     const label = index === fastest ? 'Fastest' : index === twisty ? 'Twisty' : 'Alternative';
     const extra = route.durationSeconds - routes[fastest]!.durationSeconds;
-    const parts = [label, formatNavigationDuration(route.durationSeconds)];
-    if (index !== fastest && extra >= 60) parts.push(`+${formatNavigationDuration(extra)}`);
-    return { index, label, text: parts.join(' · ') };
+    const time = formatNavigationDuration(route.durationSeconds);
+    const more = index !== fastest && extra >= 60 ? `+${formatNavigationDuration(extra)}` : '';
+    const parts = [label, time, ...(more ? [more] : [])];
+    // An alternative's tag is just how much longer it takes, when it does.
+    const tag = label === 'Alternative' ? (more || label) : [label, ...(more ? [more] : [])].join(' · ');
+    return { index, label, text: parts.join(' · '), time, tag };
   });
+}
+
+/** How the rider wants to get there, chosen in the route preview (as in
+ * Calimoto and Scenic): the quickest way, the bendiest, or off motorways. */
+export type RouteStyle = 'fastest' | 'twisty' | 'no_motorways';
+
+/** Whether to ask Google to keep off motorways for a riding style. Twisty and
+ * No motorways both do (that's where the bendy roads are); Fastest follows
+ * the rider's own setting. */
+export function routeStyleAvoidsMotorways(style: RouteStyle, avoidMotorwaysSetting: boolean): boolean {
+  return style === 'fastest' ? avoidMotorwaysSetting : true;
+}
+
+/** Which of the ways to show first for a riding style: the bendiest for
+ * Twisty, otherwise the quickest. */
+export function routeIndexForStyle(
+  routes: ReadonlyArray<{ durationSeconds: number; coordinates: readonly RouteChoicePoint[] }>,
+  style: RouteStyle,
+): number {
+  let best = 0;
+  if (style === 'twisty') {
+    const twist = routes.map((route) => routeTwistiness(route.coordinates));
+    twist.forEach((value, index) => { if (value > twist[best]!) best = index; });
+    return best;
+  }
+  routes.forEach((route, index) => { if (route.durationSeconds < routes[best]!.durationSeconds) best = index; });
+  return best;
+}
+
+/** The line under the chosen route's time: "Fastest despite +8 min of
+ * traffic", "Usual traffic", or '' when Google gave no traffic figure. */
+export function routeTrafficNote(durationSeconds: number, typicalDurationSeconds: number | null | undefined, fastest: boolean): string {
+  if (typeof typicalDurationSeconds !== 'number' || !Number.isFinite(typicalDurationSeconds)) return fastest ? 'Fastest route' : '';
+  const delay = durationSeconds - typicalDurationSeconds;
+  if (delay >= 120) return `${fastest ? 'Fastest despite ' : ''}+${formatNavigationDuration(delay)} of traffic`;
+  return fastest ? 'Fastest route, usual traffic' : 'Usual traffic';
+}
+
+/** What Share sends from the route preview, before setting off. */
+export function routeShareText(destination: string, arrivalLabel: string, meters: number, unit: 'mi' | 'km', via: string): string {
+  const place = destination.trim() || 'my destination';
+  const road = via.trim() ? ` via ${via.trim()}` : '';
+  return `Heading to ${place}${road}: ${formatNavigationDistance(meters, unit)}, arriving about ${arrivalLabel}. Sent from Rider Comms.`;
 }
 
 /** "+8 min traffic" when today's traffic adds two minutes or more, else ''. */
@@ -304,6 +354,45 @@ export function routeTrafficDelayText(durationSeconds: number, typicalDurationSe
 }
 
 /** How often a route in progress is checked against live traffic. */
+/** At the destination's end point: arrived. */
+export const ARRIVAL_RADIUS_METERS = 30;
+/** Stopped this close to it, for ARRIVAL_STOPPED_MS, also counts. */
+export const ARRIVAL_NEAR_METERS = 100;
+export const ARRIVAL_STOPPED_MPS = 1.5;
+export const ARRIVAL_STOPPED_MS = 15_000;
+const ARRIVAL_MAX_ACCURACY_METERS = 50;
+
+export interface NavigationArrivalCheck {
+  /** From the rider's place on the route (the puck) to the end point. */
+  distanceMeters: number;
+  /** From the raw GPS fix to the end point. */
+  rawDistanceMeters: number;
+  accuracyMeters: number | null | undefined;
+  speedMps: number | null | undefined;
+  nowMs: number;
+  /** When the rider stopped near the end, carried from the last fix. */
+  stoppedSinceMs: number | null;
+}
+
+/**
+ * Whether the rider has arrived: at the end point Google gave, or parked
+ * close to it (a car park, a house back from the road), stopped on a good
+ * fix for 15 seconds, as Google Maps and Waze end the trip. Pass back
+ * `stoppedSinceMs` with the next fix.
+ */
+export function navigationArrival(check: NavigationArrivalCheck): { arrived: boolean; stoppedSinceMs: number | null } {
+  if (Number.isFinite(check.distanceMeters) && check.distanceMeters <= ARRIVAL_RADIUS_METERS) return { arrived: true, stoppedSinceMs: null };
+  const accuracy = check.accuracyMeters;
+  const speed = check.speedMps;
+  const near = Number.isFinite(check.rawDistanceMeters)
+    && typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= ARRIVAL_MAX_ACCURACY_METERS
+    && check.rawDistanceMeters <= ARRIVAL_NEAR_METERS;
+  const stopped = typeof speed === 'number' && Number.isFinite(speed) && speed >= 0 && speed <= ARRIVAL_STOPPED_MPS;
+  if (!near || !stopped) return { arrived: false, stoppedSinceMs: null };
+  const since = check.stoppedSinceMs ?? check.nowMs;
+  return { arrived: check.nowMs - since >= ARRIVAL_STOPPED_MS, stoppedSinceMs: since };
+}
+
 export const FASTER_ROUTE_CHECK_MS = 5 * 60_000;
 
 /**

@@ -52,6 +52,23 @@ Cost: Cloud Vision SafeSearch is about $1.50 per 1,000 images after the
 first 1,000 each month. A Reel counts as four images (its cover and three
 frames).
 
+## 0b. Two Railway settings (5 minutes)
+
+Claude's session isn't allowed to make these, so they need you in the
+Railway dashboard (project `rider-comms-backend`, production):
+
+1. **Move Rider Social photos next to the server.** The `social-private-media`
+   bucket is in Amsterdam (`ams`) and the backend runs in California, so
+   every photo crosses the Atlantic. Choose **+ New → Bucket**, region
+   **US West (sjc)**, name it `social-media-us`, then tell Claude: it points
+   the five `SOCIAL_MEDIA_S3_*` variables at it. The old bucket is empty
+   (no upload has been stored yet), so nothing needs copying; delete it
+   afterwards.
+2. **Point-in-time recovery for the database.** Open the **Postgres** service,
+   then **Settings → Backups → Point-in-Time Recovery → Enable**, and click
+   **Deploy** on the staged change. The database can then be restored to
+   any minute, not only to the last daily backup.
+
 ## 1. Legal and support (about a day, plus lawyer time)
 
 **Do this first: new riders aren't getting their verification email.**

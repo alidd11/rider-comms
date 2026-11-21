@@ -136,9 +136,12 @@
     return routes.map((route, index) => {
       const label = index === fastest ? 'Fastest' : index === twisty ? 'Twisty' : 'Alternative';
       const extra = route.durationSeconds - routes[fastest].durationSeconds;
-      const parts = [label, formatNavigationDuration(route.durationSeconds)];
-      if (index !== fastest && extra >= 60) parts.push(`+${formatNavigationDuration(extra)}`);
-      return { index, label, text: parts.join(' · ') };
+      const time = formatNavigationDuration(route.durationSeconds);
+      const more = index !== fastest && extra >= 60 ? `+${formatNavigationDuration(extra)}` : '';
+      const parts = [label, time, ...(more ? [more] : [])];
+      // An alternative's tag is just how much longer it takes, when it does.
+      const tag = label === 'Alternative' ? (more || label) : [label, ...(more ? [more] : [])].join(' · ');
+      return { index, label, text: parts.join(' · '), time, tag };
     });
   }
 
@@ -150,6 +153,27 @@
   }
 
   /** How often a route in progress is checked against live traffic. */
+  const ARRIVAL_RADIUS_METERS = 30;
+  const ARRIVAL_NEAR_METERS = 100;
+  const ARRIVAL_STOPPED_MPS = 1.5;
+  const ARRIVAL_STOPPED_MS = 15_000;
+  const ARRIVAL_MAX_ACCURACY_METERS = 50;
+
+  /** At the end point, or stopped close to it on a good fix for 15 seconds
+   * (shared navigationArrival). */
+  function navigationArrival(check) {
+    if (Number.isFinite(check.distanceMeters) && check.distanceMeters <= ARRIVAL_RADIUS_METERS) return { arrived: true, stoppedSinceMs: null };
+    const accuracy = check.accuracyMeters;
+    const speed = check.speedMps;
+    const near = Number.isFinite(check.rawDistanceMeters)
+      && typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= ARRIVAL_MAX_ACCURACY_METERS
+      && check.rawDistanceMeters <= ARRIVAL_NEAR_METERS;
+    const stopped = typeof speed === 'number' && Number.isFinite(speed) && speed >= 0 && speed <= ARRIVAL_STOPPED_MPS;
+    if (!near || !stopped) return { arrived: false, stoppedSinceMs: null };
+    const since = check.stoppedSinceMs ?? check.nowMs;
+    return { arrived: check.nowMs - since >= ARRIVAL_STOPPED_MS, stoppedSinceMs: since };
+  }
+
   const FASTER_ROUTE_CHECK_MS = 5 * 60_000;
 
   /**
@@ -285,6 +309,34 @@
     }
   }
 
+  function routeStyleAvoidsMotorways(style, avoidMotorwaysSetting) {
+    return style === 'fastest' ? avoidMotorwaysSetting : true;
+  }
+
+  function routeIndexForStyle(routes, style) {
+    let best = 0;
+    if (style === 'twisty') {
+      const twist = routes.map((route) => routeTwistiness(route.coordinates));
+      twist.forEach((value, index) => { if (value > twist[best]) best = index; });
+      return best;
+    }
+    routes.forEach((route, index) => { if (route.durationSeconds < routes[best].durationSeconds) best = index; });
+    return best;
+  }
+
+  function routeTrafficNote(durationSeconds, typicalDurationSeconds, fastest) {
+    if (typeof typicalDurationSeconds !== 'number' || !Number.isFinite(typicalDurationSeconds)) return fastest ? 'Fastest route' : '';
+    const delay = durationSeconds - typicalDurationSeconds;
+    if (delay >= 120) return `${fastest ? 'Fastest despite ' : ''}+${formatNavigationDuration(delay)} of traffic`;
+    return fastest ? 'Fastest route, usual traffic' : 'Usual traffic';
+  }
+
+  function routeShareText(destination, arrivalLabel, meters, unit, via) {
+    const place = destination.trim() || 'my destination';
+    const road = via.trim() ? ` via ${via.trim()}` : '';
+    return `Heading to ${place}${road}: ${formatNavigationDistance(meters, unit)}, arriving about ${arrivalLabel}. Sent from Rider Comms.`;
+  }
+
   root.RiderNavigationGuidance = Object.freeze({
     formatNavigationDistance,
     formatNavigationDuration,
@@ -299,7 +351,14 @@
     routeTwistiness,
     routeChoices,
     routeTrafficDelayText,
+    routeStyleAvoidsMotorways,
+    routeIndexForStyle,
+    routeTrafficNote,
+    routeShareText,
     FASTER_ROUTE_CHECK_MS,
+    navigationArrival,
+    ARRIVAL_NEAR_METERS,
+    ARRIVAL_STOPPED_MS,
     fasterRouteSavingSeconds,
     fasterRouteAnnouncement,
     routeAheadPath,

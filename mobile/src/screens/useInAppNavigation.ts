@@ -40,6 +40,7 @@ import { acquireNavigationAudioSession, releaseNavigationAudioSession } from '..
 import { watchNavigationLocation, type NavigationLocationWatch } from '../navigationLocationStream';
 import {
   buildNavigationPathIndex,
+  routeTrafficLines,
   matchFixToPath,
   navigationOffRouteGraceMs,
   navigationPathAhead,
@@ -51,6 +52,8 @@ import {
   recordNavigationTripFix,
   routeAheadPath,
   routeChoices,
+  routeIndexForStyle,
+  routeStyleAvoidsMotorways,
   stopsOnTheWay,
   FASTER_ROUTE_CHECK_MS,
   fasterRouteAnnouncement,
@@ -58,8 +61,10 @@ import {
   startNavigationTrip,
   type NavigationTrip,
   type RouteChoice,
+  type RouteStyle,
   type StopOnTheWay,
   predictNavigationPuck,
+  navigationArrival as arrivedAtDestination,
 } from '@rider-comms/shared';
 import { bearingDegrees } from './mapMarkers';
 import type { UnitSystem } from '../settings/SettingsContext';
@@ -99,6 +104,31 @@ export interface NavigationArrival {
   distanceMeters: number;
 }
 
+/** Room under the trip for the route preview card, and above it for the
+ * from/to bar and the riding-style chips. */
+const ROUTE_PREVIEW_SHEET_PADDING = 300;
+const ROUTE_PREVIEW_TOP_PADDING = 210;
+
+function withoutAlternatives(route: InAppNavigationRoute): InAppNavigationRoute {
+  if (!('alternatives' in route)) return route;
+  const { alternatives: _others, ...rest } = route;
+  return rest;
+}
+
+/** The ways there, shown before Start (RoutePreviewSheet). */
+export interface RoutePreview {
+  target: NavigationTarget;
+  /** Fastest, Twisty or No motorways, for this trip (shared RouteStyle). */
+  style: RouteStyle;
+  routes: InAppNavigationRoute[];
+  /** Shared routeChoices for routes: time, tag (Fastest, Twisty, +6 min). */
+  choices: RouteChoice[];
+  /** The one Start will follow. */
+  index: number;
+  /** A stop added before Start (petrol, a café): every way goes through it. */
+  stop?: NavigationStop | null;
+}
+
 export interface InAppNavigation {
   activeRoute: InAppNavigationRoute | null;
   navigationDestination: NavigationTarget | null;
@@ -112,6 +142,7 @@ export interface InAppNavigation {
   navigationPuck: NavigationPuckPlacement | null;
   /** The route line to draw: what is still to ride, or all of it (null when not navigating). */
   navigationRouteLine: readonly { lat: number; lon: number }[] | null;
+  navigationTrafficLines: ReadonlyArray<{ speed: 'slow' | 'jam'; coordinates: { lat: number; lon: number }[] }>;
   currentNavigationStep: InAppNavigationRoute['steps'][number] | null;
   fitRoute: (nextRoute: InAppNavigationRoute) => void;
   focusNavigationCamera: (
@@ -126,20 +157,32 @@ export interface InAppNavigation {
   /** Set on arrival until the rider dismisses it or starts another route. */
   navigationArrival: NavigationArrival | null;
   dismissNavigationArrival: () => void;
-  startInAppNavigation: (target: NavigationTarget) => Promise<void>;
+  /** Plans the way there. Parked, it opens the route preview (the ways
+   * there, then Start); with `preview: false` it starts on the fastest. */
+  startInAppNavigation: (target: NavigationTarget, options?: { preview?: boolean }) => Promise<void>;
+  /** The ways there before Start, as in Google Maps and Waze. */
+  routePreview: RoutePreview | null;
+  chooseRoutePreview: (index: number) => void;
+  startRoutePreview: () => void;
+  closeRoutePreview: () => void;
+  /** Asks again with these avoid settings (motorways, tolls, ferries);
+   * false, with the routes shown left as they were, when none comes back. */
+  replanRoutePreview: (avoidance: RouteAvoidance) => Promise<boolean>;
+  /** Asks again for a riding style (Fastest, Twisty, No motorways), for this
+   * trip only; false, with the routes left as they were, when none comes back. */
+  setRoutePreviewStyle: (style: RouteStyle) => Promise<boolean>;
+  /** Takes the stop added before Start back out; false if no way comes back. */
+  removeRoutePreviewStop: () => Promise<boolean>;
   startCuratedNavigation: (route: CuratedRoute) => Promise<void>;
   curatedRemainingStops: CuratedNavigationStop[];
   stopFollowingRoute: () => void;
   resumeFollowingRoute: () => void;
-  /** The ways there, labelled; empty with only one, or once rerouted. */
-  routeChoices: RouteChoice[];
-  /** Which of routeChoices is being followed. */
-  chosenRouteIndex: number;
-  chooseRoute: (index: number) => void;
   /** The stop on the way the route goes through, if any. */
   navigationStop: NavigationStop | null;
   findStopsOnTheWay: (query: string) => Promise<StopOnTheWay<PlaceAlongRoute>[]>;
   addNavigationStop: (place: { lat: number; lon: number; name: string }) => Promise<boolean>;
+  /** Drops the stop on the way (not wanted after all) and routes on from here. */
+  skipNavigationStop: () => Promise<boolean>;
 }
 
 /**
@@ -185,7 +228,11 @@ export function useInAppNavigation(
   const routeAvoidanceRef = React.useRef(routeAvoidance);
   routeAvoidanceRef.current = routeAvoidance;
   const [activeRoute, setActiveRoute] = React.useState<InAppNavigationRoute | null>(null);
-  const [routeOptions, setRouteOptions] = React.useState<InAppNavigationRoute[]>([]);
+  const [routePreview, setRoutePreview] = React.useState<(RoutePreview & { origin: { lat: number; lon: number }; stop: NavigationStop | null }) | null>(null);
+  const routePreviewRef = React.useRef(routePreview);
+  routePreviewRef.current = routePreview;
+  // Set once planRoutePreview exists (below), for adding a stop before Start.
+  const planRoutePreviewRef = React.useRef<(avoidance: RouteAvoidance, style: RouteStyle, stop?: NavigationStop | null) => Promise<boolean>>(async () => false);
   // The screen stays on while navigating, as in Google Maps, Waze and Apple
   // Maps: a rider glancing down mustn't find a locked phone (PWA: Screen
   // Wake Lock in 17-navigation.js).
@@ -205,8 +252,13 @@ export function useInAppNavigation(
   const [navigationPuck, setNavigationPuck] = React.useState<NavigationPuckPlacement | null>(null);
   /** The route still to ride (PWA: trimNavigationRouteLine); null draws all of it. */
   const [routeLineAhead, setRouteLineAhead] = React.useState<{ lat: number; lon: number }[] | null>(null);
+  // How far along the route the drawn line now starts (the ridden part is
+  // dropped), so the traffic colours drop away with it.
+  const [routeLineFromMeters, setRouteLineFromMeters] = React.useState<number | null>(null);
   const navOffRouteSince = React.useRef<number | null>(null);
   const curatedFinishReplanAt = React.useRef<number | null>(null);
+  // When the rider stopped close to the destination (shared navigationArrival).
+  const arrivalStoppedSince = React.useRef<number | null>(null);
   const navRerouting = React.useRef(false);
   // A stop on the way (petrol found along the route); every route asked for
   // goes through it until the rider gets there.
@@ -270,7 +322,7 @@ export function useInAppNavigation(
 
   const currentNavigationStep = activeRoute?.steps[navigationStepIndex] ?? null;
 
-  const fitRoute = React.useCallback((nextRoute: InAppNavigationRoute) => {
+  const fitRoute = React.useCallback((nextRoute: Pick<InAppNavigationRoute, 'coordinates'>, bottomPadding?: number, topPadding?: number) => {
     if (!mapReady || nextRoute.coordinates.length < 2) return;
     navigationFollowingRef.current = false;
     setNavigationFollowing(false);
@@ -282,9 +334,9 @@ export function useInAppNavigation(
         // At least what the banner and trip summary cover, so the route's
         // ends aren't drawn underneath them.
         edgePadding: {
-          top: Math.max(170, insets.top + spacing.sm + navigationBannerHeight + 24),
+          top: topPadding ?? Math.max(170, insets.top + spacing.sm + navigationBannerHeight + 24),
           right: 64,
-          bottom: Math.max(180, navigationSummaryHeight + 24),
+          bottom: bottomPadding ?? Math.max(180, navigationSummaryHeight + 24),
           left: 64,
         },
         animated: true,
@@ -430,6 +482,7 @@ export function useInAppNavigation(
     setActiveRoute(null);
     setNavigationPuck(null);
     setRouteLineAhead(null);
+    setRouteLineFromMeters(null);
     setNavigationDestination(null);
     setNavigationStepIndex(0);
     announcedNavigationStep.current = null;
@@ -447,9 +500,9 @@ export function useInAppNavigation(
     setNavigationMuted(false);
     setNavigationSpeedMps(null);
     setNavigationNotice(arrived ? 'You’ve arrived.' : null);
-    setRouteOptions([]);
     setNavigationStop(null);
     updateCuratedStops([]);
+    arrivalStoppedSince.current = null;
     const trip = tripRef.current;
     tripRef.current = null;
     setNavigationArrival(arrived && trip ? {
@@ -464,11 +517,8 @@ export function useInAppNavigation(
   }, [mapRef, setNavigationStop, updateCuratedStops]);
 
   const applyInAppRoute = React.useCallback((nextRoute: InAppNavigationRoute, origin: { lat: number; lon: number }, target: NavigationTarget, rerouting: boolean, notice: string = ROUTE_UPDATED_NOTICE) => {
-    // The ways there, offered before setting off; a reroute offers none.
-    const withoutAlternatives = ({ alternatives: _others, ...route }: InAppNavigationRoute): InAppNavigationRoute => route;
-    const alternatives = nextRoute.alternatives ?? [];
-    const chosen = nextRoute.alternatives ? withoutAlternatives(nextRoute) : nextRoute;
-    setRouteOptions(rerouting || alternatives.length === 0 ? [] : [chosen, ...alternatives.map(withoutAlternatives)]);
+    // The ways there were offered in the route preview; guidance follows one.
+    const chosen = withoutAlternatives(nextRoute);
     setActiveRoute(chosen);
     setNavigationDestination(target);
     setNavigationStepIndex(0);
@@ -534,6 +584,14 @@ export function useInAppNavigation(
   /** Petrol (or a café) along the rest of the route, ordered by what each
    * adds (shared routeAheadPath and stopsOnTheWay). */
   const findStopsOnTheWay = React.useCallback(async (query: string): Promise<StopOnTheWay<PlaceAlongRoute>[]> => {
+    const planning = routePreviewRef.current;
+    if (!activeRoute && planning) {
+      // Before Start: along the whole of the way shown.
+      const way = planning.routes[planning.index];
+      if (!way || way.coordinates.length < 2) return [];
+      const { places } = await client.searchAlongRoute(query, way.coordinates);
+      return stopsOnTheWay(places, way.durationSeconds);
+    }
     const route = activeRoute;
     const progress = latestRouteProgress.current;
     const here = progress?.route === route ? progress.here : currentLocation;
@@ -546,6 +604,14 @@ export function useInAppNavigation(
 
   /** Routes through a stop on the way, keeping the destination. */
   const addNavigationStop = React.useCallback(async (place: { lat: number; lon: number; name: string }): Promise<boolean> => {
+    if (!activeRoute && routePreviewRef.current) {
+      const planning = routePreviewRef.current;
+      const added = await planRoutePreviewRef.current(routeAvoidanceRef.current, planning.style, { lat: place.lat, lon: place.lon, label: place.name });
+      // Only while still choosing: if Ride Safe has started the route
+      // meanwhile, a moving rider gets no alert.
+      if (!added && routePreviewRef.current) Alert.alert('Couldn’t add that stop', 'The route shown is unchanged. Try again.');
+      return added;
+    }
     const progress = latestRouteProgress.current;
     const here = progress?.here ?? currentLocation;
     const target = navigationDestination;
@@ -567,34 +633,65 @@ export function useInAppNavigation(
     } finally {
       navRerouting.current = false;
     }
-  }, [applyInAppRoute, currentLocation, getRouteThroughStops, navigationDestination, routeStops, setNavigationStop]);
+  }, [activeRoute, applyInAppRoute, currentLocation, getRouteThroughStops, navigationDestination, routeStops, setNavigationStop]);
 
-  /** Switches to another of the offered ways there, before setting off. */
-  const chooseRoute = React.useCallback((index: number) => {
-    const route = routeOptions[index];
-    if (!route || route === activeRoute) return;
-    setActiveRoute(route);
-    setNavigationStepIndex(0);
-    announcedNavigationStep.current = null;
-    navigationPromptProgress.current = null;
-    finalNavigationPrompt.current = null;
-    navOffRouteSince.current = null;
-    navigationFollowingRef.current = true;
-    setNavigationFollowing(true);
-    const here = currentLocation ?? route.steps[0]?.start;
-    if (here && route.steps[0]) focusNavigationCamera(here, route, 0);
-  }, [activeRoute, currentLocation, focusNavigationCamera, routeOptions]);
+  /** Not stopping after all: drop the stop and route straight on, so
+   * reroutes stop steering back to it (PWA: skipNavStop). */
+  const skipNavigationStop = React.useCallback(async (): Promise<boolean> => {
+    const stop = navigationStopRef.current;
+    const progress = latestRouteProgress.current;
+    const here = progress?.here ?? currentLocation;
+    const target = navigationDestination;
+    if (!stop || !here || !target || !activeRoute) return false;
+    setNavigationStop(null);
+    try {
+      navRerouting.current = true;
+      const [, planned] = routeStops();
+      const route = await getRouteThroughStops(here, target, null, planned);
+      const skipped = `Skipped ${stop.label}.`;
+      applyInAppRoute(route, here, target, true, skipped);
+      if (!navigationMutedRef.current) speakNavigationPrompt(skipped);
+      return true;
+    } catch {
+      setNavigationStop(stop);
+      setNavigationNotice('Couldn’t skip that stop. Try again.');
+      return false;
+    } finally {
+      navRerouting.current = false;
+    }
+  }, [activeRoute, applyInAppRoute, currentLocation, getRouteThroughStops, navigationDestination, routeStops, setNavigationStop]);
 
-  const startInAppNavigation = React.useCallback(async (target: NavigationTarget): Promise<void> => {
-    const origin = currentLocation ?? await requestCurrentLocation(true);
-    if (!origin) return;
+  const fitPreview = React.useCallback((routes: readonly InAppNavigationRoute[]) => {
+    fitRoute({ coordinates: routes.flatMap((route) => route.coordinates) }, ROUTE_PREVIEW_SHEET_PADDING, insets.top + ROUTE_PREVIEW_TOP_PADDING);
+  }, [fitRoute, insets.top]);
+
+  const clearPlaceCards = React.useCallback(() => {
+    setSelectedPlace(null);
+    setNavigationTarget(null);
+    setSelectedHazardId(null);
+  }, [setNavigationTarget, setSelectedHazardId, setSelectedPlace]);
+
+  const startInAppNavigation = React.useCallback(async (target: NavigationTarget, { preview = true }: { preview?: boolean } = {}): Promise<void> => {
+    const fix = currentLocation ?? await requestCurrentLocation(true);
+    if (!fix) return;
+    const origin = { lat: fix.lat, lon: fix.lon };
     setNavigationLoading(true);
     setNavigationNotice(null);
     try {
-      await requestInAppRoute({ lat: origin.lat, lon: origin.lon }, target);
-      setSelectedPlace(null);
-      setNavigationTarget(null);
-      setSelectedHazardId(null);
+      const planned = await getRouteThroughStops(origin, target, null, []);
+      updateCuratedStops([]);
+      setNavigationStop(null);
+      const routes = [planned, ...(planned.alternatives ?? [])].map(withoutAlternatives);
+      const fastest = routeIndexForStyle(routes, 'fastest');
+      if (preview) {
+        // The ways there first, with the whole trip in view between the
+        // from/to bar and the card.
+        setRoutePreview({ origin, target, style: 'fastest', routes, choices: routeChoices(routes), index: fastest, stop: null });
+        fitPreview(routes);
+      } else {
+        applyInAppRoute(routes[fastest]!, origin, target, false);
+        clearPlaceCards();
+      }
     } catch (routeError) {
       const routeErrorCode = routeError instanceof ApiError
         && typeof routeError.body === 'object'
@@ -611,7 +708,72 @@ export function useInAppNavigation(
     } finally {
       setNavigationLoading(false);
     }
-  }, [currentLocation, requestCurrentLocation, requestInAppRoute, setNavigationTarget, setSelectedHazardId, setSelectedPlace]);
+  }, [applyInAppRoute, clearPlaceCards, currentLocation, fitPreview, getRouteThroughStops, requestCurrentLocation, setNavigationStop, updateCuratedStops]);
+
+  const chooseRoutePreview = React.useCallback((index: number) => {
+    setRoutePreview((current) => current && current.routes[index] ? { ...current, index } : current);
+  }, []);
+
+  const closeRoutePreview = React.useCallback(() => setRoutePreview(null), []);
+
+
+  /** Asks Google again for the preview's ways there: the riding style
+   * decides motorways (shared routeStyleAvoidsMotorways) and which way is
+   * shown first; tolls and ferries come from the rider's settings. */
+  const planRoutePreview = React.useCallback(async (
+    avoidance: RouteAvoidance,
+    style: RouteStyle,
+    stop: NavigationStop | null | undefined = routePreviewRef.current?.stop,
+  ): Promise<boolean> => {
+    const planning = routePreviewRef.current;
+    if (!planning) return false;
+    setNavigationLoading(true);
+    try {
+      const asked = { ...avoidance, highways: routeStyleAvoidsMotorways(style, avoidance.highways) };
+      // Google offers no other ways for a trip with a stop.
+      const planned = stop
+        ? await client.getDrivingRoute(planning.origin, planning.target, asked, stop)
+        : await client.getDrivingRoute(planning.origin, planning.target, asked);
+      if (routePreviewRef.current !== planning) return false;
+      const routes = [planned, ...(planned.alternatives ?? [])].map(withoutAlternatives);
+      setRoutePreview({ ...planning, style, stop: stop ?? null, routes, choices: routeChoices(routes), index: routeIndexForStyle(routes, style) });
+      fitPreview(routes);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setNavigationLoading(false);
+    }
+  }, [client, fitPreview]);
+  planRoutePreviewRef.current = planRoutePreview;
+
+  const removeRoutePreviewStop = React.useCallback(async (): Promise<boolean> => {
+    const planning = routePreviewRef.current;
+    if (!planning?.stop) return false;
+    const removed = await planRoutePreview(routeAvoidanceRef.current, planning.style, null);
+    if (!removed && routePreviewRef.current) Alert.alert('Couldn’t remove the stop', 'The route shown is unchanged. Try again.');
+    return removed;
+  }, [planRoutePreview]);
+
+  const replanRoutePreview = React.useCallback(
+    (avoidance: RouteAvoidance) => planRoutePreview(avoidance, routePreviewRef.current?.style ?? 'fastest'),
+    [planRoutePreview],
+  );
+
+  const setRoutePreviewStyle = React.useCallback(async (style: RouteStyle): Promise<boolean> => {
+    if (!routePreviewRef.current || routePreviewRef.current.style === style) return false;
+    return planRoutePreview(routeAvoidanceRef.current, style);
+  }, [planRoutePreview]);
+
+  const startRoutePreview = React.useCallback(() => {
+    if (!routePreview) return;
+    const { routes, index, origin, target, stop } = routePreview;
+    setRoutePreview(null);
+    applyInAppRoute(routes[index]!, origin, target, false);
+    // Reroutes keep going through the stop until the rider gets there.
+    setNavigationStop(stop);
+    clearPlaceCards();
+  }, [applyInAppRoute, clearPlaceCards, routePreview, setNavigationStop]);
 
   /** Start the *complete* curated itinerary, including the start checkpoint,
    * not a route to its first coordinate. No external navigation handoff. */
@@ -707,6 +869,7 @@ export function useInAppNavigation(
     let puckAlongMeters: number | null = null;
     let lineFromMeters: number | null = null;
     setRouteLineAhead(null);
+    setRouteLineFromMeters(null);
 
     // Keeps delivering fixes with the phone locked (see navigationLocationStream).
     void watchNavigationLocation(
@@ -748,6 +911,7 @@ export function useInAppNavigation(
           if (ahead.length >= 2) {
             lineFromMeters = match.distanceAlongMeters;
             setRouteLineAhead(ahead);
+            setRouteLineFromMeters(match.distanceAlongMeters);
           }
         }
         const age = navigationFixAgeSeconds(position.timestamp, nowMs);
@@ -787,6 +951,23 @@ export function useInAppNavigation(
           if (!navigationMutedRef.current) speakNavigationPrompt(reached);
         }
 
+        // Arrived: at the end point, or parked close to it (shared
+        // navigationArrival). Curated routes keep their own checkpoint rules.
+        const arrival = stepIndex === activeRoute.steps.length - 1 && curatedStopsRef.current.length === 0
+          ? arrivedAtDestination({
+            distanceMeters: metersBetween(here, startingStep.end),
+            rawDistanceMeters: metersBetween(raw, startingStep.end),
+            accuracyMeters: position.coords.accuracy,
+            speedMps: speed,
+            nowMs,
+            stoppedSinceMs: arrivalStoppedSince.current,
+          })
+          : null;
+        arrivalStoppedSince.current = arrival?.stoppedSinceMs ?? null;
+        if (arrival?.arrived) {
+          finishInAppNavigation(true);
+          return;
+        }
         if (
           stepIndex === activeRoute.steps.length - 1 &&
           metersBetween(here, startingStep.end) <= NAV_STEP_ARRIVAL_RADIUS_M
@@ -945,6 +1126,11 @@ export function useInAppNavigation(
     setNavigationFollowing(true);
   }, []);
 
+  const navigationTrafficLines = React.useMemo(
+    () => (activeRoute ? routeTrafficLines(activeRoute.coordinates, activeRoute.traffic, routeLineFromMeters) : []),
+    [activeRoute, routeLineFromMeters],
+  );
+
   return {
     activeRoute,
     navigationDestination,
@@ -958,6 +1144,8 @@ export function useInAppNavigation(
     navigationPuck,
     /** The line to draw: what's still to ride, or the whole route. */
     navigationRouteLine: activeRoute ? (routeLineAhead ?? activeRoute.coordinates) : null,
+    /** Slow and jammed stretches still ahead, drawn over the line (Google Maps' traffic colours). */
+    navigationTrafficLines,
     currentNavigationStep,
     fitRoute,
     focusNavigationCamera,
@@ -969,12 +1157,16 @@ export function useInAppNavigation(
     curatedRemainingStops,
     stopFollowingRoute,
     resumeFollowingRoute,
-    /** The ways there, labelled (shared routeChoices); empty once rerouted. */
-    routeChoices: routeOptions.length > 1 ? routeChoices(routeOptions) : [],
-    chosenRouteIndex: activeRoute ? routeOptions.indexOf(activeRoute) : -1,
-    chooseRoute,
+    routePreview: routePreview ? { target: routePreview.target, style: routePreview.style, routes: routePreview.routes, choices: routePreview.choices, index: routePreview.index, stop: routePreview.stop } : null,
+    chooseRoutePreview,
+    startRoutePreview,
+    closeRoutePreview,
+    replanRoutePreview,
+    setRoutePreviewStyle,
+    removeRoutePreviewStop,
     navigationStop,
     findStopsOnTheWay,
     addNavigationStop,
+    skipNavigationStop,
   };
 }

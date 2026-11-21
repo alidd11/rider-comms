@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=120">
+  <link rel="stylesheet" href="app.css?v=126">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -252,6 +252,14 @@
             <button id="locateBtn" class="icon-button glass map-action-button map-action-small" aria-label="Centre on my location"><svg><use href="#i-locate"/></svg></button>
             <button id="navStopsBtn" class="icon-button glass map-action-button nav-only-control" aria-label="Find petrol and stops on the way"><svg><use href="#i-fuel"/></svg></button>
             <button id="navReportBtn" class="icon-button glass map-action-button nav-only-control" aria-label="Report on the road"><svg><use href="#i-hazard-report"/></svg></button>
+            <button id="navVoiceBtn" class="icon-button glass nav-only-control nav-voice-button" type="button" aria-label="Mute your microphone" aria-describedby="navVoiceHint" hidden><svg><use href="#i-mic"/></svg></button>
+            <span id="navVoiceHint" class="sr-only">Hold for more voice options, such as leaving Nearby Voice</span>
+            <div id="navVoiceMenu" class="nav-voice-menu" role="menu" aria-label="Voice" hidden>
+              <p id="navVoiceMenuNote" class="nav-voice-menu-note"></p>
+              <button type="button" role="menuitem" id="navVoiceMuteItem">Mute microphone</button>
+              <button type="button" role="menuitem" id="navVoiceLeaveItem" class="danger">Leave Nearby Voice</button>
+              <button type="button" role="menuitem" id="navVoiceCancelItem">Cancel</button>
+            </div>
             <button id="navMuteBtn" class="icon-button glass nav-only-control" aria-label="Mute navigation guidance"><svg><use href="#i-volume"/></svg></button>
             <button id="navOverviewBtn" class="icon-button glass nav-only-control" aria-label="Show route overview"><svg><use href="#i-route"/></svg></button>
           </div>
@@ -284,6 +292,62 @@
           <article id="riderCard" class="rider-card glass" hidden></article>
           <article id="hazardCard" class="rider-card glass" hidden></article>
           <article id="destinationCard" class="rider-card glass" hidden></article>
+          <div id="routePreviewTop" class="route-preview-top" hidden>
+            <div class="route-preview-bar">
+              <button id="routePreviewClose" class="route-preview-back" type="button" aria-label="Back to the place"><svg aria-hidden="true"><use href="#i-chevron"/></svg></button>
+              <div class="route-preview-ends">
+                <span class="route-preview-dot from" aria-hidden="true"></span><span class="route-preview-field muted">Your location</span>
+                <span class="route-preview-dots" aria-hidden="true"></span><span></span>
+                <span class="route-preview-dot to" aria-hidden="true"></span><button id="routePreviewTo" class="route-preview-field" type="button" aria-label="Change destination"></button>
+              </div>
+              <div class="route-preview-tools">
+              <button type="button" id="routePreviewAddStop" class="route-preview-avoid-btn" aria-label="Add a stop" title="Petrol, cafés or food on the way"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button type="button" id="routePreviewAvoidBtn" class="route-preview-avoid-btn" aria-label="Route options" aria-haspopup="dialog" aria-expanded="false" aria-controls="routePreviewOptions"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><b id="routePreviewAvoidCount" hidden></b></button>
+              </div>
+            </div>
+            <div id="routePreviewOptions" class="route-preview-options" role="dialog" aria-label="Route options" hidden>
+              <p class="route-preview-options-title">How to get there</p>
+              <div id="routePreviewStyles" class="route-preview-styles" role="radiogroup" aria-label="How to get there">
+                <button type="button" role="radio" data-preview-style="fastest" aria-checked="true"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span>Fastest</span></button>
+                <button type="button" role="radio" data-preview-style="twisty" aria-checked="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 20c4 0 4-6 8-6s4-8 8-8"/></svg><span>Twisty</span></button>
+                <button type="button" role="radio" data-preview-style="no_motorways" aria-checked="false"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></svg><span>No motorways</span></button>
+              </div>
+              <p class="route-preview-options-title">Avoid</p>
+              <div class="route-preview-avoid-row" role="group" aria-label="Avoid">
+                <button type="button" role="switch" data-preview-avoid="avoidTolls" aria-checked="false">Tolls</button>
+                <button type="button" role="switch" data-preview-avoid="avoidFerries" aria-checked="false">Ferries</button>
+              </div>
+            </div>
+          </div>
+          <section id="routePreview" class="route-preview" role="dialog" aria-labelledby="routePreviewTitle" hidden>
+            <h2 id="routePreviewTitle" class="sr-only"></h2>
+            <button id="routePreviewHandle" class="route-preview-handle" type="button" aria-label="Show the other routes"><span></span></button>
+            <div class="route-preview-summary">
+              <strong id="routePreviewTime"></strong><span id="routePreviewDistance"></span><b id="routePreviewTag"></b>
+            </div>
+            <p id="routePreviewMeta" class="route-preview-meta-line"></p>
+            <p id="routePreviewNote" class="route-preview-traffic-note"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="routePreviewNoteText"></span></p>
+            <div id="routePreviewHazards" class="route-hazard-strip route-preview-hazards" role="img" hidden></div>
+            <div id="routePreviewStop" class="route-preview-ride route-preview-stop" hidden>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>
+              <span id="routePreviewStopText"></span>
+              <button id="routePreviewStopRemove" type="button" aria-label="Remove the stop">✕</button>
+            </div>
+            <div id="routePreviewRide" class="route-preview-ride" hidden>
+              <span id="routePreviewRideAvatars" class="route-preview-ride-avatars"></span>
+              <span id="routePreviewRideText"></span>
+              <button id="routePreviewRideShare" type="button">Share route</button>
+            </div>
+            <div class="route-preview-actions">
+              <button id="routePreviewStart" class="route-preview-start" type="button"><svg aria-hidden="true"><use href="#i-nav-arrow"/></svg><span>Start</span></button>
+              <button id="routePreviewShare" class="route-preview-secondary round" type="button" aria-label="Share route"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v13M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></button>
+            </div>
+            <button id="routePreviewMore" class="route-preview-more" type="button" aria-expanded="false" aria-controls="routePreviewDetails"><span id="routePreviewMoreText"></span><b aria-hidden="true">⌃</b></button>
+            <div id="routePreviewDetails" class="route-preview-details">
+              <h3>Routes</h3>
+              <div id="routePreviewList" class="route-preview-list" role="radiogroup" aria-label="Routes"></div>
+            </div>
+          </section>
           <div id="navBanner" class="nav-banner" hidden>
             <div class="nav-banner-main">
               <span class="nav-maneuver-icon" id="navManeuverIcon"><svg id="navManeuverSvg" aria-hidden="true"><use href="#i-nav-straight"/></svg></span>
@@ -301,11 +365,11 @@
             <strong id="navSpeed">—</strong>
             <span id="navSpeedUnit">mph</span>
           </div>
-          <div id="navRouteChoices" class="nav-route-choices" role="radiogroup" aria-label="Routes" hidden></div>
           <button id="navRecentreBtn" class="nav-recentre" type="button" hidden><svg aria-hidden="true"><use href="#i-locate"/></svg>Re-centre</button>
           <div id="navTripDetails" class="nav-trip-details" role="region" aria-label="Trip details" hidden>
             <div class="nav-trip-actions">
               <button id="navTripAddStop" class="nav-trip-action" type="button"><svg aria-hidden="true"><use href="#i-plus"/></svg><span>Add stop</span></button>
+              <button id="navTripSkipStop" class="nav-trip-action" type="button" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5l9 7-9 7zM18 5v14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Skip stop</span></button>
               <button id="navTripShare" class="nav-trip-action" type="button"><svg aria-hidden="true"><use href="#i-share"/></svg><span>Share ETA</span></button>
               <button id="navTripEnd" class="nav-trip-action danger" type="button"><svg aria-hidden="true"><use href="#i-close"/></svg><span>End</span></button>
             </div>
@@ -449,12 +513,12 @@
   <script src="movement-safety.js?v=2" defer></script>
   <script src="message-state.js?v=2" defer></script>
   <script src="avatar-system.js?v=1" defer></script>
-  <script src="navigation-road-events.js?v=1" defer></script>
+  <script src="navigation-road-events.js?v=2" defer></script>
   <script src="position-interpolation.js?v=1" defer></script>
-  <script src="navigation-guidance.js?v=2" defer></script>
+  <script src="navigation-guidance.js?v=5" defer></script>
   <script src="navigation-camera.js?v=3" defer></script>
-  <script src="navigation-puck.js?v=2" defer></script>
+  <script src="navigation-puck.js?v=3" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=125" defer></script>
+  <script src="app.js?v=131" defer></script>
 </body>
 </html>

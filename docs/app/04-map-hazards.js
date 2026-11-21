@@ -163,6 +163,7 @@
     }
     renderHazardMarkers();
     if (navSteps.length) renderNavigationRoadAhead();
+    if (routePreview) renderRoutePreview();
   }
 
   /** Refreshes nearbyHazards for the rider's real current position, falling

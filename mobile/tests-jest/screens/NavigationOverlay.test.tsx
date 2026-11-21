@@ -62,29 +62,20 @@ test('road ahead outside navigation uses the day look', async () => {
   expect(StyleSheet.flatten(view.getByText('Reports ahead').props.style).color).not.toBe(darkColors.textMuted);
 });
 
-test('the trip card offers the other ways there, and says when traffic adds time', async () => {
-  const onChooseRoute = jest.fn();
-  const choices = [
-    { index: 0, label: 'Fastest', text: 'Fastest · 23 min' },
-    { index: 1, label: 'Twisty', text: 'Twisty · 29 min · +6 min' },
-  ] as const;
-  const view = await render(
+test('the trip card says when traffic adds time', async () => {
+  const summary = (trafficText?: string) => (
     <NavigationNightContext.Provider value>
       <NavigationTripSummary
         bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1380} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} onEnd={() => {}}
-        routeChoices={[...choices]} chosenRouteIndex={0} onChooseRoute={onChooseRoute} trafficText="+8 min traffic"
+        trafficText={trafficText}
       />
-    </NavigationNightContext.Provider>,
+    </NavigationNightContext.Provider>
   );
-  expect(view.getByRole('radio', { name: 'Fastest · 23 min' }).props.accessibilityState).toEqual({ selected: true });
-  expect(view.getByRole('radio', { name: 'Twisty · 29 min · +6 min' }).props.accessibilityState).toEqual({ selected: false });
-  await fireEvent.press(view.getByText('Twisty · 29 min · +6 min'));
-  expect(onChooseRoute).toHaveBeenCalledWith(1);
+  const view = await render(summary('+8 min traffic'));
   expect(view.getByTestId('navigation-traffic').props.children).toBe('+8 min traffic');
-
-  // One way, or none offered: no choices and no traffic line.
-  await view.rerender(<NavigationTripSummary bottomPadding={0} arrivalLabel="11:08" remainingSeconds={1380} remainingMeters={7400} unitSystem="mi" onHeight={() => {}} routeChoices={[choices[0]]} onChooseRoute={onChooseRoute} onEnd={() => {}} />);
-  expect(view.queryByTestId('navigation-route-choices')).toBeNull();
+  // The ways there are chosen before Start (RoutePreviewSheet), not here.
+  expect(view.queryByRole('radio')).toBeNull();
+  await view.rerender(summary());
   expect(view.queryByTestId('navigation-traffic')).toBeNull();
 });
 
@@ -130,4 +121,12 @@ test('the trip card opens while parked with the turns left, Add stop, Share ETA 
   await view.rerender(summary({ ...details, upcomingSteps: [], destinationLabel: '' }));
   await fireEvent.press(view.getByLabelText('Show trip details'));
   expect(view.getByText('Arrive at your destination')).toBeTruthy();
+
+  // With a stop on the way, Add stop becomes Skip it.
+  const onSkipStop = jest.fn();
+  await view.rerender(summary({ ...details, stopLabel: 'Shell', onSkipStop } as typeof details));
+  expect(view.queryByLabelText('Add stop')).toBeNull();
+  await fireEvent.press(view.getByLabelText('Skip the stop at Shell'));
+  expect(onSkipStop).toHaveBeenCalledTimes(1);
+  expect(view.queryByTestId('navigation-trip-details')).toBeNull();
 });

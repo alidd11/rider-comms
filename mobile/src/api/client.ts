@@ -217,6 +217,10 @@ export class RiderCommsClient {
   deleteHideout(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/hideouts/${encodeURIComponent(id)}`); }
   createHazard(type: HazardType, lat: number, lon: number): Promise<HazardReport> { return this.request('POST', '/hazards', { type, lat, lon }); }
   getNearbyHazards(lat: number, lon: number): Promise<{ hazards: HazardReport[] }> { return this.request('GET', `/hazards/nearby?lat=${lat}&lon=${lon}`); }
+  /** Reports along a whole route (at most 400 points), for the route preview. */
+  getHazardsAlongRoute(path: readonly RouteCoordinate[]): Promise<{ hazards: HazardReport[] }> {
+    return this.request('POST', '/hazards/along-route', { path: path.map((point) => ({ lat: point.lat, lon: point.lon })) });
+  }
   confirmHazard(id: string): Promise<Record<string, never>> { return this.request('POST', `/hazards/${encodeURIComponent(id)}/confirm`, {}); }
   denyHazard(id: string): Promise<Record<string, never>> { return this.request('POST', `/hazards/${encodeURIComponent(id)}/deny`, {}); }
   deleteHazard(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/hazards/${encodeURIComponent(id)}`); }

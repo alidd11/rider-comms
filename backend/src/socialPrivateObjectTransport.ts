@@ -1,3 +1,4 @@
+import { noteProviderError, noteProviderOk } from './providerHealth.ts';
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 /**
@@ -196,9 +197,14 @@ export class SocialPrivateObjectTransport {
       });
     } catch {
       // Never expose raw response text, S3 URLs or credentials to an app client.
+      noteProviderError('media_storage', `${method}: no answer`);
       throw new Error('social_media_storage_unavailable');
     }
-    if (response.ok || (method === 'DELETE' && response.status === 404)) return;
+    if (response.ok || (method === 'DELETE' && response.status === 404)) {
+      noteProviderOk('media_storage');
+      return;
+    }
+    noteProviderError('media_storage', `${method}: HTTP ${response.status}`);
     throw new Error('social_media_storage_unavailable');
   }
 }

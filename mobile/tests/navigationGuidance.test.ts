@@ -11,7 +11,7 @@ import {
   navigationSpeedUnit,
   navigationStepStartPrompt,
 } from '../src/navigationGuidance.ts';
-import { fasterRouteAnnouncement, fasterRouteSavingSeconds, navigationEtaShareText, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness } from '@rider-comms/shared';
+import { ARRIVAL_NEAR_METERS, ARRIVAL_STOPPED_MS, navigationArrival, fasterRouteAnnouncement, fasterRouteSavingSeconds, navigationEtaShareText, routeAheadPath, stopsOnTheWay, routeChoices, routeTrafficDelayText, routeTwistiness, routeIndexForStyle, routeShareText, routeStyleAvoidsMotorways, routeTrafficNote } from '@rider-comms/shared';
 
 describe('navigation guidance presentation', () => {
   it('formats metric and imperial distances consistently for navigation', () => {
@@ -137,13 +137,21 @@ describe('navigationInstructionRoad', () => {
       { durationSeconds: 1500, coordinates: straight },
     ]).map((choice) => choice.text), ['Fastest · 23 min', 'Twisty · 29 min · +6 min', 'Alternative · 25 min · +2 min']);
     // Only one route: just the fastest.
-    assert.deepEqual(routeChoices([{ durationSeconds: 600, coordinates: straight }]), [{ index: 0, label: 'Fastest', text: 'Fastest · 10 min' }]);
+    // The button shows the time big, with a short tag under it.
+    assert.deepEqual(routeChoices([
+      { durationSeconds: 1380, coordinates: straight },
+      { durationSeconds: 1740, coordinates: zigzag },
+      { durationSeconds: 1500, coordinates: straight },
+    ]).map((choice) => [choice.time, choice.tag]), [['23 min', 'Fastest'], ['29 min', 'Twisty · +6 min'], ['25 min', '+2 min']]);
+    // Only one route: just the fastest.
+    assert.deepEqual(routeChoices([{ durationSeconds: 600, coordinates: straight }]), [{ index: 0, label: 'Fastest', text: 'Fastest · 10 min', time: '10 min', tag: 'Fastest' }]);
     // The fastest is itself the twisty one: no separate Twisty label, and
     // under a minute longer says no extra time.
     assert.deepEqual(routeChoices([
       { durationSeconds: 1740, coordinates: zigzag },
       { durationSeconds: 1720, coordinates: zigzag },
     ]).map((choice) => choice.text), ['Alternative · 29 min', 'Fastest · 29 min']);
+    assert.equal(routeChoices([{ durationSeconds: 1740, coordinates: zigzag }, { durationSeconds: 1720, coordinates: zigzag }])[0]!.tag, 'Alternative');
     assert.deepEqual(routeChoices([]), []);
   });
 
@@ -193,5 +201,52 @@ describe('navigationEtaShareText', () => {
       navigationEtaShareText('  ', '16:35', 900, 'km'),
       'On my way to my destination. Arriving about 16:35, 900 m to go. Sent from Rider Comms.',
     );
+  });
+});
+
+it('riding styles: which way to show first, and whether to keep off motorways', () => {
+  const straight = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 }));
+  const zigzag = Array.from({ length: 40 }, (_, i) => ({ lat: 51.5 + i * 0.001, lon: -0.1 + (i % 2) * 0.0008 }));
+  const routes = [{ durationSeconds: 1500, coordinates: straight }, { durationSeconds: 1800, coordinates: zigzag }, { durationSeconds: 1380, coordinates: straight }];
+  assert.equal(routeIndexForStyle(routes, 'fastest'), 2);
+  assert.equal(routeIndexForStyle(routes, 'no_motorways'), 2);
+  assert.equal(routeIndexForStyle(routes, 'twisty'), 1);
+  assert.equal(routeIndexForStyle([], 'twisty'), 0);
+  assert.equal(routeStyleAvoidsMotorways('fastest', false), false);
+  assert.equal(routeStyleAvoidsMotorways('fastest', true), true);
+  assert.equal(routeStyleAvoidsMotorways('twisty', false), true);
+  assert.equal(routeStyleAvoidsMotorways('no_motorways', false), true);
+});
+
+it('the traffic note under the chosen route, and what Share sends', () => {
+  assert.equal(routeTrafficNote(1800, 1320, true), 'Fastest despite +8 min of traffic');
+  assert.equal(routeTrafficNote(1800, 1320, false), '+8 min of traffic');
+  assert.equal(routeTrafficNote(1800, 1750, true), 'Fastest route, usual traffic');
+  assert.equal(routeTrafficNote(1800, 1750, false), 'Usual traffic');
+  assert.equal(routeTrafficNote(1800, undefined, true), 'Fastest route');
+  assert.equal(routeTrafficNote(1800, null, false), '');
+  assert.equal(routeShareText('Home', '7:25 PM', 17_700, 'mi', 'A41'), 'Heading to Home via A41: 11 mi, arriving about 7:25 PM. Sent from Rider Comms.');
+  assert.equal(routeShareText(' ', '19:25', 900, 'km', ''), 'Heading to my destination: 900 m, arriving about 19:25. Sent from Rider Comms.');
+});
+
+describe('arriving', () => {
+  const base = { distanceMeters: 80, rawDistanceMeters: 80, accuracyMeters: 8, speedMps: 0, nowMs: 100_000, stoppedSinceMs: null as number | null };
+  it('arrives at the end point at once, moving or not, whatever the fix', () => {
+    assert.deepEqual(navigationArrival({ ...base, distanceMeters: 25, speedMps: 12, accuracyMeters: null }), { arrived: true, stoppedSinceMs: null });
+  });
+  it('arrives parked close by once stopped there for 15 seconds on a good fix', () => {
+    const first = navigationArrival(base);
+    assert.deepEqual(first, { arrived: false, stoppedSinceMs: 100_000 });
+    assert.equal(navigationArrival({ ...base, nowMs: 100_000 + ARRIVAL_STOPPED_MS - 1, stoppedSinceMs: first.stoppedSinceMs }).arrived, false);
+    assert.equal(navigationArrival({ ...base, nowMs: 100_000 + ARRIVAL_STOPPED_MS, stoppedSinceMs: first.stoppedSinceMs }).arrived, true);
+  });
+  it('starts the wait again on moving, a poor or missing fix, or too far away', () => {
+    for (const change of [
+      { speedMps: 3 }, { speedMps: null }, { speedMps: Number.NaN }, { speedMps: -1 },
+      { accuracyMeters: 60 }, { accuracyMeters: null }, { accuracyMeters: -1 },
+      { rawDistanceMeters: ARRIVAL_NEAR_METERS + 1 }, { rawDistanceMeters: Number.NaN, distanceMeters: Number.NaN },
+    ]) {
+      assert.deepEqual(navigationArrival({ ...base, ...change, stoppedSinceMs: 1 }), { arrived: false, stoppedSinceMs: null }, JSON.stringify(change));
+    }
   });
 });

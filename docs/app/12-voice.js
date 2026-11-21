@@ -562,6 +562,17 @@
               ? 'Talking'
               : 'Listening hands-free',
     );
+    // While navigating the map header is hidden: the navigation buttons
+    // carry the same mute, and a hold offers Leave Nearby Voice (native:
+    // NavigationControls' voice button).
+    const navVoice = $('#navVoiceBtn');
+    if (navVoice) {
+      navVoice.hidden = !wantsVoice && !connected;
+      navVoice.classList.toggle('muted', voiceManuallyMuted);
+      navVoice.setAttribute('aria-pressed', String(voiceManuallyMuted));
+      navVoice.setAttribute('aria-label', voiceManuallyMuted ? 'Unmute your microphone' : 'Mute your microphone');
+      if (navVoice.hidden) setNavVoiceMenuOpen(false);
+    }
     // The Ride tab has no map header of its own (the glowing avatar above
     // only exists on the Map screen), so a rider parked on Ride while
     // talking needs this same status somewhere too — same real state,
@@ -928,6 +939,46 @@
     }
     if (state.activeRide) void connectVoice('ride', state.activeRide.rideId);
     else if (state.publicLive) void connectVoice('channel');
+  }
+
+  function setNavVoiceMenuOpen(open) {
+    const menu = $('#navVoiceMenu');
+    if (!menu) return;
+    menu.hidden = !open;
+    if (!open) return;
+    $('#navVoiceMuteItem').textContent = voiceManuallyMuted ? 'Unmute microphone' : 'Mute microphone';
+    $('#navVoiceLeaveItem').hidden = !state.publicLive;
+    $('#navVoiceMenuNote').textContent = `${state.publicLive ? 'Nearby Voice' : 'Group ride voice'} · your route keeps going`;
+    $('#navVoiceMuteItem').focus();
+  }
+
+  /** The navigation voice button: a tap mutes, a hold (or a right click)
+   * opens Mute and Leave Nearby Voice. */
+  function initNavigationVoiceButton() {
+    const button = $('#navVoiceBtn');
+    if (!button) return;
+    let holdTimer = null;
+    let held = false;
+    const cancelHold = () => { clearTimeout(holdTimer); holdTimer = null; };
+    button.addEventListener('pointerdown', () => {
+      held = false;
+      cancelHold();
+      holdTimer = setTimeout(() => { held = true; haptic('tap'); setNavVoiceMenuOpen(true); }, 450);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach((type) => button.addEventListener(type, cancelHold));
+    button.addEventListener('contextmenu', (event) => { event.preventDefault(); cancelHold(); held = true; setNavVoiceMenuOpen(true); });
+    button.addEventListener('click', () => {
+      if (held) { held = false; return; }
+      haptic('select');
+      void toggleVoiceMute();
+    });
+    button.addEventListener('keydown', (event) => {
+      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); setNavVoiceMenuOpen(true); }
+    });
+    $('#navVoiceMuteItem')?.addEventListener('click', () => { setNavVoiceMenuOpen(false); void toggleVoiceMute(); });
+    $('#navVoiceLeaveItem')?.addEventListener('click', () => { setNavVoiceMenuOpen(false); if (state.publicLive) void toggleNearby(); });
+    $('#navVoiceCancelItem')?.addEventListener('click', () => { setNavVoiceMenuOpen(false); button.focus(); });
+    $('#navVoiceMenu')?.addEventListener('keydown', (event) => { if (event.key === 'Escape') { setNavVoiceMenuOpen(false); button.focus(); } });
   }
 
   async function toggleVoiceMute() {
