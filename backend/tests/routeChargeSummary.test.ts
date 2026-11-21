@@ -37,6 +37,21 @@ describe('offline future-route charging summary', () => {
     assert.ok(output.results.every(result => result.assessment.outcome === 'unknown'));
     assert.equal(summarizeRouteChargePassages('car', [event('clean')]).possibleDailyChargeDays, 1);
   });
+  it('keeps the separate Oxford ZEZ as one daily charge exposure, not a UK CAZ', () => {
+    const oxfordRule: ChargingRule = {
+      ...dailyRule, schemeId: 'oxford_zez',
+      vehicleClasses: ['motorcycle', 'car'],
+      sourceUrl: 'https://www.oxfordshire.gov.uk/transport-and-travel/oxford-zero-emission-zone-zez/charges-oxfords-zez',
+    };
+    const out = summarizeRouteChargePassages('motorcycle', [
+      event('oxford-in', { schemeId: 'oxford_zez', rule: oxfordRule }),
+      event('oxford-again', { schemeId: 'oxford_zez', rule: oxfordRule }),
+    ]);
+    assert.equal(out.possibleDailyChargeDays, 1);
+    assert.equal(out.possibleCrossingCharges, 0);
+    assert.equal(out.routeCoverageComplete, false);
+    assert.equal(out.needsVerification, true);
+  });
   it('counts independent crossings without turning them into a daily fee', () => {
     const tunnel: ChargingRule = { ...dailyRule, schemeId: 'blackwall_silvertown', unit: 'per_crossing' };
     const output = summarizeRouteChargePassages('car', [

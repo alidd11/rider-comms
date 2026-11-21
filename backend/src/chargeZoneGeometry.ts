@@ -43,7 +43,7 @@ const MAX_ROUTE_POINTS = 10_000;
 const MAX_GEOMETRY_COMPARISONS = 3_000_000;
 const SCHEMES = new Set<ChargingSchemeId>([
   'london_congestion', 'london_ulez', 'london_lez',
-  'blackwall_silvertown', 'dart_charge', 'uk_caz',
+  'blackwall_silvertown', 'dart_charge', 'uk_caz', 'oxford_zez',
 ]);
 function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !DATE.test(value)) return false;

@@ -6,7 +6,7 @@
  */
 export type ChargingSchemeId =
   | 'london_congestion' | 'london_ulez' | 'london_lez'
-  | 'blackwall_silvertown' | 'dart_charge' | 'uk_caz';
+  | 'blackwall_silvertown' | 'dart_charge' | 'uk_caz' | 'oxford_zez';
 export type ChargeVehicleClass = 'motorcycle' | 'car' | 'van' | 'heavy' | 'other';
 export type ChargeUnit = 'daily' | 'per_crossing';
 export type RouteChargeEvidence = 'unknown' | 'polygon_overlap' | 'confirmed_crossing' | 'confirmed_no_crossing';
@@ -83,11 +83,13 @@ const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]
 const WEEKDAYS: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 const VEHICLES = new Set<ChargeVehicleClass>(['motorcycle', 'car', 'van', 'heavy', 'other']);
 const WAIVERS = new Set(['exempt', 'compliant']);
-const SCHEMES = new Set<ChargingSchemeId>(['london_congestion', 'london_ulez', 'london_lez', 'blackwall_silvertown', 'dart_charge', 'uk_caz']);
+const SCHEMES = new Set<ChargingSchemeId>(['london_congestion', 'london_ulez', 'london_lez',
+  'blackwall_silvertown', 'dart_charge', 'uk_caz', 'oxford_zez']);
 // A provider's data must never reclassify a crossing as a daily zone or vice versa.
 const UNIT_BY_SCHEME: Record<ChargingSchemeId, ChargeUnit> = {
   london_congestion: 'daily', london_ulez: 'daily', london_lez: 'daily',
-  blackwall_silvertown: 'per_crossing', dart_charge: 'per_crossing', uk_caz: 'daily',
+  blackwall_silvertown: 'per_crossing', dart_charge: 'per_crossing',
+  uk_caz: 'daily', oxford_zez: 'daily',
 };
 const EMISSIONS_SCHEMES = new Set<ChargingSchemeId>(['london_ulez', 'london_lez', 'uk_caz']);
 export function validChargingZoneId(schemeId: ChargingSchemeId, zoneId: string | undefined): boolean {
@@ -128,8 +130,12 @@ function validRule(rule: ChargingRule, scheme: ChargingSchemeId): boolean {
     || !parseInstant(rule.checkedAt)
     || !validDate(rule.effectiveFrom) || !validDate(rule.effectiveThrough)
     || !validDate(rule.exceptionsReviewedThrough) || rule.effectiveFrom > rule.effectiveThrough
-    || !Array.isArray(rule.vehicleClasses) || !rule.vehicleClasses.every(v => VEHICLES.has(v))
-    || !Array.isArray(rule.weeklyWindows) || !Array.isArray(rule.exceptions)
+    // An empty scope or schedule cannot establish a vehicle exemption or
+    // a charge-free time; require explicitly reviewed nonempty authority data.
+    || !Array.isArray(rule.vehicleClasses) || rule.vehicleClasses.length === 0
+    || !rule.vehicleClasses.every(v => VEHICLES.has(v))
+    || !Array.isArray(rule.weeklyWindows) || rule.weeklyWindows.length === 0
+    || !Array.isArray(rule.exceptions)
     || !Array.isArray(rule.waivingStatuses)
     || !rule.waivingStatuses.every(v => WAIVERS.has(v))
     || (rule.waivingStatuses.includes('compliant') && !EMISSIONS_SCHEMES.has(scheme))

@@ -68,6 +68,9 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, reviewedThrough: '2025-12-31' }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'uk_caz', zoneId: undefined }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'uk_caz', zoneId: 'UNKNOWN AREA' }), null);
+    const oxford = compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'oxford_zez' });
+    assert.equal(screen([[0.2, 0.2], [0.3, 0.3]], oxford).schemeId, 'oxford_zez');
+    assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'oxford_zez', zoneId: 'wrong_caz' }), null);
     const bradford = compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'uk_caz', zoneId: 'bradford_caz' });
     assert.equal(screen([[0.2, 0.2], [0.3, 0.3]], bradford).zoneId, 'bradford_caz');
   });

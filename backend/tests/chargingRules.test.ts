@@ -41,6 +41,8 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(run({ rule: { ...congestionRule, unit: 'per_crossing' } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, waivingStatuses: ['compliant'] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, vehicleClasses: ['wrong' as ChargingRule['vehicleClasses'][number]] } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, vehicleClasses: [] } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, weeklyWindows: [] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, waivingStatuses: ['paying' as ChargingRule['waivingStatuses'][number]] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, weeklyWindows: [{ dayOfWeek: 7, startMinute: 0, endMinute: 60 }] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, weeklyWindows: [null as unknown as ChargingRule['weeklyWindows'][number]] } }).outcome, 'unknown');
@@ -113,6 +115,46 @@ describe('future road-charge assessment (never used by live routing)', () => {
       entitlement: { ...official, zoneId: 'birmingham_caz' } }).outcome, 'possible_charge');
     assert.equal(run({ schemeId: 'uk_caz', rule: bradford,
       entitlement: { ...official, zoneId: undefined } }).outcome, 'possible_charge');
+  });
+  it('models Oxford ZEZ separately, including motorcycles, BST windows and verified exemptions', () => {
+    // Synthetic 2026-only rule. Actual charges require independently reviewed
+    // road geometry, authority schedules and the official vehicle checker.
+    const oxfordRule: ChargingRule = {
+      ...congestionRule, schemeId: 'oxford_zez',
+      sourceUrl: 'https://www.oxfordshire.gov.uk/transport-and-travel/oxford-zero-emission-zone-zez/charges-oxfords-zez',
+      vehicleClasses: ['motorcycle', 'car', 'van', 'heavy', 'other'],
+      weeklyWindows: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+        dayOfWeek, startMinute: 420, endMinute: 1140,
+      })),
+      exceptions: [], waivingStatuses: ['exempt'],
+    };
+    const oxford = (passageAt: string, extras: Partial<ChargeAssessmentInput> = {}) =>
+      run({ schemeId: 'oxford_zez', rule: oxfordRule, vehicleClass: 'motorcycle',
+        passageAt, ...extras });
+    assert.equal(oxford('2026-07-06T05:59:00Z').outcome, 'outside_hours'); // 06:59 BST
+    assert.equal(oxford('2026-07-06T06:00:00Z').outcome, 'possible_charge'); // 07:00 BST
+    assert.equal(oxford('2026-07-06T17:59:00Z').outcome, 'possible_charge'); // 18:59 BST
+    assert.equal(oxford('2026-07-06T18:00:00Z').outcome, 'outside_hours'); // 19:00 BST
+    assert.equal(oxford('2026-01-05T07:00:00Z').outcome, 'possible_charge');
+    assert.equal(oxford('2026-01-05T19:00:00Z').outcome, 'outside_hours');
+    const zeroEmission = { schemeId: 'oxford_zez' as const,
+      vehicleClass: 'motorcycle' as const, status: 'exempt' as const,
+      source: 'operator_verified' as const,
+      checkedAt: '2026-01-01T00:00:00Z', validThrough: '2026-12-31' };
+    assert.equal(oxford('2026-07-06T12:00:00Z',
+      { entitlement: zeroEmission }).outcome, 'verified_exempt');
+    assert.equal(oxford('2026-07-06T12:00:00Z',
+      { entitlement: { ...zeroEmission, source: 'user_declared' } }).outcome, 'possible_charge');
+    assert.equal(oxford('2026-07-06T12:00:00Z',
+      { entitlement: { ...zeroEmission, status: 'compliant' } }).outcome, 'possible_charge');
+    assert.equal(oxford('2026-07-06T12:00:00Z',
+      { entitlement: { ...zeroEmission, status: 'discounted' } }).outcome, 'possible_charge');
+    assert.equal(oxford('2026-07-06T12:00:00Z',
+      { rule: { ...oxfordRule, waivingStatuses: ['compliant'] } }).outcome, 'unknown');
+    assert.equal(oxford('2026-07-06T12:00:00Z',
+      { rule: { ...oxfordRule, unit: 'per_crossing' } }).outcome, 'unknown');
+    assert.equal(oxford('2026-07-06T12:00:00Z',
+      { entitlement: { ...zeroEmission, schemeId: 'london_ulez' } }).outcome, 'possible_charge');
   });
   it('handles emission compliance separately from generic passes and preserves charge units', () => {
     const rule: ChargingRule = { ...congestionRule, schemeId: 'london_ulez', unit: 'daily', waivingStatuses: ['exempt', 'compliant'],
