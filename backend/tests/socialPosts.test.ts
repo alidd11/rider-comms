@@ -395,6 +395,28 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal(legitimate.status, 201);
   });
 
+  it('rejects tampered signed media parameters while preserving the valid owner link', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    const valid = post.media[0]!.url;
+    const base = ctx.baseUrl();
+    const mutate = (key: string, value: string) => {
+      const url = new URL(valid, base);
+      url.searchParams.set(key, value);
+      return url.toString();
+    };
+    assert.equal((await fetch(base + valid)).status, 200);
+    for (const [key, value] of [
+      ['exp', 'Infinity'], ['exp', '-1'], ['exp', '1.5'],
+      ['exp', String(Number.MAX_SAFE_INTEGER + 1)],
+      ['sig', ''], ['sig', 'x'.repeat(1024)],
+      ['s', 'aaaaaaaa--1111-4111-8111-aaaaaaaaaaa'],
+    ] as const) {
+      const result = await fetch(mutate(key, value));
+      assert.equal(result.status, 403, `tampered ${key}=${value.slice(0, 32)}`);
+    }
+    assert.equal((await fetch(base + valid)).status, 200, 'tampering cannot revoke legitimate access');
+  });
+
   it('stops a link working once the session it was issued to signs out', async () => {
     const post = await photoPost(ctx, 'social_a');
     const { token } = ctx.authStore.createTestSession('social_b');
