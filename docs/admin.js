@@ -79,6 +79,9 @@
   const allowed = (permission) => Boolean(me?.permissions?.includes(permission));
   let overviewCache = null;
   let chartSeq = 0;
+  // Ignore responses from a section or filter the staff member has already left.
+  let renderGeneration = 0;
+  const isCurrentRender = (generation) => generation === renderGeneration;
   const names = new Map();
 
   // ------------------------------------------------------------ Utilities
@@ -989,7 +992,7 @@
     return card;
   }
 
-  async function renderModeration() {
+  async function renderModeration(generation) {
     const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned']], moderationView, (next) => {
       moderationView = next;
       void render();
@@ -1002,14 +1005,18 @@
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 404) throw error;
       }
+      if (!isCurrentRender(generation)) return;
       await loadNames(posts.map((entry) => entry.post.authorId));
+      if (!isCurrentRender(generation)) return;
       pageEl.replaceChildren(header, el('div', { class: 'reports' }, posts.length
         ? posts.map(socialPostCard)
         : [el('div', { class: 'card' }, [emptyState('inbox', 'No hidden posts', 'Posts reported by three riders are hidden here until you restore or remove them.')])]));
       return;
     }
     const { reports } = await api('GET', `/moderation/reports?status=${moderationView}&limit=100`);
+    if (!isCurrentRender(generation)) return;
     await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy]));
+    if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
     pageEl.replaceChildren(header, el('div', { class: 'reports' }, reports.length
       ? reports.map(reportCard)
@@ -1075,11 +1082,12 @@
 
   // ------------------------------------------------------------ Rider
 
-  async function renderRiderDetail(riderId) {
+  async function renderRiderDetail(riderId, generation) {
     const detail = await api('GET', `/admin/riders/${encodeURIComponent(riderId)}`).catch((error) => {
       if (error instanceof ApiError && error.status === 404) return null;
       throw error;
     });
+    if (!isCurrentRender(generation)) return;
     if (!detail) {
       pageEl.replaceChildren(pageHeader('Rider', null), el('div', { class: 'card' }, [emptyState('users', 'No such rider', 'They may have deleted their account.')]));
       return;
@@ -1090,6 +1098,7 @@
       ...(detail.reportsFiled ?? []).map((report) => report.reportedRiderId),
       ...(detail.actions ?? []).map((action) => action.moderatorId),
     ].filter((id) => id && id !== 'system'));
+    if (!isCurrentRender(generation)) return;
     const name = rider.displayName || rider.username;
     document.title = `${name} · Rider Comms staff`;
 
@@ -1222,10 +1231,12 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
-  async function renderAudit() {
+  async function renderAudit(generation) {
     const query = auditRider ? `&riderId=${encodeURIComponent(auditRider)}` : '';
     const { actions } = await api('GET', `/moderation/actions?limit=200${query}`);
+    if (!isCurrentRender(generation)) return;
     await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
+    if (!isCurrentRender(generation)) return;
     const group = ACTION_GROUPS.find(([id]) => id === auditGroup) ?? ACTION_GROUPS[0];
     const shown = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
 
@@ -1386,17 +1397,20 @@
     ];
   }
 
-  async function renderStaff() {
+  async function renderStaff(generation) {
     const [{ staff }, events] = await Promise.all([
       api('GET', '/admin/staff'),
       api('GET', '/admin/security-events?staff=1&limit=20').then((body) => body.events).catch(() => null),
     ]);
+    if (!isCurrentRender(generation)) return;
     await loadNames((events ?? []).map((event) => event.riderId));
+    if (!isCurrentRender(generation)) return;
     const counts = staff.reduce((total, member) => ({ ...total, [member.role]: (total[member.role] ?? 0) + 1 }), {});
     const name = (member) => member.displayName || member.handle || member.riderId;
     const sub = (member) => [member.handle, member.email].filter(Boolean).join(' · ') || member.riderId;
     const granted = (member) => member.grantedAt ? el('span', {}, [timeEl(member.grantedAt), ` by ${riderLabel(member.grantedBy).name}`]) : el('span', { class: 'muted', text: 'ADMIN_RIDER_IDS' });
     await loadNames(staff.map((member) => member.grantedBy).filter(Boolean));
+    if (!isCurrentRender(generation)) return;
     pageEl.replaceChildren(
       pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
       addStaffForm(),
@@ -1524,8 +1538,9 @@
     ];
   }
 
-  async function renderSystem() {
+  async function renderSystem(generation) {
     const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null), api('GET', '/admin/metrics').catch(() => null)]);
+    if (!isCurrentRender(generation)) return;
     const row = (name, description, result) => el('li', { class: 'status-row' }, [
       el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
       el('span', { class: 'status-value' }, [
@@ -1563,6 +1578,7 @@
   }
 
   async function render() {
+    const generation = ++renderGeneration;
     for (const button of navEl.querySelectorAll('[data-view]')) {
       if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
@@ -1574,24 +1590,28 @@
     setBusy(true);
     try {
       if (view === 'overview') {
-        overviewCache = await api('GET', '/admin/overview');
+        const overview = await api('GET', '/admin/overview');
+        if (!isCurrentRender(generation)) return;
+        overviewCache = overview;
         updateReportCount(overviewCache.safety.openReports);
         renderOverview(overviewCache);
       } else if (view === 'riders') {
         const { riders } = await api('GET', `/admin/riders?limit=50&q=${encodeURIComponent(riderQuery)}`);
+        if (!isCurrentRender(generation)) return;
         renderRiders(riders);
       } else if (view === 'moderation') {
-        await renderModeration();
+        await renderModeration(generation);
       } else if (view === 'audit') {
-        await renderAudit();
+        await renderAudit(generation);
       } else if (view === 'staff') {
-        await renderStaff();
+        await renderStaff(generation);
       } else if (view === 'rider') {
-        await renderRiderDetail(detailRiderId);
+        await renderRiderDetail(detailRiderId, generation);
       } else {
-        await renderSystem();
+        await renderSystem(generation);
       }
     } catch (error) {
+      if (!isCurrentRender(generation)) return;
       if (error instanceof ApiError && error.code === 'permission_required') {
         pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('lock', 'Your role doesn’t include this page', 'Ask an admin if you need it.')]));
       } else if (error instanceof ApiError && error.status === 403) {
@@ -1602,7 +1622,7 @@
         pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('wifiOff', 'Couldn’t load this section', 'Check your connection, then refresh.')]));
       }
     } finally {
-      setBusy(false);
+      if (isCurrentRender(generation)) setBusy(false);
     }
   }
 
