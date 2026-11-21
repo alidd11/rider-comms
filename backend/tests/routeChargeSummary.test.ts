@@ -100,6 +100,10 @@ describe('offline future-route charging summary', () => {
     const expired = screenChargeAreasForRoute([{ lon: 0.1, lat: 0.1 }, { lon: 1, lat: 1 }], '2027-07-06', [zone]);
     assert.equal(expired.results[0]?.status, 'unknown');
     assert.equal(screenChargeAreasForRoute([], 'invalid', []).requiresReview, true);
+    assert.equal(screenChargeAreasForRoute([{ lon: 0, lat: 0 }, { lon: 1, lat: 1 }],
+      '2026-07-06', Array(65).fill(zone)).requiresReview, true);
+    assert.equal(screenChargeAreasForRoute([{ lon: 0, lat: 0 }, { lon: 1, lat: 1 }],
+      '2026-07-06', [null]).results[0]?.status, 'unknown');
   });
   it('does not call any network provider to calculate a fee', () => {
     const output = summarizeRouteChargePassages('car', []);

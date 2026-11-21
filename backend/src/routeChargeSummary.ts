@@ -85,12 +85,14 @@ export function summarizeRouteChargePassages(
       ...(passage.zoneId ? { zoneId: passage.zoneId } : {}), assessment });
     if (assessment.outcome === 'unknown') needsVerification = true;
     if (assessment.outcome !== 'possible_charge') continue;
+    // A future rule returning a potential charge without a known charge unit
+    // or date remains unverified, rather than looking charge-free.
+    needsVerification ||= assessment.unit !== 'per_crossing'
+      && !(assessment.unit === 'daily' && Boolean(assessment.localDate));
     if (assessment.unit === 'daily' && assessment.localDate) {
       daily.add(JSON.stringify([passage.schemeId, passage.zoneId ?? '', assessment.localDate]));
     } else if (assessment.unit === 'per_crossing') {
       crossingCount += 1;
-    } else {
-      needsVerification = true;
     }
   }
   return { possibleDailyChargeDays: daily.size, possibleCrossingCharges: crossingCount,
