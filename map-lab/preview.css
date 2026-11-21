@@ -32,3 +32,6 @@ button[aria-pressed="true"] { background: #1da2cb; color: #071720; border-color:
   .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { margin-bottom: 110px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; } }
+
+#demoOverlay[aria-pressed="true"] { background: #144959; border-color: #40bbdb; }
+#demoOverlay { font-size: 13px; }

@@ -15,7 +15,9 @@ Build Rider Comms' own map experience with OSM data, our own UI, our own hazard/
 ## Prototype, map-lab/
 - Separate local browser preview; no link from the production PWA and no deployment configuration.
 - MapLibre GL JS 6.3.0 loaded from a pinned CDN module, OpenFreeMap Bright/Dark vector basemap.
-- Manual day/night, zoom/rotate/pitch controls, sample London camera, provider attribution, accessible controls, robust offline/error indication. No real user location or Rider Comms API requests.
+- Manual day/night, zoom/rotate/pitch controls, sample London camera, provider attribution, accessible controls and explicit tile-error state. No real user location or Rider Comms API requests.
+- Opt-in illustrative route layer (**not real road geometry, not turn-by-turn directions**), with source/layer rehydration when changing day/night styles. This is a renderer test only, not a navigation product.
+- `map-lab/open-route.mjs` provides a bounded [longitude, latitude] open-routing geometry boundary, whitelist for Valhalla/OSRM backed by OSM, explicit no-traffic/no-navigation-ready metadata, cloning of input coordinates and rejection of unverified traffic/speed/toll/Google fields. This does not yet connect a real routing server.
 - Hardcoded unreleased state with provider-compatibility guard and repository check script.
 - Run from repository root: python3 -m http.server 8765, then visit http://localhost:8765/map-lab/ . Internet access is required for MapLibre and tiles.
 - Verify: node scripts/check-rider-maps.mjs (also included in npm run lint).
