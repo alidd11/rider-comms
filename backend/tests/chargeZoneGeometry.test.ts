@@ -51,6 +51,17 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, attribution: '' }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, effectiveFrom: '2026-02-30' }), null);
   });
+  it('snapshots supplied geometry and source metadata so callers cannot alter validated zones', () => {
+    const sourceRing = square.map(point => [...point]);
+    const data = geo([sourceRing]);
+    const metadata = { ...source };
+    const compiled = compileChargeZoneGeoJson(data, metadata);
+    assert.ok(compiled);
+    sourceRing[0]![0] = 100;
+    metadata.effectiveThrough = '2020-01-01';
+    assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], compiled).status, 'possible_polygon_contact');
+    assert.equal(compiled.provenance.effectiveThrough, '2026-12-31');
+  });
   it('fails closed for missing, expired, invalid or antimeridian-spanning routes', () => {
     assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], prepare(), '2027-01-01').reason, 'outside_verified_period');
     assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], null).status, 'unknown');

@@ -105,10 +105,13 @@ export function compileChargeZoneGeoJson(geojson: unknown, provenance: ChargeZon
       const vertices = rings.reduce((sum, ring) => sum + ring.length, 0);
       totalVertices += vertices;
       if (totalVertices > MAX_VERTICES || polygons.length >= MAX_POLYGONS) return null;
-      polygons.push({ rings, bounds: boxForRing(rings[0]!), vertices });
+      // Snapshot the validated coordinates. External GeoJSON must not be able
+      // to mutate the compiled zone after its integrity checks have passed.
+      const snapshot: Polygon = rings.map(ring => ring.map(point => [point[0]!, point[1]!]));
+      polygons.push({ rings: snapshot, bounds: boxForRing(snapshot[0]!), vertices });
     }
   }
-  return polygons.length ? { provenance, polygons } : null;
+  return polygons.length ? { provenance: { ...provenance }, polygons } : null;
 }
 function cross(a: Position, b: Position, c: Position): number {
   return (b[0]! - a[0]!) * (c[1]! - a[1]!) - (b[1]! - a[1]!) * (c[0]! - a[0]!);

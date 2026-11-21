@@ -80,6 +80,12 @@ const WEEKDAYS: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 
 const VEHICLES = new Set<ChargeVehicleClass>(['motorcycle', 'car', 'van', 'heavy', 'other']);
 const WAIVERS = new Set(['exempt', 'compliant']);
 const SCHEMES = new Set<ChargingSchemeId>(['london_congestion', 'london_ulez', 'london_lez', 'blackwall_silvertown', 'dart_charge', 'uk_caz']);
+// A provider's data must never reclassify a crossing as a daily zone or vice versa.
+const UNIT_BY_SCHEME: Record<ChargingSchemeId, ChargeUnit> = {
+  london_congestion: 'daily', london_ulez: 'daily', london_lez: 'daily',
+  blackwall_silvertown: 'per_crossing', dart_charge: 'per_crossing', uk_caz: 'daily',
+};
+const EMISSIONS_SCHEMES = new Set<ChargingSchemeId>(['london_ulez', 'london_lez', 'uk_caz']);
 
 function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !ISO_DATE.test(value)) return false;
@@ -98,7 +104,7 @@ function validPeriod(value: { startMinute: number; endMinute: number }): boolean
     && value.startMinute < value.endMinute;
 }
 function validRule(rule: ChargingRule, scheme: ChargingSchemeId): boolean {
-  if (rule.schemeId !== scheme || !SCHEMES.has(scheme) || !['daily', 'per_crossing'].includes(rule.unit)
+  if (rule.schemeId !== scheme || !SCHEMES.has(scheme) || rule.unit !== UNIT_BY_SCHEME[scheme]
     || typeof rule.sourceUrl !== 'string' || !/^https:\/\//.test(rule.sourceUrl)
     || !parseInstant(rule.checkedAt)
     || !validDate(rule.effectiveFrom) || !validDate(rule.effectiveThrough)
@@ -107,6 +113,7 @@ function validRule(rule: ChargingRule, scheme: ChargingSchemeId): boolean {
     || !Array.isArray(rule.weeklyWindows) || !Array.isArray(rule.exceptions)
     || !Array.isArray(rule.waivingStatuses)
     || !rule.waivingStatuses.every(v => WAIVERS.has(v))
+    || (rule.waivingStatuses.includes('compliant') && !EMISSIONS_SCHEMES.has(scheme))
     || rule.weeklyWindows.some(w => !Number.isInteger(w.dayOfWeek) || w.dayOfWeek < 0 || w.dayOfWeek > 6 || !validPeriod(w))
     || rule.exceptions.some(d => !validDate(d.date) || !Array.isArray(d.periods) || d.periods.some((p: Pick<ChargeWindow, 'startMinute' | 'endMinute'>) => !validPeriod(p)))) return false;
   const days = rule.exceptions.map(d => d.date);

@@ -36,7 +36,8 @@ describe('Settings mockup contract', () => {
     // Both clients keep the current Avoid tolls toggle visible while the
     // future tolls page is feature-gated. The draft also has a hidden copy.
     assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 11);
-    assert.match(pages, /!TOLLS_EXEMPTIONS_RELEASED ? <SwitchRow title="Avoid tolls"/);
+    assert.ok(pages.includes('!TOLLS_EXEMPTIONS_RELEASED ? <SwitchRow title="Avoid tolls"'),
+      'The original toll avoidance switch must remain available while the new page is gated');
     assert.match(pages, /RIDER_VEHICLE_GROUPS\.map[\s\S]*RIDER_VEHICLE_OPTIONS\.filter[\s\S]*<CheckRow /);
     assert.match(pages, /<SegmentedRow first title="Distance units"/);
     assert.match(pages, /title="Navigation app" value=\{navigationAppLabel\}/);

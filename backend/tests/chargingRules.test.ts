@@ -36,6 +36,8 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(run({ rule: { ...congestionRule, schemeId: 'london_ulez' } }).outcome, 'unknown');
     assert.equal(run({ vehicleClass: 'wrong' as ChargeAssessmentInput['vehicleClass'] }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, unit: 'wrong' as ChargingRule['unit'] } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, unit: 'per_crossing' } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, waivingStatuses: ['compliant'] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, vehicleClasses: ['wrong' as ChargingRule['vehicleClasses'][number]] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, waivingStatuses: ['paying' as ChargingRule['waivingStatuses'][number]] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, weeklyWindows: [{ dayOfWeek: 7, startMinute: 0, endMinute: 60 }] } }).outcome, 'unknown');
@@ -99,6 +101,15 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(result.outcome, 'verified_exempt');
     assert.equal(result.unit, 'daily');
     assert.equal(result.localDate, '2026-01-05');
-    assert.equal(run({ schemeId: 'london_ulez', rule: { ...rule, unit: 'per_crossing' }, entitlement: undefined }).unit, 'per_crossing');
+    assert.equal(run({ schemeId: 'london_ulez', rule: { ...rule, unit: 'per_crossing' }, entitlement: undefined }).outcome, 'unknown');
+    const tunnel: ChargingRule = {
+      ...congestionRule, schemeId: 'blackwall_silvertown', unit: 'per_crossing',
+      waivingStatuses: ['exempt'],
+    };
+    const crossing = run({ schemeId: 'blackwall_silvertown', rule: tunnel, entitlement: undefined });
+    assert.equal(crossing.outcome, 'possible_charge');
+    assert.equal(crossing.unit, 'per_crossing');
+    assert.equal(run({ schemeId: 'blackwall_silvertown',
+      rule: { ...tunnel, waivingStatuses: ['compliant'] } }).outcome, 'unknown');
   });
 });
