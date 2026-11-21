@@ -476,6 +476,60 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.report')).toHaveCount(0);
   });
 
+  test('browser Back and Forward restore sections and their headings', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    await openSection(page, 'Riders');
+    await expect(page.getByRole('heading', { name: 'Riders', exact: true })).toBeFocused();
+    await openSection(page, 'System');
+    await expect(page.locator('.page-title')).toHaveText('System');
+    await page.goBack();
+    await expect(page).toHaveURL(/#riders$/);
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    await page.goForward();
+    await expect(page).toHaveURL(/#system$/);
+    await expect(page.locator('.page-title')).toHaveText('System');
+  });
+
+  test('a failed section load offers Retry and recovers', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route((url) => url.pathname === '/admin/riders', async (route) => {
+      if (first) {
+        first = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+    await page.goto('/admin.html#riders');
+    await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+  });
+
+  test('refresh retains existing rider content until the new reply arrives', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    const hold = await holdApiResponse(page, (url) => url.pathname === '/admin/riders', 200, { riders: RIDERS });
+    if (await page.locator('#refreshMobile').isVisible()) await page.locator('#refreshMobile').click();
+    else await page.locator('.desktop-refresh').click();
+    await hold.received;
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    await expect(page.locator('.skeleton')).toHaveCount(0);
+    hold.release();
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+  });
+
   test('rider lookup searches and shows account details as text', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
@@ -500,8 +554,10 @@ test.describe('staff dashboard', () => {
     await expect(rex.getByRole('button', { name: "Mark rex's email verified" })).toBeVisible();
     await expect(page.locator('[data-rider-id="rider_maya"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
 
-    page.once('dialog', (dialog) => dialog.accept('Known tester'));
     await rex.getByRole('button', { name: "Mark rex's email verified" }).click();
+    const verify = page.getByRole('dialog', { name: /email verified/ });
+    await verify.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Known tester');
+    await verify.getByRole('button', { name: 'Mark verified' }).click();
     await expect.poll(() => state.posts.find((post) => post.path === '/moderation/riders/rider_rex/verify-email')?.body).toEqual({ note: 'Known tester' });
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
   });
@@ -530,11 +586,21 @@ test.describe('staff dashboard', () => {
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff', body: { rider: '@sam_rides', role: 'support', note: 'Help desk' } });
 
     const maya = page.locator('[data-rider-id="rider_maya"]:visible');
-    page.once('dialog', (dialog) => dialog.accept('Covers reports now'));
     await maya.getByLabel('Role for Maya').selectOption('analyst');
+    const change = page.getByRole('dialog', { name: 'Change Maya to Analyst?' });
+    await change.getByRole('button', { name: 'Change role' }).click();
+    await expect(change.locator('.error-text')).toContainText('Write a reason first');
+    await change.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Covers reports now');
+    await change.getByRole('button', { name: 'Change role' }).click();
     await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/admin/staff', body: { rider: 'rider_maya', role: 'analyst', note: 'Covers reports now' } });
-    page.once('dialog', (dialog) => dialog.accept('Left the team'));
-    await page.locator('[data-rider-id="rider_maya"]:visible').getByRole('button', { name: 'Remove' }).click();
+    const mayaUpdated = page.locator('[data-rider-id="rider_maya"]:visible');
+    await mayaUpdated.getByLabel('Role for Maya').selectOption('support');
+    await page.getByRole('dialog', { name: 'Change Maya to Support?' }).getByRole('button', { name: 'Cancel' }).click();
+    await expect(mayaUpdated.getByLabel('Role for Maya')).toHaveValue('analyst');
+    await mayaUpdated.getByRole('button', { name: 'Remove' }).click();
+    const remove = page.getByRole('dialog', { name: 'Remove Maya from staff?' });
+    await remove.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Left the team');
+    await remove.getByRole('button', { name: 'Remove staff' }).click();
     await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
 
@@ -633,9 +699,11 @@ test.describe('staff dashboard', () => {
     const state = await mockModerationApi(page);
     await page.goto('/admin.html#riders');
     const maya = page.locator('[data-rider-id="rider_maya"]:visible');
-    page.once('dialog', (dialog) => dialog.accept('Access request, ticket 42'));
-    const download = page.waitForEvent('download');
     await maya.getByRole('button', { name: "Export maya's data" }).click();
+    const dialog = page.getByRole('dialog', { name: /Export maya’s account data/ });
+    await dialog.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Access request, ticket 42');
+    const download = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'Export', exact: true }).click();
     const file = await download;
     expect(file.suggestedFilename()).toMatch(/^rider-comms-data-rider_maya-\d{4}-\d{2}-\d{2}\.json$/);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/riders/rider_maya/export', body: { note: 'Access request, ticket 42' } });
