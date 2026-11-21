@@ -39,7 +39,13 @@ export interface RouteChargeSummary {
   /** Potential exposure count, NOT a verified charge or amount payable. */
   possibleDailyChargeDays: number;
   possibleCrossingCharges: number;
-  /** Some events are uncertain; the summary cannot be interpreted as complete. */
+  /**
+   * The road-level detector is not available yet, so full-route charging
+   * coverage cannot be verified. Even correctly assessed events don't prove
+   * an entire route is free of other charges.
+   */
+  routeCoverageComplete: false;
+  /** Unobserved crossings and any uncertain event still require review. */
   needsVerification: boolean;
   reason?: 'no_evidence' | 'invalid_event_list' | 'duplicate_event';
   results: RouteChargeEventResult[];
@@ -58,6 +64,7 @@ export function summarizeRouteChargePassages(
   const empty = (reason: RouteChargeSummary['reason']): RouteChargeSummary => ({
     possibleDailyChargeDays: 0,
     possibleCrossingCharges: 0,
+    routeCoverageComplete: false,
     needsVerification: true,
     reason,
     results: [],
@@ -68,7 +75,7 @@ export function summarizeRouteChargePassages(
   const daily = new Set<string>();
   const results: RouteChargeEventResult[] = [];
   let crossingCount = 0;
-  let needsVerification = false;
+  // Individual event uncertainty is visible in results; coverage remains unknown.
   for (const passage of passages) {
     if (!passage || typeof passage.eventId !== 'string' || passage.eventId.length < 1 || passage.eventId.length > 128) {
       return empty('invalid_event_list');
@@ -84,20 +91,20 @@ export function summarizeRouteChargePassages(
       : { schemeId: passage.schemeId, outcome: 'unknown', reason: 'missing_or_invalid_data' } as ChargeAssessment;
     results.push({ eventId: passage.eventId, schemeId: passage.schemeId,
       ...(passage.zoneId ? { zoneId: passage.zoneId } : {}), assessment });
-    if (assessment.outcome === 'unknown') needsVerification = true;
-    if (assessment.outcome !== 'possible_charge') continue;
+      if (assessment.outcome !== 'possible_charge') continue;
     // A future rule returning a potential charge without a known charge unit
     // or date remains unverified, rather than looking charge-free.
-    needsVerification ||= assessment.unit !== 'per_crossing'
-      && !(assessment.unit === 'daily' && Boolean(assessment.localDate));
-    if (assessment.unit === 'daily' && assessment.localDate) {
+      if (assessment.unit === 'daily' && assessment.localDate) {
       daily.add(JSON.stringify([passage.schemeId, passage.zoneId ?? '', assessment.localDate]));
     } else if (assessment.unit === 'per_crossing') {
       crossingCount += 1;
     }
   }
   return { possibleDailyChargeDays: daily.size, possibleCrossingCharges: crossingCount,
-    needsVerification, results };
+    routeCoverageComplete: false,
+    // Until an authoritative road-level route-coverage proof is integrated,
+    // all summaries are incomplete regardless of individual event quality.
+    needsVerification: true, results };
 }
 
 /**

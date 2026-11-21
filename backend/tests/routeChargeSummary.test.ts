@@ -24,7 +24,8 @@ describe('offline future-route charging summary', () => {
     ]);
     assert.equal(output.possibleDailyChargeDays, 2); // 23:00 UTC is midnight BST on Tuesday
     assert.equal(output.possibleCrossingCharges, 0);
-    assert.equal(output.needsVerification, false);
+    assert.equal(output.needsVerification, true);
+    assert.equal(output.routeCoverageComplete, false);
   });
   it('counts independent crossings without turning them into a daily fee', () => {
     const tunnel: ChargingRule = { ...dailyRule, schemeId: 'blackwall_silvertown', unit: 'per_crossing' };
@@ -34,6 +35,8 @@ describe('offline future-route charging summary', () => {
     ]);
     assert.equal(output.possibleDailyChargeDays, 0);
     assert.equal(output.possibleCrossingCharges, 2);
+    assert.equal(output.routeCoverageComplete, false);
+    assert.equal(output.needsVerification, true);
   });
   it('does not count outside-hours, out-of-scope or operator-verified exempt events', () => {
     const limited: ChargingRule = { ...dailyRule,
@@ -49,7 +52,8 @@ describe('offline future-route charging summary', () => {
     const out = summarizeRouteChargePassages('car', events);
     assert.equal(out.possibleDailyChargeDays, 1);
     assert.equal(summarizeRouteChargePassages('motorcycle', [events[1]!]).possibleDailyChargeDays, 0);
-    assert.equal(out.needsVerification, false);
+    assert.equal(out.needsVerification, true);
+    assert.equal(out.routeCoverageComplete, false);
   });
   it('keeps user-declared exemptions chargeable and uncertain evidence unknown', () => {
     const out = summarizeRouteChargePassages('car', [
@@ -78,8 +82,16 @@ describe('offline future-route charging summary', () => {
     const duplicates = summarizeRouteChargePassages('car', [event('same'), event('same')]);
     assert.equal(duplicates.reason, 'duplicate_event');
     assert.equal(duplicates.needsVerification, true);
+    assert.equal(duplicates.routeCoverageComplete, false);
     assert.equal(summarizeRouteChargePassages('car', new Array(257).fill(event('x'))).reason, 'invalid_event_list');
     assert.equal(summarizeRouteChargePassages('car', [event('')]).reason, 'invalid_event_list');
+    // One confirmed absence is not proof every road in the route was checked.
+    const noCrossing = summarizeRouteChargePassages('car', [
+      event('no_crossing', { roadEvidence: 'confirmed_no_crossing' }),
+    ]);
+    assert.equal(noCrossing.possibleCrossingCharges + noCrossing.possibleDailyChargeDays, 0);
+    assert.equal(noCrossing.needsVerification, true);
+    assert.equal(noCrossing.routeCoverageComplete, false);
   });
   it('screens existing route geometry without interpreting polygons as verified charges', () => {
     const polygon = { type: 'Polygon', coordinates: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]] };
@@ -116,6 +128,6 @@ describe('offline future-route charging summary', () => {
   it('does not call any network provider to calculate a fee', () => {
     const output = summarizeRouteChargePassages('car', []);
     assert.deepEqual(output, { possibleDailyChargeDays: 0, possibleCrossingCharges: 0,
-      needsVerification: true, reason: 'no_evidence', results: [] });
+      routeCoverageComplete: false, needsVerification: true, reason: 'no_evidence', results: [] });
   });
 });
