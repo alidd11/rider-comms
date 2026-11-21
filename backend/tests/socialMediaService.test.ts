@@ -73,6 +73,14 @@ describe('Rider Social media service', () => {
     assert.equal(check(viewer, 'file', link.exp, link.sig, link.exp + 1), false);
     assert.equal(check(viewer, 'file', NOW + 31 * MINUTE, link.sig), false);
     assert.equal(check(viewer, 'file', Number.NaN, link.sig), false);
+    // Fuzz-style boundary cases: invalid expiries and malformed signatures
+    // must be rejected without throwing or granting access.
+    for (const invalidExpiry of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      assert.equal(check(viewer, 'file', invalidExpiry, link.sig), false);
+    }
+    for (const invalidSignature of ['', 'x'.repeat(1000), link.sig.slice(1), link.sig + '=']) {
+      assert.equal(check(viewer, 'file', link.exp, invalidSignature), false);
+    }
   });
 
   it('accepts only a single byte range', () => {
