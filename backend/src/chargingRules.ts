@@ -177,7 +177,8 @@ export function assessChargeExposure(input: ChargeAssessmentInput): ChargeAssess
   // Never treat a user-declared toggle, discount, payment registration or
   // stale/incorrect vehicle entitlement as a verified full exemption.
   if (entitlement?.schemeId === schemeId && entitlement.vehicleClass === vehicleClass
-    && (schemeId !== 'uk_caz' || entitlement.zoneId === rule.zoneId)
+    && validChargingZoneId(schemeId, entitlement.zoneId)
+    && entitlement.zoneId === rule.zoneId
     && entitlement.source === 'operator_verified' && rule.waivingStatuses.includes(entitlement.status as 'exempt' | 'compliant')
     && parseInstant(entitlement.checkedAt) && validDate(entitlement.validThrough)
     && entitlement.validThrough >= local.localDate && parseInstant(entitlement.checkedAt)!.getTime() <= when.getTime()) {

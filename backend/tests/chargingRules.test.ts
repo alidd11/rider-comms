@@ -86,6 +86,8 @@ describe('future road-charge assessment (never used by live routing)', () => {
       status: 'exempt' as const, source: 'operator_verified' as const,
       checkedAt: '2026-01-01T12:00:00Z', validThrough: '2026-12-31' };
     assert.equal(run({ entitlement: official }).outcome, 'verified_exempt');
+    assert.equal(run({ entitlement: { ...official, zoneId: 'fabricated_zone' } }).outcome, 'possible_charge');
+    assert.equal(run({ entitlement: { ...official, zoneId: '' } }).outcome, 'possible_charge');
     assert.equal(run({ entitlement: { ...official, source: 'user_declared' } }).outcome, 'possible_charge');
     assert.equal(run({ entitlement: { ...official, status: 'discounted' } }).outcome, 'possible_charge');
     assert.equal(run({ entitlement: { ...official, status: 'registered' } }).outcome, 'possible_charge');
