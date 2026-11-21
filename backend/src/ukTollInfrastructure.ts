@@ -26,7 +26,7 @@ export interface UKTollInfrastructure {
 export const PARLIAMENT_TOLL_INVENTORY_SOURCE =
   'https://questions-statements.parliament.uk/written-questions/detail/2026-06-30/hl1520';
 export const PARLIAMENT_TOLL_INVENTORY_ANSWER_DATE = '2026-07-08';
-export const UK_TOLL_REFERENCE_REVIEW_DATE = '2026-11-21';
+export const ENGLISH_TOLL_REFERENCE_REVIEW_DATE = '2026-11-21';
 
 const item = (
   id: string, name: string, kind: TollInfrastructureKind,
@@ -42,7 +42,7 @@ const item = (
  * Some groups contain multiple structures and will require separate road IDs
  * when real authoritative road-level evidence becomes available.
  */
-export const UK_TOLL_INFRASTRUCTURE: readonly UKTollInfrastructure[] = Object.freeze([
+export const ENGLISH_TOLL_INFRASTRUCTURE: readonly UKTollInfrastructure[] = Object.freeze([
   item('m6_toll', 'M6 Toll motorway', 'motorway', 'journey_zones',
     'https://www.m6toll.co.uk/pricing/'),
   item('aldwark_bridge', 'Aldwark Bridge', 'bridge', 'operator_review_required'),
@@ -75,8 +75,22 @@ export const UK_TOLL_INFRASTRUCTURE: readonly UKTollInfrastructure[] = Object.fr
   item('whitney_on_wye_bridge', 'Whitney-on-Wye Bridge', 'bridge', 'operator_review_required'),
 ]);
 
-export function findUKTollInfrastructure(id: unknown): UKTollInfrastructure | null {
+/** The 8 July parliamentary list is a reference, not a current complete UK inventory. */
+export function isEnglishTollInventoryFresh(asOfDay: string): boolean {
+  const day = (value: string): number | null => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const parsed = new Date(value + 'T00:00:00Z');
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+      ? parsed.getTime() / 86400000 : null;
+  };
+  if (typeof asOfDay !== 'string') return false;
+  const today = day(asOfDay), published = day(PARLIAMENT_TOLL_INVENTORY_ANSWER_DATE);
+  return today !== null && published !== null
+    && today >= published && today - published <= 90;
+}
+
+export function findEnglishTollInfrastructure(id: unknown): UKTollInfrastructure | null {
   return typeof id === 'string'
-    ? UK_TOLL_INFRASTRUCTURE.find(road => road.id === id) ?? null
+    ? ENGLISH_TOLL_INFRASTRUCTURE.find(road => road.id === id) ?? null
     : null;
 }
