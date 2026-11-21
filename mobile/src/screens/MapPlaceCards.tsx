@@ -2,7 +2,7 @@
 // a chosen place with its route, the ways there before Start, and
 // "You’ve arrived" after a route.
 import * as React from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NavigationTarget } from '../navigationLinks';
 import { formatNavigationDistance, formatNavigationDuration } from '../navigationGuidance';
@@ -163,24 +163,27 @@ const AVOID_CHIPS: ReadonlyArray<{ key: 'tolls' | 'ferries'; label: string }> = 
 
 /**
  * The top of the route preview (PWA: #routePreviewTop), as in Google Maps:
- * where from and to, Back, and Avoid (tolls, ferries); under it the riding
- * styles, as in Calimoto and Scenic. Tapping the destination goes back to
- * search for another.
+ * where from and to, Back, and Route options: how to get there (Fastest,
+ * Twisty, No motorways, as in Calimoto and Scenic) and Avoid (tolls,
+ * ferries). Tapping the destination goes back to search for another.
  */
 export function RoutePreviewTopBar({ top, preview, avoidance, replanning = false, onBack, onChangeDestination, onStyle, onToggleAvoid }: {
   top: number;
   preview: RoutePreview;
   /** Settings → Map & navigation's avoid choices, changeable here too. */
   avoidance: RouteAvoidance;
-  /** Asking Google again: the chips wait. */
+  /** Asking Google again: the options wait. */
   replanning?: boolean;
   onBack: () => void;
   onChangeDestination: () => void;
   onStyle: (style: RouteStyle) => void;
   onToggleAvoid: (key: 'tolls' | 'ferries') => void;
 }): React.JSX.Element {
-  const [avoidOpen, setAvoidOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
   const avoiding = AVOID_CHIPS.filter(({ key }) => avoidance[key]).length;
+  // The button counts what's changed from the plain fastest way.
+  const changed = avoiding + (preview.style === 'fastest' ? 0 : 1);
+  const styleName = STYLE_CHIPS.find(({ style }) => style === preview.style)?.label ?? 'Fastest';
   return (
     <View testID="route-preview-top" style={[styles.routePreviewTop, { top }]}>
       <View style={styles.routePreviewBar}>
@@ -200,66 +203,79 @@ export function RoutePreviewTopBar({ top, preview, avoidance, replanning = false
           </View>
         </View>
         <Pressable
-          testID="route-preview-avoid"
+          testID="route-preview-options"
           accessibilityRole="button"
-          accessibilityLabel={avoiding ? `Avoid tolls or ferries, ${avoiding} on` : 'Avoid tolls or ferries'}
-          accessibilityState={{ expanded: avoidOpen }}
-          onPress={() => { haptics.select(); setAvoidOpen((open) => !open); }}
-          style={({ pressed }) => [styles.routePreviewAvoidButton, avoidOpen && styles.routePreviewAvoidButtonOpen, pressed && pressedFeedback]}
+          accessibilityLabel={`Route options, ${styleName}${avoiding ? ', avoiding tolls or ferries' : ''}`}
+          accessibilityState={{ expanded: open }}
+          onPress={() => { haptics.select(); setOpen((value) => !value); }}
+          style={({ pressed }) => [styles.routePreviewAvoidButton, open && styles.routePreviewAvoidButtonOpen, pressed && pressedFeedback]}
         >
           <Ionicons name="options-outline" size={21} color={colors.textPrimary} />
-          {avoiding ? <Text style={styles.routePreviewAvoidCount}>{avoiding}</Text> : null}
+          {changed ? <Text style={styles.routePreviewAvoidCount}>{changed}</Text> : null}
         </Pressable>
       </View>
-      {avoidOpen ? (
-        <View style={styles.routePreviewAvoidMenu} accessibilityLabel="Avoid">
-          {AVOID_CHIPS.map(({ key, label }) => (
-            <Pressable
-              key={key}
-              testID={`route-preview-avoid-${key}`}
-              accessibilityRole="switch"
-              accessibilityLabel={`Avoid ${label.toLowerCase()}`}
-              accessibilityState={{ checked: avoidance[key], disabled: replanning }}
-              disabled={replanning}
-              onPress={() => { haptics.select(); onToggleAvoid(key); }}
-              style={({ pressed }) => [styles.routePreviewChip, avoidance[key] && styles.routePreviewChipOn, pressed && pressedFeedback]}
-            >
-              <Text style={[styles.routePreviewChipText, avoidance[key] && styles.routePreviewChipTextOn]}>{avoidance[key] ? `✓ ${label}` : label}</Text>
-            </Pressable>
-          ))}
+      {open ? (
+        <View testID="route-preview-options-menu" style={[styles.routePreviewOptions, replanning && styles.routePreviewBusy]} accessibilityLabel="Route options">
+          <Text style={styles.routePreviewOptionsTitle}>How to get there</Text>
+          <View accessibilityRole="radiogroup" accessibilityLabel="How to get there" style={styles.routePreviewOptionsList}>
+            {STYLE_CHIPS.map(({ style, label, icon }) => {
+              const on = preview.style === style;
+              return (
+                <Pressable
+                  key={style}
+                  testID={`route-preview-style-${style}`}
+                  accessibilityRole="radio"
+                  accessibilityLabel={label}
+                  accessibilityState={{ selected: on, disabled: replanning }}
+                  disabled={replanning}
+                  onPress={() => {
+                    if (on) return;
+                    haptics.select();
+                    setOpen(false);
+                    onStyle(style);
+                  }}
+                  style={({ pressed }) => [styles.routePreviewOption, on && styles.routePreviewOptionOn, pressed && pressedFeedback]}
+                >
+                  <MaterialCommunityIcons name={icon} size={18} color={on ? colors.accentInk : colors.textPrimary} />
+                  <Text style={[styles.routePreviewOptionText, on && styles.routePreviewOptionTextOn]}>{label}</Text>
+                  {on ? <Ionicons name="checkmark" size={18} color={colors.accentInk} style={styles.routePreviewOptionCheck} /> : null}
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.routePreviewOptionsTitle}>Avoid</Text>
+          <View style={styles.routePreviewAvoidRow} accessibilityLabel="Avoid">
+            {AVOID_CHIPS.map(({ key, label }) => (
+              <Pressable
+                key={key}
+                testID={`route-preview-avoid-${key}`}
+                accessibilityRole="switch"
+                accessibilityLabel={`Avoid ${label.toLowerCase()}`}
+                accessibilityState={{ checked: avoidance[key], disabled: replanning }}
+                disabled={replanning}
+                onPress={() => { haptics.select(); onToggleAvoid(key); }}
+                style={({ pressed }) => [styles.routePreviewChip, styles.routePreviewAvoidChip, avoidance[key] && styles.routePreviewChipOn, pressed && pressedFeedback]}
+              >
+                <Text style={[styles.routePreviewChipText, avoidance[key] && styles.routePreviewChipTextOn]}>{avoidance[key] ? `✓ ${label}` : label}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       ) : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.routePreviewStyles} accessibilityLabel="How to get there">
-        {STYLE_CHIPS.map(({ style, label, icon }) => {
-          const on = preview.style === style;
-          return (
-            <Pressable
-              key={style}
-              testID={`route-preview-style-${style}`}
-              accessibilityRole="radio"
-              accessibilityLabel={label}
-              accessibilityState={{ selected: on, disabled: replanning }}
-              disabled={replanning}
-              onPress={() => { if (!on) { haptics.select(); onStyle(style); } }}
-              style={({ pressed }) => [styles.routePreviewStyleChip, on && styles.routePreviewStyleChipOn, replanning && styles.routePreviewBusy, pressed && pressedFeedback]}
-            >
-              <MaterialCommunityIcons name={icon} size={17} color={on ? colors.background : colors.textPrimary} />
-              <Text style={[styles.routePreviewStyleText, on && styles.routePreviewStyleTextOn]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
     </View>
   );
 }
 
+type SheetSize = 'min' | 'peek' | 'list';
+
 /**
  * The card for the chosen way before Start (PWA: #routePreview), as in
  * Google Maps: big time (amber when traffic adds to it), distance, arrival,
- * main road and a traffic note, with Start, Steps and Share; in a group ride,
- * who's in it and Share route. It opens up to list every way (a tap chooses
- * one, as on the map) and the turns. Parked only: MapScreen starts the shown
- * route itself if Ride Safe locks.
+ * main road and a traffic note, with Start and Share; in a group ride, who's
+ * in it and Share route. Three sizes, swiped between or stepped with the
+ * handle: small (time and Start), the chosen way, and every way (a tap
+ * chooses one, as on the map). Parked only: MapScreen starts the shown route
+ * itself if Ride Safe locks.
  */
 export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = false, ride, onChoose, onStart, onShare }: {
   bottom: number;
@@ -273,40 +289,69 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
   onStart: () => void;
   onShare: () => void;
 }): React.JSX.Element {
-  const [expanded, setExpanded] = React.useState(false);
+  const [size, setSize] = React.useState<SheetSize>('peek');
   const name = preview.target.label ?? 'Selected place';
   const choice = preview.choices.find((item) => item.index === preview.index) ?? preview.choices[0];
   const route = preview.routes[preview.index] ?? preview.routes[0]!;
   const traffic = routeTrafficDelayText(route.durationSeconds, route.typicalDurationSeconds);
-  const note = routeTrafficNote(route.durationSeconds, route.typicalDurationSeconds, choice?.label === 'Fastest');
+  // Twisty asked for, but the bendiest way Google had is also the quickest
+  // (often so in town): say so, rather than seem to ignore it.
+  const twistyIsFastest = preview.style === 'twisty' && choice?.label === 'Fastest';
+  const note = twistyIsFastest
+    ? 'Also the twistiest way Google found'
+    : routeTrafficNote(route.durationSeconds, route.typicalDurationSeconds, choice?.label === 'Fastest');
   const others = preview.choices.length - 1;
+  const sizes: SheetSize[] = others > 0 ? ['min', 'peek', 'list'] : ['min', 'peek'];
+  const step = React.useCallback((direction: 1 | -1) => {
+    setSize((current) => {
+      const at = Math.max(0, sizes.indexOf(current));
+      const next = sizes[Math.min(sizes.length - 1, Math.max(0, at + direction))]!;
+      if (next !== current) haptics.select();
+      return next;
+    });
+  // sizes changes only with the number of ways.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [others > 0]);
+  // Swipe down to make the card smaller, up to make it bigger.
+  const pan = React.useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dy) > 12 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onPanResponderRelease: (_event, gesture) => {
+      if (Math.abs(gesture.dy) >= 40) step(gesture.dy > 0 ? -1 : 1);
+    },
+  }), [step]);
   const meta = [`Arrive ${arrivalClock(route.durationSeconds)}`, route.summary ? `via ${route.summary}` : ''].filter(Boolean).join(' · ');
+  const small = size === 'min';
   return (
     <View testID="route-preview" style={[styles.routePreviewSheet, { bottom }]} accessibilityViewIsModal>
-      <Pressable
-        testID="route-preview-handle"
-        accessibilityRole="button"
-        accessibilityLabel={expanded ? 'Show less' : 'Show every route and the turns'}
-        accessibilityState={{ expanded }}
-        onPress={() => setExpanded((open) => !open)}
-        style={styles.routePreviewHandle}
-      >
-        <View style={styles.routePreviewHandleBar} />
-      </Pressable>
-      <ScrollView style={expanded ? styles.routePreviewScrollOpen : undefined} scrollEnabled={expanded} showsVerticalScrollIndicator={false}>
+      <View {...pan.panHandlers} testID="route-preview-drag">
+        <Pressable
+          testID="route-preview-handle"
+          accessibilityRole="button"
+          accessibilityLabel={small ? 'Show the route details' : size === 'list' ? 'Hide the other routes' : others ? 'Show the other routes' : 'Make the card smaller'}
+          onPress={() => setSize(small ? 'peek' : size === 'list' ? 'peek' : others ? 'list' : 'min')}
+          style={styles.routePreviewHandle}
+        >
+          <View style={styles.routePreviewHandleBar} />
+        </Pressable>
         <View style={[styles.routePreviewSummary, replanning && styles.routePreviewBusy]} accessibilityLabel={[choice?.text ?? '', formatNavigationDistance(route.distanceMeters, unitSystem), meta, note].filter(Boolean).join(', ')}>
           <Text style={[styles.routePreviewBigTime, traffic ? styles.routePreviewTimeTraffic : null]}>{choice?.time ?? formatNavigationDuration(route.durationSeconds)}</Text>
           <Text style={styles.routePreviewDistance}>{formatNavigationDistance(route.distanceMeters, unitSystem)}</Text>
           {choice && choice.label !== 'Alternative' ? <Text style={styles.routePreviewTagPill}>{choice.label}</Text> : null}
         </View>
-        <Text style={styles.routePreviewMetaLine} numberOfLines={1}>{meta}</Text>
-        {note ? (
-          <View style={styles.routePreviewNote}>
-            <Ionicons name="time-outline" size={16} color={traffic ? colors.warning : colors.textSecondary} />
-            <Text style={[styles.routePreviewNoteText, traffic ? styles.routePreviewNoteTraffic : null]}>{note}</Text>
-          </View>
-        ) : null}
-        {ride ? (
+        {small ? null : (
+          <>
+            <Text style={styles.routePreviewMetaLine} numberOfLines={1}>{meta}</Text>
+            {note ? (
+              <View style={styles.routePreviewNote}>
+                <Ionicons name={twistyIsFastest ? 'information-circle-outline' : 'time-outline'} size={16} color={traffic && !twistyIsFastest ? colors.warning : colors.textSecondary} />
+                <Text style={[styles.routePreviewNoteText, traffic && !twistyIsFastest ? styles.routePreviewNoteTraffic : null]}>{note}</Text>
+              </View>
+            ) : null}
+          </>
+        )}
+      </View>
+      <ScrollView style={size === 'list' ? styles.routePreviewScrollOpen : undefined} scrollEnabled={size === 'list'} showsVerticalScrollIndicator={false}>
+        {ride && !small ? (
           <View testID="route-preview-ride" style={styles.routePreviewRide}>
             <View style={styles.routePreviewRideAvatars}>{ride.avatars}</View>
             <Text style={styles.routePreviewRideText}>{`Group ride · ${ride.count} ${ride.count === 1 ? 'rider' : 'riders'}`}</Text>
@@ -328,27 +373,25 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
             <Ionicons name="navigate" size={19} color={colors.accentText} />
             <Text style={styles.routePreviewStartText}>Start</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Steps" onPress={() => setExpanded(true)} style={({ pressed }) => [styles.routePreviewSecondary, pressed && pressedFeedback]}>
-            <Ionicons name="list" size={19} color={colors.textPrimary} />
-            <Text style={styles.routePreviewSecondaryText}>Steps</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Share route" onPress={onShare} style={({ pressed }) => [styles.routePreviewSecondary, styles.routePreviewRound, pressed && pressedFeedback]}>
-            <Ionicons name="share-outline" size={20} color={colors.textPrimary} />
-          </Pressable>
+          {small ? null : (
+            <Pressable accessibilityRole="button" accessibilityLabel="Share route" onPress={onShare} style={({ pressed }) => [styles.routePreviewSecondary, styles.routePreviewRound, pressed && pressedFeedback]}>
+              <Ionicons name="share-outline" size={20} color={colors.textPrimary} />
+            </Pressable>
+          )}
         </View>
-        {others > 0 || expanded ? (
+        {others > 0 && !small ? (
           <Pressable
             testID="route-preview-more"
             accessibilityRole="button"
-            accessibilityState={{ expanded }}
-            onPress={() => setExpanded((open) => !open)}
+            accessibilityState={{ expanded: size === 'list' }}
+            onPress={() => setSize(size === 'list' ? 'peek' : 'list')}
             style={styles.routePreviewMore}
           >
-            <Text style={styles.routePreviewMoreText}>{expanded ? 'Fewer details' : others === 1 ? '1 other route' : `${others} other routes`}</Text>
-            <Ionicons name={expanded ? 'chevron-down' : 'chevron-up'} size={18} color={colors.accentInk} />
+            <Text style={styles.routePreviewMoreText}>{size === 'list' ? 'Hide other routes' : others === 1 ? '1 other route' : `${others} other routes`}</Text>
+            <Ionicons name={size === 'list' ? 'chevron-down' : 'chevron-up'} size={18} color={colors.accentInk} />
           </Pressable>
         ) : null}
-        {expanded ? (
+        {size === 'list' ? (
           <View testID="route-preview-details">
             <Text style={styles.routePreviewHeading} accessibilityRole="header">Routes</Text>
             <View accessibilityRole="radiogroup" accessibilityLabel="Routes" style={styles.routePreviewList}>
@@ -377,16 +420,6 @@ export function RoutePreviewSheet({ bottom, preview, unitSystem, replanning = fa
                   </Pressable>
                 );
               })}
-            </View>
-            <Text style={styles.routePreviewHeading} accessibilityRole="header">{choice && choice.label !== 'Alternative' ? `Steps on the ${choice.label.toLowerCase()}` : 'Steps'}</Text>
-            {route.steps.map((step, index) => (
-              <View key={`${index}-${step.instruction}`} style={[styles.routePreviewStep, index > 0 && styles.routePreviewStepDivided]}>
-                <Text style={styles.routePreviewStepText}>{step.instruction}</Text>
-                <Text style={styles.routePreviewStepDistance}>{formatNavigationDistance(step.distanceMeters, unitSystem)}</Text>
-              </View>
-            ))}
-            <View style={[styles.routePreviewStep, route.steps.length > 0 && styles.routePreviewStepDivided]}>
-              <Text style={[styles.routePreviewStepText, styles.routePreviewStepArrive]}>{`Arrive at ${name}`}</Text>
             </View>
           </View>
         ) : null}

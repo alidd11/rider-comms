@@ -7580,22 +7580,24 @@
   function renderRoutePreview() {
     const panel = $('#routePreview');
     if (!panel || !routePreview) return;
-    const { result, index, label, style, expanded } = routePreview;
+    const { result, index, label, style } = routePreview;
     const choices = routeChoiceSummaries(result);
     const chosen = choices.find((choice) => choice.index === index) || choices[0];
     $('#routePreviewTo').textContent = label || 'Destination';
     $('#routePreviewTitle').textContent = chosen ? `${chosen.time} to ${label || 'your destination'}` : '';
     document.querySelectorAll('#routePreviewStyles [data-preview-style]').forEach((chip) => {
-      chip.setAttribute('aria-pressed', String(chip.dataset.previewStyle === style));
+      chip.setAttribute('aria-checked', String(chip.dataset.previewStyle === style));
     });
-    document.querySelectorAll('#routePreviewAvoidMenu [data-preview-avoid]').forEach((chip) => {
+    document.querySelectorAll('#routePreviewOptions [data-preview-avoid]').forEach((chip) => {
       chip.setAttribute('aria-checked', String(state[chip.dataset.previewAvoid] === true));
     });
-    const avoiding = ROUTE_AVOID_KEYS.filter((key) => state[key] === true).length;
+    // The options button counts what's changed from the plain fastest way.
+    const changed = ROUTE_AVOID_KEYS.filter((key) => state[key] === true).length + (style === 'fastest' ? 0 : 1);
     const count = $('#routePreviewAvoidCount');
-    count.textContent = String(avoiding);
-    count.hidden = !avoiding;
-    $('#routePreviewAvoidBtn').setAttribute('aria-label', avoiding ? `Avoid tolls or ferries, ${avoiding} on` : 'Avoid tolls or ferries');
+    count.textContent = String(changed);
+    count.hidden = !changed;
+    const styleName = { fastest: 'Fastest', twisty: 'Twisty', no_motorways: 'No motorways' }[style] || 'Fastest';
+    $('#routePreviewAvoidBtn').setAttribute('aria-label', `Route options, ${styleName}${changed > (style === 'fastest' ? 0 : 1) ? ', avoiding tolls or ferries' : ''}`);
     if (chosen) {
       const time = $('#routePreviewTime');
       time.textContent = chosen.time;
@@ -7604,10 +7606,14 @@
       $('#routePreviewTag').textContent = chosen.label;
       $('#routePreviewTag').hidden = chosen.label === 'Alternative';
       $('#routePreviewMeta').textContent = [`Arrive ${chosen.arrival}`, chosen.via ? `via ${chosen.via}` : ''].filter(Boolean).join(' · ');
+      // Twisty asked for, but the bendiest way Google had is also the
+      // quickest (often so in town): say so, rather than seem to ignore it.
+      const twistyIsFastest = style === 'twisty' && chosen.label === 'Fastest';
+      const noteText = twistyIsFastest ? 'Also the twistiest way Google found' : chosen.note;
       const note = $('#routePreviewNote');
-      note.hidden = !chosen.note;
-      note.dataset.traffic = String(Boolean(chosen.traffic));
-      $('#routePreviewNoteText').textContent = chosen.note;
+      note.hidden = !noteText;
+      note.dataset.traffic = String(!twistyIsFastest && Boolean(chosen.traffic));
+      $('#routePreviewNoteText').textContent = noteText;
     }
     // In a group ride: who's in it, and Share sends them the route.
     const ride = state.activeRide;
@@ -7620,21 +7626,18 @@
       $('#routePreviewRideText').textContent = `Group ride · ${count} ${count === 1 ? 'rider' : 'riders'}`;
     }
     const others = choices.length - 1;
-    $('#routePreviewMore').hidden = others < 1 && !expanded;
-    $('#routePreviewMoreText').textContent = expanded ? 'Fewer details' : others === 1 ? '1 other route' : `${others} other routes`;
-    $('#routePreviewMore').setAttribute('aria-expanded', String(Boolean(expanded)));
-    panel.classList.toggle('expanded', Boolean(expanded));
+    const size = routePreview.size;
+    $('#routePreviewMore').hidden = others < 1 || size === 'min';
+    $('#routePreviewMoreText').textContent = size === 'list' ? 'Hide other routes' : others === 1 ? '1 other route' : `${others} other routes`;
+    $('#routePreviewMore').setAttribute('aria-expanded', String(size === 'list'));
+    panel.classList.toggle('expanded', size === 'list');
+    panel.classList.toggle('minimised', size === 'min');
+    $('#routePreviewHandle').setAttribute('aria-label', size === 'min' ? 'Show the route details' : size === 'list' ? 'Hide the other routes' : (others ? 'Show the other routes' : 'Make the card smaller'));
     $('#routePreviewList').innerHTML = choices.map((choice) => {
       const meta = [`Arrive ${choice.arrival}`, choice.distance, choice.via ? `via ${choice.via}` : '', choice.traffic].filter(Boolean).join(' · ');
       const name = [choice.text, `arrive ${choice.arrival}`, choice.distance, choice.via ? `via ${choice.via}` : '', choice.traffic].filter(Boolean).join(', ');
       return `<button type="button" class="route-preview-row" role="radio" aria-checked="${choice.index === index}" aria-label="${escapeHtml(name)}" data-preview-route="${choice.index}"><strong data-traffic="${Boolean(choice.traffic)}">${escapeHtml(choice.time)}</strong><span class="route-preview-tag">${escapeHtml(choice.tag)}</span><span class="route-preview-meta">${escapeHtml(meta)}</span></button>`;
     }).join('');
-    const steps = routeTrip(result.routes[index])?.steps || [];
-    $('#routePreviewStepsTitle').textContent = chosen ? `Steps on the ${chosen.label === 'Alternative' ? 'chosen route' : chosen.label.toLowerCase()}` : 'Steps';
-    $('#routePreviewSteps').innerHTML = [
-      ...steps.map((step) => `<li><span>${escapeHtml(stripHtml(step.instructions))}</span><em>${escapeHtml(formatNavDistance(step.distance?.value || 0))}</em></li>`),
-      `<li class="arrive"><span>Arrive at ${escapeHtml(label || 'your destination')}</span></li>`,
-    ].join('');
   }
 
   function chooseRoutePreview(index) {
@@ -7645,15 +7648,50 @@
     drawRoutePreviewLines();
   }
 
-  function setRoutePreviewExpanded(expanded, { focusSteps = false } = {}) {
-    if (!routePreview) return;
-    routePreview.expanded = expanded;
+  /** The card's three sizes, as Google Maps' sheet: 'min' (time and Start),
+   * 'peek' (the chosen way) and 'list' (every way). A swipe or the handle
+   * moves between them; the map refits to the room left. */
+  const ROUTE_PREVIEW_SIZES = ['min', 'peek', 'list'];
+  function setRoutePreviewSize(size) {
+    if (!routePreview || !ROUTE_PREVIEW_SIZES.includes(size) || size === routePreview.size) return;
+    const others = routePreview.result.routes.length > 1;
+    routePreview.size = size === 'list' && !others ? 'peek' : size;
     renderRoutePreview();
-    if (focusSteps) $('#routePreviewStepsTitle')?.scrollIntoView({ block: 'start' });
+    requestAnimationFrame(() => fitRoutePreview());
+  }
+
+  function stepRoutePreviewSize(direction) {
+    if (!routePreview) return;
+    const sizes = routePreview.result.routes.length > 1 ? ROUTE_PREVIEW_SIZES : ['min', 'peek'];
+    const at = Math.max(0, sizes.indexOf(routePreview.size));
+    const next = sizes[Math.min(sizes.length - 1, Math.max(0, at + direction))];
+    if (next !== routePreview.size) { haptic('select'); setRoutePreviewSize(next); }
+  }
+
+  /** Swipe the card down to shrink it and up to grow it. A drag that starts
+   * on a button stays a tap; the list only gives way once scrolled to its top. */
+  function initRoutePreviewSwipe() {
+    const panel = $('#routePreview');
+    if (!panel) return;
+    let start = null;
+    panel.addEventListener('pointerdown', (event) => {
+      const onButton = event.target.closest?.('button:not(#routePreviewHandle)');
+      start = onButton ? null : { y: event.clientY, scrolled: panel.scrollTop > 0 };
+    });
+    panel.addEventListener('pointerup', (event) => {
+      if (!start) return;
+      const moved = event.clientY - start.y;
+      const begun = start;
+      start = null;
+      if (Math.abs(moved) < 40) return;
+      if (moved > 0 && begun.scrolled) return;
+      stepRoutePreviewSize(moved > 0 ? -1 : 1);
+    });
+    panel.addEventListener('pointercancel', () => { start = null; });
   }
 
   function showRoutePreview(result, destination, label, origin) {
-    routePreview = { result, destination, label, origin, style: 'fastest', expanded: false, index: fastestRouteIndex(result) };
+    routePreview = { result, destination, label, origin, style: 'fastest', size: 'peek', index: fastestRouteIndex(result) };
     hideDestinationCard();
     setRoutePreviewAvoidMenu(false);
     $('#app').classList.add('route-preview-mode');
@@ -7667,7 +7705,7 @@
   function setRoutePreviewBusy(busy) {
     $('#routePreview')?.setAttribute('aria-busy', String(busy));
     $('#routePreview')?.classList.toggle('loading', busy);
-    $('#routePreviewStyles')?.classList.toggle('loading', busy);
+    $('#routePreviewOptions')?.classList.toggle('loading', busy);
     const start = $('#routePreviewStart');
     if (start) start.disabled = busy;
   }
@@ -7714,7 +7752,7 @@
   }
 
   function setRoutePreviewAvoidMenu(open) {
-    const menu = $('#routePreviewAvoidMenu');
+    const menu = $('#routePreviewOptions');
     if (!menu) return;
     menu.hidden = !open;
     $('#routePreviewAvoidBtn')?.setAttribute('aria-expanded', String(open));
@@ -7772,15 +7810,19 @@
     if (row) chooseRoutePreview(Number(row.dataset.previewRoute));
   });
   $('#routePreviewStart')?.addEventListener('click', startRoutePreview);
-  $('#routePreviewStepsBtn')?.addEventListener('click', () => setRoutePreviewExpanded(true, { focusSteps: true }));
   $('#routePreviewShare')?.addEventListener('click', () => void shareRoutePreview());
   $('#routePreviewRideShare')?.addEventListener('click', () => void shareRoutePreview());
-  $('#routePreviewMore')?.addEventListener('click', () => setRoutePreviewExpanded(!routePreview?.expanded));
-  $('#routePreviewHandle')?.addEventListener('click', () => setRoutePreviewExpanded(!routePreview?.expanded));
+  $('#routePreviewMore')?.addEventListener('click', () => setRoutePreviewSize(routePreview?.size === 'list' ? 'peek' : 'list'));
+  $('#routePreviewHandle')?.addEventListener('click', () => {
+    if (!routePreview) return;
+    const others = routePreview.result.routes.length > 1;
+    setRoutePreviewSize(routePreview.size === 'min' ? 'peek' : routePreview.size === 'list' ? 'peek' : others ? 'list' : 'min');
+  });
+  initRoutePreviewSwipe();
   $('#routePreviewTop')?.addEventListener('click', (event) => {
     const chip = event.target.closest?.('[data-preview-style]');
-    if (chip) chooseRoutePreviewStyle(chip.dataset.previewStyle);
-    if (event.target.closest?.('#routePreviewAvoidBtn')) setRoutePreviewAvoidMenu($('#routePreviewAvoidMenu').hidden);
+    if (chip) { chooseRoutePreviewStyle(chip.dataset.previewStyle); setRoutePreviewAvoidMenu(false); }
+    if (event.target.closest?.('#routePreviewAvoidBtn')) setRoutePreviewAvoidMenu($('#routePreviewOptions').hidden);
     const avoid = event.target.closest?.('[data-preview-avoid]');
     if (avoid) toggleRoutePreviewAvoid(avoid.dataset.previewAvoid);
   });

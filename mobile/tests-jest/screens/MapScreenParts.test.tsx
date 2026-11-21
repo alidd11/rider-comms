@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { RidingHud } from '../../src/screens/RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from '../../src/screens/NavigationOverlay';
 import { ArrivalCard, DestinationCard, RoutePreviewSheet, RoutePreviewTopBar } from '../../src/screens/MapPlaceCards';
@@ -179,7 +179,7 @@ const PREVIEW = {
   index: 0,
 };
 
-test('the route preview card: the chosen way, Start, Share, and every way and its turns', async () => {
+test('the route preview card: the chosen way, Start, Share, the other ways, and three sizes', async () => {
   const onChoose = jest.fn();
   const onStart = jest.fn();
   const onShare = jest.fn();
@@ -194,7 +194,9 @@ test('the route preview card: the chosen way, Start, Share, and every way and it
   expect(view.getByText('Fastest despite +8 min of traffic')).toBeTruthy();
   expect(view.getByText('1 other route')).toBeTruthy();
   expect(view.queryByTestId('route-preview-ride')).toBeNull();
-  // Every way and the turns open on demand.
+  // No turn list before Start: the other ways open on demand.
+  expect(view.queryByRole('button', { name: 'Steps' })).toBeNull();
+  expect(view.queryByText('Turn right onto A41')).toBeNull();
   expect(view.queryByTestId('route-preview-details')).toBeNull();
 
   await fireEvent.press(view.getByRole('button', { name: 'Start route to Home' }));
@@ -202,11 +204,9 @@ test('the route preview card: the chosen way, Start, Share, and every way and it
   await fireEvent.press(view.getByRole('button', { name: 'Share route' }));
   expect(onShare).toHaveBeenCalledTimes(1);
 
-  await fireEvent.press(view.getByRole('button', { name: 'Steps' }));
+  await fireEvent.press(view.getByTestId('route-preview-more'));
   expect(view.getByTestId('route-preview-details')).toBeTruthy();
-  expect(view.getByText('Steps on the fastest')).toBeTruthy();
-  expect(view.getByText('Turn right onto A41')).toBeTruthy();
-  expect(view.getByText('Arrive at Home')).toBeTruthy();
+  expect(view.getByText('Hide other routes')).toBeTruthy();
   const fastest = view.getByTestId('route-preview-row-0');
   expect(fastest.props.accessibilityState).toEqual({ selected: true });
   expect(fastest.props.accessibilityLabel).toMatch(/^Fastest · 23 min, arrive .+, 11 mi, via A41, \+8 min traffic$/);
@@ -218,13 +218,69 @@ test('the route preview card: the chosen way, Start, Share, and every way and it
   expect(onChoose).toHaveBeenCalledWith(1);
   await fireEvent.press(view.getByTestId('route-preview-more'));
   expect(view.queryByTestId('route-preview-details')).toBeNull();
-  await fireEvent.press(view.getByTestId('route-preview-handle'));
-  expect(view.getByTestId('route-preview-details')).toBeTruthy();
 
-  // The twisty way chosen: usual traffic, no Fastest note.
+  // The handle: the chosen way → every way → the chosen way.
+  const handle = () => view.getByTestId('route-preview-handle');
+  expect(handle().props.accessibilityLabel).toBe('Show the other routes');
+  await fireEvent.press(handle());
+  expect(view.getByTestId('route-preview-details')).toBeTruthy();
+  expect(handle().props.accessibilityLabel).toBe('Hide the other routes');
+  await fireEvent.press(handle());
+  expect(view.queryByTestId('route-preview-details')).toBeNull();
+
+});
+
+test('the route preview card: swipe sizes, the small card, twisty and group rides', async () => {
+  const onShare = jest.fn();
+  const pans: Array<{ onMoveShouldSetPanResponder: (e: unknown, g: { dx: number; dy: number }) => boolean; onPanResponderRelease: (e: unknown, g: { dx: number; dy: number }) => void }> = [];
+  const { PanResponder } = jest.requireActual<typeof import('react-native')>('react-native');
+  const create = jest.spyOn(PanResponder, 'create').mockImplementation((config) => {
+    pans.push(config as (typeof pans)[number]);
+    return { panHandlers: {} } as ReturnType<typeof PanResponder.create>;
+  });
+  const sheet = (extra: Partial<React.ComponentProps<typeof RoutePreviewSheet>> = {}) => (
+    <RoutePreviewSheet bottom={0} preview={PREVIEW} unitSystem="mi" onChoose={jest.fn()} onStart={jest.fn()} onShare={onShare} {...extra} />
+  );
+  const view = await render(sheet());
+  const pan = () => pans[pans.length - 1]!;
+  expect(pan().onMoveShouldSetPanResponder(null, { dx: 0, dy: 5 })).toBe(false);
+  expect(pan().onMoveShouldSetPanResponder(null, { dx: 40, dy: 20 })).toBe(false);
+  expect(pan().onMoveShouldSetPanResponder(null, { dx: 2, dy: 30 })).toBe(true);
+
+  // A short drag does nothing; down to the small card: time and Start only.
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: 20 }));
+  expect(view.getByText('1 other route')).toBeTruthy();
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: 80 }));
+  expect(view.getByText('23 min')).toBeTruthy();
+  expect(view.getByTestId('route-preview-start')).toBeTruthy();
+  expect(view.queryByText(/^Arrive /)).toBeNull();
+  expect(view.queryByText('Fastest despite +8 min of traffic')).toBeNull();
+  expect(view.queryByRole('button', { name: 'Share route' })).toBeNull();
+  expect(view.queryByTestId('route-preview-more')).toBeNull();
+  expect(view.getByTestId('route-preview-handle').props.accessibilityLabel).toBe('Show the route details');
+  // Already as small as it goes.
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: 80 }));
+  expect(view.queryByTestId('route-preview-more')).toBeNull();
+  // Up: the chosen way, then every way, then no further.
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: -80 }));
+  expect(view.getByText('1 other route')).toBeTruthy();
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: -80 }));
+  expect(view.getByTestId('route-preview-details')).toBeTruthy();
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: -80 }));
+  expect(view.getByTestId('route-preview-details')).toBeTruthy();
+  // The handle from the small card goes back to the chosen way.
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: 80 }));
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: 80 }));
+  await fireEvent.press(view.getByTestId('route-preview-handle'));
+  expect(view.getByText('1 other route')).toBeTruthy();
+
+  // The twisty way chosen: usual traffic.
   await view.rerender(sheet({ preview: { ...PREVIEW, index: 1 } }));
   expect(view.getByText('Usual traffic')).toBeTruthy();
-  expect(view.getByText('Steps on the twisty')).toBeTruthy();
+  // Twisty asked for, but nothing bendier than the fastest way.
+  await view.rerender(sheet({ preview: { ...PREVIEW, style: 'twisty' } }));
+  expect(view.getByText('Also the twistiest way Google found')).toBeTruthy();
+  expect(view.queryByText('Fastest despite +8 min of traffic')).toBeNull();
 
   // While Google is asked again, Start can't be pressed.
   await view.rerender(sheet({ replanning: true }));
@@ -234,20 +290,28 @@ test('the route preview card: the chosen way, Start, Share, and every way and it
   await view.rerender(sheet({ ride: { count: 3, avatars: [] } }));
   expect(view.getByText('Group ride · 3 riders')).toBeTruthy();
   await fireEvent.press(view.getByRole('button', { name: 'Share route with the group' }));
-  expect(onShare).toHaveBeenCalledTimes(2);
+  expect(onShare).toHaveBeenCalledTimes(1);
   await view.rerender(sheet({ ride: { count: 1, avatars: [] } }));
   expect(view.getByText('Group ride · 1 rider')).toBeTruthy();
 
-  await fireEvent.press(view.getByTestId('route-preview-handle'));
-  // A place with no name, one way, no traffic figure.
+  // A place with no name, one way, no traffic figure: the handle makes the
+  // card smaller and back, as there are no other ways to show.
   await view.rerender(sheet({ preview: { ...PREVIEW, target: { lat: 51.5, lon: -0.1 }, routes: [previewRoute(600, 900)], choices: [{ ...PREVIEW.choices[0]!, time: '10 min' }] } }));
   expect(view.getByRole('button', { name: 'Start route to Selected place' })).toBeTruthy();
   expect(view.getByText('Fastest route')).toBeTruthy();
   expect(view.queryByTestId('route-preview-more')).toBeNull();
   expect(view.getByText(/^Arrive \S+/)).toBeTruthy();
+  expect(view.getByTestId('route-preview-handle').props.accessibilityLabel).toBe('Make the card smaller');
+  await fireEvent.press(view.getByTestId('route-preview-handle'));
+  expect(view.queryByText(/^Arrive /)).toBeNull();
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: -80 }));
+  await act(() => pan().onPanResponderRelease(null, { dx: 0, dy: -80 }));
+  expect(view.getByText(/^Arrive \S+/)).toBeTruthy();
+  expect(view.queryByTestId('route-preview-details')).toBeNull();
+  create.mockRestore();
 });
 
-test('the route preview bar: back, another destination, riding style and Avoid', async () => {
+test('the route preview bar: back, another destination, and Route options', async () => {
   const onBack = jest.fn();
   const onChangeDestination = jest.fn();
   const onStyle = jest.fn();
@@ -265,27 +329,38 @@ test('the route preview bar: back, another destination, riding style and Avoid',
   await fireEvent.press(view.getByRole('button', { name: 'Change destination, now Home' }));
   expect(onChangeDestination).toHaveBeenCalled();
 
+  // Riding style and Avoid live behind the options button.
+  const options = () => view.getByTestId('route-preview-options');
+  expect(options().props.accessibilityLabel).toBe('Route options, Fastest, avoiding tolls or ferries');
+  expect(view.getByText('1')).toBeTruthy();
+  expect(view.queryByTestId('route-preview-style-fastest')).toBeNull();
+  await fireEvent.press(options());
+  expect(view.getByText('How to get there')).toBeTruthy();
   expect(view.getByTestId('route-preview-style-fastest').props.accessibilityState).toEqual({ selected: true, disabled: false });
   await fireEvent.press(view.getByTestId('route-preview-style-fastest'));
   expect(onStyle).not.toHaveBeenCalled();
-  await fireEvent.press(view.getByTestId('route-preview-style-twisty'));
-  expect(onStyle).toHaveBeenCalledWith('twisty');
-
-  // Avoid: tolls and ferries, the Settings choices.
-  const avoid = view.getByTestId('route-preview-avoid');
-  expect(avoid.props.accessibilityLabel).toBe('Avoid tolls or ferries, 1 on');
-  expect(view.queryByRole('switch', { name: 'Avoid tolls' })).toBeNull();
-  await fireEvent.press(avoid);
   expect(view.getByRole('switch', { name: 'Avoid tolls' }).props.accessibilityState).toEqual({ checked: true, disabled: false });
   expect(view.getByText('✓ Tolls')).toBeTruthy();
+  // Avoid changes keep the menu open; a style closes it.
   await fireEvent.press(view.getByRole('switch', { name: 'Avoid ferries' }));
   expect(onToggleAvoid).toHaveBeenCalledWith('ferries');
+  expect(view.getByText('How to get there')).toBeTruthy();
+  await fireEvent.press(view.getByTestId('route-preview-style-twisty'));
+  expect(onStyle).toHaveBeenCalledWith('twisty');
+  expect(view.queryByText('How to get there')).toBeNull();
 
-  // While Google is asked again, the chips wait; nothing avoided reads plainly.
+  // A style other than Fastest counts too.
+  await view.rerender(bar({ preview: { ...PREVIEW, style: 'no_motorways' } }));
+  expect(options().props.accessibilityLabel).toBe('Route options, No motorways, avoiding tolls or ferries');
+  expect(view.getByText('2')).toBeTruthy();
+
+  // While Google is asked again, the options wait; nothing changed reads plainly.
   await view.rerender(bar({ replanning: true, avoidance: { highways: false, tolls: false, ferries: false }, preview: { ...PREVIEW, target: { lat: 0, lon: 0 } } }));
-  expect(view.getByTestId('route-preview-style-twisty').props.accessibilityState).toEqual({ selected: false, disabled: true });
-  expect(view.getByTestId('route-preview-avoid').props.accessibilityLabel).toBe('Avoid tolls or ferries');
+  expect(options().props.accessibilityLabel).toBe('Route options, Fastest');
+  expect(view.queryByText('1')).toBeNull();
   expect(view.getByText('Selected place')).toBeTruthy();
-  await fireEvent.press(view.getByTestId('route-preview-avoid'));
-  expect(view.queryByRole('switch', { name: 'Avoid tolls' })).toBeNull();
+  await fireEvent.press(options());
+  expect(view.getByTestId('route-preview-style-twisty').props.accessibilityState).toEqual({ selected: false, disabled: true });
+  await fireEvent.press(options());
+  expect(view.queryByTestId('route-preview-style-twisty')).toBeNull();
 });
