@@ -300,8 +300,10 @@ test.describe('staff dashboard', () => {
     await card.getByRole('button', { name: 'Remove post' }).click();
     await expect(card.locator('.error-text')).toContainText('Write a note first');
     await card.locator('textarea').fill('Scam listing.');
-    page.once('dialog', (dialog) => dialog.accept());
     await card.getByRole('button', { name: 'Remove post' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Remove this Social post?' });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Remove post' }).click();
     await expect(page.locator('.empty-title')).toHaveText('No hidden posts');
     expect(state.posts.at(-1)).toEqual({ path: '/moderation/social-posts/11111111-1111-4111-8111-111111111111/remove', body: { note: 'Scam listing.' } });
     await openSection(page, 'Audit log');
@@ -348,12 +350,13 @@ test.describe('staff dashboard', () => {
     const card = page.locator('.report[data-report-id="report-1"]');
     await card.locator('textarea').fill('Repeated threats in messages.');
 
-    page.once('dialog', (dialog) => dialog.dismiss());
     await card.getByRole('button', { name: 'Suspend rider' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Suspend this rider?' });
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
     expect(state.posts).toHaveLength(0);
 
-    page.once('dialog', (dialog) => dialog.accept());
     await card.getByRole('button', { name: 'Suspend rider' }).click();
+    await confirmation.getByRole('button', { name: 'Suspend rider' }).click();
     await expect(page.locator('.empty-title')).toHaveText('No open reports');
     expect(state.posts[0]).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Repeated threats in messages.', days: 7 } });
 
@@ -776,8 +779,8 @@ test.describe('staff dashboard', () => {
     await card.getByRole('button', { name: 'Harassment of other riders.' }).click();
     await expect(card.locator('textarea')).toHaveValue('Harassment of other riders.');
     await card.getByLabel('Suspension length for report report-1').selectOption('');
-    page.once('dialog', (dialog) => dialog.accept());
     await card.getByRole('button', { name: 'Suspend rider' }).click();
+    await page.getByRole('dialog', { name: 'Suspend this rider?' }).getByRole('button', { name: 'Suspend rider' }).click();
     await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Harassment of other riders.' } });
   });
 
