@@ -63,3 +63,35 @@ These are **review targets, not proven vulnerabilities**. Do not introduce unrel
 - [ ] Social TypeScript, browser security/production smoke, native exports and production dependency audit green.
 - [ ] Inspect regression screenshots for navigation, messages and social profile.
 - [ ] Independent review and staging tests; no automated merge solely on green CI.
+
+
+## Industry security benchmark — OWASP MASVS / ASVS 5.0 (21 November 2026)
+
+This is a **source-based gap assessment**, not an OWASP certification or a completed dynamic penetration test. Use the OWASP Mobile Application Security Verification Standard (MASVS) for the React Native apps, OWASP Application Security Verification Standard 5.0 for the PWA/Social websites and backend, and the OWASP API Security Top 10 for cross-user API boundaries.
+
+Primary standards:
+- https://mas.owasp.org/MASVS/
+- https://mas.owasp.org/MASVS/07-MASVS-AUTH/
+- https://github.com/OWASP/ASVS/blob/master/5.0/en/0x13-V4-API-and-Web-Service.md
+- https://cheatsheetseries.owasp.org/cheatsheets/Mobile_Application_Security_Cheat_Sheet.html
+- https://mas.owasp.org/MASVS/04-Assessment_and_Certification/
+
+| Control family | Evidence reviewed in this PR | Remaining verification / action |
+| --- | --- | --- |
+| MASVS-AUTH / ASVS authentication and session management | Backend session-bound media URLs; revocation regression test; clients reject redirects and omit cookies | Test replay, privilege boundaries, expiry, password reset, session invalidation, and step-up authentication for sensitive operations in isolated staging |
+| ASVS access control / OWASP API BOLA | Isolated cross-account post deletion and media reuse tests, signed media authorization checks | Build a complete endpoint/role matrix covering DMs, private ride location, groups, friends, account settings, Social clubs and moderation; add missing negative tests |
+| MASVS-STORAGE / privacy | Private processed media and no-store media responses; no raw storage credentials returned | Web token exposure in localStorage/sessionStorage is an outstanding XSS impact amplifier; plan a separately tested migration with CSRF protections; verify native Keychain/Keystore use and backup/snapshot leakage |
+| MASVS-NETWORK / ASVS communications | HTTPS-only external navigation handoffs; authenticated API clients reject redirects; S3 requests reject redirects | Validate actual native fetch redirect behavior, TLS configuration, backend response headers, HSTS and certificate trust on staging and devices |
+| MASVS-PLATFORM / code | Strict navigation host/path checks; URL/deep-link tests | Test iOS Universal Links, Android App Links, exported components, debug flags and device permission behavior on built binaries |
+| ASVS input/output validation | Caption XSS/SQL-like input regression tests; upload MIME/size controls; processed media re-encoding | Inventory every HTML sink and server-side query identifier; test malformed JSON, pagination, content types, file metadata, rate limits and upload decoder failures |
+| MASVS-CRYPTO | HMAC-SHA256 session-bound media signatures and server-only S3 SigV4 signing | Verify production secret lifecycle, rotation, least-privilege storage credentials and key separation; never commit or log secrets |
+| MASVS-RESILIENCE / supply chain | CI and app checks run on PR | Review dependency alerts, release signing, debug symbols, app integrity options and third-party SDK permissions; risk-rank before enabling invasive anti-tamper measures |
+
+### Risk-ranked work remaining
+1. **High priority — verify cross-user authorization for private ride locations, DMs, Social posts/media, block relationships and account sessions.** Passing one object test does not cover every endpoint.
+2. **High priority — web token storage architecture.** Do not switch to cookies in this PR without a complete BFF, CSRF, session and native/PWA compatibility plan.
+3. **High priority — secrets and privacy.** Check production/staging secret management, access logs, location retention, consent revocation and account deletion; use only synthetic data in tests.
+4. **Medium priority — native device verification.** Inspect release binaries, platform deep links, permissions, backup behavior and real-device network traffic.
+5. **Medium priority — deployed headers and dependency hygiene.** Verify effective CSP, HSTS, CORS, cache policy, dependency advisories and release signing on staging.
+
+**Merge gate:** exact-head CI green and security regressions reviewed; unresolved high-risk issues documented with owners and release-blocking status. A green test suite does not mean the app has passed an independent penetration test.
