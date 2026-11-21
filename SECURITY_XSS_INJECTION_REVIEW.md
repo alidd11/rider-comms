@@ -132,3 +132,12 @@ Instead, the existing GitHub Actions PostgreSQL and local HTTP test-server workf
 Source methodology: https://wstg.owasp.org/latest/16-API_Testing/02-API_Broken_Object_Level_Authorization/ and https://wstg.owasp.org/latest/16-API_Testing/04-API_Broken_Function_Level_Authorization/.
 
 **Remaining release gate:** Provision an explicitly isolated backend and Postgres staging environment before conducting external dynamic security testing. A preview frontend or live production backend is not an acceptable substitute. These CI regression tests are not a full penetration test.
+
+
+## Zero-cost ephemeral security staging — 21 November 2026
+
+The source repository is public. Standard GitHub-hosted Actions runners are free for public repositories under https://docs.github.com/en/actions/concepts/billing-and-usage. No extra Railway service or public staging hostname is being provisioned.
+
+The new \`.github/workflows/security-isolated.yml\` creates a temporary PostgreSQL service and loopback-only copy of the backend on each GitHub PR check, runs unauthenticated HTTP trust-boundary checks and a **passive** OWASP ZAP baseline scan against \`http://127.0.0.1:4186/openapi.json\`, and uploads its scan artifacts for inspection. The server harness requires GitHub Actions and the exact local test database; it refuses Railway credentials or a remote database. No real rider accounts or provider credentials are used. The existing multi-rider DB-backed security regressions cover authenticated authorization; the ZAP scan is passive and not equivalent to authenticated DAST.
+
+This is a free temporary CI test environment, *not* a continuously available staging site, native-device test, or complete external penetration test. Review ZAP warning reports (the baseline ignores warnings for exit status) and verify the actual deployed frontend's CSP and anti-framing HTTP headers independently. Production remains untouched.

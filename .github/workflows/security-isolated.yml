@@ -1,0 +1,94 @@
+name: Isolated security staging
+
+# Public-repo GitHub-hosted runner + throwaway Postgres; never use Railway or real rider data.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-isolated-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-security-baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      SECURITY_ISOLATED_RUN: '1'
+      SECURITY_API_BASE_URL: http://127.0.0.1:4186/
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/rider_comms_security_ci
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: rider_comms_security_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rider_comms_security_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Start disposable loopback-only backend
+        shell: bash
+        run: |
+          node --experimental-strip-types scripts/run-isolated-security-api.mjs > /tmp/security-api.log 2>&1 &
+          echo "$!" > /tmp/security-api.pid
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --output /dev/null "$SECURITY_API_BASE_URL/ready"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/security-api.log
+          echo "::error::Isolated API did not become ready"
+          exit 1
+      - name: Verify API HTTP authorization boundaries
+        run: node scripts/probe-isolated-security-api.mjs
+      - name: Passive ZAP scan of local OpenAPI surface
+        shell: bash
+        run: |
+          mkdir -p security-reports
+          chmod 777 security-reports
+          # No active attack scanning, no production host, no secrets, no issue spam.
+          docker run --rm --network host \
+            -v "$PWD/security-reports:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t "$SECURITY_API_BASE_URL/openapi.json" -m 1 -I \
+            -J zap-baseline.json -r zap-baseline.html
+      - name: Collect disposable server log
+        if: always()
+        run: |
+          mkdir -p security-reports
+          if test -f /tmp/security-api.log; then cp /tmp/security-api.log security-reports/api.log; fi
+      - name: Upload ZAP and server reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: isolated-security-scan
+          path: security-reports/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Shut down temporary API
+        if: always()
+        shell: bash
+        run: |
+          if test -f /tmp/security-api.pid; then
+            kill "$(cat /tmp/security-api.pid)" || true
+          fi
