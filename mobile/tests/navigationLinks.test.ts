@@ -16,8 +16,23 @@ describe('parseNavigationLink', () => {
   });
 
   it('parses the canonical /navigate path and custom app scheme', () => {
-    assert.deepEqual(parseNavigationLink('https://example.com/navigate?lat=0&lon=0'), { lat: 0, lon: 0 });
+    assert.deepEqual(parseNavigationLink('https://alidd11.github.io/navigate?lat=0&lon=0'), { lat: 0, lon: 0 });
     assert.deepEqual(parseNavigationLink('ridercomms://navigate?lat=-33.8&lon=151.2'), { lat: -33.8, lon: 151.2 });
+  });
+
+  it('rejects HTTPS links from untrusted domains and deceptive URL authorities', () => {
+    for (const link of [
+      'https://evil.example/navigate?lat=51.5&lon=-0.1',
+      'https://alidd11.github.io.attacker.example/rider-comms/navigate?lat=51.5&lon=-0.1',
+      'https://alidd11.github.io@attacker.example/rider-comms/navigate?lat=51.5&lon=-0.1',
+      'https://attacker@alidd11.github.io/rider-comms/navigate?lat=51.5&lon=-0.1',
+      'https://alidd11.github.io:8443/rider-comms/navigate?lat=51.5&lon=-0.1',
+      'http://alidd11.github.io/rider-comms/navigate?lat=51.5&lon=-0.1',
+    ]) {
+      assert.equal(parseNavigationLink(link), null, link);
+    }
+    assert.deepEqual(parseNavigationLink('https://alidd11.github.io/navigate?lat=51.5&lon=-0.1'),
+      { lat: 51.5, lon: -0.1 });
   });
 
   it('rejects custom-scheme links with an untrusted authority', () => {
@@ -27,6 +42,8 @@ describe('parseNavigationLink', () => {
       'ridercomms://other/navigate?lat=51.5&lon=-0.1',
       'ridercomms:///navigate?lat=51.5&lon=-0.1',
       'ridercomms://navigate.evil.example/?lat=51.5&lon=-0.1',
+      'ridercomms://attacker@navigate/?lat=51.5&lon=-0.1',
+      'ridercomms://navigate:8443/?lat=51.5&lon=-0.1',
     ]) {
       assert.equal(parseNavigationLink(link), null, link);
     }
@@ -34,15 +51,15 @@ describe('parseNavigationLink', () => {
   });
 
   it('rejects missing, non-numeric, and out-of-range coordinates', () => {
-    assert.equal(parseNavigationLink('https://example.com/navigate?lon=1'), null);
-    assert.equal(parseNavigationLink('https://example.com/navigate?lat=one&lon=1'), null);
-    assert.equal(parseNavigationLink('https://example.com/navigate?lat=91&lon=1'), null);
-    assert.equal(parseNavigationLink('https://example.com/navigate?lat=1&lon=-181'), null);
+    assert.equal(parseNavigationLink('https://alidd11.github.io/navigate?lon=1'), null);
+    assert.equal(parseNavigationLink('https://alidd11.github.io/navigate?lat=one&lon=1'), null);
+    assert.equal(parseNavigationLink('https://alidd11.github.io/navigate?lat=91&lon=1'), null);
+    assert.equal(parseNavigationLink('https://alidd11.github.io/navigate?lat=1&lon=-181'), null);
   });
 
   it('accepts coordinates on the supported latitude and longitude boundaries', () => {
-    assert.deepEqual(parseNavigationLink('https://example.com/navigate?lat=90&lon=180'), { lat: 90, lon: 180 });
-    assert.deepEqual(parseNavigationLink('https://example.com/navigate?lat=-90&lon=-180'), { lat: -90, lon: -180 });
+    assert.deepEqual(parseNavigationLink('https://alidd11.github.io/navigate?lat=90&lon=180'), { lat: 90, lon: 180 });
+    assert.deepEqual(parseNavigationLink('https://alidd11.github.io/navigate?lat=-90&lon=-180'), { lat: -90, lon: -180 });
   });
 
   it('rejects malformed URLs, unsupported paths, and protocols', () => {

@@ -42,7 +42,11 @@ export function parseNavigationLink(rawUrl: string | null | undefined): Navigati
 
   try {
     const url = new URL(rawUrl);
+    // Only accept the published app-link host configured in mobile/app.json.
+    // A matching path on an arbitrary HTTPS domain is not a Rider Comms link.
+    if (url.username || url.password || url.port) return null;
     const isWebLink = url.protocol === 'https:' &&
+      url.hostname === 'alidd11.github.io' &&
       (url.pathname === '/navigate' || url.pathname === '/rider-comms/navigate');
     // A custom-scheme link must use the canonical navigation authority.
     // Checking only the path would accept ridercomms://untrusted/navigate.
