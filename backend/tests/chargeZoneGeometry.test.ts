@@ -50,6 +50,9 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, sourceUrl: 'http://example.com' }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, attribution: '' }), null);
     assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, effectiveFrom: '2026-02-30' }), null);
+    assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, schemeId: 'invalid' as typeof source.schemeId }), null);
+    assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, checkedAt: '2026-02-30T00:00:00Z' }), null);
+    assert.equal(compileChargeZoneGeoJson(geo([square]), { ...source, reviewedThrough: '2025-12-31' }), null);
   });
   it('snapshots supplied geometry and source metadata so callers cannot alter validated zones', () => {
     const sourceRing = square.map(point => [...point]);
@@ -61,6 +64,10 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     metadata.effectiveThrough = '2020-01-01';
     assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], compiled).status, 'possible_polygon_contact');
     assert.equal(compiled.provenance.effectiveThrough, '2026-12-31');
+    assert.ok(Object.isFrozen(compiled));
+    assert.ok(Object.isFrozen(compiled.polygons));
+    assert.ok(Object.isFrozen(compiled.polygons[0]?.rings[0]?.[0]));
+    assert.throws(() => { (compiled.provenance as { effectiveThrough: string }).effectiveThrough = '1999-01-01'; }, TypeError);
   });
   it('fails closed for missing, expired, invalid or antimeridian-spanning routes', () => {
     assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], prepare(), '2027-01-01').reason, 'outside_verified_period');

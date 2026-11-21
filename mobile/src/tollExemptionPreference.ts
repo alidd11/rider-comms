@@ -20,3 +20,18 @@ export function parseTollExemptions(value: string | null): TollExemptionId[] {
     return [];
   }
 }
+
+// Prevent an in-flight local read from resurrecting a preference after reset,
+// sign-in changes or a subsequent user edit. Serialize writes to keep resets
+// ordered after any pending saves, including when storage errors occur.
+export class TollExemptionsStorageGuard {
+  private generation = 0;
+  private writes: Promise<void> = Promise.resolve();
+  beginLoad(): number { return ++this.generation; }
+  isCurrent(token: number): boolean { return token === this.generation; }
+  invalidate(): void { this.generation += 1; }
+  enqueue(write: () => Promise<void>): void {
+    this.writes = this.writes.then(write).catch(() => {});
+  }
+  async idle(): Promise<void> { await this.writes; }
+}

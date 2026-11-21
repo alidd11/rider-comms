@@ -29,6 +29,7 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(run({ passageAt: '2026-15-05T08:00:00Z' }).outcome, 'unknown');
     assert.equal(run({ passageAt: '2026-02-30T08:00:00Z' }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, sourceUrl: 'http://example.com' } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, sourceUrl: 'https://' } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, checkedAt: 'broken' } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, effectiveFrom: '2026-02-30' } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, effectiveThrough: '2025-01-01' } }).outcome, 'unknown');
@@ -41,6 +42,11 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(run({ rule: { ...congestionRule, vehicleClasses: ['wrong' as ChargingRule['vehicleClasses'][number]] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, waivingStatuses: ['paying' as ChargingRule['waivingStatuses'][number]] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, weeklyWindows: [{ dayOfWeek: 7, startMinute: 0, endMinute: 60 }] } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, weeklyWindows: [null as unknown as ChargingRule['weeklyWindows'][number]] } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, exceptions: [null as unknown as ChargingRule['exceptions'][number]] } }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, exceptions: [
+      { date: '2026-01-05', periods: [null as unknown as ChargingRule['exceptions'][number]['periods'][number]] },
+    ] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, weeklyWindows: [{ dayOfWeek: 1, startMinute: 300, endMinute: 200 }] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, exceptions: [{ date: '2026-02-30', periods: [] }] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, exceptions: [{ date: '2026-01-05', periods: [{ startMinute: -1, endMinute: 130 }] }] } }).outcome, 'unknown');

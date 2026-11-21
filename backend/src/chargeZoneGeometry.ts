@@ -37,6 +37,10 @@ const MAX_POLYGONS = 128;
 const MAX_VERTICES = 150_000;
 const MAX_ROUTE_POINTS = 10_000;
 const MAX_GEOMETRY_COMPARISONS = 3_000_000;
+const SCHEMES = new Set<ChargingSchemeId>([
+  'london_congestion', 'london_ulez', 'london_lez',
+  'blackwall_silvertown', 'dart_charge', 'uk_caz',
+]);
 function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !DATE.test(value)) return false;
   const d = new Date(value + 'T00:00:00Z');
@@ -79,11 +83,13 @@ function validRing(value: unknown): value is Ring {
 
 /** Prepare an authority-reviewed local GeoJSON dataset just once. */
 export function compileChargeZoneGeoJson(geojson: unknown, provenance: ChargeZoneProvenance): PreparedChargeZone | null {
-  if (!provenance || !httpsUrl(provenance.sourceUrl) || !httpsUrl(provenance.licenceUrl)
+  if (!provenance || !SCHEMES.has(provenance.schemeId) || !httpsUrl(provenance.sourceUrl) || !httpsUrl(provenance.licenceUrl)
     || typeof provenance.attribution !== 'string' || !provenance.attribution.trim()
     || !validDate(provenance.effectiveFrom) || !validDate(provenance.effectiveThrough)
     || !validDate(provenance.reviewedThrough) || provenance.effectiveFrom > provenance.effectiveThrough
+    || provenance.reviewedThrough < provenance.effectiveFrom
     || typeof provenance.checkedAt !== 'string' || !INSTANT.test(provenance.checkedAt)
+    || !validDate(provenance.checkedAt.slice(0, 10))
     || !Number.isFinite(Date.parse(provenance.checkedAt))) return null;
   if (!geojson || typeof geojson !== 'object') return null;
   const obj = geojson as { type?: unknown; features?: unknown; geometry?: unknown; coordinates?: unknown };
@@ -107,11 +113,15 @@ export function compileChargeZoneGeoJson(geojson: unknown, provenance: ChargeZon
       if (totalVertices > MAX_VERTICES || polygons.length >= MAX_POLYGONS) return null;
       // Snapshot the validated coordinates. External GeoJSON must not be able
       // to mutate the compiled zone after its integrity checks have passed.
-      const snapshot: Polygon = rings.map(ring => ring.map(point => [point[0]!, point[1]!]));
-      polygons.push({ rings: snapshot, bounds: boxForRing(snapshot[0]!), vertices });
+      const snapshot: Polygon = Object.freeze(rings.map(ring =>
+        Object.freeze(ring.map(point => Object.freeze([point[0]!, point[1]!]))),
+      ));
+      polygons.push(Object.freeze({ rings: snapshot, bounds: Object.freeze(boxForRing(snapshot[0]!)), vertices }));
     }
   }
-  return polygons.length ? { provenance: { ...provenance }, polygons } : null;
+  return polygons.length ? Object.freeze({
+    provenance: Object.freeze({ ...provenance }), polygons: Object.freeze(polygons),
+  }) : null;
 }
 function cross(a: Position, b: Position, c: Position): number {
   return (b[0]! - a[0]!) * (c[1]! - a[1]!) - (b[1]! - a[1]!) * (c[0]! - a[0]!);

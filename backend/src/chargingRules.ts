@@ -98,14 +98,23 @@ function parseInstant(value: unknown): Date | null {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date : null;
 }
-function validPeriod(value: { startMinute: number; endMinute: number }): boolean {
-  return Number.isInteger(value.startMinute) && value.startMinute >= 0
-    && Number.isInteger(value.endMinute) && value.endMinute <= 1440
-    && value.startMinute < value.endMinute;
+function validPeriod(value: unknown): value is { startMinute: number; endMinute: number } {
+  if (!value || typeof value !== 'object') return false;
+  const period = value as Partial<ChargeWindow>;
+  return Number.isInteger(period.startMinute) && period.startMinute! >= 0
+    && Number.isInteger(period.endMinute) && period.endMinute! <= 1440
+    && period.startMinute! < period.endMinute!;
+}
+function validHttpsSource(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && Boolean(url.hostname);
+  } catch { return false; }
 }
 function validRule(rule: ChargingRule, scheme: ChargingSchemeId): boolean {
   if (rule.schemeId !== scheme || !SCHEMES.has(scheme) || rule.unit !== UNIT_BY_SCHEME[scheme]
-    || typeof rule.sourceUrl !== 'string' || !/^https:\/\//.test(rule.sourceUrl)
+    || !validHttpsSource(rule.sourceUrl)
     || !parseInstant(rule.checkedAt)
     || !validDate(rule.effectiveFrom) || !validDate(rule.effectiveThrough)
     || !validDate(rule.exceptionsReviewedThrough) || rule.effectiveFrom > rule.effectiveThrough
@@ -114,8 +123,8 @@ function validRule(rule: ChargingRule, scheme: ChargingSchemeId): boolean {
     || !Array.isArray(rule.waivingStatuses)
     || !rule.waivingStatuses.every(v => WAIVERS.has(v))
     || (rule.waivingStatuses.includes('compliant') && !EMISSIONS_SCHEMES.has(scheme))
-    || rule.weeklyWindows.some(w => !Number.isInteger(w.dayOfWeek) || w.dayOfWeek < 0 || w.dayOfWeek > 6 || !validPeriod(w))
-    || rule.exceptions.some(d => !validDate(d.date) || !Array.isArray(d.periods) || d.periods.some((p: Pick<ChargeWindow, 'startMinute' | 'endMinute'>) => !validPeriod(p)))) return false;
+    || rule.weeklyWindows.some(w => !w || !Number.isInteger(w.dayOfWeek) || w.dayOfWeek < 0 || w.dayOfWeek > 6 || !validPeriod(w))
+    || rule.exceptions.some(d => !d || !validDate(d.date) || !Array.isArray(d.periods) || d.periods.some(p => !validPeriod(p)))) return false;
   const days = rule.exceptions.map(d => d.date);
   return new Set(days).size === days.length;
 }
