@@ -610,8 +610,27 @@ a { color: inherit; }
 .case-history-note { font-size: 12px; line-height: 1.55; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .case-history-time { flex: none; font-size: 11px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
 .case-history-empty { margin: 0; color: var(--muted-fg); font-size: 13px; }
+/* Admin-only handover: explicit team selection using the existing audited assignment endpoint. */
+.case-handover-panel {
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+  display: grid;
+  gap: 10px;
+}
+.case-handover-title { display: block; font-size: 14px; line-height: 20px; font-weight: 650; }
+.case-handover-help { margin: 0; font-size: 12px; line-height: 18px; color: var(--fg-2); }
+.case-handover-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.case-handover-controls .select { flex: 1 1 220px; max-width: 400px; }
+.case-handover-controls .button { min-height: 36px; }
 @media (max-width: 599px) {
-  .report .actions [data-action="assign-owner"], .report .actions [data-action="release-owner"] { min-height: 44px; flex: 1 1 100%; }
+  .case-handover-controls { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .case-handover-controls .select { max-width: none; min-height: 44px; }
+  .case-handover-controls .button { min-height: 44px; justify-content: center; }
+}
+@media (max-width: 599px) {
+  .report .actions [data-action="assign-owner"], .report .actions [data-action="release-owner"], .report .actions [data-action="handover-owner"] { min-height: 44px; flex: 1 1 100%; }
   .case-history-toggle { min-height: 44px; width: 100%; }
   .case-history-row { flex-direction: column; gap: 4px; }
   .case-history-time { font-size: 12px; }
