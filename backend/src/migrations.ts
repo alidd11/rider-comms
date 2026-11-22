@@ -1129,5 +1129,47 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS safety_report_assignment_events_report_idx
         ON safety_report_assignment_events (report_id, created_at DESC, id DESC);
     `,
+  },  {
+    // Internal cases have no customer-visible messaging; edits are attributable.
+    // Subject references clear when a rider account is deleted.
+    name: '0064_company_work_cases',
+    sql: `
+      CREATE TABLE IF NOT EXISTS company_cases (
+        id UUID PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('support', 'appeal', 'privacy', 'incident')),
+        title TEXT NOT NULL CHECK (char_length(title) BETWEEN 3 AND 120),
+        description TEXT NOT NULL CHECK (char_length(description) <= 2000),
+        status TEXT NOT NULL DEFAULT 'open'
+          CHECK (status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed')),
+        priority TEXT NOT NULL DEFAULT 'normal'
+          CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+        subject_rider_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_by TEXT NOT NULL,
+        assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL,
+        due_at BIGINT,
+        version INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE INDEX IF NOT EXISTS company_cases_kind_updated_idx
+        ON company_cases (kind, updated_at DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS company_cases_open_assignee_idx
+        ON company_cases (assigned_to, status, updated_at DESC)
+        WHERE status NOT IN ('resolved', 'closed');
+      CREATE TABLE IF NOT EXISTS company_case_events (
+        id UUID PRIMARY KEY,
+        seq BIGSERIAL NOT NULL UNIQUE,
+        case_id UUID NOT NULL REFERENCES company_cases(id) ON DELETE CASCADE,
+        actor_id TEXT NOT NULL,
+        event TEXT NOT NULL CHECK (event IN ('created', 'note', 'assigned', 'released', 'status', 'priority')),
+        note TEXT NOT NULL CHECK (char_length(note) BETWEEN 1 AND 2000),
+        from_value TEXT,
+        to_value TEXT,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS company_case_events_case_seq_idx
+        ON company_case_events (case_id, seq DESC);
+    `,
   },
+
 ];

@@ -10,6 +10,7 @@ import { readJsonBody, sendJson } from '../serverHttp.ts';
 import { GRANTABLE_STAFF_ROLES, isGrantableStaffRole, permissionsFor, roleCan } from '../staffRoles.ts';
 import type { StaffPermission } from '../staffRoles.ts';
 import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
+import { handleCompanyCaseRoutes } from './adminCases.ts';
 import type { RouteContext } from './context.ts';
 
 /** Staff dashboard. The caller's role is re-read from Postgres on every request. */
@@ -20,6 +21,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   if (!role) return sendJson(res, 403, { error: 'admin_required' });
   const lacks = (permission: StaffPermission) => !roleCan(role, permission);
   const refuse = (permission: StaffPermission) => sendJson(res, 403, { error: 'permission_required', permission });
+
+  if (s[1] === 'cases') return handleCompanyCaseRoutes(ctx, role);
 
   if (req.method === 'GET' && url.pathname === '/admin/me') {
     return sendJson(res, 200, { riderId: actorId, role, permissions: permissionsFor(role) });
