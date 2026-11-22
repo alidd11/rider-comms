@@ -61,6 +61,8 @@ type MockExportFile = {
 };
 
 function fakeExistingFile(name: string): MockExportFile {
+  // Existing sandbox files imply the export directory already exists.
+  mockFiles.directoryExists = true;
   const { File } = jest.requireMock('expo-file-system') as {
     File: new (directory: string, name: string) => MockExportFile;
   };
