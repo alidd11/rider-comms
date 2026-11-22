@@ -2347,6 +2347,9 @@
     return button;
   }
   function clearStaffSession() {
+    // Invalidate any in-flight queue/profile render before hiding staff data.
+    ++renderGeneration;
+    displayedKey = null;
     session = null;
     me = null;
     try { localStorage.removeItem(STAFF_SESSION_KEY); } catch { /* no-op */ }
@@ -2493,7 +2496,7 @@
   footerIdentity(`Signed in as ${session.riderId}`);
   api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
     const name = profile?.displayName || profile?.handle;
-    if (name) footerIdentity(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`);
+    if (name && session) footerIdentity(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`);
   }).catch(() => {});
 
   // The role decides which pages appear; the backend enforces it either way.
