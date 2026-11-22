@@ -139,10 +139,6 @@
     return null;
   }
   let session = readSession();
-  if (IS_STAFF_PWA && 'serviceWorker' in navigator) {
-    // Isolated scope: the main rider worker must never own the staff shell.
-    navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
-  }
 
   class ApiError extends Error {
     constructor(status, code) {
@@ -2708,6 +2704,150 @@
     }, 150);
   });
 
+  // ---------------------------------------------------- Staff PWA updates
+  // Check on launch, foreground/resume and while open. A waiting worker only
+  // activates automatically when there are no unsaved staff edits or dialogs.
+  // This manager never touches session storage, tokens or privileged API data.
+  function setupStaffAutoUpdates() {
+    if (!IS_STAFF_PWA || !('serviceWorker' in navigator)) return;
+    const workers = navigator.serviceWorker;
+    const MIN_CHECK_MS = 60 * 1000;
+    const PERIODIC_CHECK_MS = 15 * 60 * 1000;
+    const SAFE_IDLE_MS = 20 * 1000;
+    let registration = null;
+    let lastCheck = 0;
+    let lastInteraction = 0;
+    let deferred = false;
+    let applying = false;
+    let reloadRequired = false;
+    let reloading = false;
+    let hadController = Boolean(workers.controller);
+    const touched = new WeakSet();
+    const label = el('span', { class: 'staff-update-message', text: 'Staff app update ready.' });
+    const update = el('button', { type: 'button', class: 'button button-primary staff-update-apply', text: 'Update now' });
+    const later = el('button', { type: 'button', class: 'button staff-update-later', text: 'Later' });
+    const notice = el('div', { class: 'staff-update-banner', role: 'status', hidden: true }, [
+      el('div', { class: 'staff-update-content' }, [
+        el('strong', { text: 'App update available' }), label,
+      ]),
+      el('div', { class: 'staff-update-actions' }, [update, later]),
+    ]);
+    document.body.append(notice);
+    const editor = (node) => node?.matches?.('input, textarea, select, [contenteditable="true"]');
+    const track = (event) => {
+      if (editor(event.target)) touched.add(event.target);
+      lastInteraction = Date.now();
+    };
+    document.addEventListener('input', track, true);
+    document.addEventListener('change', track, true);
+    document.addEventListener('keydown', () => { lastInteraction = Date.now(); }, true);
+    document.addEventListener('pointerdown', (event) => {
+      if (!event.target.closest?.('.staff-update-banner')) lastInteraction = Date.now();
+    }, { passive: true, capture: true });
+
+    const editing = () => {
+      if (document.querySelector('dialog[open]') || pageEl.getAttribute('aria-busy') === 'true') return true;
+      if (document.querySelector('.staff-login-form button[type="submit"]:disabled')) return true;
+      // A form that has been replaced by a successful save is no longer dirty.
+      // Ignore global search controls in a closed dialog.
+      return [...document.querySelectorAll('input, textarea, select, [contenteditable="true"]')]
+        .some((node) => touched.has(node) && node.getClientRects().length > 0 &&
+          (!node.closest('dialog') || node.closest('dialog').open) &&
+          (node.matches('select') || String(node.value ?? node.textContent ?? '').trim().length > 0));
+    };
+    const safe = () => navigator.onLine !== false &&
+      document.visibilityState === 'visible' && !deferred &&
+      Date.now() - lastInteraction >= SAFE_IDLE_MS && !editing();
+    const show = () => {
+      label.textContent = editing()
+        ? 'Finish or save your edits first, or choose Update now to confirm a reload.'
+        : 'The latest dashboard is downloaded. Your staff session will be checked again after the update.';
+      notice.hidden = false;
+    };
+    const refresh = () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    };
+    const requestActivation = (force = false) => {
+      if (!registration?.waiting || applying || !workers.controller) return;
+      if (!force && !safe()) { if (!deferred) show(); return; }
+      if (force && editing() && !window.confirm('Updating now may discard unsaved staff changes. Update anyway?')) return;
+      applying = true;
+      notice.hidden = true;
+      try {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      } catch {
+        applying = false;
+        show();
+      }
+    };
+    const considerUpdate = () => {
+      if (reloading) return;
+      if (reloadRequired) {
+        if (safe()) refresh();
+        else if (!deferred) show();
+      } else if (registration?.waiting && workers.controller) {
+        requestActivation();
+      }
+    };
+    update.addEventListener('click', () => {
+      if (reloadRequired) {
+        if (editing() && !window.confirm('Updating now may discard unsaved staff changes. Update anyway?')) return;
+        refresh();
+      } else requestActivation(true);
+    });
+    later.addEventListener('click', () => {
+      deferred = true;
+      notice.hidden = true;
+    });
+    workers.addEventListener('controllerchange', () => {
+      if (!hadController) { hadController = Boolean(workers.controller); return; }
+      if (!workers.controller || reloading) return;
+      applying = false;
+      reloadRequired = true;
+      considerUpdate();
+    });
+    const watchInstall = (worker) => {
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && workers.controller) considerUpdate();
+      });
+    };
+    const check = async (force = false) => {
+      if (!registration || navigator.onLine === false || document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (!force && now - lastCheck < MIN_CHECK_MS) { considerUpdate(); return; }
+      lastCheck = now;
+      try { await registration.update(); } catch { /* Offline: use the existing Staff shell. */ }
+      considerUpdate();
+    };
+    const resume = () => {
+      deferred = false;
+      void check();
+      considerUpdate();
+    };
+    window.addEventListener('pageshow', resume);
+    window.addEventListener('focus', () => void check());
+    window.addEventListener('online', () => void check(true));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') resume();
+    });
+    // iOS may suspend timers when the installed app is backgrounded. Foreground
+    // listeners above are the essential path; this handles long open sessions.
+    setInterval(() => {
+      considerUpdate();
+      if (Date.now() - lastCheck >= PERIODIC_CHECK_MS) void check();
+    }, 60 * 1000);
+    workers.register('./sw.js', { scope: './', updateViaCache: 'none' }).then((result) => {
+      registration = result;
+      result.addEventListener('updatefound', () => watchInstall(result.installing));
+      watchInstall(result.installing);
+      considerUpdate();
+      void check(true);
+    }).catch(() => { /* Staff sign-in still works online without offline support. */ });
+  }
+
   // Browser installation is optional; iOS uses Share > Add to Home Screen.
   // No prompt is fired without an explicit user click.
   let installPrompt = null;
@@ -2893,6 +3033,7 @@
     }
     location.reload();
   });
+  setupStaffAutoUpdates();
   if (!session) {
     renderStaffSignIn();
     return;
