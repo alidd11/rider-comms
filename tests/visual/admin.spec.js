@@ -868,7 +868,7 @@ test.describe('staff dashboard', () => {
     await expect(page.getByRole('group', { name: 'Case categories' })).not.toContainText('Privacy requests');
     await page.goto('/admin.html#case/33333333-3333-4333-8333-333333333333');
     await expect(page).toHaveURL(/#case\/33333333-3333-4333-8333-333333333333$/);
-    await expect(page).toContainText('Case not available');
+    await expect(page.locator('#page')).toContainText('Case not available');
   });
 
   test('mobile masthead stays fixed and the navigation drawer has a visible close button', async ({ page }, testInfo) => {
