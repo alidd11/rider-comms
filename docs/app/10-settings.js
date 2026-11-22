@@ -60,9 +60,8 @@
   // A map-only experiment for server-confirmed admins, inside the installed
   // PWA. The live Google map, routing, voice and rider location remain intact
   // behind this dialog and are never copied into the MapLibre document.
-  function openEmbeddedMapBeta() {
+  function openEmbeddedMapBeta(trigger) {
     if (document.getElementById('riderMapBetaDialog')) return;
-    const trigger = document.activeElement;
     const dialog = document.createElement('dialog');
     dialog.id = 'riderMapBetaDialog';
     dialog.className = 'rider-map-beta-dialog';
@@ -173,7 +172,7 @@
             showToast('Admin access is required to open Rider Comms Maps beta.');
             return;
           }
-          openEmbeddedMapBeta();
+          openEmbeddedMapBeta(button);
         } catch {
           entry.hidden = true;
           entry.replaceChildren();
