@@ -504,10 +504,19 @@ export class AuthStore {
       return false;
     }
     const tokenHash = this.digest(token);
+    // Password verification and bearer authorization are separate checks.
+    // A session may be revoked or expire while the password hash is being
+    // verified: never claim step-up succeeded if no live session was updated.
+    const updated = await getPool().query<{ id: string }>(
+      `UPDATE account_sessions SET reauthenticated_at = now()
+       WHERE token_hash = $1 AND user_id = $2 AND expires_at > now()
+       RETURNING id`,
+      [tokenHash, riderId],
+    );
+    if (updated.rowCount !== 1) return false;
     const cached = this.riderByTokenDigest.get(tokenHash);
     if (cached) cached.reauthenticatedAt = Date.now();
-    await getPool().query('UPDATE account_sessions SET reauthenticated_at = now() WHERE token_hash = $1 AND user_id = $2', [tokenHash, riderId]);
-    await this.recordSecurityEvent(riderId, 'reauthenticated', sessionId, null);
+    await this.recordSecurityEvent(riderId, 'reauthenticated', updated.rows[0]!.id, null);
     return true;
   }
 
