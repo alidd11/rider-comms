@@ -7,7 +7,7 @@ const source = {
   sourceUrl: 'https://data.london.gov.uk/dataset/london-wide-ultra-low-emission-zone-2023-vd455',
   licenceUrl: 'https://www.nationalarchives.gov.uk/doc/open-government-licence/version/2/',
   attribution: 'Contains public sector information licensed under OGL v2',
-  checkedAt: '2026-11-21T00:00:00Z', effectiveFrom: '2026-01-01',
+  checkedAt: '2026-06-01T00:00:00Z', effectiveFrom: '2026-01-01',
   effectiveThrough: '2026-12-31', reviewedThrough: '2026-12-31',
 };
 const square = [[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]];
@@ -108,6 +108,8 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
   });
   it('fails closed for missing, expired, invalid or antimeridian-spanning routes', () => {
     assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], prepare(), '2027-01-01').reason, 'outside_verified_period');
+    assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], prepare(), '2026-07-03').reason, 'stale_source_review');
+    assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], prepare(), '2026-05-31').reason, 'stale_source_review');
     assert.equal(screen([[0.1, 0.1], [0.2, 0.2]], null).status, 'unknown');
     assert.equal(screen([[200, 0], [201, 0]]).status, 'unknown');
     assert.equal(screen([[179, 0], [-179, 0]]).status, 'unknown');

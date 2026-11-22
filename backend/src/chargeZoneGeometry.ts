@@ -4,6 +4,7 @@
  * The caller supplies correctly licensed, separately reviewed geographic data.
  */
 import { validChargingZoneId, type ChargingSchemeId } from './chargingRules.ts';
+import { reviewChargeEvidenceFreshness } from './chargeSourceFreshness.ts';
 
 type Position = readonly number[];
 type Ring = readonly Position[];
@@ -30,7 +31,7 @@ export interface RoutePosition { lat: number; lon: number }
 export type ZoneScreenStatus = 'unknown' | 'possible_polygon_contact' | 'no_polygon_contact';
 export type ZoneScreenReason = 'missing_or_invalid_data' | 'outside_verified_period'
   | 'route_on_or_inside_polygon' | 'route_intersects_polygon' | 'geometry_does_not_contact_polygon'
-  | 'too_complex';
+  | 'stale_source_review' | 'too_complex';
 export interface ZoneScreenResult {
   status: ZoneScreenStatus; reason: ZoneScreenReason; schemeId: ChargingSchemeId; zoneId?: string;
 }
@@ -234,6 +235,11 @@ export function screenRouteAgainstChargeZone(
   const { provenance, polygons } = zone;
   if (asOfLocalDate < provenance.effectiveFrom || asOfLocalDate > provenance.effectiveThrough
     || asOfLocalDate > provenance.reviewedThrough) return answer('unknown', 'outside_verified_period');
+  // Date-only zone screening cannot rely on months-old geometry merely
+  // because a dataset declares a far-future validity end.
+  if (reviewChargeEvidenceFreshness('geometry', provenance.checkedAt,
+    asOfLocalDate + 'T12:00:00Z').status !== 'fresh')
+    return answer('unknown', 'stale_source_review');
   let hasMovement = false;
   for (let i = 1; i < route.length; i++) {
     const previous = route[i - 1]!, current = route[i]!;

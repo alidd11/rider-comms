@@ -20,7 +20,18 @@ const input: ChargeAssessmentInput = {
   schemeId: 'london_congestion', passageAt: '2026-01-05T08:00:00Z',
   vehicleClass: 'car', roadEvidence: 'confirmed_crossing', rule: congestionRule,
 };
-const run = (updates: Partial<ChargeAssessmentInput> = {}) => assessChargeExposure({ ...input, ...updates });
+// Synthetic fixtures are freshly reviewed for the target test date. Explicit
+// nonbaseline checkedAt overrides remain unchanged to exercise stale/future
+// source rejection. No production code can use this fixture adapter.
+const run = (updates: Partial<ChargeAssessmentInput> = {}) => {
+  const request = { ...input, ...updates };
+  const ms = Date.parse(request.passageAt);
+  const rule = request.rule;
+  if (rule?.checkedAt === congestionRule.checkedAt && Number.isFinite(ms)) {
+    request.rule = { ...rule, checkedAt: new Date(ms - 86400000).toISOString() };
+  }
+  return assessChargeExposure(request);
+};
 
 describe('future road-charge assessment (never used by live routing)', () => {
   it('treats missing, invalid, unsourced or mismatched rule data as unknown', () => {
@@ -59,6 +70,29 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.deepEqual(run({ passageAt: '2027-01-01T09:00:00Z' }), { schemeId: 'london_congestion', outcome: 'unknown', reason: 'outside_verified_period' });
     assert.equal(run({ passageAt: '2025-12-31T09:00:00Z' }).reason, 'outside_verified_period');
     assert.equal(run({ rule: { ...congestionRule, exceptionsReviewedThrough: '2026-01-04' } }).reason, 'outside_verified_period');
+  });
+  it('rejects stale or future-dated authoritative rule reviews BEFORE no-charge outcomes', () => {
+    const staleRule = { ...congestionRule, checkedAt: '2025-10-01T00:00:00Z' };
+    assert.deepEqual(run({ rule: staleRule }), {
+      schemeId: 'london_congestion', outcome: 'unknown', reason: 'stale_source_review',
+    });
+    assert.equal(run({ rule: staleRule, roadEvidence: 'confirmed_no_crossing' }).outcome, 'unknown');
+    assert.equal(run({ rule: staleRule, vehicleClass: 'motorcycle' }).outcome, 'unknown');
+    assert.equal(run({ rule: staleRule, passageAt: '2026-01-05T06:59:00Z' }).outcome, 'unknown');
+    assert.equal(run({ rule: { ...congestionRule, checkedAt: '2026-01-07T00:00:00Z' } })
+      .reason, 'source_review_after_passage');
+    assert.equal(run({ rule: { ...congestionRule, checkedAt: '2025-12-10T00:00:00Z' } })
+      .outcome, 'possible_charge');
+  });
+  it('rejects stale operator entitlement even within its nominal validity period', () => {
+    const valid = { schemeId: 'london_congestion' as const, vehicleClass: 'car' as const,
+      status: 'exempt' as const, source: 'operator_verified' as const,
+      checkedAt: '2026-01-01T00:00:00Z', validThrough: '2026-12-31' };
+    assert.equal(run({ entitlement: valid }).outcome, 'verified_exempt');
+    assert.equal(run({ entitlement: { ...valid, checkedAt: '2025-12-01T00:00:00Z' } })
+      .outcome, 'possible_charge');
+    assert.equal(run({ entitlement: { ...valid, checkedAt: '2026-01-06T00:00:00Z' } })
+      .outcome, 'possible_charge');
   });
   it('rejects uncertain polygon overlap; requires confirmed road-level route evidence', () => {
     assert.equal(run({ roadEvidence: 'unknown' }).reason, 'unverified_road_geometry');
@@ -140,7 +174,7 @@ describe('future road-charge assessment (never used by live routing)', () => {
     const zeroEmission = { schemeId: 'oxford_zez' as const,
       vehicleClass: 'motorcycle' as const, status: 'exempt' as const,
       source: 'operator_verified' as const,
-      checkedAt: '2026-01-01T00:00:00Z', validThrough: '2026-12-31' };
+      checkedAt: '2026-07-05T00:00:00Z', validThrough: '2026-12-31' };
     assert.equal(oxford('2026-07-06T12:00:00Z',
       { entitlement: zeroEmission }).outcome, 'verified_exempt');
     assert.equal(oxford('2026-07-06T12:00:00Z',

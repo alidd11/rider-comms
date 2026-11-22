@@ -4,6 +4,8 @@
  * we deliberately ship NO production boundaries, tariffs or schedules here.
  * Never turn client-declared passes into verified exemptions.
  */
+import { reviewChargeEvidenceFreshness } from './chargeSourceFreshness.ts';
+
 export type ChargingSchemeId =
   | 'london_congestion' | 'london_ulez' | 'london_lez'
   | 'blackwall_silvertown' | 'dart_charge' | 'uk_caz' | 'oxford_zez';
@@ -67,7 +69,8 @@ export interface ChargeAssessment {
   schemeId: ChargingSchemeId;
   outcome: ChargeOutcome;
   reason: 'missing_or_invalid_data' | 'unverified_road_geometry' | 'no_crossing'
-    | 'outside_verified_period' | 'not_charging_now' | 'vehicle_out_of_scope'
+    | 'outside_verified_period' | 'stale_source_review' | 'source_review_after_passage'
+    | 'not_charging_now' | 'vehicle_out_of_scope'
     | 'authority_verified_waiver' | 'charge_may_apply';
   /** For downstream de-duplication, never proof of a payable price. */
   localDate?: string;
@@ -170,6 +173,15 @@ export function assessChargeExposure(input: ChargeAssessmentInput): ChargeAssess
   if (!local) return unknown('missing_or_invalid_data');
   if (local.localDate < rule.effectiveFrom || local.localDate > rule.effectiveThrough
     || local.localDate > rule.exceptionsReviewedThrough) return unknown('outside_verified_period');
+  // The rule's long effective period and exception calendar are NOT enough
+  // to justify a no-charge or exempt decision when the authority source
+  // has not been rechecked recently. This runs before all road, vehicle,
+  // hours and exemption outcomes (including confirmed_no_crossing).
+  const review = reviewChargeEvidenceFreshness('rule', rule.checkedAt, input.passageAt);
+  if (review.status !== 'fresh') {
+    return unknown(review.status === 'review_after_passage'
+      ? 'source_review_after_passage' : 'stale_source_review');
+  }
   const make = (outcome: ChargeOutcome, reason: ChargeAssessment['reason']): ChargeAssessment =>
     ({ schemeId, outcome, reason, localDate: local.localDate, unit: rule.unit });
   if (roadEvidence === 'confirmed_no_crossing') return make('not_on_route', 'no_crossing');
@@ -186,8 +198,9 @@ export function assessChargeExposure(input: ChargeAssessmentInput): ChargeAssess
     && validChargingZoneId(schemeId, entitlement.zoneId)
     && entitlement.zoneId === rule.zoneId
     && entitlement.source === 'operator_verified' && rule.waivingStatuses.includes(entitlement.status as 'exempt' | 'compliant')
-    && parseInstant(entitlement.checkedAt) && validDate(entitlement.validThrough)
-    && entitlement.validThrough >= local.localDate && parseInstant(entitlement.checkedAt)!.getTime() <= when.getTime()) {
+    && reviewChargeEvidenceFreshness('entitlement', entitlement.checkedAt, input.passageAt).status === 'fresh'
+    && validDate(entitlement.validThrough)
+    && entitlement.validThrough >= local.localDate) {
     return make('verified_exempt', 'authority_verified_waiver');
   }
   return make('possible_charge', 'charge_may_apply');

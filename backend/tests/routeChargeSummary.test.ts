@@ -11,10 +11,17 @@ const dailyRule: ChargingRule = {
   weeklyWindows: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, startMinute: 0, endMinute: 1440 })),
   exceptions: [], waivingStatuses: ['exempt'],
 };
-const event = (eventId: string, extras: Partial<RouteChargePassage> = {}): RouteChargePassage => ({
-  eventId, schemeId: 'london_congestion', passageAt: '2026-07-06T07:00:00Z',
-  roadEvidence: 'confirmed_crossing', rule: dailyRule, ...extras,
-});
+const event = (eventId: string, extras: Partial<RouteChargePassage> = {}): RouteChargePassage => {
+  const entry: RouteChargePassage = {
+    eventId, schemeId: 'london_congestion', passageAt: '2026-07-06T07:00:00Z',
+    roadEvidence: 'confirmed_crossing', rule: dailyRule, ...extras,
+  };
+  // Use synthetic, timely authority checks for each distinct passage date.
+  const time = Date.parse(entry.passageAt);
+  if (entry.rule?.checkedAt === dailyRule.checkedAt && Number.isFinite(time))
+    entry.rule = { ...entry.rule, checkedAt: new Date(time - 86400000).toISOString() };
+  return entry;
+};
 
 describe('offline future-route charging summary', () => {
   it('counts a daily charge only once for repeated visits that London day', () => {
@@ -71,7 +78,7 @@ describe('offline future-route charging summary', () => {
       event('ordinary'),
       event('exempt', { entitlement: {
         schemeId: 'london_congestion', vehicleClass: 'car', status: 'exempt', source: 'operator_verified',
-        checkedAt: '2026-01-01T00:00:00Z', validThrough: '2026-12-31',
+        checkedAt: '2026-07-05T00:00:00Z', validThrough: '2026-12-31',
       } }),
     ];
     const out = summarizeRouteChargePassages('car', events);
@@ -122,7 +129,7 @@ describe('offline future-route charging summary', () => {
     const polygon = { type: 'Polygon', coordinates: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]] };
     const source = { schemeId: 'london_ulez' as const, sourceUrl: 'https://tfl.gov.uk/',
       licenceUrl: 'https://www.nationalarchives.gov.uk/doc/open-government-licence/',
-      attribution: 'Sample data, not a real charging boundary', checkedAt: '2026-01-01T00:00:00Z',
+      attribution: 'Sample data, not a real charging boundary', checkedAt: '2026-07-05T00:00:00Z',
       effectiveFrom: '2026-01-01', effectiveThrough: '2026-12-31', reviewedThrough: '2026-12-31' };
     const zone = compileChargeZoneGeoJson(polygon, source);
     assert.ok(zone);
