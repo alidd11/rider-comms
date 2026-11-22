@@ -141,3 +141,17 @@ The source repository is public. Standard GitHub-hosted Actions runners are free
 The new \`.github/workflows/security-isolated.yml\` creates a temporary PostgreSQL service and loopback-only copy of the backend on each GitHub PR check, runs unauthenticated HTTP trust-boundary checks and a **passive** OWASP ZAP baseline scan against \`http://127.0.0.1:4186/openapi.json\`, and uploads its scan artifacts for inspection. The server harness requires GitHub Actions and the exact local test database; it refuses Railway credentials or a remote database. No real rider accounts or provider credentials are used. The existing multi-rider DB-backed security regressions cover authenticated authorization; the ZAP scan is passive and not equivalent to authenticated DAST.
 
 This is a free temporary CI test environment, *not* a continuously available staging site, native-device test, or complete external penetration test. Review ZAP warning reports (the baseline ignores warnings for exit status) and verify the actual deployed frontend's CSP and anti-framing HTTP headers independently. Production remains untouched.
+
+
+## Focused source review — 22 November 2026 (pre-merge)
+
+Reviewed security-sensitive implementation at PR head fdc69a6, with additional synthetic HTTP testing:
+
+- **Identity and authorization:** backend/src/authStore.ts, routes/account.ts, routes/admin.ts and routes/moderation.ts. Persistent bearer sessions are keyed by hashed tokens; session revocation scopes deletion to the owner. Staff permissions are re-read from Postgres, and sensitive role changes require recent password reauthentication. No confirmed privilege escalation identified in these reviewed paths.
+- **Messaging, ride locations and blocks:** routes/social.ts, routes/rides.ts, rideStore.ts and moderationStore.ts. Direct-message reads/writes require current friendship and block checks. Ride location requires current membership and explicit opt-in, and GET/POST responses suppress blocked peers. Added backend/tests/privateRidePrivacy.test.ts to verify end-to-end nonmember denial, forged rider IDs, bilateral blocking, expulsion, location purge and ride termination.
+- **Rider Social media:** routes/socialPosts.ts, socialPostStore.ts, socialMediaService.ts. Signed media links require active sessions and revalidate visibility; create/delete operations bind media and posts to their owner. Existing synthetic tests cover block-driven media access revocation.
+- **Web and native:** sample review of HTML sinks in docs/app.js verified escaping for friend cards, direct messages, hideouts, places and route labels. Authenticated fetch options and native navigation URL/path allowlists were reviewed. This sample review does not certify all possible DOM sinks.
+
+**Unresolved release issues:** PWA persistent tokens are script-readable in localStorage; Rider Social web uses sessionStorage; the Maps CSP retains unsafe-eval; passive ZAP covers a local API/OpenAPI surface rather than full authenticated DAST; release-device networking and real deployed web response headers still require verification. Architecture changes to storage/CSP should use a separate, tested cross-platform rollout.
+
+This is an internal source review and synthetic security-test supplement, **not an external audit or certification**. Exact-current-head CI must be green before approval. No production probing or deployment was performed, and PR #562 is not authorized for merging by this review.
