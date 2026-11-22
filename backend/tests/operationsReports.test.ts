@@ -100,6 +100,66 @@ describe('audited, complete and role-scoped operations reports', { skip: !db && 
     assert.equal((await authenticatedFetch(ctx, ADMIN, '/admin/cases/activity?days=365')).status, 400);
   });
 
+  it('audits internal follow-up targets and prevents stale, cross-team or invalid changes', async () => {
+    const created = await postJson(ctx, SUPPORT, '/admin/cases', {
+      kind: 'support', title: 'Follow up on account access', description: 'Internal reminder only.',
+    });
+    assert.equal(created.status, 201);
+    const item = (await created.json() as { item: { id: string; version: number } }).item;
+    const path = '/admin/cases/' + item.id + '/target';
+    const tomorrow = Date.now() + 24 * 86_400_000;
+    const invalid = await postJson(ctx, SUPPORT, path, {
+      dueAt: Date.now() - 5000, expectedVersion: 1, note: 'Invalid past target',
+    });
+    assert.equal(invalid.status, 409);
+    assert.equal((await postJson(ctx, SUPPORT, path, {
+      dueAt: null, expectedVersion: 1, note: 'Nothing to clear yet',
+    })).status, 409);
+    assert.equal((await postJson(ctx, MOD, path, {
+      dueAt: tomorrow, expectedVersion: 1, note: 'Not my workstream',
+    })).status, 404);
+
+    const assigned = await postJson(ctx, SUPPORT, '/admin/cases/' + item.id + '/assign', {
+      expectedVersion: 1, note: 'Taking ownership of follow-up',
+    });
+    assert.equal(assigned.status, 200);
+    const target = await postJson(ctx, SUPPORT, path, {
+      dueAt: tomorrow, expectedVersion: 2, note: 'Review identity evidence tomorrow',
+    });
+    assert.equal(target.status, 200);
+    const changed = (await target.json() as { item: { dueAt: number | null; version: number } }).item;
+    assert.equal(changed.dueAt, tomorrow);
+    assert.equal(changed.version, 3);
+    assert.equal((await postJson(ctx, SUPPORT, path, {
+      dueAt: tomorrow + 300_000, expectedVersion: 2, note: 'Conflicting update',
+    })).status, 409);
+    const after = await (await authenticatedFetch(ctx, SUPPORT, '/admin/cases/' + item.id)).json() as {
+      events: Array<{ event: string; note: string; fromValue: string | null; toValue: string | null }>;
+    };
+    const events = after.events.filter((event) => event.event === 'target');
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.note, 'Review identity evidence tomorrow');
+    assert.equal(events[0]?.fromValue, null);
+    assert.equal(events[0]?.toValue, String(tomorrow));
+
+    const report = await (await authenticatedFetch(ctx, SUPPORT, '/admin/cases/activity?days=7')).json() as {
+      totals: { configuredTargets: number; dueSoonTargets: number; overdueTargets: number };
+    };
+    assert.equal(report.totals.configuredTargets, 1);
+    assert.equal(report.totals.dueSoonTargets, 0);
+    assert.equal(report.totals.overdueTargets, 0);
+    const clear = await postJson(ctx, SUPPORT, path, {
+      dueAt: null, expectedVersion: 3, note: 'No further follow-up required',
+    });
+    assert.equal(clear.status, 200);
+    const latest = (await clear.json() as { item: { dueAt: number | null } }).item;
+    assert.equal(latest.dueAt, null);
+    const cleaned = await (await authenticatedFetch(ctx, SUPPORT, '/admin/cases/activity?days=7')).json() as {
+      totals: { configuredTargets: number };
+    };
+    assert.equal(cleaned.totals.configuredTargets, 0);
+  });
+
   it('limits Social reporting to moderators and administrators, returning aggregates only', async () => {
     const beforeResponse = await authenticatedFetch(ctx, MOD, '/admin/social/activity?days=7');
     assert.equal(beforeResponse.status, 200);
