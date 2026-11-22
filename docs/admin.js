@@ -100,6 +100,7 @@
   const isCurrentRender = (generation) => generation === renderGeneration;
   let displayedKey = null;
   let focusHeadingOnNextRender = false;
+  let focusReportingWindowAfterNextRender = false;
   const renderKey = () => JSON.stringify([view, detailRiderId, detailCaseId,
     view === 'cases' ? caseKind : null, view === 'cases' ? caseStatus : null,
     view === 'cases' ? caseOwner : null,
@@ -139,10 +140,6 @@
     return null;
   }
   let session = readSession();
-  if (IS_STAFF_PWA && 'serviceWorker' in navigator) {
-    // Isolated scope: the main rider worker must never own the staff shell.
-    navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
-  }
 
   class ApiError extends Error {
     constructor(status, code) {
@@ -584,6 +581,54 @@
 
   // ------------------------------------------------------------ Page chrome
 
+  // One consistent, keyboard-operable period control for reports that own
+  // a meaningful time axis. Operational queues and record details remain
+  // unfiltered, so urgent work cannot vanish behind an analytics preference.
+  function reportingWindow() {
+    const label = el('label', { class: 'reporting-range' }, [
+      el('span', { class: 'reporting-range-caption', text: 'Date range' }),
+    ]);
+    const select = el('select', { class: 'reporting-range-select', 'aria-label': 'Reporting period' }, [
+      el('option', { value: '7', text: 'Last 7 days' }),
+      el('option', { value: '30', text: 'Last 30 days' }),
+    ]);
+    select.value = String(period);
+    select.addEventListener('change', () => {
+      const next = Number(select.value);
+      if (next !== 7 && next !== 30) return;
+      // Never silently wipe staff access form drafts merely to change a chart.
+      const staffForm = view === 'staff' ? pageEl.querySelector('#addStaffForm') : null;
+      const unsavedStaffInput = staffForm && [...staffForm.querySelectorAll('input')]
+        .some((input) => input.value.trim().length > 0);
+      const pendingSearch = (view === 'riders' &&
+        pageEl.querySelector('input[aria-label="Search riders"]')?.value !== riderQuery) ||
+        (view === 'audit' &&
+        pageEl.querySelector('input[aria-label="Show actions for one rider"]')?.value !== auditRider);
+      if (unsavedStaffInput || pendingSearch) {
+        select.value = String(period);
+        flash('Apply or clear your form edits before changing the date range.', 'warning');
+        return;
+      }
+      period = next;
+      savePeriod(next);
+      if (view === 'overview' && overviewCache) {
+        renderOverview(overviewCache);
+        pageEl.querySelector('.reporting-range-select')?.focus({ preventScroll: true });
+      } else {
+        focusReportingWindowAfterNextRender = true;
+        void render();
+      }
+    });
+    label.append(select);
+    return label;
+  }
+
+  function periodCutoff() { return Date.now() - period * 86_400_000; }
+  function inReportingWindow(timestamp) {
+    const milliseconds = typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);
+    return Number.isFinite(milliseconds) && milliseconds >= periodCutoff();
+  }
+
   function pageHeader(title, subtitle, actions = []) {
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
@@ -596,7 +641,17 @@
         el('h1', { class: 'page-title', tabindex: '-1', text: title }),
         subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null,
       ]),
-      el('div', { class: 'actions' }, [...actions, refresh]),
+      el('div', { class: 'actions page-header-actions' }, [
+        ['overview', 'riders', 'inbox', 'cases', 'audit', 'staff'].includes(view)
+          ? reportingWindow()
+          : el('span', { class: 'reporting-scope', text: ({
+            moderation: 'Live moderation queue',
+            system: 'Live service status',
+            rider: 'Account record',
+            case: 'Full case history',
+          })[view] || 'Live data' }),
+        ...actions, refresh,
+      ]),
     ]);
   }
 
@@ -835,15 +890,9 @@
       el('ul', { class: 'stat-list' }, rows.map(([name, value]) => el('li', {}, [el('span', { class: 'stat-name', text: name }), el('span', { class: 'stat-value', text: value })]))),
     ]);
 
-    const periodControl = segmented([[7, '7 days'], [30, '30 days']], days, (next) => {
-      period = next;
-      savePeriod(next);
-      renderOverview(overviewCache);
-      pageEl.querySelector('[aria-label="Period"] [aria-pressed="true"]')?.focus({ preventScroll: true });
-    }, 'Period');
     const companySections = companyCommandCentre(data);
     pageEl.replaceChildren(
-      pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · days in UTC`, [periodControl]),
+      pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · reporting in UTC`),
       companySections[0],
       operationsSummary({ riders, activity, safety }),
       kpis,
@@ -981,8 +1030,10 @@
           ]))),
         ])])]),
       ];
+    const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt)).length;
     pageEl.replaceChildren(
       pageHeader('Riders', riderQuery ? `${riders.length} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”` : `Newest ${riders.length} riders`),
+      el('p', { class: 'period-context', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last ${period} days. Search results and existing accounts are never hidden by this range.` }),
       form,
       ...[].concat(content),
     );
@@ -1410,11 +1461,13 @@
           ? 'Try All owners or another source. Ownership filters only apply to the items returned in this snapshot.'
           : 'No open reports or reported Social posts were returned for this source. Refresh to check again.')]);
 
+    const recentItems = validItems.filter((item) => inReportingWindow(item.eventAt)).length;
+    const sampleText = `${recentItems} of ${validItems.length} returned items arrived in the last ${period} days. All open work remains visible regardless of age.`;
     const note = response.mayHaveMore
       ? el('p', { class: 'inbox-limit-note', role: 'status',
-        text: 'Showing up to 50 items from a bounded sample. More work may be waiting in Moderation.' })
+        text: sampleText + ' This is a bounded sample of up to 50 items; additional work may be waiting in Moderation.' })
       : el('p', { class: 'inbox-limit-note',
-        text: 'Bounded queue snapshot, not a complete count or global priority order · refresh to check for new work.' });
+        text: sampleText + ' This is not a company-wide count or priority order.' });
 
     pageEl.replaceChildren(
       pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.', [tabs]),
@@ -1877,7 +1930,8 @@
     ]);
     const list = el('ul', { class: 'case-list', 'aria-label': 'Internal work cases' },
       result.items.map(caseRecord));
-    const note = el('p', { class: 'case-page-note', text: 'Showing the latest 25 matching cases at a time. This is not a company-wide count or a customer-facing support inbox.' });
+    const recentCases = result.items.filter((item) => inReportingWindow(item.updatedAt)).length;
+    const note = el('p', { class: 'case-page-note', text: `${recentCases} of ${result.items.length} loaded cases updated in the last ${period} days. Workload totals and the queue include all dates; older cases are never hidden. Pages contain up to 25 matching cases.` });
     const more = el('button', { type: 'button', class: 'button', text: 'Load older cases' });
     more.hidden = !result.hasMore;
     let cursor = result.nextCursor;
@@ -2037,7 +2091,8 @@
     await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
     if (!isCurrentRender(generation)) return;
     const group = ACTION_GROUPS.find(([id]) => id === auditGroup) ?? ACTION_GROUPS[0];
-    const shown = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
+    const groupActions = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
+    const shown = groupActions.filter((action) => inReportingWindow(action.createdAt));
 
     const filters = segmented(ACTION_GROUPS.map(([id, label]) => [id, label]), auditGroup, (next) => {
       auditGroup = next;
@@ -2055,7 +2110,7 @@
     const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
     exportButton.addEventListener('click', () => downloadAuditCsv(shown));
 
-    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'}${auditRider ? ` for ${auditRider}` : ''}, newest first. Notes are kept for good.`;
+    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'} in the last ${period} days${auditRider ? ` for ${auditRider}` : ''}. Filtered from the latest 200 returned records; older decisions remain in the audit log.`;
     pageEl.replaceChildren(
       pageHeader('Audit log', subtitle, [exportButton]),
       el('div', { class: 'audit-filters' }, [filters]),
@@ -2198,10 +2253,12 @@
 
   function signInHistory(events) {
     if (!events) return [];
+    const recent = events.filter((event) => inReportingWindow(event.createdAt));
     return [
-      el('h2', { class: 'section-title', text: 'Staff sign-ins' }),
-      el('div', { class: 'card reports' }, events.length
-        ? [el('ul', { class: 'list' }, events.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
+      el('h2', { class: 'section-title', text: `Staff sign-ins · last ${period} days` }),
+      el('p', { class: 'period-context', text: 'This view filters the latest 20 returned sign-in events, not a complete security-event export.' }),
+      el('div', { class: 'card reports' }, recent.length
+        ? [el('ul', { class: 'list' }, recent.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
           person(riderLabel(event.riderId).name, [SECURITY_EVENT_LABELS[event.event] || event.event, event.device].filter(Boolean).join(' · '), event.riderId),
           el('span', { class: 'trail' }, [SECURITY_EVENT_TONES[event.event] ? badge(event.event === 'password_reset' ? 'Reset' : 'Failed', SECURITY_EVENT_TONES[event.event]) : null, el('div', {}, [timeEl(event.createdAt)])]),
         ])))]
@@ -2473,6 +2530,10 @@
             if (unavailable) unavailable.focus({ preventScroll: true });
           }
         }
+        if (focusReportingWindowAfterNextRender) {
+          focusReportingWindowAfterNextRender = false;
+          pageEl.querySelector('.reporting-range-select')?.focus({ preventScroll: true });
+        }
         if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav') || document.activeElement?.closest('.sidebar-search-slot') || document.activeElement?.closest('.brand-actions'))) {
           pageEl.querySelector('.page-title')?.focus({ preventScroll: true });
         }
@@ -2708,6 +2769,154 @@
     }, 150);
   });
 
+  // ---------------------------------------------------- Staff PWA updates
+  // Check on launch, foreground/resume and while open. A waiting worker only
+  // activates automatically when there are no unsaved staff edits or dialogs.
+  // This manager never touches session storage, tokens or privileged API data.
+  function setupStaffAutoUpdates() {
+    if (!IS_STAFF_PWA || !('serviceWorker' in navigator)) return;
+    const workers = navigator.serviceWorker;
+    const MIN_CHECK_MS = 60 * 1000;
+    const PERIODIC_CHECK_MS = 15 * 60 * 1000;
+    const SAFE_IDLE_MS = 20 * 1000;
+    let registration = null;
+    let lastCheck = 0;
+    let lastInteraction = 0;
+    let deferred = false;
+    let applying = false;
+    let reloadRequired = false;
+    let reloading = false;
+    let manualActivation = false;
+    let hadController = Boolean(workers.controller);
+    const touched = new WeakSet();
+    const label = el('span', { class: 'staff-update-message', text: 'Staff app update ready.' });
+    const update = el('button', { type: 'button', class: 'button button-primary staff-update-apply', text: 'Update now' });
+    const later = el('button', { type: 'button', class: 'button staff-update-later', text: 'Later' });
+    const notice = el('div', { class: 'staff-update-banner', role: 'status', hidden: true }, [
+      el('div', { class: 'staff-update-content' }, [
+        el('strong', { text: 'App update available' }), label,
+      ]),
+      el('div', { class: 'staff-update-actions' }, [update, later]),
+    ]);
+    document.body.append(notice);
+    const editor = (node) => node?.matches?.('input, textarea, select, [contenteditable="true"]');
+    const track = (event) => {
+      if (editor(event.target)) touched.add(event.target);
+      lastInteraction = Date.now();
+    };
+    document.addEventListener('input', track, true);
+    document.addEventListener('change', track, true);
+    document.addEventListener('keydown', () => { lastInteraction = Date.now(); }, true);
+    document.addEventListener('pointerdown', (event) => {
+      if (!event.target.closest?.('.staff-update-banner')) lastInteraction = Date.now();
+    }, { passive: true, capture: true });
+
+    const editing = () => {
+      if (document.querySelector('dialog[open]') || pageEl.getAttribute('aria-busy') === 'true') return true;
+      if (document.querySelector('.staff-login-form button[type="submit"]:disabled')) return true;
+      // A form that has been replaced by a successful save is no longer dirty.
+      // Ignore global search controls in a closed dialog.
+      return [...document.querySelectorAll('input, textarea, select, [contenteditable="true"]')]
+        .some((node) => touched.has(node) && node.getClientRects().length > 0 &&
+          (!node.closest('dialog') || node.closest('dialog').open) &&
+          (node.matches('select') || String(node.value ?? node.textContent ?? '').trim().length > 0));
+    };
+    const safe = () => navigator.onLine !== false &&
+      document.visibilityState === 'visible' && !deferred &&
+      Date.now() - lastInteraction >= SAFE_IDLE_MS && !editing();
+    const show = () => {
+      label.textContent = editing()
+        ? 'Finish or save your edits first, or choose Update now to confirm a reload.'
+        : 'The latest dashboard is downloaded. Your staff session will be checked again after the update.';
+      notice.hidden = false;
+    };
+    const refresh = () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    };
+    const requestActivation = (force = false) => {
+      if (!registration?.waiting || applying || !workers.controller) return;
+      if (!force && !safe()) { if (!deferred) show(); return; }
+      if (force && editing() && !window.confirm('Updating now may discard unsaved staff changes. Update anyway?')) return;
+      if (force) manualActivation = true;
+      applying = true;
+      notice.hidden = true;
+      try {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      } catch {
+        applying = false;
+        manualActivation = false;
+        show();
+      }
+    };
+    const considerUpdate = () => {
+      if (reloading) return;
+      if (reloadRequired) {
+        if (safe()) refresh();
+        else if (!deferred) show();
+      } else if (registration?.waiting && workers.controller) {
+        requestActivation();
+      }
+    };
+    update.addEventListener('click', () => {
+      if (reloadRequired) {
+        if (editing() && !window.confirm('Updating now may discard unsaved staff changes. Update anyway?')) return;
+        refresh();
+      } else requestActivation(true);
+    });
+    later.addEventListener('click', () => {
+      deferred = true;
+      notice.hidden = true;
+    });
+    workers.addEventListener('controllerchange', () => {
+      if (!hadController) { hadController = Boolean(workers.controller); return; }
+      if (!workers.controller || reloading) return;
+      applying = false;
+      reloadRequired = true;
+      if (manualActivation) refresh();
+      else considerUpdate();
+    });
+    const watchInstall = (worker) => {
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && workers.controller) considerUpdate();
+      });
+    };
+    const check = async (force = false) => {
+      if (!registration || navigator.onLine === false || document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (!force && now - lastCheck < MIN_CHECK_MS) { considerUpdate(); return; }
+      lastCheck = now;
+      try { await registration.update(); } catch { /* Offline: use the existing Staff shell. */ }
+      considerUpdate();
+    };
+    const resume = () => {
+      deferred = false;
+      void check();
+      considerUpdate();
+    };
+    window.addEventListener('pageshow', resume);
+    window.addEventListener('focus', () => void check());
+    window.addEventListener('online', () => void check(true));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') resume();
+    });
+    // iOS may suspend timers when the installed app is backgrounded. Foreground
+    // listeners above are the essential path; this handles long open sessions.
+    setInterval(() => {
+      considerUpdate();
+      if (Date.now() - lastCheck >= PERIODIC_CHECK_MS) void check();
+    }, 60 * 1000);
+    workers.register('./sw.js', { scope: './', updateViaCache: 'none' }).then((result) => {
+      registration = result;
+      result.addEventListener('updatefound', () => watchInstall(result.installing));
+      watchInstall(result.installing);
+      considerUpdate();
+      void check(true);
+    }).catch(() => { /* Staff sign-in still works online without offline support. */ });
+  }
+
   // Browser installation is optional; iOS uses Share > Add to Home Screen.
   // No prompt is fired without an explicit user click.
   let installPrompt = null;
@@ -2893,6 +3102,7 @@
     }
     location.reload();
   });
+  setupStaffAutoUpdates();
   if (!session) {
     renderStaffSignIn();
     return;

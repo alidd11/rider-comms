@@ -20,6 +20,14 @@ self.addEventListener('install', (event) => {
     }),
   )));
 });
+// A new worker waits until the page has checked that no case editor or
+// privileged dialog will be interrupted. The page then requests activation.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+  }
+});
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys().then((keys) => Promise.all(
     keys.filter((key) => key.startsWith(PREFIX) && key !== CACHE_NAME).map((key) => caches.delete(key)),
