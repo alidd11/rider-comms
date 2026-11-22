@@ -35,6 +35,14 @@ describe('API catalogue', () => {
     assert.equal(doc.openapi, '3.1.0');
     assert.deepEqual(doc.servers.map((server) => server.url), ['https://api.example.com/', 'https://api.example.com/v1']);
     assert.deepEqual(doc.paths['/health']!.get!.security, []);
+    // Staff sign-in is a password-authenticated public entry point, not an
+    // already-signed-in staff endpoint. The handler verifies role and revokes
+    // the newly minted token for non-staff identities.
+    const staffLogin = doc.paths['/auth/staff-login']?.post;
+    assert.ok(staffLogin, 'Staff PWA login must be in the published API catalogue');
+    assert.deepEqual(staffLogin.security, []);
+    assert.match(staffLogin.description, /No sign-in needed/);
+    assert.match((staffLogin as { summary: string }).summary, /non-staff/);
     assert.match(doc.paths['/messages']!.post!.description, /verified email/);
     assert.ok(doc.paths['/messages']!.post!.responses[403]);
     assert.match(doc.paths['/messages']!.get!.description, /^Signed in\./);
