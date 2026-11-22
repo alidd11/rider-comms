@@ -368,7 +368,7 @@ test.describe('staff dashboard', () => {
       name: 'Rider Comms Staff', id: './', start_url: './', scope: './', display: 'standalone',
     });
     await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
-    await page.getByRole('textbox', { name: 'Password' }).fill('right-password');
+    await page.getByLabel('Password', { exact: true }).fill('right-password');
     await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
     await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
     await expect(page.locator('.page-title')).toHaveText('Overview');
@@ -388,7 +388,7 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page, { admin: false });
     await page.goto('/staff/');
     await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('rider');
-    await page.getByRole('textbox', { name: 'Password' }).fill('right-password');
+    await page.getByLabel('Password', { exact: true }).fill('right-password');
     await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
     await expect(page.getByRole('alert')).toHaveText('This account does not have staff access.');
     await expect(page.locator('#nav')).toBeHidden();
@@ -399,10 +399,10 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page);
     await page.goto('/staff/');
     await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
-    await page.getByRole('textbox', { name: 'Password' }).fill('wrong-password');
+    await page.getByLabel('Password', { exact: true }).fill('wrong-password');
     await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
     await expect(page.getByRole('alert')).toHaveText('The username or password is incorrect.');
-    await expect(page.getByRole('textbox', { name: 'Password' })).toHaveValue('');
+    await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
   });
 
 
