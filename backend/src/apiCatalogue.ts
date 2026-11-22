@@ -142,6 +142,7 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
 
   e('GET', '/admin/me', 'Staff dashboard', 'staff', 'Your staff role and permissions'),
   e('GET', '/admin/overview', 'Staff dashboard', 'staff', 'Business overview', { permission: 'view_overview' }),
+  e('GET', '/admin/action-inbox', 'Staff dashboard', 'staff', 'Read the unified pending rider report and hidden Social post queue', { permission: 'moderate' }),
   e('GET', '/admin/system', 'Staff dashboard', 'staff', 'What the backend is set up to do', { permission: 'view_system' }),
   e('GET', '/admin/metrics', 'Staff dashboard', 'staff', 'Last hour of requests on this replica', { permission: 'view_system' }),
   e('GET', '/admin/riders', 'Staff dashboard', 'staff', 'Find riders', { permission: 'view_riders' }),
