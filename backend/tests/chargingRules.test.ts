@@ -190,6 +190,37 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(oxford('2026-07-06T12:00:00Z',
       { entitlement: { ...zeroEmission, schemeId: 'london_ulez' } }).outcome, 'possible_charge');
   });
+  it('never assumes motorcycles are free in ULEZ, tunnels or Oxford ZEZ', () => {
+    const allDays = Array.from({ length: 7 }, (_, dayOfWeek) =>
+      ({ dayOfWeek, startMinute: 0, endMinute: 1440 }));
+    const ulez: ChargingRule = { ...congestionRule, schemeId: 'london_ulez',
+      vehicleClasses: ['motorcycle','car'], weeklyWindows: allDays,
+      exceptions: [], waivingStatuses: ['exempt','compliant'] };
+    const tunnel: ChargingRule = { ...ulez, schemeId: 'blackwall_silvertown',
+      unit: 'per_crossing', waivingStatuses: ['exempt'] };
+    const oxford: ChargingRule = { ...ulez, schemeId: 'oxford_zez',
+      waivingStatuses: ['exempt'] };
+    assert.equal(run({ schemeId: 'london_ulez', rule: ulez,
+      vehicleClass: 'motorcycle' }).outcome, 'possible_charge');
+    assert.equal(run({ schemeId: 'blackwall_silvertown', rule: tunnel,
+      vehicleClass: 'motorcycle' }).outcome, 'possible_charge');
+    assert.equal(run({ schemeId: 'oxford_zez', rule: oxford,
+      vehicleClass: 'motorcycle' }).outcome, 'possible_charge');
+    assert.equal(run({ schemeId: 'london_ulez', rule: ulez,
+      vehicleClass: 'motorcycle', roadEvidence: 'polygon_overlap' }).outcome, 'unknown');
+    const riderDeclared = { schemeId: 'london_ulez' as const, vehicleClass: 'motorcycle' as const,
+      status: 'compliant' as const, source: 'user_declared' as const };
+    assert.equal(run({ schemeId: 'london_ulez', rule: ulez, vehicleClass: 'motorcycle',
+      entitlement: riderDeclared }).outcome, 'possible_charge');
+    assert.equal(run({ schemeId: 'london_ulez', rule: ulez, vehicleClass: 'motorcycle',
+      entitlement: { ...riderDeclared, source: 'operator_verified',
+        checkedAt: '2026-01-01T00:00:00Z', validThrough: '2026-12-31' } })
+      .outcome, 'verified_exempt');
+    assert.equal(run({ schemeId: 'london_ulez', rule: ulez, vehicleClass: 'motorcycle',
+      entitlement: { ...riderDeclared, source: 'operator_verified',
+        checkedAt: '2025-10-01T00:00:00Z', validThrough: '2026-12-31' } })
+      .outcome, 'possible_charge');
+  });
   it('handles emission compliance separately from generic passes and preserves charge units', () => {
     const rule: ChargingRule = { ...congestionRule, schemeId: 'london_ulez', unit: 'daily', waivingStatuses: ['exempt', 'compliant'],
       weeklyWindows: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, startMinute: 0, endMinute: 1440 })) };
