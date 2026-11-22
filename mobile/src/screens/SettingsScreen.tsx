@@ -636,7 +636,7 @@ function AccountPage(): React.JSX.Element {
       setDeletePasswordOpen(false);
     } catch (error) {
       const wrong = error instanceof ApiError && (error.body as { error?: string } | null)?.error === 'invalid_credentials';
-      setDeletePasswordError(wrong ? 'Incorrect password. Try again.' : 'Could not delete your account. Check your connection and try again.');
+      setDeletePasswordError(wrong ? 'Incorrect password. Try again.' : 'Couldn’t delete your account. Check your connection and try again.');
     } finally {
       setDeleteBusy(false);
     }

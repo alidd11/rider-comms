@@ -3669,12 +3669,25 @@
       const submit = dialog.querySelector('[data-stepup-submit]');
       let busy = false;
       let settled = false;
+      const focusReturn = document.activeElement;
+      dialog.addEventListener('keydown', (event) => {
+        // A topmost password dialog owns Escape and Tab, not Settings behind it.
+        if (event.key === 'Tab') {
+          event.stopPropagation();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!busy) finish(false);
+        }
+      });
+
       const finish = (accepted) => {
         if (settled) return;
         settled = true;
         input.value = '';
         if (dialog.open) dialog.close();
         dialog.remove();
+        if (focusReturn?.isConnected) focusReturn.focus({ preventScroll: true });
         resolve(accepted);
       };
       dialog.addEventListener('cancel', (event) => {
@@ -3702,7 +3715,7 @@
           if (session?.token !== tokenAtOpen) return finish(false);
           errorEl.textContent = error instanceof ApiError && error.body?.error === 'invalid_credentials'
             ? 'Incorrect password. Try again.'
-            : 'Could not confirm your password. Check your connection and try again.';
+            : 'Couldn’t confirm your password. Check your connection and try again.';
           errorEl.hidden = false;
           input.disabled = false;
           submit.disabled = false;

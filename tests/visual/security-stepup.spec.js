@@ -25,6 +25,12 @@ test('deletion reauthentication failure preserves the PWA session', async ({ pag
   await expect(prompt).toBeVisible();
   await expect(prompt.locator('input')).toHaveAttribute('type', 'password');
   expect(deletions).toBe(0);
+  await page.keyboard.press('Escape');
+  await expect(prompt).toHaveCount(0);
+  await expect(page.locator('#sheetTitle')).toHaveText('Account and login');
+  await expect(page.locator('#deleteAccountBtn')).toBeFocused();
+  await page.locator('#deleteAccountBtn').click();
+  await expect(prompt).toBeVisible();
   await prompt.locator('input').fill('wrong-pass');
   await prompt.locator('[data-stepup-submit]').click();
   await expect(prompt.locator('#accountStepupError')).toHaveText('Incorrect password. Try again.');
