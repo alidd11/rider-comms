@@ -159,8 +159,8 @@ export class CompanyCaseStore {
         if (!isCaseStatus(value)) return { ok: false, error: 'invalid_transition' };
         const nextByStatus: Record<CaseStatus, readonly CaseStatus[]> = {
           open: ['in_progress', 'waiting', 'resolved'],
-          in_progress: ['waiting', 'resolved', 'closed'],
-          waiting: ['in_progress', 'resolved', 'closed'],
+          in_progress: ['waiting', 'resolved'],
+          waiting: ['in_progress', 'resolved'],
           resolved: ['in_progress', 'closed'],
           closed: ['in_progress'],
         };
