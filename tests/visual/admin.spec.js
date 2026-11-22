@@ -935,8 +935,8 @@ test.describe('staff dashboard', () => {
   test('company command centre is backed by the existing overview and labels finance as disconnected', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
-    await page.goto('/admin.html');
-    await page.locator('.overview-more > summary').click();
+    await page.goto('/admin.html#company');
+    await page.locator('.company-pulse-details > summary').click();
     const pulse = page.getByRole('region', { name: 'Company pulse' });
     await expect(pulse).toContainText('240');
     await expect(pulse).toContainText('Group rides now');
@@ -960,8 +960,7 @@ test.describe('staff dashboard', () => {
   test('company navigation respects server-provided staff permissions', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page, { role: 'analyst' });
-    await page.goto('/admin.html');
-    await page.locator('.overview-more > summary').click();
+    await page.goto('/admin.html#company');
     const company = page.getByRole('region', { name: 'Company operations' });
     await expect(company.getByRole('button', { name: 'Review Social queue' })).toHaveCount(0);
     await expect(company.getByRole('button', { name: 'Manage staff roles' })).toHaveCount(0);
@@ -1155,16 +1154,24 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.inbox-item')).toHaveCount(2);
   });
 
-  test('overview makes rich company data optional without losing its routes', async ({ page }) => {
+  test('overview is concise and routes to full Insights and Company Areas without hiding information', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
     await page.goto('/admin.html#overview');
-    const details = page.locator('.overview-more');
-    await expect(details).not.toHaveAttribute('open', '');
+    await expect(page.locator('.operations-grid .operation-card')).toHaveCount(4);
+    await expect(page.locator('.overview-highlight')).toHaveCount(3);
+    await expect(page.locator('.kpi')).toHaveCount(0);
+    await expect(page.locator('.chart-card')).toHaveCount(0);
+    await expect(page.locator('.funnel')).toHaveCount(0);
+    await expect(page.locator('.reporting-range-select')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Explore insights' }).click();
+    await expect(page).toHaveURL(/#insights$/);
     await expect(page.locator('.kpi')).toHaveCount(8);
-    await expect(page.locator('.operations-grid')).toBeVisible();
-    await details.locator('summary').click();
+    await expect(page.locator('.chart-card')).toHaveCount(4);
+    await openSection(page, 'Company areas');
     await expect(page.getByRole('region', { name: 'Company operations' })).toBeVisible();
+    await expect(page.locator('.company-pulse-details')).not.toHaveAttribute('open', '');
+    await page.locator('.company-pulse-details > summary').click();
     await expect(page.getByRole('region', { name: 'Company pulse' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Review Social queue' })).toBeVisible();
   });
@@ -1404,7 +1411,7 @@ test.describe('staff dashboard', () => {
   test('overview shows KPIs with period comparisons and switches between 7 and 30 days', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
-    await page.goto('/admin.html');
+    await page.goto('/admin.html#insights');
 
     const kpi = (label) => page.locator('.kpi').filter({ has: page.locator('.kpi-label', { hasText: new RegExp(`^${label}$`) }) });
     await expect(kpi('New riders').locator('.kpi-value')).toHaveText('85');
@@ -1435,7 +1442,7 @@ test.describe('staff dashboard', () => {
   test('area charts compare periods, average distinct-rider counts and read out values', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
-    await page.goto('/admin.html');
+    await page.goto('/admin.html#insights');
     const charts = page.locator('.chart-card');
     await expect(charts).toHaveCount(4);
 
@@ -1721,7 +1728,7 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.page-title')).toHaveText('Overview');
     await openMenuIfPhone(page);
     const visibleNav = page.locator('#nav [data-view]:visible');
-    await expect(visibleNav).toHaveText(['Overview', 'System']);
+    await expect(visibleNav).toHaveText(['Overview', 'Insights', 'Company areas', 'System']);
     await expect(page.locator('#sidebarFooter .badge')).toHaveText('Analyst');
     await page.evaluate(() => { location.hash = '#staff'; });
     await expect(page.locator('.page-title')).toHaveText('Overview');
@@ -1736,7 +1743,7 @@ test.describe('staff dashboard', () => {
     // exposing moderation or the restricted privacy and incident queues.
     const visibleSections = await page.locator('#nav [data-view]:visible').evaluateAll((buttons) =>
       buttons.map((button) => button.textContent.replace(/\s+/g, ' ').trim()));
-    expect(visibleSections).toEqual(['Overview', 'Riders', 'Audit log', 'Case desk', 'System']);
+    expect(visibleSections).toEqual(['Overview', 'Insights', 'Riders', 'Audit log', 'Company areas', 'Case desk', 'System']);
     await expect(page.locator('#nav [data-view="moderation"]')).toBeHidden();
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
@@ -2024,10 +2031,10 @@ test.describe('staff dashboard', () => {
   });
 });
 
-test('overview shows the activation funnel with step conversion and a tracking note', async ({ page }) => {
+test('Insights retains the activation funnel with step conversion and a tracking note', async ({ page }) => {
   await signIn(page);
   await mockModerationApi(page);
-  await page.goto('/admin.html');
+  await page.goto('/admin.html#insights');
   const funnel = page.locator('.funnel');
   await expect(funnel.locator('.card-description')).toContainText('Riders who signed up');
   const steps = funnel.locator('.funnel-step');
@@ -2047,7 +2054,7 @@ test('staff dashboard views have no automatically detectable accessibility viola
   test.skip(!AXE_PROJECTS.has(testInfo.project.name), 'Audited once per colour scheme');
   await signIn(page);
   await mockModerationApi(page);
-  for (const view of ['overview', 'moderation', 'riders', 'audit', 'staff', 'system', 'rider/rider_maya']) {
+  for (const view of ['overview', 'insights', 'company', 'moderation', 'riders', 'audit', 'staff', 'system', 'rider/rider_maya']) {
     await page.goto(`/admin.html#${view}`);
     await expect(page.locator('main')).toBeVisible();
     await expectNoAxeViolations(page, view);
@@ -2071,7 +2078,8 @@ for (const [deviceProject, label] of [
       }, ADMIN_ID);
       await mockModerationApi(page);
       const sections = [
-        ['overview', 'overview'], ['inbox', 'action-inbox'], ['riders', 'riders'],
+        ['overview', 'overview'], ['insights', 'insights'], ['company', 'company-areas'],
+        ['inbox', 'action-inbox'], ['riders', 'riders'],
         ['moderation', 'moderation'], ['cases', 'case-desk'],
         ['audit', 'audit-log'], ['staff', 'staff'], ['system', 'system'],
         ['rider/rider_maya', 'rider-detail'],
