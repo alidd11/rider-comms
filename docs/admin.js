@@ -1143,7 +1143,8 @@
     const note = response.mayHaveMore
       ? el('p', { class: 'inbox-limit-note', role: 'status',
         text: 'Showing up to 50 items from a bounded sample. More work may be waiting in Moderation.' })
-      : el('p', { class: 'inbox-limit-note', text: 'Queue summary · refresh to check for new work.' });
+      : el('p', { class: 'inbox-limit-note',
+        text: 'Bounded queue snapshot, not a complete count or global priority order · refresh to check for new work.' });
 
     pageEl.replaceChildren(
       pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.', [tabs]),

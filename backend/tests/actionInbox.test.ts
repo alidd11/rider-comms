@@ -45,6 +45,14 @@ describe('action inbox view model', () => {
     assert.equal(saturated.mayHaveMore, true);
   });
 
+
+  it('reports sampling saturation rather than claiming complete case counts', () => {
+    const saturated = buildActionInbox(reports, social, { sampleLimit: 2, limit: 20 });
+    assert.equal(saturated.items.length, 3);
+    assert.equal(saturated.mayHaveMore, true);
+    assert.equal(saturated.sourceSampleLimit, 2);
+  });
+
   it('sorts same-time items by stable ID without relying on input order', () => {
     const same = reports.map((r) => ({ ...r, createdAt: 1_000 })).reverse();
     assert.deepEqual(buildActionInbox(same, [], { filter: 'rider_report' }).items.map((i) => i.id),

@@ -79,8 +79,9 @@ export function buildActionInbox(
     }
   }
 
-  // Oldest waiting work first; the ordering is deterministic within the
-  // bounded source samples. We do not claim these are total queue counts.
+  // This order is only within each source's bounded sample. Rider reports
+  // are sampled oldest-first, but hidden Social posts are sampled by report
+  // count. Do not imply global prioritisation or exact queue totals.
   items.sort((a, b) => a.eventAt - b.eventAt || a.id.localeCompare(b.id));
   return {
     generatedAt: now,
