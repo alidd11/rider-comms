@@ -6,7 +6,9 @@ const returnClassic = document.querySelector('.return-classic');
 if (returnClassic && window.parent !== window) {
   returnClassic.addEventListener('click', (event) => {
     event.preventDefault();
-    window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, window.location.origin);
+    // Opaque-origin iframe: send only the fixed close signal (no user data).
+    // Parent verifies both the exact frame window and event.origin='null'.
+    window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, '*');
   });
 }
 

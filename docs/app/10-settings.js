@@ -73,23 +73,36 @@
         <button type="button" class="rider-map-beta-return">Use classic map</button>
       </header>
       <iframe id="riderMapBetaFrame" title="Rider Comms Maps beta"
-        referrerpolicy="no-referrer" allow="geolocation 'none'; microphone 'none'; camera 'none'"></iframe>
+        sandbox="allow-scripts" referrerpolicy="no-referrer"
+        allow="geolocation 'none'; microphone 'none'; camera 'none'"></iframe>
     </div>`;
     const frame = dialog.querySelector('#riderMapBetaFrame');
     const closeButton = dialog.querySelector('.rider-map-beta-return');
     const close = () => { if (dialog.open) dialog.close(); };
     const onMessage = (event) => {
-      if (event.origin === window.location.origin
+      if (event.origin === 'null'
           && event.source === frame.contentWindow
           && event.data?.type === 'rider-comms-close-map-beta') close();
     };
     window.addEventListener('message', onMessage);
     closeButton.addEventListener('click', close);
+    const tokenAtOpen = session?.token;
     const safetyTimer = window.setInterval(() => {
-      if (window.RiderMovementSafety.isLockedForSafety(movementState)) close();
+      if (!tokenAtOpen || session?.token !== tokenAtOpen
+          || window.RiderMovementSafety.isLockedForSafety(movementState)) close();
     }, 1000);
+    // Reconfirm access during longer test sessions; fail closed if revoked.
+    let verifyingRole = false;
+    const roleTimer = window.setInterval(() => {
+      if (!dialog.open || verifyingRole) return;
+      verifyingRole = true;
+      void apiFetch('GET', '/admin/me').then((access) => {
+        if (access?.role !== 'admin' || session?.token !== tokenAtOpen) close();
+      }).catch(close).finally(() => { verifyingRole = false; });
+    }, 30000);
     dialog.addEventListener('close', () => {
       window.clearInterval(safetyTimer);
+      window.clearInterval(roleTimer);
       window.removeEventListener('message', onMessage);
       frame.removeAttribute('src'); // stop tile requests on return to classic
       dialog.remove();

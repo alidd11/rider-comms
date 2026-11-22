@@ -31,6 +31,8 @@ await cp(
 // Sign-in and ride hero photos, self-hosted so they work offline and no
 // third-party image host sees riders' requests.
 await cp(resolve(source, 'assets', 'hero'), resolve(destination, 'assets', 'hero'), { recursive: true });
+// The static admin map beta is public geography only; no authenticated data.
+await cp(resolve(source, 'map-beta'), resolve(destination, 'map-beta'), { recursive: true });
 
 const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
 await Promise.all(required.map((file) => readFile(resolve(destination, file))));
@@ -118,7 +120,7 @@ if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(pr
 // this over mobile data, and minifying roughly halves app.js. No target is
 // set, so syntax is never lowered, and these are classic scripts sharing
 // globals, so esbuild keeps their top-level names.
-const { transform } = await import('esbuild');
+const { transform, build } = await import('esbuild');
 const minified = [
   'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js',
   'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'routes.js', 'admin.js',
@@ -134,4 +136,18 @@ await Promise.all(minified.map(async (file) => {
   await writeFile(path, code);
 }));
 
+// A sandboxed opaque-origin iframe cannot import same-site ES modules
+// without CORS headers. Compile local map-beta ES modules to one classic
+// script; keep the third-party MapLibre library in the isolated iframe only.
+await build({
+  entryPoints: [resolve(source, 'map-beta', 'preview.mjs')],
+  outfile: resolve(destination, 'map-beta', 'preview.bundle.js'),
+  bundle: true, format: 'iife', platform: 'browser', target: 'es2022',
+  minify: true, legalComments: 'none',
+});
+const betaHtml = await readFile(resolve(destination, 'map-beta', 'index.html'), 'utf8');
+const betaBundle = await readFile(resolve(destination, 'map-beta', 'preview.bundle.js'), 'utf8');
+if (!betaHtml.includes('src="./preview.bundle.js"') || !betaBundle.includes('rider-comms-close-map-beta')) {
+  throw new Error('Map beta preview is missing from the built PWA');
+}
 console.log(`Built PWA at ${destination}`);

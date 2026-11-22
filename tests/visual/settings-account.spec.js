@@ -71,6 +71,12 @@ test('PWA admin beta stays inside the app and can return to the classic map', as
   const dialog = page.locator('#riderMapBetaDialog');
   await expect(dialog).toBeVisible();
   await expect(page.locator('#riderMapBetaFrame')).toHaveAttribute('src', './map-beta/');
+  await expect(page.locator('#riderMapBetaFrame')).toHaveAttribute('sandbox', 'allow-scripts');
+  await expect(page.frameLocator('#riderMapBetaFrame').locator('.return-classic')).toBeVisible();
+  const storageIsolated = await page.frameLocator('#riderMapBetaFrame').locator('body').evaluate(() => {
+    try { window.localStorage.getItem('rider-comms-session-v1'); return false; } catch { return true; }
+  });
+  expect(storageIsolated).toBe(true);
   await expect(page).toHaveURL(/#settings$/);
   await page.locator('.rider-map-beta-return').click();
   await expect(dialog).toHaveCount(0);
@@ -79,10 +85,24 @@ test('PWA admin beta stays inside the app and can return to the classic map', as
   // Open a second time: the embedded link also closes the preview.
   await page.locator('#openMapBetaPreview').click();
   await expect(dialog).toBeVisible();
+  await expect(page.frameLocator('#riderMapBetaFrame').locator('.return-classic')).toBeVisible();
   await page.frameLocator('#riderMapBetaFrame').locator('.return-classic').click();
   await expect(dialog).toHaveCount(0);
   await expect(page).toHaveURL(/#settings$/);
   expect(checks).toBeGreaterThanOrEqual(3);
+});
+
+test('PWA admin map preview supports Escape and restores Settings focus', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/admin/me'
+    ? { body: { role: 'admin', permissions: [] } } : null);
+  await page.goto('/#settings');
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  await page.locator('#openMapBetaPreview').click();
+  await expect(page.locator('#riderMapBetaDialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#riderMapBetaDialog')).toHaveCount(0);
+  await expect(page.locator('#openMapBetaPreview')).toBeFocused();
+  await expect(page.locator('#sheetTitle')).toHaveText('Map & navigation');
 });
 
 test('PWA Settings is a real settings list matching the native app', async ({ page }, testInfo) => {
