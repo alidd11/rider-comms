@@ -1504,3 +1504,77 @@ html { scroll-padding-top: 78px; }
 @media (prefers-reduced-motion: reduce) {
   .company-unit, .operation-card { transition: none; }
 }
+
+
+/* Case Desk: restrained Linear-style worklist and spacious, readable details.
+   All status badges have text; colour is supplementary. */
+.case-workspace { min-width: 0; }
+.case-filters { display: flex; max-width: 100%; margin: 7px 0 13px; }
+.case-filters .segmented { width: max-content; }
+.case-filter-label { font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; color: var(--muted-fg); margin-top: 13px; }
+.case-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.case-item { display: flex; min-width: 0; gap: 16px; align-items: center; justify-content: space-between; padding: 16px 18px; }
+.case-item + .case-item { border-top: 1px solid var(--border); }
+.case-item:hover, .case-item:focus-within { background: color-mix(in srgb,var(--accent) 3%,var(--surface)); }
+.case-item-main { min-width: 0; flex: 1 1 auto; }
+.case-item-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; font-weight: 730; color: var(--muted-fg); margin-bottom: 5px; }
+.case-item-title { color: var(--fg); display: inline-block; font-size: 14px; font-weight: 680; line-height: 21px; letter-spacing: -.015em; text-decoration: none; overflow-wrap: anywhere; }
+.case-item-title:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.case-item-metadata { display: flex; align-items: center; gap: 7px 13px; flex-wrap: wrap; margin-top: 7px; font-size: 11px; color: var(--muted-fg); }
+.case-item-badges { display: flex; flex: none; gap: 6px; align-items: center; flex-wrap: wrap; }
+.case-chip { display: inline-flex; align-items: center; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--fg-2); font-size: 11px; font-weight: 640; line-height: 17px; padding: 3px 8px; white-space: nowrap; }
+.case-chip[data-tone="success"] { border-color: transparent; color: var(--success); background: var(--success-soft); }
+.case-chip[data-tone="warning"] { border-color: transparent; color: var(--warning); background: var(--warning-soft); }
+.case-chip[data-tone="danger"] { border-color: transparent; color: var(--danger); background: var(--danger-soft); }
+.case-page-note { font-size: 11px; line-height: 17px; color: var(--muted-fg); margin: 13px 0; }
+.case-workspace > .button { min-height: 40px; }
+.case-empty { padding: 30px; }
+.case-help { color: var(--muted-fg); font-size: 12px; line-height: 1.6; margin: 8px 0 18px; }
+.case-create-dialog { max-width: min(570px,calc(100vw - 24px)); width: 100%; border-radius: 12px; }
+.case-form { display: grid; gap: 13px; padding: 20px; }
+.case-form .card-title { margin: 0; font-size: 20px; }
+.case-form .case-help { margin: 0 0 5px; }
+.case-form .actions { justify-content: flex-end; flex-wrap: wrap; }
+.case-field { display: grid; gap: 6px; min-width: 0; color: var(--fg-2); font-size: 12px; font-weight: 610; }
+.case-field .input { width: 100%; max-width: none; min-height: 42px; font-size: 14px; }
+.case-description { min-height: 94px; resize: vertical; padding: 12px; line-height: 1.6; font-size: 14px; }
+.case-back { display: inline-flex; width: max-content; color: var(--muted-fg); font-size: 12px; text-decoration: none; margin-bottom: 16px; padding: 4px 0; }
+.case-back:hover { color: var(--accent); }
+.case-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -10px 0 22px; font-size: 11px; color: var(--muted-fg); }
+.case-detail-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 14px; align-items: start; }
+.case-detail-primary { display: grid; gap: 14px; min-width: 0; }
+.case-description-card, .case-history, .case-controls { padding: 21px; min-width: 0; }
+.case-body-text { color: var(--fg-2); font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0 0; }
+.case-history .card-title { margin: 0; }
+.case-timeline { list-style: none; margin: 18px 0 0; padding: 0 0 0 22px; border-left: 1px solid var(--border); }
+.case-event { position: relative; padding: 0 0 21px; }
+.case-event:last-child { padding-bottom: 0; }
+.case-event::before { content: ""; position: absolute; left: -27px; top: 4px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--accent); background: var(--surface); }
+.case-event-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 11px; color: var(--muted-fg); overflow-wrap: anywhere; }
+.case-event-meta strong { color: var(--fg); text-transform: capitalize; font-size: 12px; font-weight: 690; }
+.case-event-note { color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; margin: 7px 0 0; line-height: 1.6; }
+.case-event-change { font-size: 11px; color: var(--muted-fg); margin: 7px 0 0; overflow-wrap: anywhere; }
+.case-controls { display: grid; gap: 14px; }
+.case-controls .card-title { margin-bottom: 0; }
+.case-controls .case-help { margin: 0 0 4px; }
+.case-control-grid { display: grid; gap: 12px; }
+.case-controls .case-field .button { width: max-content; min-height: 38px; }
+.case-controls > .button, .case-owner-action .button, .case-admin-assign .button { min-height: 40px; width: max-content; }
+.case-owner-action { padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.case-admin-assign { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.case-controls .error-text { line-height: 1.6; overflow-wrap: anywhere; }
+@media (min-width: 1100px) {
+  .case-detail-layout { grid-template-columns: minmax(0, 1.7fr) minmax(310px, 1fr); }
+  .case-controls { position: sticky; top: 82px; }
+}
+@media (max-width: 620px) {
+  .case-item { display: block; padding: 17px 15px; }
+  .case-item-badges { margin-top: 12px; }
+  .case-item-metadata { line-height: 18px; }
+  .case-filters .segmented button { min-height: 40px; padding-inline: 12px; }
+  .case-description-card, .case-history, .case-controls { padding: 18px; }
+  .case-form { padding: 16px; }
+  .case-form .actions .button { min-height: 44px; }
+  .case-timeline { padding-left: 17px; }
+  .case-event::before { left: -22px; }
+}
