@@ -125,7 +125,13 @@ const pwaHtml = read('../docs/index.html');
 const pwaBundle = read('../docs/app.js');
 const pwaStyles = read('../docs/app.css');
 assert.match(pwaHtml, /frame-src 'self' https:\/\/\*\.google\.com/);
-assert.match(pwaBundle, /openEmbeddedMapBeta\(\)/);
+// The admin check disables the clicked button before opening the modal;
+// activeElement may have become <body>. Pass the original button explicitly
+// so close/cancel always restores focus to the correct Settings control.
+assert.match(webSettings, /function openEmbeddedMapBeta\(trigger\)/);
+assert.match(webSettings, /openEmbeddedMapBeta\(button\);/);
+assert.match(pwaBundle, /openEmbeddedMapBeta\(button\);/);
+assert.doesNotMatch(webSettings, /const trigger = document\.activeElement;/);
 assert.match(pwaBundle, /frame\.removeAttribute\('src'\)/);
 assert.match(pwaBundle, /event\.source === frame\.contentWindow/);
 assert.ok(pwaBundle.includes('sandbox="allow-scripts"'), 'The beta iframe must have opaque-origin sandbox');
