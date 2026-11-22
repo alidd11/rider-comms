@@ -1,5 +1,9 @@
 # Rider Comms Staff — installable Operations Hub PWA
 
+## Internal Company Case Desk (PR #580 draft)
+
+The Case desk is role-gated and accessible inside both entry points after staff login. Support staff can see support cases, moderators can see internally opened appeals, administrators can see every case type including privacy requests and incidents, and analysts cannot access case details. Every staff change requires a reason and a recent password re-check. The cases are **not** external email, billing reconciliation, legal request fulfilment or live incident automation; none of those is implied by the UI.
+
 ## Entry point and installation
 The **Rider Comms Staff** app is a separate installable web application at `/staff/`, using the same Origin and secured Operations Hub UI as `/admin.html` but a distinct manifest ID, URL scope, service worker and branded app name. The original rider PWA keeps its own `/` manifest and functionality.
 
