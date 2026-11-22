@@ -36,6 +36,10 @@ export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown
       const report = await moderationStore.reportById(decodeURIComponent(s[2]));
       return report ? sendJson(res, 200, { report }) : sendJson(res, 404, { error: 'not_found' });
     }
+    if (req.method === 'GET' && s[1] === 'reports' && s.length === 4 && s[3] === 'assignment-history' && s[2]) {
+      const events = await moderationStore.assignmentHistory(decodeURIComponent(s[2]), limit ?? 50);
+      return events === null ? sendJson(res, 404, { error: 'not_found' }) : sendJson(res, 200, { events });
+    }
     if (req.method === 'GET' && url.pathname === '/moderation/actions') {
       const riderId = url.searchParams.get('riderId') ?? undefined;
       return sendJson(res, 200, { actions: await moderationStore.listActions(riderId, limit) });
@@ -49,6 +53,19 @@ export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown
     const note = typeof body.note === 'string' ? body.note.trim() : '';
     if (req.method === 'POST' && (!note || note.length > MAX_MODERATION_NOTE_LENGTH)) {
       return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    if (req.method === 'POST' && s[1] === 'reports' && s[2] && s[3] === 'assign' && s.length === 4) {
+      // Omitted target means assign to self; explicit null means release.
+      const requested = Object.hasOwn(body, 'assigneeId') ? body.assigneeId : actorId;
+      if (requested !== null && (typeof requested !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(requested))) {
+        return sendJson(res, 400, { error: 'invalid_assignee' });
+      }
+      const result = await moderationStore.assignReport(
+        decodeURIComponent(s[2]), actorId, requested as string | null, note, roleCan(role, 'manage_staff'),
+      );
+      if (!result.ok) return sendJson(res, result.error === 'not_found' ? 404 :
+        result.error === 'invalid_assignee' || result.error === 'permission_required' ? 403 : 409, { error: result.error });
+      return sendJson(res, 200, result);
     }
     if (req.method === 'POST' && s[1] === 'reports' && s[2] && s[3] === 'resolve' && s.length === 4) {
       if (typeof body.resolution !== 'string' || !REPORT_RESOLUTIONS.includes(body.resolution as ReportResolution)) {

@@ -1106,4 +1106,28 @@ export const MIGRATIONS: Migration[] = [
            OR r.details LIKE 'Rider Social post ' || spr.post_id::text || ':%');
     `,
   },
+  {
+    // Durable moderation-case ownership is separate from the existing
+    // 30-minute quick claim. Assignment transitions have append-only history.
+    name: '0063_safety_report_assignment_history',
+    sql: `
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS assigned_to TEXT;
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS assigned_at BIGINT;
+      CREATE INDEX IF NOT EXISTS safety_reports_open_assignee_idx
+        ON safety_reports (assigned_to, created_at)
+        WHERE status = 'open' AND assigned_to IS NOT NULL;
+      CREATE TABLE IF NOT EXISTS safety_report_assignment_events (
+        id UUID PRIMARY KEY,
+        report_id TEXT NOT NULL REFERENCES safety_reports(id) ON DELETE CASCADE,
+        actor_id TEXT NOT NULL,
+        previous_assignee TEXT,
+        assignee_id TEXT,
+        event TEXT NOT NULL CHECK (event IN ('assigned', 'transferred', 'released')),
+        note TEXT NOT NULL CHECK (length(note) BETWEEN 1 AND 1000),
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS safety_report_assignment_events_report_idx
+        ON safety_report_assignment_events (report_id, created_at DESC, id DESC);
+    `,
+  },
 ];
