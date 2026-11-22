@@ -716,11 +716,11 @@
       el('span', { class: 'company-hero-metric-label', text: label }),
       el('strong', { class: 'company-hero-metric-value', text: formatNumber(value) }),
     ]);
-    const unit = ({ title, status, description, fact, destination, action, permittedRoles, unavailable = false }) => {
+    const unit = ({ title, status, description, fact, destination, action, permittedRoles, startKind, unavailable = false }) => {
       const canOpen = destination && allowed(VIEW_PERMISSIONS[destination])
         && (!permittedRoles || permittedRoles.includes(me?.role));
       const button = canOpen ? el('button', { type: 'button', class: 'button button-small', text: action }) : null;
-      if (button) button.addEventListener('click', () => selectView(destination));
+      if (button) button.addEventListener('click', () => { if (startKind) caseKind = startKind; selectView(destination); });
       return el('article', { class: 'company-unit', dataset: { unavailable: String(unavailable) } }, [
         el('div', { class: 'company-unit-header' }, [
           el('h3', { class: 'company-unit-title', text: title }),
@@ -763,9 +763,9 @@
             fact: formatNumber(safety.openReports) + ' rider reports open',
             destination: 'inbox', action: 'Open action inbox' }),
           unit({ title: 'Customer support', status: 'Account tools',
-            description: 'Investigate rider accounts and help with access, verification, devices and recovery. A durable ticket and SLA queue is not connected yet.',
-            fact: 'Account assistance exists · support tickets are pending',
-            destination: 'cases', action: 'Open support cases', permittedRoles: ['admin', 'support'] }),
+            description: 'Create and track internal rider support cases, investigate accounts and record handovers. Customer messages and SLA automation are not yet connected.',
+            fact: 'Staff case desk connected · customer messaging pending',
+            destination: 'cases', action: 'Open support cases', startKind: 'support', permittedRoles: ['admin', 'support'] }),
           unit({ title: 'People & access', status: 'Role-gated',
             description: 'Manage operational staff roles, recent authentication events and privileged access.',
             fact: 'Roles: Admin · Moderator · Support · Analyst',
@@ -775,15 +775,15 @@
             fact: 'Health, traffic and database diagnostics',
             destination: 'system', action: 'Inspect platform' }),
           unit({ title: 'Privacy & compliance', status: 'Partial',
-            description: 'Staff audit history, admin-only rider data export and governance runbooks are available. Privacy request case tracking is not connected yet.',
-            fact: 'Audit records available · request tracking pending',
-            destination: 'cases', action: 'Open privacy cases', permittedRoles: ['admin'] }),
+            description: 'Track internal privacy requests, account data exports and audit trails. Deadline automation and identity verification workflows remain separate.',
+            fact: 'Internal privacy case records · deadline automation pending',
+            destination: 'cases', action: 'Open privacy cases', startKind: 'privacy', permittedRoles: ['admin'] }),
           unit({ title: 'Commercial & billing', status: 'Not connected', unavailable: true,
             description: 'Company revenue, subscriptions, refunds and payment reconciliation need an authorised reporting integration.',
             fact: 'No financial totals shown until validated against the billing provider' }),
         ]),
         el('p', { class: 'company-methodology', text:
-          'Scope: Rider Comms accounts and activity share a backend with Rider Social. Social audience, customer support ticket SLAs, finance, privacy request deadlines and company-wide revenue require dedicated, permission-scoped datasets before they can be reported here.' }),
+          'Scope: Rider Comms accounts and activity share a backend with Rider Social. Social audience, customer messaging and response SLAs, finance reconciliation, privacy request deadline automation and company-wide revenue require dedicated, permission-scoped datasets before they can be reported here.' }),
       ]),
     ];
   }
