@@ -95,7 +95,7 @@ const staffVersion = createHash('sha256')
   .update(await readFile(resolve(destination, 'admin.js')))
   .digest('hex').slice(0, 10);
 await writeFile(staffWorkerPath, (await readFile(staffWorkerPath, 'utf8'))
-  .replace(/rider-comms-staff-v[\\w-]+/, `rider-comms-staff-v${staffVersion}`));
+  .replace(/rider-comms-staff-v[\w-]+/, `rider-comms-staff-v${staffVersion}`));
 const staffHtml = await readFile(resolve(destination, 'staff', 'index.html'), 'utf8');
 if (!staffHtml.includes('href="./manifest.json"') || !staffHtml.includes('src="../admin.js"')) {
   throw new Error('Staff install shell must reference its own manifest and the shared admin client');
