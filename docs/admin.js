@@ -73,6 +73,8 @@
   let period = readPeriod();
   let moderationView = 'open';
   let inboxFilter = 'all';
+  // A local view over the returned 50-item snapshot, never a global ownership count.
+  let inboxOwnerFilter = 'all';
   let inboxFocusTarget = null;
   let riderQuery = '';
   let auditGroup = 'all';
@@ -91,6 +93,7 @@
     view === 'moderation' ? moderationView : null,
     view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
     view === 'inbox' ? inboxFilter : null,
+    view === 'inbox' ? inboxOwnerFilter : null,
     view === 'audit' ? auditGroup : null,
     view === 'audit' ? auditRider : null]);
   const names = new Map();
@@ -1230,8 +1233,24 @@
       ['all', 'All work'], ['rider_report', 'Rider reports'], ['social_post', 'Social posts'],
     ], filter, (next) => {
       inboxFilter = next;
+      if (next === 'social_post') inboxOwnerFilter = 'all';
       renderAndFocus('[aria-label="Action inbox sources"] [aria-pressed="true"]');
     }, 'Action inbox sources');
+
+    // Source filtering is server-side; owner filtering is explicitly local to
+    // this bounded response. Social posts have no durable owner model yet.
+    const validItems = items.filter((item) =>
+      (item.type === 'rider_report' && typeof item.reportId === 'string') ||
+      (item.type === 'social_post' && typeof item.postId === 'string'));
+    const visibleItems = validItems.filter((item) => inboxOwnerFilter === 'all' ||
+      (item.type === 'rider_report' && (inboxOwnerFilter === 'mine'
+        ? item.assignedTo === session.riderId : item.assignedTo == null)));
+    const ownershipTabs = filter === 'social_post' ? null : segmented([
+      ['all', 'All owners'], ['mine', 'Assigned to me'], ['unassigned', 'Unassigned'],
+    ], inboxOwnerFilter, (next) => {
+      inboxOwnerFilter = next;
+      renderAndFocus('[aria-label="Action inbox ownership"] [aria-pressed="true"]');
+    }, 'Action inbox ownership');
 
     const itemCard = (item) => {
       const isReport = item.type === 'rider_report';
@@ -1274,12 +1293,13 @@
       ]);
     };
 
-    const content = items.length
-      ? el('div', { class: 'inbox-items' }, items.filter((item) =>
-        (item.type === 'rider_report' && typeof item.reportId === 'string') ||
-        (item.type === 'social_post' && typeof item.postId === 'string')).map(itemCard))
-      : el('div', { class: 'card' }, [emptyState('inbox', 'Nothing waiting in this view',
-        'No open reports or reported Social posts were returned for this source. Refresh to check again.')]);
+    const content = visibleItems.length
+      ? el('div', { class: 'inbox-items' }, visibleItems.map(itemCard))
+      : el('div', { class: 'card' }, [emptyState('inbox', validItems.length
+        ? 'No matching work in this sample' : 'Nothing waiting in this view',
+        validItems.length
+          ? 'Try All owners or another source. Ownership filters only apply to the items returned in this snapshot.'
+          : 'No open reports or reported Social posts were returned for this source. Refresh to check again.')]);
 
     const note = response.mayHaveMore
       ? el('p', { class: 'inbox-limit-note', role: 'status',
@@ -1292,6 +1312,11 @@
       el('div', { class: 'inbox-intro', role: 'note' }, [
         el('strong', { text: 'Review and assign work in Moderation' }),
         el('span', { text: 'This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
+      ]),
+      el('div', { class: 'inbox-triage-toolbar' }, [
+        ownershipTabs,
+        el('span', { class: 'inbox-sample-count', role: 'status',
+          text: `Showing ${visibleItems.length} of ${validItems.length} returned items` }),
       ]),
       content,
       note,
