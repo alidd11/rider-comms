@@ -1,7 +1,7 @@
 import { bearerToken, consumeRateLimit, rateLimitSubject, readJsonBody, sendEmpty, sendJson } from '../serverHttp.ts';
 import { exportRiderData } from '../accountExport.ts';
 import { TERMS_VERSION } from '../authStore.ts';
-import { NOT_HANDLED, STAFF_REAUTH_WINDOW_MS, ejectFromVoice, voiceMembershipsOf } from './context.ts';
+import { NOT_HANDLED, STAFF_REAUTH_WINDOW_MS, ejectFromVoice, refuseWithoutRecentReauth, voiceMembershipsOf } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleAccountRoutes(ctx: RouteContext): Promise<unknown> {
@@ -42,9 +42,12 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<unknown> {
       ? sendJson(res, 200, { reauthenticated: true, validForMs: STAFF_REAUTH_WINDOW_MS })
       : sendJson(res, 401, { error: 'invalid_credentials' });
   }
+  // Disabled by default until password-confirming PWA and native clients ship.
+  const requiresStepUp = async () => process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED === 'true' && await refuseWithoutRecentReauth(ctx);
   // Download my data: everything held about this rider, as one JSON file.
   if (req.method === 'GET' && url.pathname === '/auth/export') {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('rider', actorId), 'auth'))) return;
+    if (await requiresStepUp()) return;
     const data = await exportRiderData(actorId);
     if (!data) return sendJson(res, 404, { error: 'not_found' });
     res.setHeader('Content-Disposition', `attachment; filename="rider-comms-data-${new Date().toISOString().slice(0, 10)}.json"`);
@@ -60,6 +63,7 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<unknown> {
     return sendJson(res, 200, result);
   }
   if (req.method === 'DELETE' && url.pathname === '/auth/me') {
+    if (await requiresStepUp()) return;
     // Read the voice rooms first: deletion removes the rows that say where
     // the rider is connected.
     const memberships = await voiceMembershipsOf(ctx, actorId);

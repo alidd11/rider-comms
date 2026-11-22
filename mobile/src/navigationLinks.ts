@@ -42,10 +42,17 @@ export function parseNavigationLink(rawUrl: string | null | undefined): Navigati
 
   try {
     const url = new URL(rawUrl);
+    // Only accept the published app-link host configured in mobile/app.json.
+    // A matching path on an arbitrary HTTPS domain is not a Rider Comms link.
+    if (url.username || url.password || url.port) return null;
     const isWebLink = url.protocol === 'https:' &&
+      url.hostname === 'alidd11.github.io' &&
       (url.pathname === '/navigate' || url.pathname === '/rider-comms/navigate');
+    // A custom-scheme link must use the canonical navigation authority.
+    // Checking only the path would accept ridercomms://untrusted/navigate.
     const isAppLink = url.protocol === 'ridercomms:' &&
-      (url.hostname === 'navigate' || url.pathname === '/navigate');
+      url.hostname === 'navigate' &&
+      (url.pathname === '' || url.pathname === '/');
     if (!isWebLink && !isAppLink) return null;
 
     const latText = url.searchParams.get('lat');
@@ -86,6 +93,17 @@ export function buildNavigationProviderUrl(
  * so screens can retain context and offer a retry/provider change. */
 export async function openNavigationUrl(url: string, opener: NavigationUrlOpener): Promise<boolean> {
   try {
+    // Reject executable URLs and lookalike hosts before handing control to the OS.
+    const target = new URL(url);
+    if (target.protocol !== 'https:' || target.username || target.password ||
+        (target.port && target.port !== '443')) return false;
+    // Restrict handoff to the navigation endpoints this app actually generates.
+    // A trusted hostname alone would also permit unrelated web pages.
+    const isNavigationEndpoint =
+      (target.hostname === 'www.google.com' && target.pathname === '/maps/dir/') ||
+      (target.hostname === 'www.waze.com' && target.pathname === '/ul') ||
+      (target.hostname === 'maps.apple.com' && target.pathname === '/');
+    if (!isNavigationEndpoint) return false;
     if (!(await opener.canOpenURL(url))) return false;
     await opener.openURL(url);
     return true;
