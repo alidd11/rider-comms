@@ -1047,6 +1047,20 @@ body.menu-visible { overflow: hidden; }
   font-size: 10px;
 }
 .page-header { align-items: center; margin-bottom: 26px; gap: 14px 20px; }
+.page-heading { min-width: 0; }
+.page-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 8px;
+  color: var(--muted-fg);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 730;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.page-eyebrow-dot { display: inline-block; width: 6px; height: 6px; background: var(--accent); border-radius: 2px; }
 .page-title {
   font-size: clamp(23px, 2.1vw, 29px);
   line-height: 1.22;
