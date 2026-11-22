@@ -151,6 +151,27 @@ describe('company case API and audit', { skip: !hasDatabase && 'DATABASE_URL not
     assert.equal((await updated.json() as { item: { subjectRiderId: string | null } }).item.subjectRiderId, null);
   });
 
+  it('serialises competing updates and forbids assigning a privacy case to support staff', async () => {
+    const privacy = await create(ADMIN, 'privacy', 'Privacy request intake validation');
+    assert.equal(privacy.status, 201);
+    const id = (await privacy.json() as { item: { id: string } }).item.id;
+    const wrongAssignee = await postJson(ctx, ADMIN, caseUrl(id) + '/assign', {
+      expectedVersion: 1, note: 'Attempt cross-team assignment', assigneeId: SUPPORT,
+    });
+    assert.equal(wrongAssignee.status, 400);
+    assert.deepEqual(await wrongAssignee.json(), { error: 'invalid_assignee' });
+    const [a, b] = await Promise.all([
+      postJson(ctx, ADMIN, caseUrl(id) + '/notes', { expectedVersion: 1, note: 'First review note' }),
+      postJson(ctx, ADMIN, caseUrl(id) + '/priority', { expectedVersion: 1, note: 'Urgent identity verification', priority: 'urgent' }),
+    ]);
+    assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+    const detail = await (await authenticatedFetch(ctx, ADMIN, caseUrl(id))).json() as {
+      item: { version: number }; events: { event: string }[];
+    };
+    assert.equal(detail.item.version, 2);
+    assert.equal(detail.events.length, 2, 'only the winning update creates an audit event');
+  });
+
   it('limits ordered results and refuses privacy/incident visibility to support and moderation', async () => {
     const privacy = await create(ADMIN, 'privacy', 'Data access request awaiting verification');
     const incident = await create(ADMIN, 'incident', 'Provider degraded for group rides');
