@@ -433,6 +433,47 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     }
   });
 
+
+  it('fetches an exact hidden Social post beyond the first 100, enforcing staff permissions', async () => {
+    const post = await photoPost(ctx, 'social_a', 'Selected item requiring direct review');
+    for (let i = 0; i < REPORTS_TO_HIDE; i += 1) {
+      assert.equal((await postJson(ctx, `social_r${i}`, `/social/posts/${post.id}/report`,
+        { reason: 'spam' })).status, 202);
+    }
+    await getPool().query(`INSERT INTO users (id, username, password_hash, is_admin)
+      VALUES ('social_mod', 'social_mod', 'x', true)`);
+    // The general hidden-post queue prioritises these 110 (four reports)
+    // ahead of the chosen post (three reports), regardless of its age.
+    await getPool().query(
+      `INSERT INTO social_posts (id, author_id, kind, caption, created_at, hidden_at)
+       SELECT gen_random_uuid(), 'social_a', 'photo', 'bulk-hidden', n, n
+       FROM generate_series(1, 110) AS n`);
+    await getPool().query(
+      `INSERT INTO social_post_reports (post_id, reporter_id, reason, created_at)
+       SELECT p.id, reporters.id, 'spam', p.created_at FROM social_posts p
+         CROSS JOIN (VALUES ('social_b'), ('social_c'), ('social_r0'), ('social_r1')) AS reporters(id)
+       WHERE p.caption = 'bulk-hidden'`);
+    const queue = await (await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts?limit=100')).json() as
+      { posts: Array<{ post: { id: string } }> };
+    assert.equal(queue.posts.length, 100);
+    assert.equal(queue.posts.some((item) => item.post.id === post.id), false);
+
+    const url = `/moderation/social-posts/${post.id}`;
+    assert.equal((await fetch(ctx.baseUrl() + url)).status, 401);
+    assert.equal((await authenticatedFetch(ctx, 'social_b', url)).status, 403);
+    const response = await authenticatedFetch(ctx, 'social_mod', url);
+    assert.equal(response.status, 200);
+    const detail = await response.json() as { entry: { post: { id: string; media: Array<{ url: string }> }; reports: number } };
+    assert.equal(detail.entry.post.id, post.id);
+    assert.equal(detail.entry.reports, REPORTS_TO_HIDE);
+    assert.ok(detail.entry.post.media[0]?.url, 'signed staff media link is preserved');
+    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`,
+      { note: 'No violation after review' })).status, 200);
+    assert.equal((await authenticatedFetch(ctx, 'social_mod', url)).status, 404,
+      'a restored post cannot be presented as still hidden');
+    assert.equal((await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts/invalid-uuid')).status, 404);
+  });
+
   it('lets moderators review hidden posts, see their files, and restore or remove them', async () => {
     const post = await photoPost(ctx, 'social_a');
     for (let i = 0; i < REPORTS_TO_HIDE; i += 1) await postJson(ctx, `social_r${i}`, `/social/posts/${post.id}/report`, { reason: 'sexual' });

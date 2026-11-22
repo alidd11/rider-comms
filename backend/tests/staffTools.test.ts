@@ -196,6 +196,65 @@ describe('staff tools', { skip: !hasDatabase && 'DATABASE_URL not set' }, () => 
     assert.deepEqual(cleared.items, []);
   });
 
+
+  it('opens an exact report beyond the first 100, preserves claims, and handles concurrent resolution', async () => {
+    // Hidden linked Social reports occupy the first 100 slots in the general
+    // moderation list but must not hide the valid independent inbox record.
+    const postId = '44444444-4444-4444-8444-444444444444';
+    await getPool().query(
+      `INSERT INTO social_posts (id, author_id, kind, caption, created_at, hidden_at)
+       VALUES ($1, $2, 'photo', '', 1, 2)`, [postId, TARGET]);
+    try {
+      await getPool().query(
+        `INSERT INTO social_post_reports (post_id, reporter_id, reason, created_at)
+         VALUES ($1,$2,'spam',1), ($1,$3,'spam',1), ($1,$4,'spam',1)`,
+        [postId, MOD, MOD2, SUPPORT]);
+      await getPool().query(
+        `INSERT INTO safety_reports
+          (id, reporter_id, reported_rider_id, reason, details, created_at, source_post_id)
+         SELECT 'rep-hidden-' || n::text, $2, $3, 'spam', 'Linked Social report', n, $1
+         FROM generate_series(1, 130) AS n`,
+        [postId, SUPPORT, TARGET]);
+      await report('rep-direct-late', 200);
+
+      const queue = await (await authenticatedFetch(ctx, MOD, '/moderation/reports?status=open&limit=100')).json() as
+        { reports: Array<{ id: string }> };
+      assert.equal(queue.reports.length, 100);
+      assert.ok(!queue.reports.some((row) => row.id === 'rep-direct-late'));
+
+      const inbox = await (await authenticatedFetch(ctx, MOD, '/admin/action-inbox?type=rider_report')).json() as
+        { items: Array<{ reportId: string }> };
+      assert.deepEqual(inbox.items.map((item) => item.reportId), ['rep-direct-late']);
+
+      const exactPath = '/moderation/reports/rep-direct-late';
+      assert.equal((await fetch(ctx.baseUrl() + exactPath)).status, 401);
+      assert.equal((await authenticatedFetch(ctx, SUPPORT, exactPath)).status, 403);
+      assert.equal((await authenticatedFetch(ctx, ANALYST, exactPath)).status, 403);
+      assert.equal((await authenticatedFetch(ctx, MOD, '/moderation/reports/no-such-record')).status, 404);
+      const read = async () => {
+        const response = await authenticatedFetch(ctx, MOD2, exactPath);
+        assert.equal(response.status, 200);
+        return (await response.json() as { report: { id: string; status: string; claimedBy: string | null; resolvedBy: string | null } }).report;
+      };
+      assert.deepEqual((await read()).id, 'rep-direct-late');
+      assert.equal((await read()).claimedBy, null);
+      assert.equal((await postJson(ctx, MOD, '/moderation/reports/rep-direct-late/claim', {})).status, 200);
+      assert.equal((await read()).claimedBy, MOD, 'exact lookup rechecks active claims');
+
+      // A stale inbox snapshot must reflect a concurrent moderation decision,
+      // not incorrectly say that a bounded queue caused the item to disappear.
+      const results = await Promise.all([
+        postJson(ctx, MOD, '/moderation/reports/rep-direct-late/resolve', { resolution: 'dismiss', note: 'Reviewed case' }),
+        postJson(ctx, MOD2, '/moderation/reports/rep-direct-late/resolve', { resolution: 'dismiss', note: 'Concurrent review' }),
+      ]);
+      assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+      assert.equal((await read()).status, 'dismissed');
+      assert.ok([MOD, MOD2].includes((await read()).resolvedBy ?? ''));
+    } finally {
+      await getPool().query('DELETE FROM social_posts WHERE id = $1', [postId]);
+    }
+  });
+
   it('shows each role the parts of a rider’s record it needs', async () => {
     await report('rep-tool-4');
     const detail = async (riderId: string) => authenticatedFetch(ctx, riderId, `/admin/riders/${TARGET}`);

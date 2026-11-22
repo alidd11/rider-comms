@@ -46,3 +46,18 @@ Existing safeguards: one report per account per post, a reporting rate limit, a 
 - API and UI validation using Playwright across iOS WebKit, mobile Chromium and desktop.
 
 This PR is **backend-first and draft**; do not merge solely because the existing Phase 1 tests pass.
+
+
+## Exact-case navigation (PR #574)
+
+The Action Inbox is a bounded, role-scoped **discovery view**, not the authoritative case lookup. Its source queries and the standard Moderation lists can use different filters, orderings and limits, so presence in one does **not** guarantee presence in the other's first 100 entries.
+
+The selected inbox record now opens via a separate, permission-checked exact lookup:
+
+- `GET /moderation/reports/{reportId}` returns the report's **current** state (including resolved state and active claim) to staff with `moderate`.
+- `GET /moderation/social-posts/{postId}` returns an **exact currently hidden** post with the same limited-life signed staff media links, or 404 when it is no longer in that review state.
+- Both GETs recheck staff roles server-side on every request. These read-only paths do not weaken the existing recent-reauthentication requirement for sensitive POST decisions.
+- If a report has already been resolved, its detail view displays the actual status and disables open-case actions. If a record has been removed or is no longer hidden, staff see an **unavailable** message, not an unsupported claim that it was resolved or moved.
+- The selected detail is maintained during a claim/refresh, and `Back to queue` returns to the normal bounded list. Changing moderation tabs clears the selection.
+
+Regression coverage includes more than 100 general reports, hidden Social-linked reports filling the general queue, exact lookup of a Social post beyond the first 100, permission boundaries, fresh claim ownership, concurrent resolution and restored/removed stale IDs. None of this creates a global queue count, priority ranking or a persistent case-owner system.
