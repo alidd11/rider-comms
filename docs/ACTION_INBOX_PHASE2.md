@@ -21,7 +21,7 @@ Use the existing moderation endpoints for actual decisions; their note, recent r
 
 The existing `docs/admin.html` app now includes an **Action inbox** section for roles with `moderate` access. It offers all-work, rider-report and Social-post filters, readable mobile cards, waiting-time and existing claim-owner labels, and buttons that open the matching report/post in the established Moderation page. There are no direct decision buttons in the inbox: the existing notes, claim constraints, reauthentication and audit remain authoritative. The inbox retains its filter controls while data refreshes, ignores outdated responses, and gives keyboard focus to the selected moderation record. All content is rendered as text instead of injecting server-supplied HTML.
 
-**Integration dependency:** This feature branch started from `main` before Phase 1 PR #573 merged. Before merging #574, reconcile its navigation markup with #573's grouped Operations Hub shell and run the complete CI/browser suite against that exact integrated head. New case types (support tickets, appeals) still require their own backend access model, durable schema, assignment semantics and tests.
+**Phase 1 integration:** PR #573 is merged. The Phase 2 branch now preserves its grouped Operations Hub navigation, global command search, role-aware sections and Rider 360 while placing Action inbox under **Trust & safety**. Full CI, mobile browser testing and accessibility checks must pass on the combined merge commit before considering PR #574 for merging. New case types (support tickets, appeals) still require their own backend access model, durable schema, assignment semantics and tests.
 
 ## Follow-up engineering
 
