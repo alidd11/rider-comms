@@ -1136,7 +1136,877 @@ test.describe('staff dashboard', () => {
       await expect(rider).toBeFocused();
       await page.keyboard.press('Enter');
 
-      await expect(page).toHaveURL(/#rider\\/rider_maya$/);
+      await expect(page).toHaveURL(new RegExp('#rider/rider_maya
+      await expect(page.locator('.rider-header h1')).toHaveText('Maya');
+      await expect(dialog).not.toBeVisible();
+    });
+  }
+
+  test('a late search response cannot replace newer results or execute rider markup', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(page,
+      (url) => url.pathname === '/admin/riders' && url.searchParams.get('q') === 'maya',
+      200, { riders: [RIDERS[0]] });
+    await page.goto('/admin.html');
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    await page.keyboard.press('/');
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    const input = dialog.getByRole('searchbox', { name: 'Search pages and riders' });
+    await input.fill('maya');
+    await hold.received;
+    await input.fill('rex');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toContainText('<b>Rex</b>');
+    await expect(dialog.locator('#globalSearchRiders .search-result b')).toHaveCount(0);
+    const stale = page.waitForResponse((item) => new URL(item.url()).pathname === '/admin/riders'
+      && new URL(item.url()).searchParams.get('q') === 'maya');
+    hold.release();
+    await stale;
+    await page.waitForTimeout(100);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toContainText('<b>Rex</b>');
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
+
+  test('command search respects analyst permissions and closes with Escape', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { role: 'analyst' });
+    await page.goto('/admin.html');
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    await page.keyboard.press('ControlOrMeta+k');
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Overview/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /System/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Riders/ })).toHaveCount(0);
+    await dialog.getByRole('searchbox', { name: 'Search pages and riders' }).fill('maya');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(0);
+    expect(state.riderQueries).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+  });
+
+
+  test('global search never replaces an open staff confirmation dialog', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#rider/rider_maya');
+    await page.locator('.rider-actions').getByRole('button', { name: 'Suspend' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Suspend Maya?' });
+    await expect(confirmation).toBeVisible();
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(page.getByRole('dialog', { name: 'Search operations' })).toBeHidden();
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
+  });
+
+  test('rider 360 section shortcuts scroll without changing the record route', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#rider/rider_maya');
+    const jump = page.getByRole('navigation', { name: 'Rider record sections' });
+    await expect(jump.getByRole('button', { name: 'Account details' })).toBeVisible();
+    await jump.getByRole('button', { name: 'Sign-in history' }).click();
+    await expect(page.locator('#rider-section-sign-in-history')).toBeFocused();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
+  });
+
+  test('reviews a hidden Rider Social post: its photo, a required note, and the audit log', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    await page.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.getByRole('button', { name: 'Social posts' })).toBeFocused();
+    // Tabs scroll horizontally on phones without widening the page.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    const card = page.locator('article[data-post-id]');
+    await expect(card).toContainText('3 reports');
+    await expect(card).toContainText('@rex · rider_badactor');
+    await expect(card.locator('.report-details')).toHaveText('<b>Selling</b> cheap parts');
+    await expect(card.getByRole('img', { name: 'Photo 1 of 1' })).toBeVisible();
+    await card.getByRole('button', { name: 'Remove post' }).click();
+    await expect(card.locator('.error-text')).toContainText('Write a note first');
+    await card.locator('textarea').fill('Scam listing.');
+    await card.getByRole('button', { name: 'Remove post' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Remove this Social post?' });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Remove post' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No hidden posts');
+    expect(state.posts.at(-1)).toEqual({ path: '/moderation/social-posts/11111111-1111-4111-8111-111111111111/remove', body: { note: 'Scam listing.' } });
+    await openSection(page, 'Audit log');
+    await expect(page.locator('.list-row .person-name')).toHaveText('Removed a Social post: Rex');
+  });
+
+  test('shows the open queue safely and dismisses a report with a required note', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/moderation.html');
+    await expect(page).toHaveURL(/admin\.html#moderation$/);
+    await expect(page.locator('#navReportCount')).toHaveText('1');
+
+    const card = page.locator('.report[data-report-id="report-1"]');
+    await expect(card.locator('.badge').first()).toHaveText('Harassment');
+    await expect(card).toContainText('Rex');
+    await expect(card).toContainText('@rex · rider_badactor');
+    await expect(card).toContainText('@maya_moto · rider_reporter');
+    await expect(card).toContainText('3 reports against this rider');
+    // Rider-written details are shown as text, never run as HTML.
+    await expect(card.locator('.badge', { hasText: 'From the ride roster' })).toBeVisible();
+    await expect(card.locator('.report-details')).toHaveText('<img src=x onerror="window.__xss=1"> kept messaging me');
+    await expect(card.locator('img')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+
+    await card.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(card.locator('.error-text')).toContainText('Write a note first');
+    expect(state.posts).toHaveLength(0);
+
+    await card.locator('textarea').fill('Checked the chat history; no harassment.');
+    await card.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No open reports');
+    expect(state.posts).toEqual([{ path: '/moderation/reports/report-1/resolve', body: { resolution: 'dismiss', note: 'Checked the chat history; no harassment.' } }]);
+
+    await openSection(page, 'Audit log');
+    await expect(page.locator('.list-row .person-name')).toHaveText('Dismissed a report: Rex');
+    await expect(page.locator('.list-row')).toContainText('Checked the chat history; no harassment.');
+  });
+
+  test('suspends only after confirmation, then allows unsuspending', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const card = page.locator('.report[data-report-id="report-1"]');
+    await card.locator('textarea').fill('Repeated threats in messages.');
+
+    await card.getByRole('button', { name: 'Suspend rider' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Suspend this rider?' });
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
+    expect(state.posts).toHaveLength(0);
+
+    await card.getByRole('button', { name: 'Suspend rider' }).click();
+    await confirmation.getByRole('button', { name: 'Suspend rider' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No open reports');
+    expect(state.posts[0]).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Repeated threats in messages.', days: 7 } });
+
+    await page.getByRole('button', { name: 'Actioned' }).click();
+    const actioned = page.locator('.report[data-report-id="report-1"]');
+    await expect(actioned.locator('.badge[data-tone="danger"]')).toHaveText('Suspended');
+    await actioned.locator('textarea').fill('Appeal accepted.');
+    await actioned.getByRole('button', { name: 'Unsuspend rider' }).click();
+    await expect(page.locator('.report[data-report-id="report-1"] .badge[data-tone="danger"]')).toHaveCount(0);
+    expect(state.posts[1]).toEqual({ path: '/moderation/riders/rider_badactor/unsuspend', body: { note: 'Appeal accepted.' } });
+  });
+
+  test('overview shows KPIs with period comparisons and switches between 7 and 30 days', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+
+    const kpi = (label) => page.locator('.kpi').filter({ has: page.locator('.kpi-label', { hasText: new RegExp(`^${label}$`) }) });
+    await expect(kpi('New riders').locator('.kpi-value')).toHaveText('85');
+    await expect(kpi('New riders').locator('.delta')).toHaveText('+25%');
+    await expect(kpi('New riders').locator('.delta')).toHaveAttribute('data-tone', 'good');
+    await expect(kpi('Messages sent').locator('.delta')).toHaveText('-8.8%');
+    await expect(kpi('Messages sent').locator('.delta')).toHaveAttribute('data-tone', 'bad');
+    // Fewer reports is good news.
+    await expect(kpi('Open reports').locator('.delta')).toHaveText('-50%');
+    await expect(kpi('Open reports').locator('.delta')).toHaveAttribute('data-tone', 'good');
+    await expect(kpi('Total riders').locator('.kpi-value')).toHaveText('1,284');
+    await expect(kpi('Total riders').locator('.kpi-foot')).toHaveText('86% verified · 3 suspended');
+    await expect(kpi('Stickiness').locator('.kpi-value')).toHaveText('27%');
+    await expect(kpi('Live now').locator('.kpi-value')).toHaveText('17');
+    await expect(kpi('Open reports').getByRole('link', { name: 'Review queue' })).toHaveAttribute('href', '#moderation');
+    await expect(page.locator('body')).toContainText('Blocked by the content filter this week');
+
+    await page.getByRole('combobox', { name: 'Reporting period' }).selectOption('30');
+    await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+    await expect(kpi('New riders').locator('.kpi-value')).toHaveText('310');
+    await expect(kpi('New riders').locator('.delta')).toHaveText('0%');
+    await expect(page.locator('.chart-card').first().locator('.card-description')).toHaveText('Sign-ups in the last 30 days');
+    // The choice is remembered for next time.
+    await page.reload();
+    await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+  });
+
+  test('area charts compare periods, average distinct-rider counts and read out values', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const charts = page.locator('.chart-card');
+    await expect(charts).toHaveCount(4);
+
+    const signups = charts.filter({ hasText: 'New riders' }).first();
+    // Last 7 days of 5 + (i % 7) sum to 56; the previous 7 also sum to 56.
+    await expect(signups.locator('.chart-total')).toHaveText('56');
+    await expect(signups.locator('.chart-line')).not.toHaveCount(0);
+    await expect(signups.locator('.chart-line.partial')).toHaveCount(1);
+    await expect(signups.locator('.chart-compare')).toHaveCount(1);
+
+    const active = charts.filter({ hasText: 'Active riders' }).first();
+    // Distinct riders per day are averaged, not summed: 255..259 average 257.
+    await expect(active.locator('.chart-total')).toHaveText('257');
+    await expect(active.locator('.card-description')).toHaveText('Riders active, daily average over the last 7 days');
+    await expect(active.locator('.chart-untracked')).toHaveCount(1);
+
+    await signups.locator('svg.chart-svg').scrollIntoViewIfNeeded();
+    const svgBox = await signups.locator('svg.chart-svg').boundingBox();
+    await page.mouse.move(svgBox.x + 6, svgBox.y + svgBox.height / 2);
+    await expect(signups.locator('.tooltip')).toBeVisible();
+    await expect(signups.locator('.tooltip-date')).toHaveText(/^September 24$/);
+    await signups.locator('svg.chart-svg').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(signups.locator('.tooltip-date')).toHaveText('September 30 · so far');
+
+    await signups.getByRole('button', { name: 'View as table' }).click();
+    await expect(signups.locator('tbody tr')).toHaveCount(7);
+    await expect(signups.locator('thead')).toContainText('Previous period');
+  });
+
+  for (const [status, body] of [
+    [200, OVERVIEW],
+    [403, { error: 'permission_required', permission: 'view_overview' }],
+  ]) {
+    test(`a late overview ${status} response cannot replace the current riders page`, async ({ page }) => {
+      await signIn(page);
+      await mockModerationApi(page);
+      const hold = await holdApiResponse(page, `${API}/admin/overview`, status, body);
+      await page.goto('/admin.html');
+      await hold.received;
+
+      await openSection(page, 'Riders');
+      await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+      const response = page.waitForResponse((item) => item.url() === `${API}/admin/overview`);
+      hold.release();
+      await response;
+      // Give the browser an opportunity to process the earlier request's continuation.
+      await page.waitForTimeout(100);
+      await expect(page.locator('.page-title')).toHaveText('Riders');
+      await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+      // On narrow screens the drawer is deliberately closed, even when staff
+      // navigation remains available. Do not require it to be visually open.
+      await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    });
+  }
+
+  test('a late moderation queue cannot overwrite the riders page', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(
+      page,
+      (url) => url.pathname === '/moderation/reports' && url.searchParams.get('status') === 'open',
+      200,
+      { reports: [OPEN_REPORT] },
+    );
+    await page.goto('/admin.html#moderation');
+    await hold.received;
+
+    await openSection(page, 'Riders');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    const response = page.waitForResponse((item) => new URL(item.url()).pathname === '/moderation/reports');
+    hold.release();
+    await response;
+    await page.waitForTimeout(100);
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+    await expect(page.locator('.report')).toHaveCount(0);
+  });
+
+  test('browser Back and Forward restore sections and their headings', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    await openSection(page, 'Riders');
+    await expect(page.getByRole('heading', { name: 'Riders', exact: true })).toBeFocused();
+    await openSection(page, 'System');
+    await expect(page.locator('.page-title')).toHaveText('System');
+    await page.goBack();
+    await expect(page).toHaveURL(/#riders$/);
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    await page.goForward();
+    await expect(page).toHaveURL(/#system$/);
+    await expect(page.locator('.page-title')).toHaveText('System');
+  });
+
+  test('a failed section load offers Retry and recovers', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route((url) => url.pathname === '/admin/riders', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (first) {
+        first = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+    await page.goto('/admin.html#riders');
+    await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+  });
+
+  test('refresh retains existing rider content until the new reply arrives', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    const hold = await holdApiResponse(page, (url) => url.pathname === '/admin/riders', 200, { riders: RIDERS });
+    if (await page.locator('#refreshMobile').isVisible()) await page.locator('#refreshMobile').click();
+    else await page.locator('.desktop-refresh').click();
+    await hold.received;
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    await expect(page.locator('.skeleton')).toHaveCount(0);
+    hold.release();
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+  });
+
+  test('a failed refresh keeps previously loaded rider results visible', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    let fail = true;
+    await page.route((url) => url.pathname === '/admin/riders', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (fail) {
+        fail = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else await route.fallback();
+    });
+    const refresh = await page.locator('#refreshMobile').isVisible()
+      ? page.locator('#refreshMobile')
+      : page.locator('.desktop-refresh');
+    await refresh.click();
+    await expect(page.locator('.flash[data-tone="warning"]')).toContainText('Showing the last loaded data');
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    await refresh.click();
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+  });
+
+  test('rider lookup searches and shows account details as text', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    const rows = page.locator('[data-rider-id]:visible');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(1)).toContainText('<b>Rex</b>');
+    await expect(rows.nth(1).locator('b')).toHaveCount(0);
+    await expect(rows.nth(1)).toContainText('Suspended');
+
+    await page.getByRole('searchbox', { name: 'Search riders' }).fill('nobody');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No riders found');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeFocused();
+    expect(state.riderQueries).toEqual(['', 'nobody']);
+  });
+
+  test('staff verify an unverified rider\'s email with a note', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    const rex = page.locator('[data-rider-id="rider_rex"]:visible');
+    await expect(rex.getByRole('button', { name: "Mark rex's email verified" })).toBeVisible();
+    await expect(page.locator('[data-rider-id="rider_maya"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
+
+    await rex.getByRole('button', { name: "Mark rex's email verified" }).click();
+    const verify = page.getByRole('dialog', { name: /email verified/ });
+    await verify.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Known tester');
+    await verify.getByRole('button', { name: 'Mark verified' }).click();
+    await expect.poll(() => state.posts.find((post) => post.path === '/moderation/riders/rider_rex/verify-email')?.body).toEqual({ note: 'Known tester' });
+    await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
+  });
+
+  test('admins add, change and remove staff, each with a reason', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#staff');
+    await expect(page.locator('.page-title')).toHaveText('Staff and roles');
+    await expect(page.locator('.page-subtitle')).toHaveText('2 people have dashboard access · 1 admin, 1 moderator');
+    const rows = page.locator('[data-rider-id]:visible');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('Set on the backend');
+
+    const form = page.locator('#addStaffForm');
+    await form.getByRole('button', { name: 'Add to staff' }).click();
+    await expect(form.locator('.error-text')).toHaveText('Enter their handle or rider ID and a reason.');
+    await form.getByLabel('Handle or rider ID').fill('nobody');
+    await form.getByLabel('Role').selectOption('support');
+    await form.getByLabel('Reason for the audit log').fill('Help desk');
+    await form.getByRole('button', { name: 'Add to staff' }).click();
+    await expect(form.locator('.error-text')).toHaveText('No rider has that handle or rider ID.');
+    await form.getByLabel('Handle or rider ID').fill('@sam_rides');
+    await form.getByRole('button', { name: 'Add to staff' }).click();
+    await expect(rows).toHaveCount(3);
+    expect(state.posts.at(-1)).toEqual({ path: '/admin/staff', body: { rider: '@sam_rides', role: 'support', note: 'Help desk' } });
+
+    const maya = page.locator('[data-rider-id="rider_maya"]:visible');
+    await maya.getByLabel('Role for Maya').selectOption('analyst');
+    const change = page.getByRole('dialog', { name: 'Change Maya to Analyst?' });
+    await change.getByRole('button', { name: 'Change role' }).click();
+    await expect(change.locator('.error-text')).toContainText('Write a reason first');
+    await change.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Covers reports now');
+    await change.getByRole('button', { name: 'Change role' }).click();
+    await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/admin/staff', body: { rider: 'rider_maya', role: 'analyst', note: 'Covers reports now' } });
+    const mayaUpdated = page.locator('[data-rider-id="rider_maya"]:visible');
+    await mayaUpdated.getByLabel('Role for Maya').selectOption('support');
+    await page.getByRole('dialog', { name: 'Change Maya to Support?' }).getByRole('button', { name: 'Cancel' }).click();
+    await expect(mayaUpdated.getByLabel('Role for Maya')).toHaveValue('analyst');
+    await mayaUpdated.getByRole('button', { name: 'Remove' }).click();
+    const remove = page.getByRole('dialog', { name: 'Remove Maya from staff?' });
+    await remove.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Left the team');
+    await remove.getByRole('button', { name: 'Remove staff' }).click();
+    await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
+    expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
+
+    // The Case Desk permission adds an actual row to the staff rights matrix.
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(9);
+    await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
+    await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
+  });
+
+  test('the audit log filters by kind and rider and exports a CSV', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.actions.push(
+      { id: 'x1', moderatorId: ADMIN_ID, targetRiderId: 'rider_badactor', reportId: 'report-1', action: 'suspend', note: '=HYPERLINK("bad")', createdAt: Date.now() - 120_000 },
+      { id: 'x2', moderatorId: ADMIN_ID, targetRiderId: 'rider_reporter', reportId: null, action: 'verify_email', note: 'Known tester', createdAt: Date.now() - 60_000 },
+    );
+    await page.goto('/admin.html#audit');
+    await expect(page.locator('.list-row')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Accounts' }).click();
+    await expect(page.getByRole('button', { name: 'Accounts' })).toBeFocused();
+    await expect(page.locator('.list-row')).toHaveCount(1);
+    await expect(page.locator('.list-row .person-name')).toHaveText('Verified email: Maya');
+    await page.getByRole('button', { name: 'All actions' }).click();
+    await page.getByLabel('Show actions for one rider').fill('rider_badactor');
+    await page.getByRole('button', { name: 'Filter' }).click();
+    await expect(page.getByRole('searchbox', { name: 'Show actions for one rider' })).toBeFocused();
+    await expect(page.locator('.list-row')).toHaveCount(1);
+    await expect(page.locator('.page-subtitle')).toContainText('for rider_badactor');
+
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export CSV' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^rider-comms-audit-\d{4}-\d{2}-\d{2}\.csv$/);
+    const text = await (await file.createReadStream()).toArray().then((chunks) => Buffer.concat(chunks).toString('utf8'));
+    expect(text.split('\r\n')[0]).toBe('When (UTC),Action,Staff member,Staff rider ID,Rider,Rider ID,Report ID,Note');
+    // A note that looks like a formula is exported as text.
+    expect(text).toContain(`"'=HYPERLINK(""bad"")"`);
+  });
+
+  test('each role sees only its own pages', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'analyst' });
+    await page.goto('/admin.html#moderation');
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+    await openMenuIfPhone(page);
+    const visibleNav = page.locator('#nav [data-view]:visible');
+    await expect(visibleNav).toHaveText(['Overview', 'System']);
+    await expect(page.locator('#sidebarFooter .badge')).toHaveText('Analyst');
+    await page.evaluate(() => { location.hash = '#staff'; });
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+  });
+
+  test('support staff verify email but cannot moderate', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'support' });
+    await page.goto('/admin.html#riders');
+    await openMenuIfPhone(page);
+    // The new case workstream is intentionally visible to support, without
+    // exposing moderation or the restricted privacy and incident queues.
+    const visibleSections = await page.locator('#nav [data-view]:visible').evaluateAll((buttons) =>
+      buttons.map((button) => button.textContent.replace(/\s+/g, ' ').trim()));
+    expect(visibleSections).toEqual(['Overview', 'Riders', 'Audit log', 'Case desk', 'System']);
+    await expect(page.locator('#nav [data-view="moderation"]')).toBeHidden();
+    await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
+  });
+
+  test('expired staff access on System is not disguised as missing metrics', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.route(`${API}/admin/system`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      await route.fulfill({ status: 401, headers: { 'Access-Control-Allow-Origin': '*' },
+        contentType: 'application/json', body: JSON.stringify({ error: 'session_expired' }) });
+    });
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.empty-title')).toHaveText('Your session has expired');
+    await expect(page.locator('#nav')).toBeHidden();
+  });
+
+  test('an unavailable staff access check offers a retry', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route(`${API}/admin/me`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (first) {
+        first = false;
+        await route.fulfill({ status: 503, headers: { 'Access-Control-Allow-Origin': '*' },
+          contentType: 'application/json', body: JSON.stringify({ error: 'temporarily_unavailable' }) });
+      } else await route.fallback();
+    });
+    await page.goto('/admin.html');
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+  });
+
+  test('a page the role lacks says so', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'analyst' });
+    await page.route(`${API}/admin/overview`, (route) => route.fulfill({ status: 403, headers: { 'Access-Control-Allow-Origin': '*' }, contentType: 'application/json', body: JSON.stringify({ error: 'permission_required', permission: 'view_overview' }) }));
+    await page.goto('/admin.html');
+    await expect(page.locator('.empty-title')).toHaveText('Your role doesn’t include this page');
+  });
+
+  test('staff confirm their password before a change, then it goes through', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { reauth: true });
+    await page.goto('/admin.html#moderation');
+    const card = page.locator('.report[data-report-id="report-1"]');
+    await card.locator('textarea').fill('Checked the chat history.');
+
+    await card.getByRole('button', { name: 'Dismiss' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Confirm it’s you' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(card.locator('.error-text')).toHaveText('Not changed: your password is needed for staff changes.');
+    expect(state.posts).toHaveLength(0);
+
+    await card.getByRole('button', { name: 'Dismiss' }).click();
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.locator('.error-text')).toHaveText('Enter your password.');
+    await dialog.getByLabel('Password').fill('wrong');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog.locator('.error-text')).toHaveText('That password isn’t right.');
+    await dialog.getByLabel('Password').fill('right-password');
+    await dialog.getByRole('button', { name: 'Confirm' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('.empty-title')).toHaveText('No open reports');
+    expect(state.posts).toEqual([{ path: '/moderation/reports/report-1/resolve', body: { resolution: 'dismiss', note: 'Checked the chat history.' } }]);
+  });
+
+  test('admins export a rider\'s data with a reason', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    const maya = page.locator('[data-rider-id="rider_maya"]:visible');
+    await maya.getByRole('button', { name: "Export maya's data" }).click();
+    const dialog = page.getByRole('dialog', { name: /Export maya’s account data/ });
+    await dialog.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Access request, ticket 42');
+    const download = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'Export', exact: true }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^rider-comms-data-rider_maya-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(state.posts.at(-1)).toEqual({ path: '/admin/riders/rider_maya/export', body: { note: 'Access request, ticket 42' } });
+  });
+
+  test('a rider\'s page gathers their record, and a moderator suspends from it for a set time', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    await page.locator('[data-rider-id="rider_maya"]:visible a.person-link').click();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
+    await expect(page.locator('.rider-header h1')).toHaveText('Maya');
+    await expect(page.locator('.facts')).toContainText('maya@example.com');
+    for (const title of ['Reports about them', 'Reports they filed', 'Staff history', 'Signed-in devices', 'Sign-in history']) {
+      await expect(page.locator('.section-title', { hasText: title })).toBeVisible();
+    }
+    await expect(page.locator('#nav [data-view="riders"]')).toHaveAttribute('aria-current', 'page');
+
+    await page.locator('.rider-actions').getByRole('button', { name: 'Suspend' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Suspend Maya?' });
+    await dialog.getByRole('button', { name: 'Suspend' }).click();
+    await expect(dialog.locator('.error-text')).toHaveText('Write a reason first. Every staff change is recorded with it.');
+    await dialog.getByRole('button', { name: 'Spam or scam messages.' }).click();
+    await dialog.getByLabel('How long').selectOption('30');
+    await dialog.getByRole('button', { name: 'Suspend' }).click();
+    await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/riders/rider_maya/suspend', body: { note: 'Spam or scam messages.', days: 30 } });
+    await expect(page.locator('.rider-actions').getByRole('button', { name: 'Unsuspend' })).toBeVisible();
+
+    await page.locator('.back-link').click();
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+  });
+
+  test('support staff reset a password and sign a rider out everywhere from their page', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { role: 'support' });
+    await page.goto('/admin.html#rider/rider_maya');
+    const actions = page.locator('.rider-actions');
+    await expect(actions.getByRole('button', { name: 'Suspend' })).toHaveCount(0);
+    await expect(page.locator('.section-title', { hasText: 'Reports about them' })).toHaveCount(0);
+    await expect(page.locator('.section-title', { hasText: 'Sign-in history' })).toBeVisible();
+
+    await actions.getByRole('button', { name: 'Send password reset' }).click();
+    const reset = page.getByRole('dialog', { name: /password reset link/ });
+    await reset.getByRole('button', { name: 'Forgot password; identity confirmed.' }).click();
+    await reset.getByRole('button', { name: 'Send link' }).click();
+    await expect(page.locator('.flash')).toHaveText('Password reset link sent.');
+    expect(state.posts.at(-1)).toEqual({ path: '/moderation/riders/rider_maya/password-reset', body: { note: 'Forgot password; identity confirmed.' } });
+
+    await actions.getByRole('button', { name: 'Sign out everywhere' }).click();
+    const out = page.getByRole('dialog', { name: /every device/ });
+    await out.getByRole('textbox').fill('Lost phone at the meet');
+    await out.getByRole('button', { name: 'Sign out everywhere' }).click();
+    await expect(page.locator('.flash')).toHaveText('Signed out of 2 devices.');
+
+    await actions.getByRole('button', { name: 'Send password reset' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('moderators take a report, see how long it waited, and suspend for the chosen length', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const card = page.locator('.report[data-report-id="report-1"]');
+    await expect(card.locator('.badge', { hasText: /^Waiting/ })).toBeVisible();
+    await card.getByRole('button', { name: 'Take this report' }).click();
+    await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/reports/report-1/claim', body: {} });
+    await expect(card.getByRole('button', { name: /You’re handling this/ })).toBeVisible();
+
+    await card.getByRole('button', { name: 'Harassment of other riders.' }).click();
+    await expect(card.locator('textarea')).toHaveValue('Harassment of other riders.');
+    await card.getByLabel('Suspension length for report report-1').selectOption('');
+    await card.getByRole('button', { name: 'Suspend rider' }).click();
+    await page.getByRole('dialog', { name: 'Suspend this rider?' }).getByRole('button', { name: 'Suspend rider' }).click();
+    await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Harassment of other riders.' } });
+  });
+
+  test('system view labels unavailable details and can retry just that view', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route(`${API}/admin/system`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (first) {
+        first = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.system-warning')).toContainText('Service setup could not be loaded');
+    await expect(page.locator('.traffic-kpis')).toBeVisible();
+    await page.getByRole('button', { name: 'Retry details' }).click();
+    await expect(page.locator('.system-warning')).toHaveCount(0);
+    await expect(page.locator('.status-row', { hasText: 'Email delivery' })).toBeVisible();
+  });
+
+  test('system view shows the last hour of traffic', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.section-title', { hasText: 'Traffic' })).toHaveText('Traffic · last 60 minutes');
+    const tiles = page.locator('.traffic-kpis .kpi');
+    await expect(tiles.nth(0)).toContainText('1,240');
+    await expect(tiles.nth(1)).toContainText('0.4%');
+    await expect(tiles.nth(2)).toContainText('250 ms');
+    await expect(tiles.nth(3)).toContainText('2 / 20');
+    await expect(page.locator('tr[data-route="POST /rides"]').first()).toContainText('2.5 s');
+    await expect(page.locator('.page-subtitle', { hasText: 'replica-a1' })).toContainText('up 2h 5m');
+  });
+
+  test('the staff page lists recent staff sign-ins', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#staff');
+    const rows = page.locator('[data-security-event]');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('Wrong password · iPhone');
+    await expect(rows.nth(0).locator('.badge')).toHaveText('Failed');
+    await expect(rows.nth(1)).toContainText('You');
+  });
+
+  test('on phones the sections open from a side menu', async ({ page }, testInfo) => {
+    test.skip(!/phone/.test(testInfo.project.name), 'Phones only');
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const toggle = page.locator('#menuToggle');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#nav').getByRole('button', { name: 'Riders' })).toBeHidden();
+    await expect(page.locator('#brandSection')).toHaveText('Overview');
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#nav').getByRole('button', { name: 'Overview' })).toBeFocused();
+    await expect(page.locator('#sidebarFooter')).toBeVisible();
+    await page.locator('#nav [data-view="system"]').focus();
+    await page.keyboard.press('Tab');
+    const installLink = page.getByRole('link', { name: 'Open installable Staff app' });
+    await expect(installLink).toBeFocused();
+    await expect(installLink).toHaveAttribute('href', './staff/');
+    await page.keyboard.press('Tab');
+    const signOut = page.getByRole('button', { name: 'Sign out of Staff' });
+    await expect(signOut).toBeFocused();
+    await page.keyboard.press('Tab');
+    const drawerClose = page.getByRole('button', { name: 'Close navigation' });
+    await expect(drawerClose).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(signOut).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(drawerClose).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toBeFocused();
+
+    await toggle.click();
+    await page.getByRole('button', { name: 'Close navigation' }).click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toBeFocused();
+    await toggle.click();
+    await page.locator('#menuBackdrop').click({ position: { x: page.viewportSize().width - 8, y: Math.round(page.viewportSize().height / 2) } });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await openSection(page, 'Riders');
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+    await expect(page.locator('#brandSection')).toHaveText('Riders');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test('system view reports API and database health', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#system');
+    const rows = page.locator('.status-row');
+    await expect(rows.nth(0)).toContainText('API');
+    await expect(rows.nth(0).locator('.badge')).toHaveText('Operational');
+    await expect(rows.nth(0).locator('.badge')).toHaveAttribute('data-state', 'ok');
+    await expect(rows.nth(1).locator('.badge')).toHaveText('Down');
+    await expect(rows.nth(1).locator('.badge')).toHaveAttribute('data-state', 'down');
+    await expect(rows.nth(2)).toContainText('Email delivery');
+    await expect(rows.nth(2)).toContainText('Resend refused: You can only send testing emails');
+    await expect(rows.nth(2).locator('.badge')).toHaveText('Restricted');
+    await expect(rows.nth(2).locator('.badge')).toHaveAttribute('data-state', 'warn');
+    await expect(rows.nth(3).locator('.badge')).toHaveText('Off');
+    await expect(rows.nth(4)).toContainText('Social content check');
+    await expect(rows.nth(4).locator('.badge')).toHaveText('On');
+    await expect(rows.nth(5).locator('.badge')).toHaveText('On');
+    await expect(rows.nth(4)).toContainText('7 allowed, 1 refused as unsafe, 2 not checked');
+    // Outside services: refusing, working, and not called yet.
+    await expect(rows.nth(6)).toContainText('Google place search');
+    await expect(rows.nth(6).locator('.badge')).toHaveText('Refusing');
+    await expect(rows.nth(6)).toContainText('403 · PERMISSION_DENIED');
+    await expect(rows.nth(7).locator('.badge')).toHaveText('Working');
+    await expect(rows.nth(8).locator('.badge')).toHaveText('Not used yet');
+    await expect(page.locator('#sidebarFooter')).toContainText('Signed in as Ali · @ali');
+    await expect(page.locator('#sidebarFooter .badge')).toHaveText('Admin');
+  });
+});
+
+test('overview shows the activation funnel with step conversion and a tracking note', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html');
+  const funnel = page.locator('.funnel');
+  await expect(funnel.locator('.card-description')).toContainText('Riders who signed up');
+  const steps = funnel.locator('.funnel-step');
+  await expect(steps).toHaveCount(4);
+  await expect(steps.nth(0)).toContainText('200 · 100%');
+  await expect(steps.nth(1)).toContainText('160 · 80%');
+  await expect(steps.nth(2)).toContainText('90 · 45%');
+  await expect(steps.nth(2)).toContainText('56% of the step before');
+  await expect(steps.nth(3)).toContainText('45 · 23%');
+  await expect(steps.nth(3)).toContainText('50% of the step before');
+  await expect(funnel.locator('.funnel-note')).toContainText('First rides are counted from');
+  const widths = await funnel.locator('.funnel-fill').evaluateAll((fills) => fills.map((fill) => fill.style.width));
+  expect(widths).toEqual(['100%', '80%', '45%', '23%']);
+});
+
+test('staff dashboard views have no automatically detectable accessibility violations', async ({ page }, testInfo) => {
+  test.skip(!AXE_PROJECTS.has(testInfo.project.name), 'Audited once per colour scheme');
+  await signIn(page);
+  await mockModerationApi(page);
+  for (const view of ['overview', 'moderation', 'riders', 'audit', 'staff', 'system', 'rider/rider_maya']) {
+    await page.goto(`/admin.html#${view}`);
+    await expect(page.locator('main')).toBeVisible();
+    await expectNoAxeViolations(page, view);
+  }
+});
+
+
+// CI visual baselines are screenshots of the real rendered Staff PWA shell
+// against deterministic, non-production API fixtures. Do not mistake fixture
+// counts, names or mocked health checks for screenshots of live customer data.
+for (const [deviceProject, label] of [
+  ['phone-modern', 'mobile'],
+  ['iphone-17-pro-max-webkit', 'ios-dark'],
+  ['viewport-desktop-chromium', 'desktop'],
+]) {
+  test(`staff Operations Hub screenshot evidence on ${label}${deviceProject.includes('viewport') ? ' @viewport' : ''}`,
+    async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== deviceProject, 'Capture once for each target');
+      await page.addInitScript((riderId) => {
+        localStorage.setItem('rider-comms-staff-session-v1', JSON.stringify({ riderId, token: 'admin-token' }));
+      }, ADMIN_ID);
+      await mockModerationApi(page);
+      const sections = [
+        ['overview', 'overview'], ['inbox', 'action-inbox'], ['riders', 'riders'],
+        ['moderation', 'moderation'], ['cases', 'case-desk'],
+        ['audit', 'audit-log'], ['staff', 'staff'], ['system', 'system'],
+        ['rider/rider_maya', 'rider-detail'],
+        ['case/11111111-1111-4111-8111-111111111111', 'case-detail'],
+      ];
+      for (const [route, name] of sections) {
+        await page.goto(`/staff/#${route}`);
+        await expect(page.locator('main .page-title')).toBeVisible();
+        await expect(page.locator('#page')).toHaveAttribute('aria-busy', 'false');
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        });
+        const filename = `staff-${label}-${name}.png`;
+        const filePath = testInfo.outputPath(filename);
+        await page.screenshot({ path: filePath, fullPage: true, animations: 'disabled' });
+        await testInfo.attach(filename, { path: filePath, contentType: 'image/png' });
+      }
+    });
+}
+
+test('reporting periods are consistent, persistent and do not hide operational queues', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html#cases');
+  const range = page.getByRole('combobox', { name: 'Reporting period' });
+  await expect(range).toHaveValue('7');
+  await range.selectOption('30');
+  await expect(page.getByText(/loaded cases updated in the last 30 days/)).toBeVisible();
+  await expect(page.locator('.case-item')).toHaveCount(4);
+  await openSection(page, 'Action inbox');
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+  await expect(page.getByText(/All open work remains visible regardless of age/)).toBeVisible();
+  await openSection(page, 'Moderation');
+  await expect(page.locator('.reporting-scope')).toHaveText('Live moderation queue');
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveCount(0);
+  await openSection(page, 'Overview');
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+  await expect(page.locator('.kpi').first().locator('.kpi-value')).toHaveText('310');
+});
+));
       await expect(page.locator('.rider-header h1')).toHaveText('Maya');
       await expect(dialog).not.toBeVisible();
     });
