@@ -171,6 +171,23 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.staff = state.staff.filter((member) => member.riderId !== decodeURIComponent(removeStaff[1]));
       return json(200, { ok: true });
     }
+    if (url.pathname === '/admin/cases/summary') {
+      if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required', permission: 'view_cases' });
+      const kinds = role === 'admin' ? ['support', 'appeal', 'privacy', 'incident'] : role === 'support' ? ['support'] : ['appeal'];
+      const byKind = kinds.map((kind) => {
+        const all = state.companyCases.filter((item) => item.kind === kind);
+        const active = all.filter((item) => !['resolved', 'closed'].includes(item.status));
+        return { kind, total: all.length, active: active.length,
+          unassigned: active.filter((item) => item.assignedTo === null).length,
+          mine: active.filter((item) => item.assignedTo === ADMIN_ID).length,
+          urgent: active.filter((item) => item.priority === 'urgent').length };
+      });
+      const totals = byKind.reduce((summary, item) => {
+        for (const name of ['total', 'active', 'unassigned', 'mine', 'urgent']) summary[name] += item[name];
+        return summary;
+      }, { total: 0, active: 0, unassigned: 0, mine: 0, urgent: 0 });
+      return json(200, { byKind, totals, generatedAt: Date.now() });
+    }
     if (url.pathname === '/admin/cases' || /^\/admin\/cases\/[0-9a-f-]{36}(?:\/(?:notes|status|priority|assign))?$/.test(url.pathname)) {
       if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required', permission: 'view_cases' });
       const allowedKinds = role === 'admin' ? ['support', 'appeal', 'privacy', 'incident'] : role === 'support' ? ['support'] : ['appeal'];
@@ -178,9 +195,11 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
         const kind = url.searchParams.get('kind');
         if (kind && kind !== 'all' && !allowedKinds.includes(kind)) return json(403, { error: 'permission_required' });
         const status = url.searchParams.get('status');
+        const owner = url.searchParams.get('owner') ?? 'all';
         const items = state.companyCases.filter((item) => allowedKinds.includes(item.kind)
           && (!kind || kind === 'all' || item.kind === kind)
-          && (!status || status === 'all' || item.status === status))
+          && (!status || status === 'all' || item.status === status)
+          && (owner === 'all' || owner === 'mine' && item.assignedTo === ADMIN_ID || owner === 'unassigned' && item.assignedTo === null))
           .sort((a, b) => b.updatedAt - a.updatedAt);
         return json(200, { items, hasMore: false, nextCursor: null, generatedAt: Date.now() });
       }
@@ -831,8 +850,11 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#cases');
     await expect(page.locator('.page-title')).toHaveText('Case desk');
     const list = page.getByRole('list', { name: 'Internal work cases' });
+    await expect(page.getByRole('region', { name: 'Permitted case workload' })).toContainText('Urgent');
     await expect(list.locator('.case-item')).toHaveCount(4);
     await page.getByRole('group', { name: 'Case categories' }).getByRole('button', { name: 'Customer support' }).click();
+    await expect(list.locator('.case-item')).toHaveCount(1);
+    await page.getByRole('group', { name: 'Case owners' }).getByRole('button', { name: 'Unassigned' }).click();
     await expect(list.locator('.case-item')).toHaveCount(1);
     await page.getByRole('link', { name: 'Account sign-in assistance' }).click();
     await expect(page).toHaveURL(/#case\/11111111-1111-4111-8111-111111111111$/);
