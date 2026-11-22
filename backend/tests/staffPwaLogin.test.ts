@@ -30,6 +30,28 @@ describe('standalone staff PWA login', { skip: !hasDatabase && 'DATABASE_URL not
       body: JSON.stringify({ username, password: suppliedPassword, deviceName: 'Rider Comms Staff PWA' }),
     });
 
+  it('allows an assigned moderator but keeps administrator-only endpoints forbidden', async () => {
+    const suffix = Math.random().toString(36).slice(2, 10);
+    const username = 'pwa_mod_' + suffix;
+    const signed = await ctx.authStore.signUp(username, username + '@example.com', password);
+    assert.ok('riderId' in signed);
+    created.push(signed.riderId);
+    await getPool().query(
+      `INSERT INTO staff_roles (rider_id, role, granted_by, granted_at)
+       VALUES ($1, 'moderator', $1, $2)`,
+      [signed.riderId, Date.now()],
+    );
+    const response = await login(username, password);
+    assert.equal(response.status, 200);
+    const identity = await response.json() as { token: string };
+    const headers = { Authorization: 'Bearer ' + identity.token };
+    const me = await fetch(ctx.baseUrl() + '/admin/me', { headers });
+    assert.equal(me.status, 200);
+    assert.equal(((await me.json()) as { role: string }).role, 'moderator');
+    assert.equal((await fetch(ctx.baseUrl() + '/admin/staff', { headers })).status, 403);
+    assert.equal((await fetch(ctx.baseUrl() + '/auth/logout', { method: 'POST', headers })).status, 204);
+  });
+
   it('rejects invalid credentials and ordinary riders, then issues a revocable staff session', async () => {
     const suffix = Math.random().toString(36).slice(2, 10);
     const staffUsername = 'pwa_admin_' + suffix;
