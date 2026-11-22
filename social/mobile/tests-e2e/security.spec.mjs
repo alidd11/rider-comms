@@ -1,5 +1,7 @@
+/* global window */
 import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import { URL } from 'node:url';
 
 /**
  * Security-contract tests run only against the local Playwright static server.
@@ -52,4 +54,40 @@ test('static Social server does not accept account writes or expose escaped file
   const body = await traversal.text();
   expect(body).not.toContain('root:');
   expect(body).not.toContain('/bin/bash');
+});
+
+
+test('Social web displays hostile profile text without executing HTML', async ({ page }) => {
+  const api = 'https://backend-production-7fa0.up.railway.app';
+  const riderId = 'rider_social_security_fixture';
+  const hostile = '<img src=x onerror="window.__riderSocialXss=1">';
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': 'authorization,content-type',
+    'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
+  };
+  await page.route(api + '/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    let body;
+    let status = 200;
+    if (path === '/auth/me') body = { riderId, username: 'security-fixture', emailVerified: true, termsAccepted: true, termsVersion: 'terms-fixture' };
+    else if (path === '/social/bootstrap') body = { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
+      mediaUpload: false, privatePosting: false, publicPosting: false, liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false,
+    } };
+    else if (path === '/riders/' + riderId + '/profile') body = { riderId, displayName: hostile, handle: '@security_fixture', avatarId: 'ember', bio: hostile };
+    else if (path === '/riders/' + riderId + '/friends') body = { friends: [], nextCursor: null };
+    else if (path === '/conversations') body = { conversations: [], nextCursor: null };
+    else { status = 404; body = { error: 'not_found' }; }
+    return route.fulfill({ status, headers: cors, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await page.addInitScript((id) => {
+    window.sessionStorage.setItem('rider_social_account_session_v1', 'synthetic-security-test-token');
+    window.sessionStorage.setItem('rider_social_age_ack_v1', id);
+  }, riderId);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByTestId('social-profile-summary')).toContainText(hostile);
+  await expect(page.locator('img[onerror]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__riderSocialXss)).toBeUndefined();
 });

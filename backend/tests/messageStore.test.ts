@@ -53,6 +53,22 @@ describe('MessageStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipping
     assert.deepEqual(fanout.rows.map(({ rider_id }) => rider_id), ['a', 'b']);
   });
 
+  it('stores HTML and SQL-shaped message content without interpreting it as executable code', async () => {
+    const store = new MessageStore();
+    // Malicious-looking text is valid message content, not SQL or markup to execute.
+    const payload = '<img src=x onerror="window.__riderDmXss=1">' + "'; DROP TABLE direct_messages; --";
+    const message = await store.create('a', 'b', payload);
+    assert.equal(message.text, payload);
+    const thread = await store.getThread('a', 'b');
+    assert.deepEqual(thread.map((entry) => entry.text), [payload]);
+    const { rows } = await getPool().query<{ text: string }>(
+      'SELECT text FROM direct_messages WHERE id = $1', [message.id],
+    );
+    assert.equal(rows[0]?.text, payload);
+    const count = await getPool().query<{ n: number }>('SELECT COUNT(*)::int AS n FROM direct_messages');
+    assert.equal(count.rows[0]?.n, 1, 'SQL-like content cannot alter the message table');
+  });
+
   it('getThread returns messages in either direction, sorted ascending by createdAt', async () => {
     const store = new MessageStore();
     await store.create('a', 'b', 'first');

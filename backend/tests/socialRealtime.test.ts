@@ -52,6 +52,44 @@ describe('social activity and realtime API', { skip: !hasDatabase && 'DATABASE_U
     assert.equal(body.activity.some(({ riderId }) => riderId === 'not-a-friend'), false);
   });
 
+  it('keeps messages private across unrelated riders and denies cross-user deletion and reads', async () => {
+    const alice = 'security-dm-alice';
+    const bob = 'security-dm-bob';
+    const stranger = 'security-dm-stranger';
+    await makeFriends(alice, bob);
+    ctx.authStore.createTestSession(stranger);
+
+    const sent = await postJson(ctx, alice, '/messages', { toRiderId: bob, text: 'private synthetic fixture' });
+    assert.equal(sent.status, 201);
+    const message = await sent.json() as { id: string };
+
+    const shared = await authenticatedFetch(ctx, bob, `/messages?withRiderId=${encodeURIComponent(alice)}`);
+    assert.equal(shared.status, 200);
+    const ownThread = await shared.json() as { messages: Array<{ id: string }> };
+    assert.ok(ownThread.messages.some((entry) => entry.id === message.id), 'authorized friend can read the thread');
+
+    const stolenThread = await authenticatedFetch(ctx, stranger, `/messages?withRiderId=${encodeURIComponent(alice)}`);
+    assert.equal(stolenThread.status, 403);
+    assert.deepEqual(await stolenThread.json(), { error: 'not_friends' });
+
+    const outsiderDelete = await authenticatedFetch(ctx, stranger, `/messages/${message.id}`, { method: 'DELETE' });
+    assert.equal(outsiderDelete.status, 404);
+    const recipientDelete = await authenticatedFetch(ctx, bob, `/messages/${message.id}`, { method: 'DELETE' });
+    assert.equal(recipientDelete.status, 404, 'only the author can delete a direct message');
+
+    const outsiderRead = await postJson(ctx, stranger, '/messages/read', { withRiderId: alice });
+    assert.equal(outsiderRead.status, 403);
+    const outsiderInbox = await authenticatedFetch(ctx, stranger, '/conversations');
+    assert.equal(outsiderInbox.status, 200);
+    const inbox = await outsiderInbox.json() as { conversations: unknown[] };
+    assert.deepEqual(inbox.conversations, [], 'unrelated riders cannot enumerate message content');
+
+    const retained = await getPool().query('SELECT 1 FROM direct_messages WHERE id = $1', [message.id]);
+    assert.equal(retained.rowCount, 1, 'unauthorized delete must not mutate the owner message');
+    const reads = await getPool().query('SELECT 1 FROM direct_message_reads WHERE rider_id = $1', [stranger]);
+    assert.equal(reads.rowCount, 0, 'unauthorized read operation must not persist a receipt');
+  });
+
   it('establishes an event cursor without replaying old state, then returns new message events', async () => {
     await makeFriends('message-alice', 'message-bob');
 

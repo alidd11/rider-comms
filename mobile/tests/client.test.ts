@@ -84,6 +84,20 @@ describe('RiderCommsClient authentication', () => {
     await client.logOut();
   });
 
+  it('reauthenticates only the current bearer session for sensitive operations', async () => {
+    const client = new RiderCommsClient('https://example.test', fakeFetch((url, init) => {
+      assert.equal(url, 'https://example.test/auth/reauthenticate');
+      assert.equal(init.method, 'POST');
+      assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer session-token');
+      assert.deepEqual(JSON.parse(init.body as string), { password: 'rider-password' });
+      assert.equal(init.redirect, 'error');
+      assert.equal(init.credentials, 'omit');
+      assert.equal(init.cache, 'no-store');
+      return { status: 200, body: { reauthenticated: true, validForMs: 900000 } };
+    }), 'session-token');
+    assert.deepEqual(await client.reauthenticate('rider-password'), { reauthenticated: true, validForMs: 900000 });
+  });
+
   it('requests and confirms password recovery without authentication', async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {
@@ -507,5 +521,19 @@ describe('RiderCommsClient places and friends', () => {
       { url: 'http://example.test/riders/rider%201/friends?limit=100&before=cursor-2', method: 'GET', body: undefined },
       { url: 'http://example.test/riders/rider%201/friends?limit=100', method: 'GET', body: undefined },
     ]);
+  });
+});
+
+
+describe('RiderCommsClient authenticated request hardening', () => {
+  it('refuses redirects with bearer credentials, omits ambient cookies, and disables API caching', async () => {
+    const client = new RiderCommsClient('https://api.example.test', fakeFetch((_url, init) => {
+      assert.equal(init.redirect, 'error');
+      assert.equal(init.credentials, 'omit');
+      assert.equal(init.cache, 'no-store');
+      assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer synthetic-token');
+      return { status: 200, body: { sessions: [] } };
+    }), 'synthetic-token');
+    assert.deepEqual(await client.getSessions(), { sessions: [] });
   });
 });

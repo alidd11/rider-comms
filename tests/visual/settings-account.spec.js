@@ -373,6 +373,7 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   }, RIDER_ID);
   let remoteRevoked = false;
   let accountDeleted = false;
+  let deletionReauthenticated = false;
 
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {
     const pathname = url.pathname;
@@ -392,7 +393,18 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
         },
       };
     }
+    if (request.method() === 'POST' && pathname === '/auth/reauthenticate') {
+      const submitted = JSON.parse(request.postData() || '{}');
+      // The deletion fixture requires a valid password, just like the staged
+      // account security gate. A native confirm() alone must not delete.
+      if (submitted.password !== 'synthetic-password') {
+        return { status: 401, body: { error: 'invalid_credentials' } };
+      }
+      deletionReauthenticated = true;
+      return { body: { reauthenticated: true, validForMs: 900000 } };
+    }
     if (request.method() === 'DELETE' && pathname === '/auth/me') {
+      if (!deletionReauthenticated) return { status: 403, body: { error: 'reauth_required' } };
       accountDeleted = true;
       return { body: {} };
     }
@@ -410,6 +422,15 @@ test('PWA exposes session management and account deletion', async ({ page }) => 
   await page.locator('#closeSheet').click();
   page.on('dialog', (dialog) => void dialog.accept());
   await page.locator('#deleteAccountBtn').click();
+  const passwordDialog = page.locator('#accountStepupDialog');
+  await expect(passwordDialog).toBeVisible();
+  await expect(passwordDialog.locator('#accountStepupPassword')).toHaveAttribute('type', 'password');
+  expect(accountDeleted).toBe(false);
+  expect(deletionReauthenticated).toBe(false);
+  await passwordDialog.locator('#accountStepupPassword').fill('synthetic-password');
+  await passwordDialog.locator('[data-stepup-submit]').click();
+  await expect(passwordDialog).toHaveCount(0);
+  await expect.poll(() => deletionReauthenticated).toBe(true);
   await expect.poll(() => accountDeleted).toBe(true);
   // The deleted rider's saved places, recent rides and waiting reports are
   // gone; other riders' data stays. (The app reloads after deleting, so a

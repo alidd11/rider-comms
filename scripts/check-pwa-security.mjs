@@ -125,4 +125,11 @@ assert.ok(
   'PWA Maps runtime must load over HTTPS from the CSP-allowed Google Maps origin',
 );
 
+
+// API calls from the generated PWA must not follow redirects with credentials.
+const apiClient = app.slice(app.indexOf('async function apiFetch('), app.indexOf('const state = loadState()'));
+assert.ok(apiClient.includes("redirect: 'error'"), 'PWA must reject API redirects');
+assert.ok(apiClient.includes("credentials: 'omit'"), 'PWA must not send ambient cookies');
+assert.ok(apiClient.includes("cache: 'no-store'"), 'PWA API responses must not be cached');
+
 console.log('PWA CSP and XSS safety contracts valid');
