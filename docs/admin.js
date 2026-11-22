@@ -24,6 +24,12 @@
   };
   const SUSPENSION_LENGTHS = [['1', '1 day'], ['7', '7 days'], ['30', '30 days'], ['', 'No end date']];
   const ROLE_LABELS = { admin: 'Admin', moderator: 'Moderator', support: 'Support', analyst: 'Analyst' };
+  const CASE_KIND_LABELS = { support: 'Customer support', appeal: 'Appeals', privacy: 'Privacy requests', incident: 'Incidents' };
+  const CASE_STATUS_LABELS = { open: 'Open', in_progress: 'In progress', waiting: 'Waiting', resolved: 'Resolved', closed: 'Closed' };
+  const CASE_PRIORITY_LABELS = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
+  const CASE_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'];
+  const CASE_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+
   const ROLE_TONES = { admin: 'accent', moderator: 'warning', support: 'success', analyst: null };
   // What each role can do, in words; mirrors backend/src/staffRoles.ts.
   const ROLE_SUMMARIES = [
@@ -1734,6 +1740,267 @@
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+
+  // ------------------------------------------------------------ Case desk
+  // These are *internal* cases, not customer messages. Only the backend can
+  // authorise a workstream, and all values are rendered with textContent.
+  function permittedCaseKinds() {
+    if (me?.role === 'admin') return ['support', 'appeal', 'privacy', 'incident'];
+    if (me?.role === 'support') return ['support'];
+    if (me?.role === 'moderator') return ['appeal'];
+    return [];
+  }
+
+  function caseBadge(value, labels, tone) {
+    return el('span', { class: 'case-chip', dataset: { tone: tone ?? 'neutral' }, text: labels[value] || value });
+  }
+
+  function caseRecord(item) {
+    const title = el('a', {
+      class: 'case-item-title', href: '#case/' + item.id, text: item.title,
+    });
+    const statusTone = item.status === 'closed' || item.status === 'resolved' ? 'success'
+      : item.status === 'waiting' ? 'warning' : 'neutral';
+    const priorityTone = item.priority === 'urgent' ? 'danger'
+      : item.priority === 'high' ? 'warning' : 'neutral';
+    return el('li', { class: 'case-item', dataset: { caseId: item.id } }, [
+      el('div', { class: 'case-item-main' }, [
+        el('div', { class: 'case-item-label', text: CASE_KIND_LABELS[item.kind] || item.kind }),
+        title,
+        el('div', { class: 'case-item-metadata' }, [
+          el('span', { text: 'Case ' + item.id.slice(0, 8) }),
+          el('span', { text: item.assignedTo ? 'Owner: ' + item.assignedTo : 'Unassigned' }),
+          el('span', { text: 'Updated ' }),
+          timeEl(item.updatedAt),
+        ]),
+      ]),
+      el('div', { class: 'case-item-badges' }, [
+        caseBadge(item.status, CASE_STATUS_LABELS, statusTone),
+        caseBadge(item.priority, CASE_PRIORITY_LABELS, priorityTone),
+      ]),
+    ]);
+  }
+
+  function openNewCaseDialog(kinds) {
+    const dialog = el('dialog', { class: 'dialog case-create-dialog', 'aria-labelledby': 'newCaseTitle' });
+    const field = (label, child) => el('label', { class: 'case-field' }, [
+      el('span', { text: label }), child,
+    ]);
+    const kind = el('select', { class: 'input', 'aria-label': 'Case category' },
+      kinds.map((value) => el('option', { value, text: CASE_KIND_LABELS[value] })));
+    const title = el('input', { type: 'text', class: 'input', 'aria-label': 'Case title',
+      required: true, maxlength: 120, placeholder: 'Brief, actionable title' });
+    const description = el('textarea', { class: 'input case-description', 'aria-label': 'Internal description',
+      maxlength: 2000, rows: 4, placeholder: 'Context for other authorised staff. Do not paste passwords or private ride locations.' });
+    const subject = el('input', { type: 'text', class: 'input', 'aria-label': 'Related rider ID',
+      maxlength: 90, placeholder: 'Optional: rider_…' });
+    const priority = el('select', { class: 'input', 'aria-label': 'Case priority' },
+      CASE_PRIORITIES.map((value) => el('option', { value, text: CASE_PRIORITY_LABELS[value] })));
+    priority.value = 'normal';
+    const feedback = el('p', { class: 'error-text', role: 'alert' });
+    const create = el('button', { type: 'submit', class: 'button button-primary', text: 'Create internal case' });
+    const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel' });
+    cancel.addEventListener('click', () => dialog.close());
+    const form = el('form', { class: 'case-form', novalidate: true }, [
+      el('h2', { id: 'newCaseTitle', class: 'card-title', text: 'New company case' }),
+      el('p', { class: 'case-help', text: 'For internal tracking only. This does not notify the rider or initiate a legal or financial process.' }),
+      field('Workstream', kind),
+      field('Title', title),
+      field('Internal description', description),
+      field('Related rider (optional)', subject),
+      field('Priority', priority),
+      feedback,
+      el('div', { class: 'actions', }, [cancel, create]),
+    ]);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (title.value.trim().length < 3) { feedback.textContent = 'Enter a descriptive title (at least three characters).'; return; }
+      create.disabled = true;
+      feedback.textContent = '';
+      try {
+        const result = await api('POST', '/admin/cases', {
+          kind: kind.value, title: title.value.trim(), description: description.value.trim(),
+          priority: priority.value, subjectRiderId: subject.value.trim() || null,
+        });
+        dialog.close();
+        if (view === 'cases') selectView('case/' + result.item.id);
+        flash('Internal case created.');
+      } catch (error) {
+        feedback.textContent = actionErrorMessage(error);
+        create.disabled = false;
+      }
+    });
+    dialog.append(form);
+    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+    document.body.append(dialog);
+    dialog.showModal();
+    title.focus();
+  }
+
+  async function renderCases(generation) {
+    const available = permittedCaseKinds();
+    if (caseKind !== 'all' && !available.includes(caseKind)) caseKind = 'all';
+    const params = new URLSearchParams({ kind: caseKind, status: caseStatus, limit: '25' });
+    const result = await api('GET', '/admin/cases?' + params.toString());
+    if (!isCurrentRender(generation)) return;
+    const create = el('button', { type: 'button', class: 'button button-primary', text: 'New case' });
+    create.addEventListener('click', () => openNewCaseDialog(available));
+    const kindTabs = segmented([['all', 'All permitted'], ...available.map((k) => [k, CASE_KIND_LABELS[k]])],
+      caseKind, (next) => { caseKind = next; renderAndFocus('[aria-label="Case categories"] [aria-pressed="true"]'); }, 'Case categories');
+    const statusTabs = segmented([['all', 'All statuses'], ...CASE_STATUSES.map((k) => [k, CASE_STATUS_LABELS[k]])],
+      caseStatus, (next) => { caseStatus = next; renderAndFocus('[aria-label="Case statuses"] [aria-pressed="true"]'); }, 'Case statuses');
+    const list = el('ul', { class: 'case-list', 'aria-label': 'Internal work cases' },
+      result.items.map(caseRecord));
+    const note = el('p', { class: 'case-page-note', text: 'Showing the latest 25 matching cases at a time. This is not a company-wide count or a customer-facing support inbox.' });
+    const more = el('button', { type: 'button', class: 'button', text: 'Load older cases' });
+    more.hidden = !result.hasMore;
+    let cursor = result.nextCursor;
+    more.addEventListener('click', async () => {
+      if (!cursor) return;
+      more.disabled = true;
+      try {
+        const next = new URLSearchParams({ kind: caseKind, status: caseStatus, limit: '25', before: cursor });
+        const page = await api('GET', '/admin/cases?' + next.toString());
+        if (!isCurrentRender(generation)) return;
+        list.append(...page.items.map(caseRecord));
+        cursor = page.nextCursor;
+        more.hidden = !page.hasMore;
+      } catch (error) {
+        flash(actionErrorMessage(error), 'warning');
+      } finally { more.disabled = false; }
+    });
+    pageEl.replaceChildren(
+      pageHeader('Case desk', 'Manage the company’s internal support, appeal, privacy and incident work with a recorded audit trail.', [create]),
+      el('section', { class: 'case-workspace' }, [
+        el('div', { class: 'case-filter-label', text: 'Workstream' }),
+        el('div', { class: 'scroll-row case-filters' }, [kindTabs]),
+        el('div', { class: 'case-filter-label', text: 'Status' }),
+        el('div', { class: 'scroll-row case-filters' }, [statusTabs]),
+        result.items.length ? list : el('div', { class: 'card case-empty' }, [
+          emptyState('inbox', 'No cases in this view', 'Create an internal case to start tracking this workstream.'),
+        ]),
+        more, note,
+      ]),
+    );
+  }
+
+  async function renderCaseDetail(generation) {
+    if (!detailCaseId) return;
+    let payload;
+    try { payload = await api('GET', '/admin/cases/' + encodeURIComponent(detailCaseId)); }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 404 && isCurrentRender(generation)) {
+        const back = el('a', { class: 'button', href: '#cases', text: 'Back to case desk' });
+        pageEl.replaceChildren(pageHeader('Case unavailable', 'No case was found in your authorised workstreams.'),
+          el('div', { class: 'card case-empty' }, [emptyState('lock', 'Case not available', 'It may have been removed or may belong to another staff team.'), back]));
+        return;
+      }
+      throw error;
+    }
+    if (!isCurrentRender(generation)) return;
+    const { item, events } = payload;
+    const back = el('a', { class: 'case-back', href: '#cases', text: '← All cases' });
+    const note = el('textarea', { class: 'input case-description', rows: 4, maxlength: 2000,
+      'aria-label': 'Case update reason', placeholder: 'A concise internal note is required for every update.' });
+    const message = el('p', { class: 'error-text', role: 'alert' });
+    const status = el('select', { class: 'input', 'aria-label': 'Case status' },
+      CASE_STATUSES.map((v) => el('option', { value: v, text: CASE_STATUS_LABELS[v] })));
+    status.value = item.status;
+    const priority = el('select', { class: 'input', 'aria-label': 'Case priority' },
+      CASE_PRIORITIES.map((v) => el('option', { value: v, text: CASE_PRIORITY_LABELS[v] })));
+    priority.value = item.priority;
+    const isMine = item.assignedTo === session.riderId;
+    const canClaim = me?.role === 'admin' || item.assignedTo === null || isMine;
+    const updateStatus = el('button', { type: 'button', class: 'button', text: 'Update status' });
+    const updatePriority = el('button', { type: 'button', class: 'button', text: 'Update priority' });
+    const assign = el('button', { type: 'button', class: 'button', text: isMine ? 'Release ownership' : 'Take ownership',
+      disabled: !canClaim });
+    const addNote = el('button', { type: 'button', class: 'button button-primary', text: 'Add internal note' });
+    const actionButtons = [updateStatus, updatePriority, assign, addNote];
+    const commit = async (path, data) => {
+      if (!note.value.trim()) { message.textContent = 'Enter a reason or internal note before making a change.'; note.focus(); return; }
+      for (const button of actionButtons) button.disabled = true;
+      message.textContent = '';
+      try {
+        await api('POST', '/admin/cases/' + encodeURIComponent(item.id) + '/' + path,
+          { ...data, note: note.value.trim(), expectedVersion: item.version });
+        flash('Case updated and recorded in the activity log.');
+        await render();
+      } catch (error) {
+        message.textContent = error instanceof ApiError && error.code === 'stale_case'
+          ? 'This case changed since you opened it. Reload to view the newest version before retrying.'
+          : actionErrorMessage(error);
+        for (const button of actionButtons) button.disabled = false;
+        assign.disabled = !canClaim;
+      }
+    };
+    updateStatus.addEventListener('click', () => void commit('status', { status: status.value }));
+    updatePriority.addEventListener('click', () => void commit('priority', { priority: priority.value }));
+    assign.addEventListener('click', () => void commit('assign', { assigneeId: isMine ? null : session.riderId }));
+    addNote.addEventListener('click', () => void commit('notes', {}));
+    const controls = el('section', { class: 'card case-controls', 'aria-label': 'Case actions' }, [
+      el('h2', { class: 'card-title', text: 'Manage case' }),
+      el('p', { class: 'case-help', text: 'Every change requires an internal note and a recent password re-check. No message is sent to the rider.' }),
+      el('div', { class: 'case-control-grid' }, [
+        el('label', { class: 'case-field' }, [el('span', { text: 'Status' }), status, updateStatus]),
+        el('label', { class: 'case-field' }, [el('span', { text: 'Priority' }), priority, updatePriority]),
+      ]),
+      el('div', { class: 'case-owner-action' }, [assign]),
+      el('label', { class: 'case-field' }, [el('span', { text: 'Update note' }), note]),
+      addNote, message,
+    ]);
+    if (me?.role === 'admin') {
+      const assignee = el('input', { class: 'input', 'aria-label': 'Assign to staff rider ID', maxlength: 90,
+        placeholder: 'rider_…' });
+      const transfer = el('button', { type: 'button', class: 'button', text: 'Assign staff member' });
+      actionButtons.push(transfer);
+      transfer.addEventListener('click', () => void commit('assign', { assigneeId: assignee.value.trim() }));
+      controls.append(el('div', { class: 'case-admin-assign' }, [
+        el('label', { class: 'case-field' }, [el('span', { text: 'Reassign to authorised staff rider ID' }), assignee]),
+        transfer,
+      ]));
+    }
+    const meta = el('div', { class: 'case-detail-meta' }, [
+      caseBadge(item.kind, CASE_KIND_LABELS),
+      caseBadge(item.status, CASE_STATUS_LABELS),
+      caseBadge(item.priority, CASE_PRIORITY_LABELS),
+      el('span', { text: item.assignedTo ? 'Assigned to ' + item.assignedTo : 'Unassigned' }),
+      el('span', { text: 'Version ' + item.version }),
+    ]);
+    const trail = el('ol', { class: 'case-timeline', 'aria-label': 'Case activity history' },
+      events.map((event) => el('li', { class: 'case-event' }, [
+        el('div', { class: 'case-event-meta' }, [
+          el('strong', { text: event.event }),
+          el('span', { text: 'by ' + event.actorId }),
+          timeEl(event.createdAt),
+        ]),
+        el('p', { class: 'case-event-note', text: event.note }),
+        event.fromValue !== null || event.toValue !== null
+          ? el('p', { class: 'case-event-change', text: (event.fromValue || '—') + ' → ' + (event.toValue || '—') })
+          : null,
+      ])));
+    pageEl.replaceChildren(
+      back,
+      pageHeader(item.title, 'Internal ' + CASE_KIND_LABELS[item.kind].toLowerCase() + ' · Case ' + item.id.slice(0, 8)),
+      meta,
+      el('div', { class: 'case-detail-layout' }, [
+        el('div', { class: 'case-detail-primary' }, [
+          el('section', { class: 'card case-description-card' }, [
+            el('h2', { class: 'card-title', text: 'Case brief' }),
+            el('p', { class: 'case-body-text', text: item.description || 'No additional description.' }),
+            item.subjectRiderId ? el('p', { class: 'case-help', text: 'Related rider: ' + item.subjectRiderId }) : null,
+          ]),
+          el('section', { class: 'card case-history' }, [
+            el('h2', { class: 'card-title', text: 'Activity history' }),
+            el('p', { class: 'case-help', text: 'Time-ordered staff changes. The latest 200 events are returned; earlier events remain in the database.' }),
+            trail,
+          ]),
+        ]),
+        controls,
+      ]),
+    );
   }
 
   async function renderAudit(generation) {
