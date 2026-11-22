@@ -815,7 +815,15 @@ body.menu-visible { overflow: hidden; }
 .search-result-type { color: var(--muted-fg); font-size: 11px; flex: none; }
 .search-status { padding: 8px 12px; margin: 0; color: var(--muted-fg); font-size: 13px; }
 .search-status:empty { display: none; }
-.search-dialog-footer { border-top: 1px solid var(--border); padding: 10px 16px; font-size: 11px; color: var(--muted-fg); }
+.search-dialog-footer {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px;
+  border-top: 1px solid var(--border); padding: 10px 16px; font-size: 11px; color: var(--muted-fg);
+}
+.search-shortcuts { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.search-shortcuts kbd {
+  min-width: 20px; line-height: 18px; padding: 0 4px; text-align: center; font: inherit;
+  border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); color: var(--fg-2);
+}
 @media (max-width: 899px) {
   .sidebar-panel .nav { overflow-y: auto; flex: 1 1 auto; }
   .sidebar-panel .nav-group { width: 100%; }
@@ -1750,3 +1758,100 @@ html { scroll-padding-top: 78px; }
 @media (prefers-reduced-motion: reduce) {
   .case-item, .nav-item { transition: none; }
 }
+
+
+/* 2026-11-22 compact workspace chrome: preserve information on demand,
+   without repeating the shell brand and explanatory copy above every page. */
+.page-header {
+  align-items: center;
+  gap: 10px 16px;
+  padding: 0;
+  border: 0;
+  margin-bottom: 18px;
+}
+.page-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-width: 0; }
+.page-header .page-title {
+  font-size: clamp(21px, 1.8vw, 26px);
+  line-height: 1.24;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+.page-context { min-width: 0; font-size: 12px; color: var(--muted-fg); }
+.page-context > summary {
+  cursor: pointer; padding: 5px 0; font-size: 12px; font-weight: 550;
+  color: var(--fg-2); text-underline-offset: 3px; list-style-position: inside;
+}
+.page-context > summary:hover { color: var(--accent); }
+.page-context > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.page-context[open] { flex-basis: 100%; }
+.page-context .page-subtitle { margin: 0; max-width: 74ch; font-size: 12px; line-height: 1.55; }
+.page-header-actions { gap: 8px; }
+.reporting-range { min-height: 38px; padding: 0 7px; gap: 0; }
+.reporting-range-caption {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.reporting-range-select { min-height: 36px; padding-inline: 10px 24px; font-weight: 620; }
+.reporting-scope {
+  min-height: 30px; padding: 0 4px; border: 0; background: transparent;
+  font-size: 11px; font-weight: 550; color: var(--muted-fg);
+}
+.inbox-intro:where(details) {
+  display: block; padding: 0; margin-bottom: 10px; border: 0;
+  border-radius: 0; background: transparent; font-size: 12px;
+}
+.inbox-intro:where(details) > summary {
+  display: list-item; cursor: pointer; color: var(--fg-2); font-size: 12px;
+}
+.inbox-intro:where(details) > span { display: block; padding: 8px 0 0; max-width: 65ch; }
+.workspace-notes { margin-top: 14px; }
+@media (max-width: 899px) {
+  .page-header { gap: 9px; margin-bottom: 16px; }
+  .page-header .page-heading { width: 100%; }
+  .page-header-actions { width: 100%; justify-content: flex-start; }
+  .page-header-actions .reporting-range { min-height: 40px; }
+  .page-header-actions .reporting-range-select { min-height: 38px; }
+}
+@media (max-width: 620px) {
+  .page-header { gap: 9px; }
+  .page-header .page-title { font-size: 23px; }
+  .page-header-actions .scroll-row { order: initial; }
+}
+
+/* Overview is now a concise operational summary; richer company inventory
+   remains reachable but starts collapsed on narrow screens. */
+.overview-more {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.overview-more > summary {
+  cursor: pointer; padding: 16px 4px;
+  color: var(--fg); font-size: 14px; font-weight: 650;
+}
+.overview-more > summary:hover { color: var(--accent); }
+.overview-more > summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+}
+.overview-more[open] { padding-bottom: 16px; }
+.overview-more > .company-hero { margin-top: 12px; }
+.overview-more > .company-portfolio { margin-top: 16px; }
+
+.workspace-disclosure {
+  margin: 0 0 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.workspace-disclosure > summary {
+  min-height: 44px; padding: 12px 15px;
+  cursor: pointer; color: var(--fg);
+  font-weight: 650; font-size: 13px;
+}
+.workspace-disclosure > summary:hover { color: var(--accent); }
+.workspace-disclosure > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.workspace-disclosure[open] > summary { border-bottom: 1px solid var(--border); }
+.workspace-disclosure > form,
+.workspace-disclosure > section,
+.workspace-disclosure > .card { margin: 12px; }
+.staff-roles-details { margin-top: 20px; }

@@ -903,6 +903,7 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     await mockModerationApi(page);
     await page.goto('/admin.html');
+    await page.locator('.overview-more > summary').click();
     const pulse = page.getByRole('region', { name: 'Company pulse' });
     await expect(pulse).toContainText('240');
     await expect(pulse).toContainText('Group rides now');
@@ -927,6 +928,7 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     await mockModerationApi(page, { role: 'analyst' });
     await page.goto('/admin.html');
+    await page.locator('.overview-more > summary').click();
     const company = page.getByRole('region', { name: 'Company operations' });
     await expect(company.getByRole('button', { name: 'Review Social queue' })).toHaveCount(0);
     await expect(company.getByRole('button', { name: 'Manage staff roles' })).toHaveCount(0);
@@ -1047,7 +1049,7 @@ test.describe('staff dashboard', () => {
     const current = page.locator('#workspaceCurrentSection');
     const trigger = page.getByRole('button', { name: 'Open command search' });
     await expect(current).toHaveText('Overview');
-    await expect(page.locator('.page-eyebrow')).toContainText('Operations hub');
+    await expect(page.locator('.page-eyebrow')).toHaveCount(0);
     await expect(page.locator('.page-title')).toHaveText('Overview');
     if (page.viewportSize().width >= 900) {
       await expect(toolbar).toBeVisible();
@@ -1066,6 +1068,39 @@ test.describe('staff dashboard', () => {
     await openSection(page, 'Action inbox');
     await expect(current).toHaveText('Action inbox');
     await expect(page.locator('.page-title')).toHaveText('Action inbox');
+  });
+
+  test('page headers keep tasks visible and context available without repeated branding', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+    await expect(page.locator('.page-eyebrow')).toHaveCount(0);
+    const context = page.locator('.page-context');
+    await expect(context).toHaveCount(1);
+    await expect(context).not.toHaveAttribute('open', '');
+    await context.locator('summary').click();
+    await expect(context.locator('.page-subtitle')).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Action inbox sources' })).toBeVisible();
+    const intro = page.locator('details.inbox-intro');
+    await expect(intro).not.toHaveAttribute('open', '');
+    await intro.locator('summary').click();
+    await expect(intro).toContainText('Review and assign work in Moderation');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+  });
+
+  test('overview makes rich company data optional without losing its routes', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#overview');
+    const details = page.locator('.overview-more');
+    await expect(details).not.toHaveAttribute('open', '');
+    await expect(page.locator('.kpi')).toHaveCount(8);
+    await expect(page.locator('.operations-grid')).toBeVisible();
+    await details.locator('summary').click();
+    await expect(page.getByRole('region', { name: 'Company operations' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Company pulse' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Review Social queue' })).toBeVisible();
   });
 
   test('command search shows permitted pages and opens a rider record without exposing markup', async ({ page }) => {
@@ -1089,6 +1124,58 @@ test.describe('staff dashboard', () => {
     await expect(dialog).not.toBeVisible();
   });
 
+
+  for (const entry of ['/admin.html', '/staff/']) {
+    test(`command search keyboard navigation works in ${entry}`, async ({ page }) => {
+      if (entry === '/staff/') {
+        await page.addInitScript((riderId) => {
+          localStorage.setItem('rider-comms-staff-session-v1',
+            JSON.stringify({ riderId, token: 'admin-token' }));
+        }, ADMIN_ID);
+      } else {
+        await signIn(page);
+      }
+      await mockModerationApi(page);
+      await page.goto(entry);
+      await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+      await page.keyboard.press('ControlOrMeta+k');
+      const dialog = page.getByRole('dialog', { name: 'Search operations' });
+      const input = dialog.getByRole('searchbox', { name: 'Search pages and riders' });
+      const results = dialog.locator('.search-result');
+      await expect(dialog).toBeVisible();
+      await expect(input).toBeFocused();
+      await expect(dialog.locator('.search-shortcuts')).toContainText('Move');
+
+      await input.press('ArrowDown');
+      await expect(results.first()).toBeFocused();
+      await page.keyboard.press('ArrowDown');
+      await expect(results.nth(1)).toBeFocused();
+      await page.keyboard.press('End');
+      await expect(results.last()).toBeFocused();
+      await page.keyboard.press('Home');
+      await expect(results.first()).toBeFocused();
+      await page.keyboard.press('ArrowUp');
+      await expect(input).toBeFocused();
+
+      // Home/End still edit text in the search field rather than stealing focus.
+      await input.fill('maya');
+      await input.press('Home');
+      await expect(input).toBeFocused();
+      const rider = dialog.locator('#globalSearchRiders .search-result');
+      await expect(rider).toHaveCount(1);
+      await input.press('ArrowDown');
+      await expect(rider).toBeFocused();
+      await page.keyboard.press('ArrowUp');
+      await expect(input).toBeFocused();
+      await input.press('ArrowUp');
+      await expect(rider).toBeFocused();
+      await page.keyboard.press('Enter');
+
+      await expect(page).toHaveURL(new RegExp('#rider/rider_maya$'));
+      await expect(page.locator('.rider-header h1')).toHaveText('Maya');
+      await expect(dialog).not.toBeVisible();
+    });
+  }
 
   test('a late search response cannot replace newer results or execute rider markup', async ({ page }) => {
     await signIn(page);
@@ -1488,6 +1575,8 @@ test.describe('staff dashboard', () => {
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText('Set on the backend');
 
+    await expect(page.locator('.staff-add-details')).not.toHaveAttribute('open', '');
+    await page.locator('.staff-add-details > summary').click();
     const form = page.locator('#addStaffForm');
     await form.getByRole('button', { name: 'Add to staff' }).click();
     await expect(form.locator('.error-text')).toHaveText('Enter their handle or rider ID and a reason.');
@@ -1520,6 +1609,9 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
 
+    // The permissions table is optional context, not an obligatory full-page wall of text.
+    await expect(page.locator('.staff-roles-details')).not.toHaveAttribute('open', '');
+    await page.locator('.staff-roles-details > summary').click();
     // The Case Desk permission adds an actual row to the staff rights matrix.
     await expect(page.locator('.matrix tbody tr')).toHaveCount(9);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
