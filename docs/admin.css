@@ -1578,3 +1578,13 @@ html { scroll-padding-top: 78px; }
   .case-timeline { padding-left: 17px; }
   .case-event::before { left: -22px; }
 }
+
+
+/* Live, role-scoped case workload; rows resemble Linear issue summaries. */
+.case-workload { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.case-workload-metric { min-width: 0; padding: 18px; background: var(--surface); }
+.case-workload-label { color: var(--muted-fg); font-size: 11px; font-weight: 690; }
+.case-workload-value { margin: 9px 0 5px; color: var(--fg); font-size: clamp(23px,2vw,31px); font-weight: 740; letter-spacing: -.045em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.case-workload-description { color: var(--muted-fg); font-size: 11px; line-height: 1.5; }
+@media (min-width: 860px) { .case-workload { grid-template-columns: repeat(4,minmax(0,1fr)); } }
+@media (max-width: 420px) { .case-workload-metric { padding: 15px; } }
