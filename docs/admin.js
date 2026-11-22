@@ -14,9 +14,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'inbox', 'riders', 'moderation', 'cases', 'case', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -611,8 +611,8 @@
       }
       period = next;
       savePeriod(next);
-      if (view === 'overview' && overviewCache) {
-        renderOverview(overviewCache);
+      if (view === 'insights' && overviewCache) {
+        renderInsights(overviewCache);
         pageEl.querySelector('.reporting-range-select')?.focus({ preventScroll: true });
       } else {
         focusReportingWindowAfterNextRender = true;
@@ -645,9 +645,15 @@
         context,
       ]),
       el('div', { class: 'actions page-header-actions' }, [
-        ['overview', 'riders', 'inbox', 'cases', 'audit', 'staff'].includes(view)
+        ['insights', 'cases'].includes(view)
           ? reportingWindow()
           : el('span', { class: 'reporting-scope', text: ({
+            overview: 'Current snapshot',
+            company: 'Connected services',
+            riders: 'Account records',
+            inbox: 'All open work',
+            audit: 'Recent audit sample',
+            staff: 'Current team',
             moderation: 'Live moderation queue',
             system: 'Live service status',
             rider: 'Account record',
@@ -2581,17 +2587,19 @@
     const refreshing = key === displayedKey ||
       (view === 'inbox' && displayedKey?.startsWith('["inbox",'));
     if (!refreshing) {
-      if (view === 'overview') pageEl.replaceChildren(...skeletonOverview());
+      if (view === 'insights') pageEl.replaceChildren(...skeletonOverview());
       else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
     }
     setBusy(true);
     try {
-      if (view === 'overview') {
+      if (['overview', 'insights', 'company'].includes(view)) {
         const overview = await api('GET', '/admin/overview');
         if (!isCurrentRender(generation)) return;
         overviewCache = overview;
         updateReportCount(overviewCache.safety.openReports);
-        renderOverview(overviewCache);
+        if (view === 'insights') renderInsights(overviewCache);
+        else if (view === 'company') renderCompany(overviewCache);
+        else renderOverview(overviewCache);
       } else if (view === 'inbox') {
         await renderInbox(generation);
       } else if (view === 'riders') {
@@ -2886,7 +2894,7 @@
     if (innerWidth >= 900 && appEl.classList.contains('menu-open')) setMenu(false);
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      if (view === 'overview') for (const chart of pageEl.querySelectorAll('.chart-card')) chart.redraw?.();
+      if (view === 'insights') for (const chart of pageEl.querySelectorAll('.chart-card')) chart.redraw?.();
     }, 150);
   });
 
