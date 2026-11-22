@@ -1588,3 +1588,39 @@ html { scroll-padding-top: 78px; }
 .case-workload-description { color: var(--muted-fg); font-size: 11px; line-height: 1.5; }
 @media (min-width: 860px) { .case-workload { grid-template-columns: repeat(4,minmax(0,1fr)); } }
 @media (max-width: 420px) { .case-workload-metric { padding: 15px; } }
+
+
+/* Staff PWA release updates: a quiet, accessible notice that never masks
+   the fixed iPhone navigation masthead or the home indicator. */
+.staff-update-banner[hidden] { display: none !important; }
+.staff-update-banner {
+  position: fixed;
+  z-index: 75;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  right: 20px;
+  width: min(440px, calc(100% - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 17px 18px;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 45px rgba(0, 0, 0, .22);
+}
+.staff-update-content { display: grid; gap: 5px; }
+.staff-update-content strong { font-size: 13px; font-weight: 750; letter-spacing: -.015em; }
+.staff-update-message { font-size: 12px; line-height: 18px; color: var(--fg-2); }
+.staff-update-actions { display: flex; gap: 9px; flex-wrap: wrap; }
+.staff-update-actions .button { min-height: 42px; padding-inline: 16px; }
+@media (max-width: 620px) {
+  .staff-update-banner {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    padding: 16px;
+  }
+  .staff-update-actions .button { flex: 1 1 110px; }
+}
