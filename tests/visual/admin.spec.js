@@ -423,7 +423,99 @@ async function holdApiResponse(page, matcher, status, body) {
   return { received, release };
 }
 
+
+/** Simulate the Service Worker lifecycle deterministically. We do not replace
+ * the production worker, and the test never needs real network deployment. */
+async function mockStaffPwaUpdateLifecycle(page) {
+  await page.addInitScript(() => {
+    const containerListeners = new Map();
+    const registrationListeners = new Map();
+    const workerListeners = new Map();
+    const state = { messages: [], updateCalls: 0, registrationArgs: null };
+    const sw = {
+      controller: {},
+      register: async (url, options) => {
+        state.registrationArgs = { url, options };
+        return registration;
+      },
+      addEventListener: (name, cb) => containerListeners.set(name, cb),
+    };
+    const candidate = {
+      state: 'installing',
+      addEventListener: (name, cb) => workerListeners.set(name, cb),
+      postMessage: (message) => {
+        state.messages.push(message);
+        if (message.type === 'SKIP_WAITING') {
+          sessionStorage.setItem('__staff_update_applied', 'yes');
+          sw.controller = {};
+          containerListeners.get('controllerchange')?.();
+        }
+      },
+    };
+    const registration = {
+      waiting: null,
+      installing: null,
+      addEventListener: (name, cb) => registrationListeners.set(name, cb),
+      update: async () => { state.updateCalls += 1; },
+    };
+    state.announce = () => {
+      registration.installing = candidate;
+      registrationListeners.get('updatefound')?.();
+      registration.waiting = candidate;
+      candidate.state = 'installed';
+      workerListeners.get('statechange')?.();
+    };
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: sw });
+    window.__staffTestUpdate = state;
+  });
+}
+
 test.describe('staff dashboard', () => {
+
+  test('Staff PWA checks updates and activates an idle version on the next safe refresh', async ({ page }) => {
+    await mockStaffPwaUpdateLifecycle(page);
+    await mockModerationApi(page);
+    await page.goto('/staff/');
+    await expect.poll(() => page.evaluate(() =>
+      window.__staffTestUpdate?.registrationArgs?.options?.updateViaCache)).toBe('none');
+    await expect.poll(() => page.evaluate(() => window.__staffTestUpdate?.updateCalls)).toBeGreaterThan(0);
+    // Initial sign-in focus alone is not an unsaved edit; no reload should
+    // happen on first registration until a *different* worker is installed.
+    expect(await page.evaluate(() => sessionStorage.getItem('__staff_update_applied'))).toBeNull();
+    const reloaded = page.waitForEvent('load');
+    await page.evaluate(() => window.__staffTestUpdate.announce());
+    await reloaded;
+    expect(await page.evaluate(() => sessionStorage.getItem('__staff_update_applied'))).toBe('yes');
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+  });
+
+  test('Staff PWA defers updates during edits, respects Later, and confirms forced reload', async ({ page }) => {
+    await mockStaffPwaUpdateLifecycle(page);
+    await mockModerationApi(page);
+    await page.goto('/staff/');
+    await expect.poll(() => page.evaluate(() =>
+      window.__staffTestUpdate?.registrationArgs?.options?.updateViaCache)).toBe('none');
+    await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+    await page.getByLabel('Password', { exact: true }).fill('in-progress-secret');
+    await page.evaluate(() => window.__staffTestUpdate.announce());
+    const notice = page.locator('.staff-update-banner');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('Finish or save your edits');
+    expect(await page.evaluate(() => window.__staffTestUpdate.messages)).toEqual([]);
+    await notice.getByRole('button', { name: 'Later' }).click();
+    await expect(notice).toBeHidden();
+    // Simulate reopening a suspended iOS Home Screen app.
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(notice).toBeVisible();
+    expect(await page.evaluate(() => window.__staffTestUpdate.messages)).toEqual([]);
+    page.on('dialog', (dialog) => dialog.accept());
+    const reloaded = page.waitForEvent('load');
+    await notice.getByRole('button', { name: 'Update now' }).click();
+    await reloaded;
+    expect(await page.evaluate(() => sessionStorage.getItem('__staff_update_applied'))).toBe('yes');
+    expect(await page.evaluate(() => window.__staffTestUpdate?.registrationArgs?.options?.scope)).toBe('./');
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+  });
 
   test('installed staff entry has independent sign-in, install metadata and a revocable session', async ({ page }) => {
     // The main Rider Comms login must not automatically grant the isolated app a session.
