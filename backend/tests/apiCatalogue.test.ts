@@ -46,6 +46,12 @@ describe('API catalogue', () => {
     assert.match(doc.paths['/messages']!.post!.description, /verified email/);
     assert.ok(doc.paths['/messages']!.post!.responses[403]);
     assert.match(doc.paths['/messages']!.get!.description, /^Signed in\./);
+    const internalCase = doc.paths['/admin/cases/{caseId}/status']!.post!;
+    assert.equal(internalCase['x-permission'], 'view_cases');
+    assert.match(internalCase.description, /re-entered within 15 minutes/);
+    assert.deepEqual(internalCase.parameters!.map((parameter) => parameter.name), ['caseId']);
+    assert.equal(doc.paths['/admin/cases']?.get?.['x-permission'], 'view_cases');
+    assert.equal(doc.paths['/admin/cases']?.post?.['x-permission'], 'view_cases');
     const staff = doc.paths['/admin/staff/{riderId}/remove']!.post!;
     assert.equal(staff['x-permission'], 'manage_staff');
     assert.match(staff.description, /re-entered within 15 minutes/);
