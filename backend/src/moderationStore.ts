@@ -448,6 +448,17 @@ export class ModerationStore {
   ): Promise<AssignmentResult> {
     await ensureMigrated();
     return withTransaction(async (client) => {
+      // Lock the prospective owner before the case row. Staff-role changes
+      // lock the user before releasing assigned cases, so the lock order
+      // cannot deadlock with an administrator revoking that role.
+      if (assigneeId !== null) {
+        const { rows } = await client.query<{ eligible: boolean }>(
+          `SELECT (u.is_admin OR s.role = 'moderator') AND u.suspended_at IS NULL AS eligible
+           FROM users u LEFT JOIN staff_roles s ON s.rider_id = u.id
+           WHERE u.id = $1 FOR UPDATE OF u`, [assigneeId],
+        );
+        if (!rows[0]?.eligible) return { ok: false, error: 'invalid_assignee' };
+      }
       const found = await client.query<{ status: ReportStatus; assigned_to: string | null }>(
         'SELECT status, assigned_to FROM safety_reports WHERE id = $1 FOR UPDATE', [reportId],
       );
@@ -460,16 +471,6 @@ export class ModerationStore {
         return { ok: false, error: 'assigned_to_other' };
       }
       if (previous === assigneeId) return { ok: false, error: 'unchanged' };
-      if (assigneeId !== null) {
-        // Lock the target user row: role changes lock this same user before
-        // changing staff_roles, so assignment cannot race staff revocation.
-        const { rows } = await client.query<{ eligible: boolean }>(
-          `SELECT (u.is_admin OR s.role = 'moderator') AND u.suspended_at IS NULL AS eligible
-           FROM users u LEFT JOIN staff_roles s ON s.rider_id = u.id
-           WHERE u.id = $1 FOR UPDATE OF u`, [assigneeId],
-        );
-        if (!rows[0]?.eligible) return { ok: false, error: 'invalid_assignee' };
-      }
       const at = assigneeId === null ? null : now;
       await client.query(
         'UPDATE safety_reports SET assigned_to = $2, assigned_at = $3 WHERE id = $1',
