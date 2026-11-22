@@ -467,6 +467,97 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal((await getPool().query(`SELECT count(*)::int AS n FROM social_media WHERE kind = 'video'`)).rows[0].n, 0);
   });
 
+
+  it('keeps reported Social posts and safety cases consistent after restore or removal', async () => {
+    await getPool().query(`INSERT INTO users (id, username, password_hash, is_admin)
+      VALUES ('social_mod', 'social_mod', 'x', true)`);
+    for (const action of ['restore', 'remove'] as const) {
+      const post = await photoPost(ctx, 'social_a');
+      for (let i = 0; i < REPORTS_TO_HIDE; i += 1) {
+        const response = await postJson(ctx, `social_r${i}`, `/social/posts/${post.id}/report`,
+          { reason: 'spam', details: 'Investigate this post' });
+        assert.equal(response.status, 202);
+      }
+      const linked = await getPool().query(
+        'SELECT id, status, source_post_id FROM safety_reports WHERE source_post_id = $1 ORDER BY id', [post.id]);
+      assert.equal(linked.rows.length, REPORTS_TO_HIDE);
+      assert.ok(linked.rows.every((row) => row.status === 'open' && String(row.source_post_id) === post.id));
+      // A report merely pretending to be about this post is not a linked
+      // case, even if someone copies the structured prefix into free text.
+      const spoofId = `unrelated-${action}`;
+      await getPool().query(
+        `INSERT INTO safety_reports (id, reporter_id, reported_rider_id, reason, details, created_at)
+         VALUES ($1, 'social_b', 'social_a', 'spam', $2, $3)`,
+        [spoofId, `Rider Social post ${post.id}: free text`, Date.now() + 11],
+      );
+      const before = await (await authenticatedFetch(ctx, 'social_mod', '/admin/action-inbox')).json() as
+        { items: Array<{ type: string; id: string }> };
+      assert.equal(before.items.filter((item) => item.id === `social_post:${post.id}`).length, 1);
+      assert.equal(before.items.filter((item) => linked.rows.some((row) => item.id === `rider_report:${row.id}`)).length, 0,
+        'the hidden post is one work item, not one per linked safety report');
+      assert.equal((await postJson(ctx, 'social_mod', `/moderation/reports/${linked.rows[0].id}/claim`, {})).status, 200);
+      const decision = await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/${action}`,
+        { note: `Evidence reviewed: ${action}` });
+      assert.equal(decision.status, 200);
+      const after = await getPool().query(
+        'SELECT status, resolved_by, resolved_at, claimed_by FROM safety_reports WHERE source_post_id = $1', [post.id]);
+      assert.equal(after.rows.length, REPORTS_TO_HIDE);
+      for (const row of after.rows) {
+        assert.equal(row.status, action === 'restore' ? 'dismissed' : 'actioned');
+        assert.equal(row.resolved_by, 'social_mod');
+        assert.ok(Number(row.resolved_at) > 0);
+        assert.equal(row.claimed_by, null);
+      }
+      const unrelated = await getPool().query('SELECT status, source_post_id FROM safety_reports WHERE id = $1', [spoofId]);
+      assert.deepEqual(unrelated.rows, [{ status: 'open', source_post_id: null }]);
+      const afterInbox = await (await authenticatedFetch(ctx, 'social_mod', '/admin/action-inbox')).json() as
+        { items: Array<{ id: string }> };
+      assert.equal(afterInbox.items.some((item) => item.id === `social_post:${post.id}` ||
+        linked.rows.some((row) => item.id === `rider_report:${row.id}`)), false);
+    }
+  });
+
+
+  it('fetches an exact hidden Social post beyond the first 100, enforcing staff permissions', async () => {
+    const post = await photoPost(ctx, 'social_a', 'Selected item requiring direct review');
+    for (let i = 0; i < REPORTS_TO_HIDE; i += 1) {
+      assert.equal((await postJson(ctx, `social_r${i}`, `/social/posts/${post.id}/report`,
+        { reason: 'spam' })).status, 202);
+    }
+    await getPool().query(`INSERT INTO users (id, username, password_hash, is_admin)
+      VALUES ('social_mod', 'social_mod', 'x', true)`);
+    // The general hidden-post queue prioritises these 110 (four reports)
+    // ahead of the chosen post (three reports), regardless of its age.
+    await getPool().query(
+      `INSERT INTO social_posts (id, author_id, kind, caption, created_at, hidden_at)
+       SELECT gen_random_uuid(), 'social_a', 'photo', 'bulk-hidden', n, n
+       FROM generate_series(1, 110) AS n`);
+    await getPool().query(
+      `INSERT INTO social_post_reports (post_id, reporter_id, reason, created_at)
+       SELECT p.id, reporters.id, 'spam', p.created_at FROM social_posts p
+         CROSS JOIN (VALUES ('social_b'), ('social_c'), ('social_r0'), ('social_r1')) AS reporters(id)
+       WHERE p.caption = 'bulk-hidden'`);
+    const queue = await (await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts?limit=100')).json() as
+      { posts: Array<{ post: { id: string } }> };
+    assert.equal(queue.posts.length, 100);
+    assert.equal(queue.posts.some((item) => item.post.id === post.id), false);
+
+    const url = `/moderation/social-posts/${post.id}`;
+    assert.equal((await fetch(ctx.baseUrl() + url)).status, 401);
+    assert.equal((await authenticatedFetch(ctx, 'social_b', url)).status, 403);
+    const response = await authenticatedFetch(ctx, 'social_mod', url);
+    assert.equal(response.status, 200);
+    const detail = await response.json() as { entry: { post: { id: string; media: Array<{ url: string }> }; reports: number } };
+    assert.equal(detail.entry.post.id, post.id);
+    assert.equal(detail.entry.reports, REPORTS_TO_HIDE);
+    assert.ok(detail.entry.post.media[0]?.url, 'signed staff media link is preserved');
+    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`,
+      { note: 'No violation after review' })).status, 200);
+    assert.equal((await authenticatedFetch(ctx, 'social_mod', url)).status, 404,
+      'a restored post cannot be presented as still hidden');
+    assert.equal((await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts/invalid-uuid')).status, 404);
+  });
+
   it('lets moderators review hidden posts, see their files, and restore or remove them', async () => {
     const post = await photoPost(ctx, 'social_a');
     for (let i = 0; i < REPORTS_TO_HIDE; i += 1) await postJson(ctx, `social_r${i}`, `/social/posts/${post.id}/report`, { reason: 'sexual' });

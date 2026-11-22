@@ -150,6 +150,30 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.staff = state.staff.filter((member) => member.riderId !== decodeURIComponent(removeStaff[1]));
       return json(200, { ok: true });
     }
+    if (url.pathname === '/admin/action-inbox') {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const type = url.searchParams.get('type') ?? 'all';
+      const hiddenIds = new Set(state.socialPosts.map((entry) => entry.post.id));
+      const riderReports = state.reports.filter((report) =>
+        report.status === 'open' && !hiddenIds.has(report.sourcePostId)).slice(0, 100)
+        .map((report) => ({
+          type: 'rider_report', id: `rider_report:${report.id}`,
+          reportId: report.id, riderId: report.reportedRiderId, eventAt: report.createdAt,
+          reason: report.reason, claimedBy: report.claimedBy ?? null, reportsAgainstRider: report.reportsAgainstRider,
+        }));
+      const posts = state.socialPosts.slice(0, 100).map((entry) => ({
+        type: 'social_post', id: `social_post:${entry.post.id}`,
+        postId: entry.post.id, riderId: entry.post.authorId,
+        eventAt: entry.hiddenAt ?? entry.post.createdAt,
+        kind: entry.post.kind, reportCount: entry.reports, reasons: entry.reasons,
+      }));
+      const items = [
+        ...(type === 'social_post' ? [] : riderReports),
+        ...(type === 'rider_report' ? [] : posts),
+      ].sort((a, b) => a.eventAt - b.eventAt);
+      return json(200, { generatedAt: Date.now(), items: items.slice(0, 50), filter: type, limit: 50,
+        mayHaveMore: items.length > 50, sourceSampleLimit: 100 });
+    }
     if (url.pathname === '/admin/overview') return json(200, OVERVIEW);
     const riderDetail = url.pathname.match(/^\/admin\/riders\/(rider_[a-z0-9]+)$/);
     if (riderDetail && request.method() === 'GET') {
@@ -203,15 +227,27 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
         rider_badactor: { displayName: 'Rex', handle: '@rex' },
       } });
     }
+    const reportId = url.pathname.match(/^\/moderation\/reports\/([^/]+)$/);
+    if (request.method() === 'GET' && reportId) {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const report = state.reports.find((row) => row.id === decodeURIComponent(reportId[1]));
+      return report ? json(200, { report }) : json(404, { error: 'not_found' });
+    }
+    const hiddenPostId = url.pathname.match(/^\/moderation\/social-posts\/([^/]+)$/);
+    if (request.method() === 'GET' && hiddenPostId) {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const entry = state.socialPosts.find((row) => row.post.id === decodeURIComponent(hiddenPostId[1]));
+      return entry ? json(200, { entry }) : json(404, { error: 'not_found' });
+    }
     if (url.pathname === '/moderation/reports') {
       const status = url.searchParams.get('status');
-      return json(200, { reports: state.reports.filter((report) => report.status === status) });
+      return json(200, { reports: state.reports.filter((report) => report.status === status).slice(0, 100) });
     }
     if (url.pathname === '/moderation/actions') {
       const riderId = url.searchParams.get('riderId');
       return json(200, { actions: riderId ? state.actions.filter((action) => action.targetRiderId === riderId) : state.actions });
     }
-    if (url.pathname === '/moderation/social-posts' && request.method() === 'GET') return json(200, { posts: state.socialPosts });
+    if (url.pathname === '/moderation/social-posts' && request.method() === 'GET') return json(200, { posts: state.socialPosts.slice(0, 100) });
     if (url.pathname.startsWith('/social/media/')) {
       // A 1×1 PNG for the post's photo.
       return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC', 'base64') });
@@ -274,6 +310,159 @@ async function holdApiResponse(page, matcher, status, body) {
 }
 
 test.describe('staff dashboard', () => {
+
+  test('action inbox shows true moderation sources and opens the selected rider report', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+    const list = page.locator('.inbox-item');
+    await expect(list).toHaveCount(2);
+    await expect(list.first()).toContainText('Rider report');
+    await expect(list.last()).toContainText('Rider Social');
+    await list.first().getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page).toHaveURL(/#moderation$/);
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+    await expect(page.locator('[data-report-id="report-1"]')).toBeFocused();
+  });
+
+  test('action inbox filters sources and opens the selected Social post', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(sources.getByRole('button', { name: 'Social posts' })).toBeFocused();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toBeFocused();
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+  });
+
+
+  test('inbox navigation retrieves a report outside 100 linked Social safety reports', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    const hiddenPost = state.socialPosts[0].post.id;
+    state.reports = [
+      ...Array.from({ length: 130 }, (_, n) => ({
+        ...OPEN_REPORT, id: `linked-${n}`, createdAt: n + 1, sourcePostId: hiddenPost,
+      })),
+      { ...OPEN_REPORT, id: 'last-independent', createdAt: 500, sourcePostId: null },
+    ];
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toBeFocused();
+    await expect(page.locator('.inbox-intro')).toContainText('Loaded directly by its identifier');
+    await page.getByRole('button', { name: 'Take this report' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toBeFocused();
+    await expect(page.locator('[data-report-id="last-independent"]')).toContainText('You’re handling this');
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toHaveCount(0,
+      'ordinary bounded moderation queue excludes the selected report');
+  });
+
+  test('Social post navigation survives a concurrent reorder beyond the first 100', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    const selectedPost = state.socialPosts[0];
+    await page.goto('/admin.html#inbox');
+    await page.getByRole('group', { name: 'Action inbox sources' }).getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    state.socialPosts.unshift(...Array.from({ length: 110 }, (_, n) => ({
+      post: { ...selectedPost.post, id: `newer-hidden-${n}`, media: [] },
+      reports: 9, reasons: ['spam'],
+    })));
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toBeFocused();
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toHaveCount(0);
+  });
+
+  test('inbox shows changed report status instead of claiming a moved queue item', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    state.reports[0].status = 'dismissed';
+    state.reports[0].resolvedAt = Date.now();
+    state.reports[0].resolvedBy = ADMIN_ID;
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page.locator('[data-report-id="report-1"]')).toBeFocused();
+    await expect(page.locator('.inbox-intro')).toContainText('Report currently dismissed');
+    await expect(page.locator('[data-report-id="report-1"] [data-action="dismiss"]')).toHaveCount(0);
+  });
+
+  test('inbox does not infer resolution when the selected record disappears', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    state.reports = [];
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    const missing = page.locator('[data-selected-unavailable]');
+    await expect(missing).toBeFocused();
+    await expect(missing).toContainText('No resolution is assumed');
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No open reports');
+  });
+
+  test('inbox filter changes keep controls available and ignore late source responses', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(
+      page,
+      (url) => url.pathname === '/admin/action-inbox' && url.searchParams.get('type') === 'rider_report',
+      200,
+      { generatedAt: Date.now(), filter: 'rider_report', limit: 50, sourceSampleLimit: 100,
+        mayHaveMore: false, items: [{ type: 'rider_report', id: 'rider_report:stale',
+          reportId: 'stale', riderId: 'rider_reporter', eventAt: Date.now(),
+          reason: 'spam', claimedBy: null, reportsAgainstRider: 1 }] },
+    );
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Rider reports' }).click();
+    await hold.received;
+    await expect(sources.getByRole('button', { name: 'Social posts' })).toBeVisible();
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item')).toContainText('Rider Social');
+    const stale = page.waitForResponse((response) => new URL(response.url()).pathname === '/admin/action-inbox'
+      && new URL(response.url()).searchParams.get('type') === 'rider_report');
+    hold.release();
+    await stale;
+    await page.waitForTimeout(100);
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item')).toContainText('Rider Social');
+  });
+
+  test('support and analyst accounts cannot access the action inbox', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'support' });
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('#nav [data-view="inbox"]')).toBeHidden();
+    await expect(page).toHaveURL(/#overview$/);
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+  });
+
+  test('action inbox shows an honest empty state without fabricated tickets', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    const post = page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]');
+    await post.locator('textarea').fill('Removed impersonation scam.');
+    await post.getByRole('button', { name: 'Restore post' }).click();
+    await openSection(page, 'Action inbox');
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('Nothing waiting in this view');
+  });
+
   test('asks a signed-out visitor to sign in to the app first', async ({ page }) => {
     await mockModerationApi(page);
     await page.goto('/admin.html');

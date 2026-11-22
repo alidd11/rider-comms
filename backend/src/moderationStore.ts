@@ -106,6 +106,25 @@ interface QueuedReportRow {
   claimed_at: string | number | null;
 }
 
+function mapQueuedReport(row: QueuedReportRow): QueuedSafetyReport {
+  return {
+    id: row.id,
+    reporterId: row.reporter_id,
+    reportedRiderId: row.reported_rider_id,
+    reason: row.reason,
+    details: row.details,
+    createdAt: Number(row.created_at),
+    status: row.status,
+    resolvedAt: row.resolved_at === null ? null : Number(row.resolved_at),
+    resolvedBy: row.resolved_by,
+    reportsAgainstRider: Number(row.reports_against_rider),
+    reportedRiderSuspended: row.reported_rider_suspended,
+    reportedRiderSuspendedUntil: row.reported_rider_suspended_until === null ? null : Number(row.reported_rider_suspended_until),
+    claimedBy: row.claimed_by ?? null,
+    claimedAt: row.claimed_at === null || row.claimed_at === undefined ? null : Number(row.claimed_at),
+  };
+}
+
 interface ModerationActionRow {
   id: string;
   moderator_id: string;
@@ -317,7 +336,9 @@ export class ModerationStore {
 
   /** The moderation queue: oldest open reports first by default, so reports
    * are handled in the order they arrived. */
-  async listReports(status: ReportStatus = 'open', limit = 50): Promise<QueuedSafetyReport[]> {
+  async listReports(status: ReportStatus = 'open', limit = 50,
+    { excludeHiddenSocial = false }: { excludeHiddenSocial?: boolean } = {},
+  ): Promise<QueuedSafetyReport[]> {
     await ensureMigrated();
     const { rows } = await getPool().query<QueuedReportRow>(
       `SELECT report.id, report.reporter_id, report.reported_rider_id, report.reason, report.details,
@@ -331,26 +352,39 @@ export class ModerationStore {
        FROM safety_reports report
        LEFT JOIN users u ON u.id = report.reported_rider_id
        WHERE report.status = $1
+         AND (NOT $4::boolean OR NOT EXISTS (
+           SELECT 1 FROM social_posts p
+           WHERE p.id = report.source_post_id AND p.hidden_at IS NOT NULL
+         ))
        ORDER BY report.created_at ${status === 'open' ? 'ASC' : 'DESC'}, report.id
        LIMIT $2`,
-      [status, limit, Date.now() - REPORT_CLAIM_TTL_MS],
+      [status, limit, Date.now() - REPORT_CLAIM_TTL_MS, excludeHiddenSocial],
     );
-    return rows.map((row) => ({
-      id: row.id,
-      reporterId: row.reporter_id,
-      reportedRiderId: row.reported_rider_id,
-      reason: row.reason,
-      details: row.details,
-      createdAt: Number(row.created_at),
-      status: row.status,
-      resolvedAt: row.resolved_at === null ? null : Number(row.resolved_at),
-      resolvedBy: row.resolved_by,
-      reportsAgainstRider: Number(row.reports_against_rider),
-      reportedRiderSuspended: row.reported_rider_suspended,
-      reportedRiderSuspendedUntil: row.reported_rider_suspended_until === null ? null : Number(row.reported_rider_suspended_until),
-      claimedBy: row.claimed_by ?? null,
-      claimedAt: row.claimed_at === null || row.claimed_at === undefined ? null : Number(row.claimed_at),
-    }));
+    return rows.map(mapQueuedReport);
+  }
+
+
+  /** Exact moderator-only record lookup, independent of bounded queue order.
+   * Includes current status/claim so stale inbox entries are never guessed
+   * to have been resolved or moved.
+   */
+  async reportById(reportId: string): Promise<QueuedSafetyReport | null> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<QueuedReportRow>(
+      `SELECT report.id, report.reporter_id, report.reported_rider_id, report.reason, report.details,
+              report.created_at, report.status, report.resolved_at, report.resolved_by,
+              (SELECT count(*) FROM safety_reports other WHERE other.reported_rider_id = report.reported_rider_id)
+                AS reports_against_rider,
+              COALESCE(u.suspended_at IS NOT NULL, FALSE) AS reported_rider_suspended,
+              u.suspended_until AS reported_rider_suspended_until,
+              CASE WHEN report.claimed_at > $2 THEN report.claimed_by END AS claimed_by,
+              CASE WHEN report.claimed_at > $2 THEN report.claimed_at END AS claimed_at
+       FROM safety_reports report
+       LEFT JOIN users u ON u.id = report.reported_rider_id
+       WHERE report.id = $1 LIMIT 1`,
+      [reportId, Date.now() - REPORT_CLAIM_TTL_MS],
+    );
+    return rows[0] ? mapQueuedReport(rows[0]) : null;
   }
 
   /**
