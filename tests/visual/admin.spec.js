@@ -734,6 +734,57 @@ test.describe('staff dashboard', () => {
   });
 
 
+  test('company command centre is backed by the existing overview and labels finance as disconnected', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const pulse = page.getByRole('region', { name: 'Company pulse' });
+    await expect(pulse).toContainText('240');
+    await expect(pulse).toContainText('Group rides now');
+    const company = page.getByRole('region', { name: 'Company operations' });
+    await expect(company).toContainText('Rider Comms');
+    await expect(company).toContainText('Rider Social');
+    await expect(company).toContainText('Trust & safety');
+    await expect(company).toContainText('People & access');
+    await expect(company).toContainText('Platform reliability');
+    const billing = company.locator('.company-unit', { hasText: 'Commercial & billing' });
+    await expect(billing).toContainText('Not connected');
+    await expect(billing).toContainText('No financial totals shown');
+    await expect(billing.getByRole('button')).toHaveCount(0);
+    await company.getByRole('button', { name: 'Review Social queue' }).click();
+    await expect(page).toHaveURL(/#inbox$/);
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+  });
+
+  test('company navigation respects server-provided staff permissions', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'analyst' });
+    await page.goto('/admin.html');
+    const company = page.getByRole('region', { name: 'Company operations' });
+    await expect(company.getByRole('button', { name: 'Review Social queue' })).toHaveCount(0);
+    await expect(company.getByRole('button', { name: 'Manage staff roles' })).toHaveCount(0);
+    await expect(company.getByRole('button', { name: 'Inspect platform' })).toBeVisible();
+    await company.getByRole('button', { name: 'Inspect platform' }).click();
+    await expect(page.locator('.page-title')).toHaveText('System');
+  });
+
+  test('mobile masthead stays fixed and the navigation drawer has a visible close button', async ({ page }, testInfo) => {
+    test.skip(!/phone/.test(testInfo.project.name), 'Phones only');
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    await expect(page.locator('.sidebar')).toHaveCSS('position', 'fixed');
+    await page.evaluate(() => window.scrollTo(0, 1100));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    const top = await page.locator('.sidebar').evaluate((node) => node.getBoundingClientRect().top);
+    expect(Math.abs(top)).toBeLessThanOrEqual(1);
+    await page.locator('#menuToggle').click();
+    await expect(page.getByText('Staff operations', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Close navigation' }).click();
+    await expect(page.locator('#menuToggle')).toBeFocused();
+    await expect(page.locator('#menuToggle')).toHaveAttribute('aria-expanded', 'false');
+  });
+
   test('operations home links real work to existing staff sections', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
@@ -1513,15 +1564,20 @@ test.describe('staff dashboard', () => {
     const signOut = page.getByRole('button', { name: 'Sign out of Staff' });
     await expect(signOut).toBeFocused();
     await page.keyboard.press('Tab');
-    await expect(toggle).toBeFocused();
+    const drawerClose = page.getByRole('button', { name: 'Close navigation' });
+    await expect(drawerClose).toBeFocused();
     await page.keyboard.press('Shift+Tab');
     await expect(signOut).toBeFocused();
     await page.keyboard.press('Tab');
-    await expect(toggle).toBeFocused();
+    await expect(drawerClose).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(toggle).toBeFocused();
 
+    await toggle.click();
+    await page.getByRole('button', { name: 'Close navigation' }).click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toBeFocused();
     await toggle.click();
     await page.locator('#menuBackdrop').click({ position: { x: page.viewportSize().width - 8, y: Math.round(page.viewportSize().height / 2) } });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
