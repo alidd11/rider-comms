@@ -14,9 +14,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'inbox', 'riders', 'moderation', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'inbox', 'riders', 'moderation', 'cases', 'case', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -34,12 +34,12 @@
   ];
   const PERMISSION_LABELS = [
     ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
-    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['view_system', 'System'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['view_system', 'System'],
   ];
   const ROLE_MATRIX = {
-    admin: ['view_overview', 'view_riders', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'view_system'],
-    moderator: ['view_overview', 'view_riders', 'moderate', 'view_audit', 'view_system'],
-    support: ['view_overview', 'view_riders', 'verify_email', 'account_help', 'view_audit', 'view_system'],
+    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'view_system'],
+    moderator: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'view_audit', 'view_system'],
+    support: ['view_overview', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit', 'view_system'],
     analyst: ['view_overview', 'view_system'],
   };
   const REASON_LABELS = {
@@ -67,16 +67,20 @@
   // #rider/<id> opens one rider; every other hash is a section.
   function parseHash(hash) {
     const match = /^rider\/([A-Za-z0-9_-]{1,64})$/.exec(hash);
-    if (match) return { view: 'rider', riderId: match[1] };
-    return { view: VIEWS.includes(hash) && hash !== 'rider' ? hash : 'overview', riderId: null };
+    if (match) return { view: 'rider', riderId: match[1], caseId: null };
+    const caseMatch = /^case\/([0-9a-f-]{36})$/i.exec(hash);
+    if (caseMatch) return { view: 'case', riderId: null, caseId: caseMatch[1] };
+    return { view: VIEWS.includes(hash) && hash !== 'rider' && hash !== 'case' ? hash : 'overview', riderId: null, caseId: null };
   }
-  let { view, riderId: detailRiderId } = parseHash(location.hash.slice(1));
+  let { view, riderId: detailRiderId, caseId: detailCaseId } = parseHash(location.hash.slice(1));
   let period = readPeriod();
   let moderationView = 'open';
   let inboxFilter = 'all';
   // A local view over the returned 50-item snapshot, never a global ownership count.
   let inboxOwnerFilter = 'all';
   let inboxFocusTarget = null;
+  let caseKind = 'all';
+  let caseStatus = 'all';
   let riderQuery = '';
   let auditGroup = 'all';
   let auditRider = '';
@@ -89,7 +93,8 @@
   const isCurrentRender = (generation) => generation === renderGeneration;
   let displayedKey = null;
   let focusHeadingOnNextRender = false;
-  const renderKey = () => JSON.stringify([view, detailRiderId,
+  const renderKey = () => JSON.stringify([view, detailRiderId, detailCaseId,
+    view === 'cases' ? caseKind : null, view === 'cases' ? caseStatus : null,
     view === 'riders' ? riderQuery : null,
     view === 'moderation' ? moderationView : null,
     view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
@@ -753,7 +758,7 @@
           unit({ title: 'Customer support', status: 'Account tools',
             description: 'Investigate rider accounts and help with access, verification, devices and recovery. A durable ticket and SLA queue is not connected yet.',
             fact: 'Account assistance exists · support tickets are pending',
-            destination: 'riders', action: 'Find customer account' }),
+            destination: 'cases', action: 'Open support cases' }),
           unit({ title: 'People & access', status: 'Role-gated',
             description: 'Manage operational staff roles, recent authentication events and privileged access.',
             fact: 'Roles: Admin · Moderator · Support · Analyst',
@@ -765,7 +770,7 @@
           unit({ title: 'Privacy & compliance', status: 'Partial',
             description: 'Staff audit history, admin-only rider data export and governance runbooks are available. Privacy request case tracking is not connected yet.',
             fact: 'Audit records available · request tracking pending',
-            destination: 'audit', action: 'Inspect audit records' }),
+            destination: 'cases', action: 'Open privacy cases' }),
           unit({ title: 'Commercial & billing', status: 'Not connected', unavailable: true,
             description: 'Company revenue, subscriptions, refunds and payment reconciliation need an authorised reporting integration.',
             fact: 'No financial totals shown until validated against the billing provider' }),
@@ -2112,12 +2117,12 @@
     const focusHeading = focusHeadingOnNextRender;
     focusHeadingOnNextRender = false;
     for (const button of navEl.querySelectorAll('[data-view]')) {
-      if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
+      if (button.dataset.view === (view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
-    document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
-    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
+    document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view];
+    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view];
     // Refresh the current section in place; skeletons are for navigation only.
     // Keep inbox filter controls available during a source refresh.
     const refreshing = key === displayedKey ||
@@ -2142,6 +2147,10 @@
         renderRiders(riders);
       } else if (view === 'moderation') {
         await renderModeration(generation);
+      } else if (view === 'cases') {
+        await renderCases(generation);
+      } else if (view === 'case') {
+        await renderCaseDetail(generation);
       } else if (view === 'audit') {
         await renderAudit(generation);
       } else if (view === 'staff') {
@@ -2205,16 +2214,17 @@
     const next = parseHash(hash);
     if ((next.view === 'overview' && hash !== 'overview' && hash !== '')
       || (me && !allowed(VIEW_PERMISSIONS[next.view]))) {
-      const current = view === 'rider' ? `rider/${detailRiderId}` : view;
+      const current = view === 'rider' ? `rider/${detailRiderId}` : view === 'case' ? `case/${detailCaseId}` : view;
       history.replaceState(null, '', `#${current}`);
       return;
     }
-    if (next.view === view && next.riderId === detailRiderId) return;
+    if (next.view === view && next.riderId === detailRiderId && next.caseId === detailCaseId) return;
     if (next.view !== 'moderation') inboxFocusTarget = null;
     view = next.view;
     detailRiderId = next.riderId;
+    detailCaseId = next.caseId;
     focusHeadingOnNextRender = true;
-    const target = view === 'rider' ? `rider/${detailRiderId}` : view;
+    const target = view === 'rider' ? `rider/${detailRiderId}` : view === 'case' ? `case/${detailCaseId}` : view;
     if (location.hash !== `#${target}`) history.pushState(null, '', `#${target}`);
     window.scrollTo(0, 0);
     void render();
@@ -2637,6 +2647,7 @@
     if (!allowed(VIEW_PERMISSIONS[view])) {
       view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
       detailRiderId = null;
+      detailCaseId = null;
       history.replaceState(null, '', `#${view}`);
     }
     navEl.hidden = false;
