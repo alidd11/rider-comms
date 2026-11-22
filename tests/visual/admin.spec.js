@@ -377,9 +377,22 @@ test.describe('staff dashboard', () => {
     state.reports[0].assignedAt = Date.now() - 10_000;
     await page.goto('/admin.html#inbox');
     await expect(page.locator('.inbox-item').first()).toContainText('Case owner: you');
+    await expect(page.locator('.inbox-item').first().locator('.inbox-item-meta .badge')).toHaveAttribute('data-tone', 'accent');
     await expect(page.locator('.inbox-item').first()).not.toContainText('Private report details');
     await page.getByRole('button', { name: 'Review rider report' }).click();
     await expect(page.locator('[data-report-id="report-1"]')).toContainText('Case owner:');
+  });
+
+  test('quick claim does not imply permanent case ownership or urgency', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports[0].claimedBy = ADMIN_ID;
+    await page.goto('/admin.html#inbox');
+    const report = page.locator('.inbox-item').filter({ hasText: 'Rider report' });
+    await expect(report.locator('.inbox-item-meta .badge')).toHaveText('No permanent owner');
+    await expect(report.locator('.inbox-item-meta .badge')).not.toHaveAttribute('data-tone', 'accent');
+    await expect(report.locator('.inbox-item-meta .badge')).not.toHaveAttribute('data-tone', 'warning');
+    await expect(report.locator('.inbox-quick-claim')).toContainText('Quick claim:');
   });
 
   test('action inbox shows true moderation sources and opens the selected rider report', async ({ page }) => {
