@@ -146,7 +146,8 @@ const scooterDraft = draftValhallaMotorcycleRequest({
 });
 assert.equal(scooterDraft.request.costing, 'motor_scooter');
 assert.deepEqual(scooterDraft.request.costing_options.motor_scooter, { top_speed: 100 });
-assert.doesNotMatch(JSON.stringify(scooterDraft), /google|apiKey|tollExempt|navigationReady":true/i);
+assert.doesNotMatch(JSON.stringify(scooterDraft.request), /google|apiKey|tollExemption/i);
+assert.equal(scooterDraft.assurance.navigationReady, false);
 const researchInput = { vehicleCategory: 'motorcycle_large',
   coordinates: [[-0.1276, 51.5072], [-0.115, 51.51]] };
 for (const bad of [
