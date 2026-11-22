@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+import {
+  VALHALLA_MOTORCYCLE_ROUTING_ENABLED, MAX_RESEARCH_ROUTE_LOCATIONS,
+  draftValhallaMotorcycleRequest,
+} from '../map-lab/valhalla-request.mjs';
+
 import { readFileSync } from 'node:fs';
 import {
   RIDER_MAPS_RELEASED, MAP_STYLE_URLS, openMapStyle, assertMapDataCompatibility,
@@ -110,6 +115,63 @@ for (const trip of [
   { ...valhalla.trip, legs: Array.from({ length: 22 }, () => ({shape:'??AC'})) },
 ]) assert.throws(() => fromValhallaTrip({ trip }), 'Invalid Valhalla trip must fail');
 assert.throws(() => fromValhallaTrip(null));
+
+// Strict Valhalla research request builder: no network, no car fallback,
+// no implicit moped speed, no toll eligibility claims, no Google geometry.
+assert.equal(VALHALLA_MOTORCYCLE_ROUTING_ENABLED, false);
+assert.equal(MAX_RESEARCH_ROUTE_LOCATIONS, 8);
+const researchCoordinates = [[-0.1276, 51.5072], [-0.115, 51.51]];
+const motorcycleDraft = draftValhallaMotorcycleRequest({
+  vehicleCategory: 'motorcycle_small', coordinates: researchCoordinates,
+  avoidHighways: true, avoidTolls: true, avoidFerries: true,
+});
+assert.deepEqual(motorcycleDraft.request.locations, [
+  { lat: 51.5072, lon: -0.1276 }, { lat: 51.51, lon: -0.115 },
+]);
+assert.equal(motorcycleDraft.request.costing, 'motorcycle');
+assert.deepEqual(motorcycleDraft.request.costing_options.motorcycle, {
+  use_trails: 0, use_highways: 0, use_tolls: 0, use_ferry: 0,
+});
+for (const property of ['networkRequestMade', 'legalRoadAccessVerified',
+  'tollExemptionVerified', 'trafficAvailable', 'navigationReady']) {
+  assert.equal(motorcycleDraft.assurance[property], false);
+}
+assert.equal(motorcycleDraft.assurance.dataProvider, 'openstreetmap');
+researchCoordinates[0][0] = 99;
+assert.equal(motorcycleDraft.request.locations[0].lon, -0.1276, 'Input coordinates must be cloned');
+const scooterDraft = draftValhallaMotorcycleRequest({
+  vehicleCategory: 'scooter',
+  coordinates: [[-0.1276, 51.5072], [-0.115, 51.51]],
+  scooterTopSpeedKph: 100,
+});
+assert.equal(scooterDraft.request.costing, 'motor_scooter');
+assert.deepEqual(scooterDraft.request.costing_options.motor_scooter, { top_speed: 100 });
+assert.doesNotMatch(JSON.stringify(scooterDraft), /google|apiKey|tollExempt|navigationReady":true/i);
+const researchInput = { vehicleCategory: 'motorcycle_large',
+  coordinates: [[-0.1276, 51.5072], [-0.115, 51.51]] };
+for (const bad of [
+  null, [], {}, { ...researchInput, vehicleCategory: 'car' },
+  { ...researchInput, vehicleCategory: 'unknown' },
+  { ...researchInput, avoidTolls: 'false' },
+  { ...researchInput, avoidHighways: 1 },
+  { ...researchInput, avoidFerries: null },
+  { ...researchInput, scooterTopSpeedKph: 100 },
+  { ...researchInput, googlePlaceId: 'secret' },
+  { ...researchInput, traffic: true },
+  { ...researchInput, tollExemption: true },
+  { ...researchInput, coordinates: [] },
+  { ...researchInput, coordinates: [[0, 0]] },
+  { ...researchInput, coordinates: Array.from({ length: 9 }, () => [0, 0]) },
+  { ...researchInput, coordinates: [[-181, 51], [0, 0]] },
+  { ...researchInput, coordinates: [[0, 91], [0, 0]] },
+  { ...researchInput, coordinates: [[0, 0, 0], [1, 1]] },
+  { ...researchInput, coordinates: [[0, NaN], [1, 1]] },
+  { ...researchInput, coordinates: [[0, 0], [0, 0]] },
+  { vehicleCategory: 'scooter', coordinates: researchInput.coordinates },
+  { vehicleCategory: 'scooter', coordinates: researchInput.coordinates, scooterTopSpeedKph: 19 },
+  { vehicleCategory: 'scooter', coordinates: researchInput.coordinates, scooterTopSpeedKph: 121 },
+  { vehicleCategory: 'scooter', coordinates: researchInput.coordinates, scooterTopSpeedKph: '100' },
+]) assert.throws(() => draftValhallaMotorcycleRequest(bad));
 
 const webSettings = read('../docs/app/10-settings.js');
 const nativeSettings = read('../mobile/src/screens/SettingsScreen.tsx');
