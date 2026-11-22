@@ -638,6 +638,38 @@
     return el('section', { class: 'card funnel' }, [header, el('ol', { class: 'funnel-steps' }, rows), undercount]);
   }
 
+
+  /** Operational shortcuts are grounded in /admin/overview, not mock inbox data. */
+  function operationsSummary({ riders, activity, safety }) {
+    const card = ({ label, value, description, destination, action, attention = false }) => {
+      const children = [
+        el('div', { class: 'operation-label', text: label }),
+        el('strong', { class: 'operation-value', text: String(value) }),
+        el('p', { class: 'operation-description', text: description }),
+      ];
+      if (destination && allowed(VIEW_PERMISSIONS[destination])) {
+        const button = el('button', { type: 'button', class: 'button', text: action });
+        button.addEventListener('click', () => selectView(destination));
+        children.push(button);
+      }
+      return el('div', { class: 'operation-card', dataset: { attention: String(attention) } }, children);
+    };
+    return el('section', { class: 'operations-summary', 'aria-label': 'Operations at a glance' }, [
+      el('h2', { class: 'section-title', text: 'Operations at a glance' }),
+      el('p', { class: 'operations-lead', text: 'Current activity and next steps, based on the latest dashboard snapshot.' }),
+      el('div', { class: 'operations-grid' }, [
+        card({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
+          description: 'Open rider reports requiring a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }),
+        card({ label: 'New riders today', value: formatNumber(riders.newToday),
+          description: 'New sign-ups recorded today.', destination: 'riders', action: 'Find riders' }),
+        card({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
+          description: 'Active group rides. No private locations are displayed.' }),
+        card({ label: 'Platform diagnostics', value: 'System',
+          description: 'Inspect backend health, integrations and request metrics.', destination: 'system', action: 'View system' }),
+      ]),
+    ]);
+  }
+
   function renderOverview(data) {
     const days = period;
     const { riders, activity, social, content, safety, series, previous } = data;
@@ -654,7 +686,7 @@
     const stickiness = percent(activity.active24h, activity.active30d);
     const periodText = `vs previous ${days} days`;
 
-    const reportsLink = safety.openReports > 0 ? el('a', { href: '#moderation', text: 'Review queue' }) : null;
+    const reportsLink = safety.openReports > 0 && allowed('moderate') ? el('a', { href: '#moderation', text: 'Review queue' }) : null;
     const kpis = el('div', { class: 'kpis' }, [
       kpiCard({ label: 'New riders', value: formatNumber(newRiders), delta: deltaBadge(newRiders, newPrev), foot: periodText, spark: sparkline(slice(series.signups)) }),
       kpiCard({ label: 'Active riders', value: formatNumber(active), foot: `${percent(active, riders.total) ?? 0}% of all riders`, spark: sparkline(slice(series.activeRiders)) }),
@@ -691,6 +723,7 @@
     }, 'Period');
     pageEl.replaceChildren(
       pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · days in UTC`, [periodControl]),
+      operationsSummary({ riders, activity, safety }),
       kpis,
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
@@ -1207,10 +1240,29 @@
       person(`${REASON_LABELS[report.reason] || report.reason}`, [who, report.details].filter(Boolean).join(' · '), who === null ? null : report.reporterId, { link: false }),
       el('span', { class: 'trail' }, [badge(report.status === 'open' ? 'Open' : report.status === 'actioned' ? 'Actioned' : 'Dismissed', report.status === 'open' ? 'warning' : report.status === 'actioned' ? 'danger' : null), el('div', {}, [timeEl(report.createdAt)])]),
     ]);
+    const sectionId = (title) => 'rider-section-' + title.toLowerCase().replace(/[^a-z]+/g, '-').replace(/-$/, '');
     const section = (title, items, empty) => items === null ? [] : [
-      el('h2', { class: 'section-title', text: title }),
+      el('h2', { class: 'section-title rider-section-heading', id: sectionId(title), tabindex: '-1', text: title }),
       el('div', { class: 'card reports' }, items.length ? [el('ul', { class: 'list' }, items)] : [emptyState('inbox', empty, null)]),
     ];
+    const availableSections = [
+      ['Account details', true],
+      ['Reports about them', detail.reportsAgainst !== null],
+      ['Reports they filed', detail.reportsFiled !== null],
+      ['Staff history', detail.actions !== null],
+      ['Signed-in devices', detail.devices !== null],
+      ['Sign-in history', detail.securityEvents !== null],
+    ].filter(([, show]) => show);
+    const recordNavigation = el('nav', { class: 'rider-section-nav', 'aria-label': 'Rider record sections' },
+      availableSections.map(([title]) => {
+        const button = el('button', { type: 'button', text: title });
+        button.addEventListener('click', () => {
+          const heading = document.getElementById(sectionId(title));
+          heading?.scrollIntoView({ block: 'start', behavior: 'auto' });
+          heading?.focus({ preventScroll: true });
+        });
+        return button;
+      }));
 
     pageEl.replaceChildren(
       el('a', { class: 'back-link', href: '#riders', text: '← Riders' }),
@@ -1225,6 +1277,8 @@
         el('div', { class: 'actions' }, [riderBadges(rider)]),
       ]),
       el('div', { class: 'rider-actions' }, [suspend, unsuspend, verify, reset, signOut, exportData].filter(Boolean)),
+      recordNavigation,
+      el('h2', { class: 'section-title rider-section-heading', id: 'rider-section-account-details', tabindex: '-1', text: 'Account details' }),
       el('section', { class: 'card' }, [el('dl', { class: 'facts' }, facts.map(([label, value]) => el('div', { class: 'fact' }, [el('dt', { text: label }), el('dd', { text: value })])))]),
       ...section('Reports about them', detail.reportsAgainst && detail.reportsAgainst.map((report) => reportRow(report, `From ${riderLabel(report.reporterId).name}`)), 'No reports about this rider.'),
       ...section('Reports they filed', detail.reportsFiled && detail.reportsFiled.map((report) => reportRow(report, `About ${riderLabel(report.reportedRiderId).name}`)), 'They haven’t reported anyone.'),
@@ -1667,7 +1721,7 @@
       if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
-    document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
+    document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
     // Refresh the current section in place; skeletons are for navigation only.
     const refreshing = key === displayedKey;
@@ -1700,7 +1754,7 @@
       }
       if (isCurrentRender(generation)) {
         displayedKey = key;
-        if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav'))) {
+        if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav') || document.activeElement?.closest('.sidebar-search-slot') || document.activeElement?.closest('.brand-actions'))) {
           pageEl.querySelector('.page-title')?.focus({ preventScroll: true });
         }
       }
@@ -1797,6 +1851,124 @@
   });
   window.addEventListener('hashchange', () => selectView(location.hash.slice(1)));
   window.addEventListener('popstate', () => selectView(location.hash.slice(1)));
+
+  // Command search only offers authorised sections and the existing rider lookup API.
+  // All rider data remains text-only, never interpolated into HTML.
+  const searchDialog = document.getElementById('globalSearchDialog');
+  const searchInput = document.getElementById('globalSearchInput');
+  const searchSectionResults = document.getElementById('globalSearchSections');
+  const searchRiderResults = document.getElementById('globalSearchRiders');
+  const searchStatus = document.getElementById('globalSearchStatus');
+  const desktopSearchTrigger = document.getElementById('globalSearchTrigger');
+  const mobileSearchTrigger = document.getElementById('globalSearchMobile');
+  let searchOpener = null;
+  let searchTimer = null;
+  let searchGeneration = 0;
+
+  function searchOption(title, subtitle, type, navigate) {
+    const option = el('button', { type: 'button', class: 'search-result' }, [
+      el('span', { class: 'search-result-main' }, [
+        el('span', { class: 'search-result-title', text: title }),
+        subtitle ? el('span', { class: 'search-result-sub', text: subtitle }) : null,
+      ]),
+      el('span', { class: 'search-result-type', text: type }),
+    ]);
+    option.addEventListener('click', () => {
+      searchDialog.close();
+      navigate();
+    });
+    return option;
+  }
+  function searchGroup(label, results) {
+    if (results.length === 0) return [];
+    return [el('div', { class: 'search-result-group', text: label }), ...results];
+  }
+  function updateCommandSearch() {
+    const generation = ++searchGeneration;
+    clearTimeout(searchTimer);
+    const term = searchInput.value.trim();
+    const normalized = term.toLowerCase();
+    const sections = [...navEl.querySelectorAll('[data-view]')]
+      .filter((button) => !button.hidden && (!term || VIEW_TITLES[button.dataset.view].toLowerCase().includes(normalized)))
+      .map((button) => searchOption(VIEW_TITLES[button.dataset.view], 'Open dashboard section', 'Page', () => selectView(button.dataset.view)));
+    searchSectionResults.replaceChildren(...searchGroup('Pages', sections));
+    searchRiderResults.replaceChildren();
+    if (!allowed('view_riders')) {
+      searchStatus.textContent = sections.length ? '' : 'No matching sections are available to your role.';
+      return;
+    }
+    if (term.length < 2) {
+      searchStatus.textContent = 'Enter at least two characters to search rider accounts.';
+      return;
+    }
+    searchStatus.textContent = 'Searching rider accounts…';
+    searchTimer = setTimeout(async () => {
+      try {
+        const response = await api('GET', '/admin/riders?limit=8&q=' + encodeURIComponent(term));
+        if (!searchDialog.open || generation !== searchGeneration) return;
+        const riders = Array.isArray(response.riders) ? response.riders : [];
+        const options = riders.filter((rider) => typeof rider.riderId === 'string' && /^rider_[A-Za-z0-9_-]{1,58}$/.test(rider.riderId)).map((rider) =>
+          searchOption(rider.displayName || rider.username || rider.handle || rider.riderId,
+            [rider.handle, rider.riderId].filter(Boolean).join(' · '),
+            'Rider', () => selectView('rider/' + rider.riderId)));
+        searchRiderResults.replaceChildren(...searchGroup('Rider accounts', options));
+        searchStatus.textContent = options.length ? '' : 'No matching riders found.';
+      } catch (error) {
+        if (!searchDialog.open || generation !== searchGeneration) return;
+        searchStatus.textContent = error instanceof ApiError && (error.status === 401 || error.status === 403)
+          ? 'Your staff access has changed. Refresh the dashboard to continue.'
+          : 'Rider search is unavailable. You can still open a dashboard section.';
+      }
+    }, 220);
+  }
+  function openCommandSearch(trigger) {
+    // Never cover a password confirmation or another sensitive staff action.
+    if (!me || searchDialog.open || document.querySelector('dialog[open]')) return;
+    searchOpener = appEl.classList.contains('menu-open') ? mobileSearchTrigger : trigger;
+    if (appEl.classList.contains('menu-open')) setMenu(false);
+    searchInput.value = '';
+    searchDialog.showModal();
+    updateCommandSearch();
+    searchInput.focus();
+  }
+  desktopSearchTrigger.addEventListener('click', () => openCommandSearch(desktopSearchTrigger));
+  mobileSearchTrigger.addEventListener('click', () => openCommandSearch(mobileSearchTrigger));
+  document.getElementById('globalSearchClose').addEventListener('click', () => searchDialog.close());
+  searchInput.addEventListener('input', updateCommandSearch);
+  searchInput.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown') {
+      const first = searchDialog.querySelector('.search-result');
+      if (first) { event.preventDefault(); first.focus(); }
+    } else if (event.key === 'Enter') {
+      const first = searchDialog.querySelector('.search-result');
+      if (first) { event.preventDefault(); first.click(); }
+    }
+  });
+  searchDialog.addEventListener('close', () => {
+    ++searchGeneration;
+    clearTimeout(searchTimer);
+    if (searchOpener?.isConnected && searchOpener.getClientRects().length) searchOpener.focus();
+    searchOpener = null;
+  });
+  // Some mobile Chromium/tablet configurations do not automatically dismiss
+  // a modal <dialog> on a simulated hardware Escape key. Handle it explicitly
+  // before the sidebar's own Escape listener and leave other dialogs alone.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !searchDialog.open) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    searchDialog.close();
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (searchDialog.open || !me || event.altKey) return;
+    const editable = event.target?.closest?.('input, textarea, select, [contenteditable="true"]');
+    if (((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k')
+      || (event.key === '/' && !event.metaKey && !event.ctrlKey && !editable)) {
+      event.preventDefault();
+      openCommandSearch(innerWidth < 900 ? mobileSearchTrigger : desktopSearchTrigger);
+    }
+  });
+
   refreshMobile.addEventListener('click', () => void render());
   let resizeTimer;
   window.addEventListener('resize', () => {
@@ -1836,6 +2008,12 @@
       return;
     }
     for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
+    for (const group of navEl.querySelectorAll('[data-nav-group]')) {
+      group.hidden = ![...group.querySelectorAll('[data-view]')].some((button) => !button.hidden);
+    }
+    document.querySelector('.sidebar-search-slot').hidden = false;
+    document.getElementById('globalSearchTrigger').hidden = false;
+    document.getElementById('globalSearchMobile').hidden = false;
     footerRole.replaceChildren(roleBadge(me.role));
     if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
     if (!allowed(VIEW_PERMISSIONS[view])) {

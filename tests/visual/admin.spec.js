@@ -185,7 +185,11 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     }
     if (url.pathname === '/admin/riders') {
       state.riderQueries.push(url.searchParams.get('q'));
-      return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : state.riders });
+      const query = (url.searchParams.get('q') || '').toLowerCase();
+      const matches = state.riders.filter((rider) => [
+        rider.displayName, rider.username, rider.handle, rider.email, rider.riderId,
+      ].some((value) => String(value ?? '').toLowerCase().includes(query)));
+      return json(200, { riders: matches });
     }
     if (url.pathname === '/admin/system') {
       return json(200, { socialMediaStorage: false, socialMediaScanning: true, socialPosting: true, contentCheck: { allowed: 7, rejected: 1, unavailable: 2 }, providers: { google_places: { lastOkAt: null, lastErrorAt: Date.now(), lastError: '403 · PERMISSION_DENIED' }, google_routes: { lastOkAt: Date.now(), lastErrorAt: null, lastError: null } }, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
@@ -283,6 +287,116 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html');
     await expect(page.locator('.empty-title')).toHaveText('This account is not staff');
     await expect(page.locator('#nav')).toBeHidden();
+  });
+
+
+  test('operations home links real work to existing staff sections', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const operations = page.getByRole('region', { name: 'Operations at a glance' });
+    await expect(operations).toContainText('Reports awaiting review');
+    await expect(operations).toContainText('Rides in progress');
+    await operations.getByRole('button', { name: 'Review reports' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+    await openSection(page, 'Overview');
+    await operations.getByRole('button', { name: 'Find riders' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+  });
+
+  test('command search shows permitted pages and opens a rider record without exposing markup', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html');
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    const trigger = await page.locator('#globalSearchMobile').isVisible()
+      ? page.locator('#globalSearchMobile') : page.locator('#globalSearchTrigger');
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Moderation/ })).toBeVisible();
+    await dialog.getByRole('searchbox', { name: 'Search pages and riders' }).fill('maya');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect.poll(() => state.riderQueries).toContain('maya');
+    await dialog.getByRole('button', { name: /Maya.*Rider/ }).click();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
+    await expect(page.locator('.rider-header h1')).toHaveText('Maya');
+    await expect(dialog).not.toBeVisible();
+  });
+
+
+  test('a late search response cannot replace newer results or execute rider markup', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(page,
+      (url) => url.pathname === '/admin/riders' && url.searchParams.get('q') === 'maya',
+      200, { riders: [RIDERS[0]] });
+    await page.goto('/admin.html');
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    await page.keyboard.press('/');
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    const input = dialog.getByRole('searchbox', { name: 'Search pages and riders' });
+    await input.fill('maya');
+    await hold.received;
+    await input.fill('rex');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toContainText('<b>Rex</b>');
+    await expect(dialog.locator('#globalSearchRiders .search-result b')).toHaveCount(0);
+    const stale = page.waitForResponse((item) => new URL(item.url()).pathname === '/admin/riders'
+      && new URL(item.url()).searchParams.get('q') === 'maya');
+    hold.release();
+    await stale;
+    await page.waitForTimeout(100);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toContainText('<b>Rex</b>');
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
+
+  test('command search respects analyst permissions and closes with Escape', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { role: 'analyst' });
+    await page.goto('/admin.html');
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    await page.keyboard.press('ControlOrMeta+k');
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Overview/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /System/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Riders/ })).toHaveCount(0);
+    await dialog.getByRole('searchbox', { name: 'Search pages and riders' }).fill('maya');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(0);
+    expect(state.riderQueries).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+  });
+
+
+  test('global search never replaces an open staff confirmation dialog', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#rider/rider_maya');
+    await page.locator('.rider-actions').getByRole('button', { name: 'Suspend' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Suspend Maya?' });
+    await expect(confirmation).toBeVisible();
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(page.getByRole('dialog', { name: 'Search operations' })).toBeHidden();
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
+  });
+
+  test('rider 360 section shortcuts scroll without changing the record route', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#rider/rider_maya');
+    const jump = page.getByRole('navigation', { name: 'Rider record sections' });
+    await expect(jump.getByRole('button', { name: 'Account details' })).toBeVisible();
+    await jump.getByRole('button', { name: 'Sign-in history' }).click();
+    await expect(page.locator('#rider-section-sign-in-history')).toBeFocused();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
   });
 
   test('reviews a hidden Rider Social post: its photo, a required note, and the audit log', async ({ page }) => {
