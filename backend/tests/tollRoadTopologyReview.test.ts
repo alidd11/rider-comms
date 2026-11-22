@@ -61,7 +61,7 @@ describe('draft-only toll road graph/crossing verification gate', () => {
   });
   it('requires a pinned identical source graph and operator-matched way ID', () => {
     unknown({ ...observation, graphSha256: 'b'.repeat(64) }, link, 'source_version_mismatch');
-    unknown({ ...observation, wayId: 'osmid:9999' }, link, 'no_reviewed_way_link');
+    unknown({ ...observation, wayId: 'osmid:9999' }, link, 'different_road');
     assert.equal(screen([observation], []).results[0]?.reason, 'no_reviewed_way_link');
   });
   it('rejects lone OSM tag yes and raw geometry as unreliable toll evidence', () => {
@@ -101,10 +101,15 @@ describe('draft-only toll road graph/crossing verification gate', () => {
     assert.equal(screen([observation], [link, link]).reason, 'invalid_input');
     assert.equal(screen([{ ...observation, infrastructureId: 'unlisted_toll' }]).reason, 'invalid_input');
     assert.equal(screen([{ ...observation, wayId: '__proto__/fake' }]).reason, 'invalid_input');
+    assert.equal(screen([{ ...observation, wayId: 1234 as unknown as string }]).reason, 'invalid_input');
+    assert.equal(screen([{ ...observation, contactId: 77 as unknown as string }]).reason, 'invalid_input');
+    assert.equal(screen([{ ...observation, graphSha256: { toString: () => SHA } as unknown as string }]).reason, 'invalid_input');
     assert.equal(screen([{ ...observation, routeSegmentIndex: -1 }]).reason, 'invalid_input');
     assert.equal(screen([{ ...observation, layer: 999 }]).reason, 'invalid_input');
     assert.equal(screen([{ ...observation, graphSha256: 'garbage' }]).reason, 'invalid_input');
     assert.equal(screen([{ ...observation, source: 'unrecognised' as RouteTollWayObservation['source'] }]).reason, 'invalid_input');
+    assert.equal(screen([observation], [{ ...link, wayId: 1234 as unknown as string }]).reason, 'invalid_input');
+    assert.equal(screen([observation], [{ ...link, graphSha256: 0 as unknown as string }]).reason, 'invalid_input');
     assert.equal(screen([observation], [{ ...link, authoritySourceUrl: 'http://not-secure.example/' }]).reason, 'invalid_input');
     assert.equal(screen([observation], [{ ...link, licenceUrl: 'invalid' }]).reason, 'invalid_input');
     assert.equal(screen([observation], [{ ...link, approvalReference: 'x' }]).reason, 'invalid_input');

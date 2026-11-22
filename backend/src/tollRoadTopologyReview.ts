@@ -74,6 +74,10 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,95}$/;
 const MAX_CONTACTS = 256;
 const MAX_LINKS = 256;
+const validId = (value: unknown): value is string =>
+  typeof value === 'string' && ID.test(value);
+const validSha = (value: unknown): value is string =>
+  typeof value === 'string' && SHA256.test(value);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 function parseDay(value: unknown): number | null {
   if (typeof value !== 'string' || !DAY.test(value)) return null;
@@ -94,21 +98,21 @@ function validLayer(value: unknown): value is number | null {
     && value >= -10 && value <= 10);
 }
 function validObservation(value: RouteTollWayObservation): boolean {
-  return !!value && ID.test(value.contactId) && ID.test(value.infrastructureId)
+  return !!value && validId(value.contactId) && validId(value.infrastructureId)
     && !!findEnglishTollInfrastructure(value.infrastructureId)
     && Number.isInteger(value.routeSegmentIndex)
     && value.routeSegmentIndex >= 0 && value.routeSegmentIndex <= 9999
-    && ID.test(value.wayId) && validLayer(value.layer)
+    && validId(value.wayId) && validLayer(value.layer)
     && ['forward', 'backward', 'unknown'].includes(value.direction)
     && ['reviewed_graph', 'osm_tag_only', 'gps_geometry_only'].includes(value.source)
-    && SHA256.test(value.graphSha256);
+    && validSha(value.graphSha256);
 }
 function validLink(value: ReviewedTollRoadLink): boolean {
-  return !!value && ID.test(value.infrastructureId)
+  return !!value && validId(value.infrastructureId)
     && !!findEnglishTollInfrastructure(value.infrastructureId)
-    && ID.test(value.wayId) && validLayer(value.layer)
+    && validId(value.wayId) && validLayer(value.layer)
     && ['forward', 'backward', 'both'].includes(value.chargeDirection)
-    && SHA256.test(value.graphSha256)
+    && validSha(value.graphSha256)
     && typeof value.authorityCorroborated === 'boolean'
     && validHttps(value.authoritySourceUrl)
     && parseDay(value.reviewedOn) !== null
@@ -150,12 +154,11 @@ export function reviewTollRoadTopology(
   for (const item of observations) {
     const link = links.find(l => l.infrastructureId === item.infrastructureId
       && l.wayId === item.wayId);
+    const sameInfrastructure = links.some(l => l.infrastructureId === item.infrastructureId);
     let reason: TollRoadContactReason = 'topology_reviewed_candidate';
-    if (!link) reason = 'no_reviewed_way_link';
+    if (!link) reason = sameInfrastructure ? 'different_road' : 'no_reviewed_way_link';
     else if (item.source !== 'reviewed_graph') reason = 'unreliable_map_match';
     else if (link.graphSha256 !== item.graphSha256) reason = 'source_version_mismatch';
-    else if (link.wayId !== item.wayId || link.infrastructureId !== item.infrastructureId)
-      reason = 'different_road';
     else if (link.layer === null || item.layer === null || link.layer !== item.layer)
       reason = 'grade_separated';
     else if (item.direction === 'unknown') reason = 'direction_not_verified';
