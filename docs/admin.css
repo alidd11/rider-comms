@@ -1817,3 +1817,22 @@ html { scroll-padding-top: 78px; }
   .page-header .page-title { font-size: 23px; }
   .page-header-actions .scroll-row { order: initial; }
 }
+
+/* Overview is now a concise operational summary; richer company inventory
+   remains reachable but starts collapsed on narrow screens. */
+.overview-more {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.overview-more > summary {
+  cursor: pointer; padding: 16px 4px;
+  color: var(--fg); font-size: 14px; font-weight: 650;
+}
+.overview-more > summary:hover { color: var(--accent); }
+.overview-more > summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+}
+.overview-more[open] { padding-bottom: 16px; }
+.overview-more > .company-hero { margin-top: 12px; }
+.overview-more > .company-portfolio { margin-top: 16px; }
