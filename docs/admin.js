@@ -2359,6 +2359,11 @@
   }
   function renderStaffSignIn(message = '') {
     navEl.hidden = true;
+    // Navigation/search/refresh are inoperable until /admin/me authorises staff.
+    if (appEl.classList.contains('menu-open')) setMenu(false);
+    document.getElementById('menuToggle').hidden = true;
+    refreshMobile.hidden = true;
+    document.querySelector('.workspace-toolbar').hidden = true;
     footerEl.replaceChildren();
     const username = el('input', { class: 'input staff-login-field', type: 'text', name: 'username',
       autocomplete: 'username', maxlength: 100, required: true, 'aria-label': 'Rider Comms username',
@@ -2521,6 +2526,9 @@
       }
       return;
     }
+    document.getElementById('menuToggle').hidden = false;
+    refreshMobile.hidden = false;
+    document.querySelector('.workspace-toolbar').hidden = false;
     for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
     for (const group of navEl.querySelectorAll('[data-nav-group]')) {
       group.hidden = ![...group.querySelectorAll('[data-view]')].some((button) => !button.hidden);
