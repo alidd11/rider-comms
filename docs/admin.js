@@ -2721,6 +2721,7 @@
     let applying = false;
     let reloadRequired = false;
     let reloading = false;
+    let manualActivation = false;
     let hadController = Boolean(workers.controller);
     const touched = new WeakSet();
     const label = el('span', { class: 'staff-update-message', text: 'Staff app update ready.' });
@@ -2773,12 +2774,14 @@
       if (!registration?.waiting || applying || !workers.controller) return;
       if (!force && !safe()) { if (!deferred) show(); return; }
       if (force && editing() && !window.confirm('Updating now may discard unsaved staff changes. Update anyway?')) return;
+      if (force) manualActivation = true;
       applying = true;
       notice.hidden = true;
       try {
         registration.waiting.postMessage({ type: 'SKIP_WAITING' });
       } catch {
         applying = false;
+        manualActivation = false;
         show();
       }
     };
@@ -2806,7 +2809,8 @@
       if (!workers.controller || reloading) return;
       applying = false;
       reloadRequired = true;
-      considerUpdate();
+      if (manualActivation) refresh();
+      else considerUpdate();
     });
     const watchInstall = (worker) => {
       if (!worker) return;
