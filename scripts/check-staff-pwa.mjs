@@ -3,12 +3,21 @@ import { readFile } from 'node:fs/promises';
 
 const root = new URL('../docs/', import.meta.url);
 const load = (path) => readFile(new URL(path, root), 'utf8');
-const [manifestText, html, worker, riderWorker, adminJs, buildScript] = await Promise.all([
+const [manifestText, html, worker, riderWorker, adminJs, buildScript, adminHtml] = await Promise.all([
   load('staff/manifest.json'), load('staff/index.html'), load('staff/sw.js'),
   load('sw.js'), load('admin.js'),
   readFile(new URL('./build-pwa.mjs', import.meta.url), 'utf8'),
+  load('admin.html'),
 ]);
 
+// A separate PWA identity must not fork the actual operations controls:
+// navigation, permissions and keyboard semantics evolve on both pages.
+const body = (markup) => markup.split('<body>')[1]?.split('</body>')[0];
+assert.equal(
+  body(html).replace('src="../admin.js"', 'src="admin.js"'),
+  body(adminHtml),
+  'Staff and legacy admin shells must have identical body markup',
+);
 const manifest = JSON.parse(manifestText);
 assert.equal(manifest.name, 'Rider Comms Staff');
 assert.equal(manifest.id, './');
