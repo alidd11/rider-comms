@@ -1090,6 +1090,58 @@ test.describe('staff dashboard', () => {
   });
 
 
+  for (const entry of ['/admin.html', '/staff/']) {
+    test(`command search keyboard navigation works in ${entry}`, async ({ page }) => {
+      if (entry === '/staff/') {
+        await page.addInitScript((riderId) => {
+          localStorage.setItem('rider-comms-staff-session-v1',
+            JSON.stringify({ riderId, token: 'admin-token' }));
+        }, ADMIN_ID);
+      } else {
+        await signIn(page);
+      }
+      await mockModerationApi(page);
+      await page.goto(entry);
+      await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+      await page.keyboard.press('ControlOrMeta+k');
+      const dialog = page.getByRole('dialog', { name: 'Search operations' });
+      const input = dialog.getByRole('searchbox', { name: 'Search pages and riders' });
+      const results = dialog.locator('.search-result');
+      await expect(dialog).toBeVisible();
+      await expect(input).toBeFocused();
+      await expect(dialog.locator('.search-shortcuts')).toContainText('Move');
+
+      await input.press('ArrowDown');
+      await expect(results.first()).toBeFocused();
+      await page.keyboard.press('ArrowDown');
+      await expect(results.nth(1)).toBeFocused();
+      await page.keyboard.press('End');
+      await expect(results.last()).toBeFocused();
+      await page.keyboard.press('Home');
+      await expect(results.first()).toBeFocused();
+      await page.keyboard.press('ArrowUp');
+      await expect(input).toBeFocused();
+
+      // Home/End still edit text in the search field rather than stealing focus.
+      await input.fill('maya');
+      await input.press('Home');
+      await expect(input).toBeFocused();
+      const rider = dialog.locator('#globalSearchRiders .search-result');
+      await expect(rider).toHaveCount(1);
+      await input.press('ArrowDown');
+      await expect(rider).toBeFocused();
+      await page.keyboard.press('ArrowUp');
+      await expect(input).toBeFocused();
+      await input.press('ArrowUp');
+      await expect(rider).toBeFocused();
+      await page.keyboard.press('Enter');
+
+      await expect(page).toHaveURL(/#rider\\/rider_maya$/);
+      await expect(page.locator('.rider-header h1')).toHaveText('Maya');
+      await expect(dialog).not.toBeVisible();
+    });
+  }
+
   test('a late search response cannot replace newer results or execute rider markup', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
