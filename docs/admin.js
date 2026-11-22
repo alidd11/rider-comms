@@ -1560,10 +1560,35 @@
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 404) throw error;
       }
+      // Read-only safety reporting cannot stop the moderation queue if
+      // analytics is unavailable. A revoked role/session still fails closed.
+      const socialReport = await api('GET', '/admin/social/activity?days=7').catch((error) => {
+        if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
+        return null;
+      });
       if (!isCurrentRender(generation)) return;
       await loadNames(posts.map((entry) => entry.post.authorId));
       if (!isCurrentRender(generation)) return;
-      pageEl.replaceChildren(header, tabs, el('div', { class: 'reports' }, posts.length
+      const summary = el('details', { class: 'workspace-disclosure social-activity-report' }, [
+        el('summary', { text: socialReport
+          ? `Social safety · last 7 days · ${formatNumber(socialReport.metrics.reports)} reports`
+          : 'Social safety activity unavailable' }),
+        socialReport ? el('div', { class: 'case-activity-body' }, [
+          el('p', { class: 'case-help', text:
+            'Counts across retained Social records. Hidden posts is a live total, not a 7-day metric. ' +
+            'This is moderation activity, not a Social audience or engagement report.' }),
+          el('div', { class: 'case-activity-stats' }, [
+            el('span', { text: 'Posts ' + formatNumber(socialReport.metrics.posts) }),
+            el('span', { text: 'Photos ' + formatNumber(socialReport.metrics.photos) }),
+            el('span', { text: 'Reels ' + formatNumber(socialReport.metrics.reels) }),
+            el('span', { text: 'Reported posts ' + formatNumber(socialReport.metrics.reportedPosts) }),
+            el('span', { text: 'Staff content decisions ' + formatNumber(socialReport.metrics.moderationDecisions) }),
+            el('span', { text: 'Hidden now ' + formatNumber(socialReport.metrics.hiddenNow) }),
+          ]),
+        ]) : el('p', { class: 'case-help', text:
+          'Historical Social reporting could not be loaded. You can still review hidden content.' }),
+      ]);
+      pageEl.replaceChildren(header, tabs, summary, el('div', { class: 'reports' }, posts.length
         ? posts.map(socialPostCard)
         : [el('div', { class: 'card' }, [emptyState('inbox', 'No hidden posts', 'Posts reported by three riders are hidden here until you restore or remove them.')])]));
       return;
