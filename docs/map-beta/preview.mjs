@@ -28,6 +28,20 @@ const resetButton = document.getElementById('resetCamera');
 const demoOverlayButton = document.getElementById('demoOverlay');
 
 function updateStatus(message) { status.textContent = message; }
+// An opaque-origin iframe requires a compatible Web Worker implementation.
+// Report a silent CDN/worker stall instead of leaving the admin beta loading
+// indefinitely; the classic map stays active outside this isolated frame.
+let loadWatchdog;
+function watchForLoading(message) {
+  window.clearTimeout(loadWatchdog);
+  status.dataset.loadState = 'loading';
+  updateStatus(message);
+  loadWatchdog = window.setTimeout(() => {
+    if (status.dataset.loadState !== 'loading') return;
+    status.dataset.loadState = 'stalled';
+    updateStatus('Map rendering did not finish. Check the connection or use the classic map.');
+  }, 18000);
+}
 function applyButtonState(theme) {
   dayButton.setAttribute('aria-pressed', String(theme === 'day'));
   nightButton.setAttribute('aria-pressed', String(theme === 'night'));
@@ -37,8 +51,9 @@ async function startPreview() {
   // A hard stop protects the prototype from accidental future release.
   if (RIDER_MAPS_RELEASED !== false) throw new Error('Map prototype must remain unreleased');
   assertMapDataCompatibility({ surface: 'open', directions: 'none', places: 'none' });
+  watchForLoading('Loading map…');
   try {
-    const { Map, NavigationControl, ScaleControl } = await import('https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs');
+    const { Map, NavigationControl, ScaleControl } = await import('https://unpkg.com/maplibre-gl@6.17.0/dist/maplibre-gl.mjs');
     let overlayVisible = false;
     let mapHasErrors = false;
     const demoSourceId = 'rider-maps-synthetic-line';
@@ -66,18 +81,24 @@ async function startPreview() {
     }
     map.on('error', () => {
       mapHasErrors = true;
+      window.clearTimeout(loadWatchdog);
+      status.dataset.loadState = 'error';
       updateStatus('Some map tiles could not load · check your connection');
     });
     map.on('idle', () => {
-      if (!mapHasErrors) updateStatus(overlayVisible
-        ? 'Basemap loaded · synthetic overlay visible (not a ride route)'
-        : 'Basemap loaded · no rider data requested');
+      window.clearTimeout(loadWatchdog);
+      if (!mapHasErrors) {
+        status.dataset.loadState = 'loaded';
+        updateStatus(overlayVisible
+          ? 'Basemap loaded · synthetic overlay visible (not a ride route)'
+          : 'Basemap loaded · no rider data requested');
+      }
     });
     function setTheme(mode) {
       applyButtonState(mode);
       mapHasErrors = false;
+      watchForLoading('Loading ' + mode + ' basemap…');
       map.setStyle(openMapStyle(mode));
-      updateStatus('Loading ' + mode + ' basemap…');
     }
     dayButton.addEventListener('click', () => setTheme('day'));
     nightButton.addEventListener('click', () => setTheme('night'));
@@ -104,6 +125,8 @@ async function startPreview() {
     });
     window.addEventListener('resize', () => map.resize(), { passive: true });
   } catch {
+    window.clearTimeout(loadWatchdog);
+    status.dataset.loadState = 'error';
     updateStatus('Couldn’t load the prototype map. Check your internet connection.');
     dayButton.disabled = true;
     nightButton.disabled = true;
