@@ -89,6 +89,7 @@
   const renderKey = () => JSON.stringify([view, detailRiderId,
     view === 'riders' ? riderQuery : null,
     view === 'moderation' ? moderationView : null,
+    view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
     view === 'inbox' ? inboxFilter : null,
     view === 'audit' ? auditGroup : null,
     view === 'audit' ? auditRider : null]);
@@ -1160,9 +1161,62 @@
   async function renderModeration(generation) {
     const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned']], moderationView, (next) => {
       moderationView = next;
+      inboxFocusTarget = null;
       renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
     }, 'Moderation queues');
     const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
+    // Exact-ID lookups bypass list sampling and sorting. A case could have
+    // been claimed, resolved or removed since the Action Inbox snapshot.
+    const selected = inboxFocusTarget &&
+      ((inboxFocusTarget.type === 'rider_report' && moderationView === 'open') ||
+       (inboxFocusTarget.type === 'social_post' && moderationView === 'social'))
+      ? inboxFocusTarget : null;
+    if (selected) {
+      const back = el('button', { type: 'button', class: 'button', text: 'Back to queue' });
+      back.addEventListener('click', () => {
+        inboxFocusTarget = null;
+        renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
+      });
+      let item;
+      try {
+        const url = selected.type === 'rider_report'
+          ? `/moderation/reports/${encodeURIComponent(selected.id)}`
+          : `/moderation/social-posts/${encodeURIComponent(selected.id)}`;
+        const response = await api('GET', url);
+        item = selected.type === 'rider_report' ? response.report : response.entry;
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        if (!isCurrentRender(generation)) return;
+        const unavailable = el('div', { class: 'card', dataset: { selectedUnavailable: '' }, tabindex: '-1' }, [
+          emptyState('inbox', 'Selected item is no longer available',
+            'It may have been removed or changed since your inbox snapshot. No resolution is assumed.'),
+          back,
+        ]);
+        pageEl.replaceChildren(header, unavailable);
+        return;
+      }
+      if (!isCurrentRender(generation)) return;
+      const riderIds = selected.type === 'rider_report'
+        ? [item.reporterId, item.reportedRiderId, item.resolvedBy, item.claimedBy]
+        : [item.post.authorId];
+      await loadNames(riderIds);
+      if (!isCurrentRender(generation)) return;
+      const changed = selected.type === 'rider_report' && item.status !== 'open';
+      pageEl.replaceChildren(
+        header,
+        el('div', { class: 'inbox-intro', role: 'note' }, [
+          el('strong', { text: changed ? `Report currently ${item.status}` : 'Showing the selected case' }),
+          el('span', { text: changed
+            ? 'This report changed after the Action Inbox snapshot. Its current status is displayed; no new decision can be made on this closed report.'
+            : 'Loaded directly by its identifier, independent of queue size and order.' }),
+          back,
+        ]),
+        el('div', { class: 'reports' }, [
+          selected.type === 'rider_report' ? reportCard(item) : socialPostCard(item),
+        ]),
+      );
+      return;
+    }
     if (moderationView === 'social') {
       let posts = [];
       try {
@@ -1841,7 +1895,6 @@
         if (view === 'moderation' && inboxFocusTarget) {
           // Match data values as strings, not interpolated CSS selectors.
           const { type, id } = inboxFocusTarget;
-          inboxFocusTarget = null;
           const attribute = type === 'rider_report' ? 'reportId' : 'postId';
           const target = [...pageEl.querySelectorAll(type === 'rider_report' ? '[data-report-id]' : '[data-post-id]')]
             .find((element) => element.dataset[attribute] === id);
@@ -1850,7 +1903,10 @@
             target.focus({ preventScroll: true });
             target.scrollIntoView({ block: 'start', behavior: 'auto' });
           } else {
-            flash('The selected item may have been resolved or moved. The current queue is shown.', 'warning');
+            // A 404 has its own explicit unavailable state. Never infer a
+            // resolved or moved case from a bounded queue's missing item.
+            const unavailable = pageEl.querySelector('[data-selected-unavailable]');
+            if (unavailable) unavailable.focus({ preventScroll: true });
           }
         }
         if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav') || document.activeElement?.closest('.sidebar-search-slot') || document.activeElement?.closest('.brand-actions'))) {
