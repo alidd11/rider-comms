@@ -354,6 +354,27 @@ export class SocialPostStore {
     });
   }
 
+
+  /** Read exactly one hidden post for a moderator. Never scan the top 100
+   * queue to decide whether a selected post still awaits review.
+   */
+  async hiddenForStaff(postId: string): Promise<{ post: SocialPost; reports: number; reasons: string[]; hiddenAt: number } | null> {
+    await ensureMigrated();
+    const { rows } = await getPool().query(
+      `SELECT q.*, (SELECT count(*)::int FROM social_post_reports r WHERE r.post_id = q.id) AS reports,
+          (SELECT array_agg(DISTINCT r.reason) FROM social_post_reports r WHERE r.post_id = q.id) AS reasons
+         FROM (${SELECT_POST} WHERE p.id = $1 AND p.hidden_at IS NOT NULL) q LIMIT 1`,
+      [postId],
+    );
+    const row = rows[0];
+    return row ? {
+      post: toPost(row, ''),
+      reports: Number(row.reports),
+      reasons: (row.reasons as string[] | null) ?? [],
+      hiddenAt: Number(row.hidden_at),
+    } : null;
+  }
+
   /** Hidden posts waiting for a moderator, most reported first. */
   async listHidden(limit = 50): Promise<Array<{ post: SocialPost; reports: number; reasons: string[]; hiddenAt: number }>> {
     await ensureMigrated();

@@ -32,6 +32,10 @@ export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown
       if (!REPORT_STATUSES.includes(status as ReportStatus)) return sendJson(res, 400, { error: 'invalid status filter' });
       return sendJson(res, 200, { reports: await moderationStore.listReports(status as ReportStatus, limit) });
     }
+    if (req.method === 'GET' && s[1] === 'reports' && s.length === 3 && s[2]) {
+      const report = await moderationStore.reportById(decodeURIComponent(s[2]));
+      return report ? sendJson(res, 200, { report }) : sendJson(res, 404, { error: 'not_found' });
+    }
     if (req.method === 'GET' && url.pathname === '/moderation/actions') {
       const riderId = url.searchParams.get('riderId') ?? undefined;
       return sendJson(res, 200, { actions: await moderationStore.listActions(riderId, limit) });

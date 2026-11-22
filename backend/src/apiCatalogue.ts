@@ -128,6 +128,7 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('GET', '/social/media/{mediaId}/poster', 'Rider Social', 'public', 'A video poster, by signed link'),
 
   e('GET', '/moderation/reports', 'Moderation', 'staff', 'The report queue', { permission: 'moderate' }),
+  e('GET', '/moderation/reports/{reportId}', 'Moderation', 'staff', 'Look up an exact report and its current state', { permission: 'moderate' }),
   e('GET', '/moderation/actions', 'Moderation', 'staff', 'The audit log', { permission: 'view_audit' }),
   e('POST', '/moderation/reports/{reportId}/resolve', 'Moderation', 'staff', 'Dismiss a report or suspend the rider', { permission: 'moderate', reauth: true }),
   e('POST', '/moderation/reports/{reportId}/claim', 'Moderation', 'staff', 'Take a report, or let it go ({ release: true })', { permission: 'moderate' }),
@@ -137,6 +138,7 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('POST', '/moderation/riders/{riderId}/password-reset', 'Moderation', 'staff', 'Email a rider a password reset link', { permission: 'account_help', reauth: true }),
   e('POST', '/moderation/riders/{riderId}/verify-email', 'Moderation', 'staff', 'Mark a rider\'s email verified', { permission: 'verify_email', reauth: true }),
   e('GET', '/moderation/social-posts', 'Moderation', 'staff', 'Hidden Social posts', { permission: 'moderate' }),
+  e('GET', '/moderation/social-posts/{postId}', 'Moderation', 'staff', 'Look up an exact hidden Social post', { permission: 'moderate' }),
   e('POST', '/moderation/social-posts/{postId}/restore', 'Moderation', 'staff', 'Restore a hidden post', { permission: 'moderate', reauth: true }),
   e('POST', '/moderation/social-posts/{postId}/remove', 'Moderation', 'staff', 'Remove a hidden post', { permission: 'moderate', reauth: true }),
 
