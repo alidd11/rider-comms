@@ -57,6 +57,34 @@ test('PWA Rider Comms Maps beta requires fresh admin permission at launch', asyn
   await expect(page).toHaveURL(/#settings$/);
 });
 
+
+test('PWA admin beta stays inside the app and can return to the classic map', async ({ page }) => {
+  let checks = 0;
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname !== '/admin/me') return null;
+    checks += 1;
+    return { body: { role: 'admin', permissions: [] } };
+  });
+  await page.goto('/#settings');
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  await page.locator('#openMapBetaPreview').click();
+  const dialog = page.locator('#riderMapBetaDialog');
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('#riderMapBetaFrame')).toHaveAttribute('src', './map-beta/');
+  await expect(page).toHaveURL(/#settings$/);
+  await page.locator('.rider-map-beta-return').click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('#sheetTitle')).toHaveText('Map & navigation');
+
+  // Open a second time: the embedded link also closes the preview.
+  await page.locator('#openMapBetaPreview').click();
+  await expect(dialog).toBeVisible();
+  await page.frameLocator('#riderMapBetaFrame').locator('.return-classic').click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(/#settings$/);
+  expect(checks).toBeGreaterThanOrEqual(3);
+});
+
 test('PWA Settings is a real settings list matching the native app', async ({ page }, testInfo) => {
   let profile = { ...PROFILE };
   await mockAuthenticatedApi(page, 'stationary', async ({ request, url }) => {

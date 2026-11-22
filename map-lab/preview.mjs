@@ -2,6 +2,14 @@
 import { RIDER_MAPS_RELEASED, DEMO_CAMERA, assertMapDataCompatibility, openMapStyle } from './config.mjs';
 import { illustrativeLine } from './open-route.mjs';
 
+const returnClassic = document.querySelector('.return-classic');
+if (returnClassic && window.parent !== window) {
+  returnClassic.addEventListener('click', (event) => {
+    event.preventDefault();
+    window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, window.location.origin);
+  });
+}
+
 const status = document.getElementById('status');
 const dayButton = document.getElementById('dayStyle');
 const nightButton = document.getElementById('nightStyle');

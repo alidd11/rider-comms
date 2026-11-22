@@ -57,6 +57,51 @@
 
   // Server-validated admin map beta entry. The standalone map reads no
   // session token, private position, Google route or Place data.
+  // A map-only experiment for server-confirmed admins, inside the installed
+  // PWA. The live Google map, routing, voice and rider location remain intact
+  // behind this dialog and are never copied into the MapLibre document.
+  function openEmbeddedMapBeta() {
+    if (document.getElementById('riderMapBetaDialog')) return;
+    const trigger = document.activeElement;
+    const dialog = document.createElement('dialog');
+    dialog.id = 'riderMapBetaDialog';
+    dialog.className = 'rider-map-beta-dialog';
+    dialog.setAttribute('aria-label', 'Rider Comms Maps beta preview');
+    dialog.innerHTML = `<div class="rider-map-beta-frame-shell">
+      <header class="rider-map-beta-header">
+        <div><strong>Rider Comms Maps</strong><small>Admin beta · map only · not for navigation</small></div>
+        <button type="button" class="rider-map-beta-return">Use classic map</button>
+      </header>
+      <iframe id="riderMapBetaFrame" title="Rider Comms Maps beta"
+        referrerpolicy="no-referrer" allow="geolocation 'none'; microphone 'none'; camera 'none'"></iframe>
+    </div>`;
+    const frame = dialog.querySelector('#riderMapBetaFrame');
+    const closeButton = dialog.querySelector('.rider-map-beta-return');
+    const close = () => { if (dialog.open) dialog.close(); };
+    const onMessage = (event) => {
+      if (event.origin === window.location.origin
+          && event.source === frame.contentWindow
+          && event.data?.type === 'rider-comms-close-map-beta') close();
+    };
+    window.addEventListener('message', onMessage);
+    closeButton.addEventListener('click', close);
+    const safetyTimer = window.setInterval(() => {
+      if (window.RiderMovementSafety.isLockedForSafety(movementState)) close();
+    }, 1000);
+    dialog.addEventListener('close', () => {
+      window.clearInterval(safetyTimer);
+      window.removeEventListener('message', onMessage);
+      frame.removeAttribute('src'); // stop tile requests on return to classic
+      dialog.remove();
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    }, { once: true });
+    document.body.append(dialog);
+    dialog.showModal();
+    // Fetch nothing from the map preview until the admin explicitly opts in.
+    frame.src = './map-beta/';
+    closeButton.focus({ preventScroll: true });
+  }
+
   async function revealAdminMapBeta() {
     const entry = $('#mapBetaAdminEntry');
     if (!entry) return;
@@ -89,7 +134,7 @@
             showToast('Admin access is required to open Rider Comms Maps beta.');
             return;
           }
-          window.location.assign('./map-beta/');
+          openEmbeddedMapBeta();
         } catch {
           entry.hidden = true;
           entry.replaceChildren();

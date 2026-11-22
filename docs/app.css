@@ -3110,3 +3110,15 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 /* The route card made small (swiped down): time, distance and Start only. */
 .route-preview.minimised .route-preview-meta-line,.route-preview.minimised .route-preview-traffic-note,.route-preview.minimised .route-preview-ride,.route-preview.minimised #routePreviewShare,.route-preview.minimised .route-preview-more,.route-preview.minimised .route-preview-details{display:none}
 .route-preview.minimised .route-preview-actions{margin-top:10px}
+
+/* Experimental Rider Comms Maps: admin-only launch, no navigation data. */
+.rider-map-beta-dialog{position:fixed;inset:0;margin:0;padding:0;border:0;width:100%;max-width:none;height:var(--app-vh,100dvh);max-height:var(--app-vh,100dvh);background:#07141b;color:#f4fbff;overflow:hidden}
+.rider-map-beta-dialog::backdrop{background:rgb(0 0 0/.9)}
+.rider-map-beta-frame-shell{display:flex;flex-direction:column;width:100%;height:100%}
+.rider-map-beta-header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:68px;padding:calc(var(--safe-top) + 9px) max(14px,var(--safe-right)) 9px max(14px,var(--safe-left));background:#0e2029;border-bottom:1px solid #315163}
+.rider-map-beta-header>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.rider-map-beta-header strong{font-size:14px;line-height:1.2}
+.rider-map-beta-header small{color:#b8d1db;font-size:11px;line-height:1.2}
+.rider-map-beta-return{flex:none;border:1px solid #458caa;border-radius:12px;background:#183a47;color:#fff;font-weight:700;padding:12px 14px;min-height:44px}
+#riderMapBetaFrame{display:block;border:0;width:100%;min-height:0;flex:1;background:#07141b}
+@media (max-width:370px){.rider-map-beta-return{font-size:12px;padding-inline:10px}}
