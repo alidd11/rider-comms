@@ -78,7 +78,8 @@ async function openMenuIfPhone(page) {
 /** Minimal in-memory moderation backend. */
 async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false } = {}) {
   const state = {
-    reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended }],
+    reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended, assignedTo: null, assignedAt: null }],
+    assignmentEvents: [],
     actions: [],
     posts: [],
     riderQueries: [],
@@ -159,7 +160,8 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
         .map((report) => ({
           type: 'rider_report', id: `rider_report:${report.id}`,
           reportId: report.id, riderId: report.reportedRiderId, eventAt: report.createdAt,
-          reason: report.reason, claimedBy: report.claimedBy ?? null, reportsAgainstRider: report.reportsAgainstRider,
+          reason: report.reason, claimedBy: report.claimedBy ?? null, assignedTo: report.assignedTo ?? null,
+          reportsAgainstRider: report.reportsAgainstRider,
         }));
       const posts = state.socialPosts.slice(0, 100).map((entry) => ({
         type: 'social_post', id: `social_post:${entry.post.id}`,
@@ -198,6 +200,33 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       if (riderAction[2] === 'sign-out') return json(200, { ok: true, sessions: 2 });
       if (riderAction[2] === 'password-reset') return json(200, { ok: true, emailDelivery: { configured: true } });
       return json(200, { ok: true, resolvedReportIds: [] });
+    }
+    const assign = url.pathname.match(/^\/moderation\/reports\/([^/]+)\/assign$/);
+    if (assign && request.method() === 'POST') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required' });
+      if (!body.note) return json(400, { error: 'note_required' });
+      const report = state.reports.find((item) => item.id === decodeURIComponent(assign[1]));
+      if (!report) return json(404, { error: 'not_found' });
+      if (report.status !== 'open') return json(409, { error: 'already_resolved' });
+      const target = Object.hasOwn(body, 'assigneeId') ? body.assigneeId : ADMIN_ID;
+      if (report.assignedTo === target) return json(409, { error: 'unchanged' });
+      if (role !== 'admin' && ((report.assignedTo && report.assignedTo !== ADMIN_ID) ||
+        (target && target !== ADMIN_ID))) return json(409, { error: 'assigned_to_other' });
+      const event = { id: `own-${state.assignmentEvents.length + 1}`, reportId: report.id, actorId: ADMIN_ID,
+        previousAssignee: report.assignedTo ?? null, assigneeId: target, event: target === null ? 'released'
+          : report.assignedTo ? 'transferred' : 'assigned', note: body.note, createdAt: Date.now() };
+      report.assignedTo = target;
+      report.assignedAt = target === null ? null : event.createdAt;
+      state.assignmentEvents.unshift(event);
+      return json(200, { ok: true, assignedTo: target, assignedAt: report.assignedAt, event });
+    }
+    const assignmentHistory = url.pathname.match(/^\/moderation\/reports\/([^/]+)\/assignment-history$/);
+    if (assignmentHistory && request.method() === 'GET') {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required' });
+      return json(200, { events: state.assignmentEvents.filter((e) =>
+        e.reportId === decodeURIComponent(assignmentHistory[1])) });
     }
     const claim = url.pathname.match(/^\/moderation\/reports\/([^/]+)\/claim$/);
     if (claim) {
@@ -310,6 +339,48 @@ async function holdApiResponse(page, matcher, status, body) {
 }
 
 test.describe('staff dashboard', () => {
+
+
+  test('case owner survives refresh and history remains separate from the quick claim', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const report = page.locator('[data-report-id="report-1"]');
+    await expect(report).toContainText('No permanent owner');
+    await report.locator('textarea').fill('Taking long-term responsibility');
+    await report.getByRole('button', { name: 'Assign permanently to me' }).click();
+    await expect(report).toContainText('Case owner:');
+    await expect(report).toContainText('Take this report', 'quick claim remains a distinct action');
+    await expect.poll(() => state.posts.at(-1)).toEqual({
+      path: '/moderation/reports/report-1/assign',
+      body: { assigneeId: ADMIN_ID, note: 'Taking long-term responsibility' },
+    });
+    await report.getByRole('button', { name: 'View ownership history' }).click();
+    const history = report.getByRole('region', { name: 'Ownership history for report report-1' });
+    await expect(history).toContainText('Taking long-term responsibility');
+    await expect(history).toContainText('assigned');
+    await report.getByRole('button', { name: 'Hide ownership history' }).click();
+    await expect(history).toHaveCount(0);
+    await report.locator('textarea').fill('Handing over permanently');
+    await report.getByRole('button', { name: 'Release permanent ownership' }).click();
+    await expect(report).toContainText('No permanent owner');
+    await report.getByRole('button', { name: 'View ownership history' }).click();
+    await expect(report.getByRole('region', { name: 'Ownership history for report report-1' })).toContainText('Handing over permanently');
+    await openSection(page, 'Action inbox');
+    await expect(page.locator('.inbox-item').first()).toContainText('No permanent owner');
+  });
+
+  test('assigned cases are shown in the inbox without leaking underlying notes', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports[0].assignedTo = ADMIN_ID;
+    state.reports[0].assignedAt = Date.now() - 10_000;
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item').first()).toContainText('Case owner: you');
+    await expect(page.locator('.inbox-item').first()).not.toContainText('Private report details');
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page.locator('[data-report-id="report-1"]')).toContainText('Case owner:');
+  });
 
   test('action inbox shows true moderation sources and opens the selected rider report', async ({ page }) => {
     await signIn(page);
