@@ -1484,7 +1484,7 @@ test.describe('staff dashboard', () => {
     // The new case workstream is intentionally visible to support, without
     // exposing moderation or the restricted privacy and incident queues.
     const visibleSections = await page.locator('#nav [data-view]:visible').evaluateAll((buttons) =>
-      buttons.map((button) => button.textContent.replace(/\\s+/g, ' ').trim()));
+      buttons.map((button) => button.textContent.replace(/\s+/g, ' ').trim()));
     expect(visibleSections).toEqual(['Overview', 'Riders', 'Audit log', 'Case desk', 'System']);
     await expect(page.locator('#nav [data-view="moderation"]')).toBeHidden();
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
