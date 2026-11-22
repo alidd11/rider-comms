@@ -750,6 +750,10 @@
             description: 'Triage rider reports, act on reported content and preserve case history and audit evidence.',
             fact: formatNumber(safety.openReports) + ' rider reports open',
             destination: 'inbox', action: 'Open action inbox' }),
+          unit({ title: 'Customer support', status: 'Account tools',
+            description: 'Investigate rider accounts and help with access, verification, devices and recovery. A durable ticket and SLA queue is not connected yet.',
+            fact: 'Account assistance exists · support tickets are pending',
+            destination: 'riders', action: 'Find customer account' }),
           unit({ title: 'People & access', status: 'Role-gated',
             description: 'Manage operational staff roles, recent authentication events and privileged access.',
             fact: 'Roles: Admin · Moderator · Support · Analyst',
@@ -758,12 +762,16 @@
             description: 'Backend readiness, provider configuration, request performance and recovery runbooks.',
             fact: 'Health, traffic and database diagnostics',
             destination: 'system', action: 'Inspect platform' }),
+          unit({ title: 'Privacy & compliance', status: 'Partial',
+            description: 'Staff audit history, admin-only rider data export and governance runbooks are available. Privacy request case tracking is not connected yet.',
+            fact: 'Audit records available · request tracking pending',
+            destination: 'audit', action: 'Inspect audit records' }),
           unit({ title: 'Commercial & billing', status: 'Not connected', unavailable: true,
             description: 'Company revenue, subscriptions, refunds and payment reconciliation need an authorised reporting integration.',
             fact: 'No financial totals shown until validated against the billing provider' }),
         ]),
         el('p', { class: 'company-methodology', text:
-          'Scope: Rider Comms accounts and activity share a backend with Rider Social. Social audience, customer support tickets, finance and company-wide revenue require dedicated, permission-scoped datasets before they can be reported here.' }),
+          'Scope: Rider Comms accounts and activity share a backend with Rider Social. Social audience, customer support ticket SLAs, finance, privacy request deadlines and company-wide revenue require dedicated, permission-scoped datasets before they can be reported here.' }),
       ]),
     ];
   }
