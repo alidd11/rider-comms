@@ -1158,6 +1158,7 @@ export const MIGRATIONS: Migration[] = [
         WHERE status NOT IN ('resolved', 'closed');
       CREATE TABLE IF NOT EXISTS company_case_events (
         id UUID PRIMARY KEY,
+        seq BIGSERIAL NOT NULL UNIQUE,
         case_id UUID NOT NULL REFERENCES company_cases(id) ON DELETE CASCADE,
         actor_id TEXT NOT NULL,
         event TEXT NOT NULL CHECK (event IN ('created', 'note', 'assigned', 'released', 'status', 'priority')),
@@ -1166,8 +1167,8 @@ export const MIGRATIONS: Migration[] = [
         to_value TEXT,
         created_at BIGINT NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS company_case_events_case_time_idx
-        ON company_case_events (case_id, created_at ASC, id ASC);
+      CREATE INDEX IF NOT EXISTS company_case_events_case_seq_idx
+        ON company_case_events (case_id, seq DESC);
     `,
   },
 
