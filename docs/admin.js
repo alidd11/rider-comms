@@ -2291,7 +2291,10 @@
     if (!isCurrentRender(generation)) return;
     pageEl.replaceChildren(
       pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
-      addStaffForm(),
+      el('details', { class: 'workspace-disclosure staff-add-details' }, [
+        el('summary', { text: 'Add a staff member' }),
+        addStaffForm(),
+      ]),
       el('h2', { class: 'section-title', text: 'Team' }),
       el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, staff.map((member) => el('li', { class: 'list-row staff-row', dataset: { riderId: member.riderId } }, [
         person(name(member), sub(member), member.riderId),
@@ -2308,8 +2311,10 @@
         ]))),
       ])])]),
       ...signInHistory(events),
-      el('h2', { class: 'section-title', text: 'Roles' }),
-      roleMatrix(),
+      el('details', { class: 'workspace-disclosure staff-roles-details' }, [
+        el('summary', { text: 'Role permissions' }),
+        roleMatrix(),
+      ]),
     );
   }
 
