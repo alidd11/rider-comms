@@ -148,15 +148,17 @@ const { outputFiles } = await build({
   target: 'es2022', minify: true, legalComments: 'none',
 });
 const previewScript = outputFiles?.[0]?.text;
-if (!previewScript || /<\\/script/i.test(previewScript)) {
+if (!previewScript || previewScript.toLowerCase().includes('</script')) {
   throw new Error('Unsafe or empty map preview bundle');
 }
 const previewTemplate = await readFile(resolve('map-lab/index.html'), 'utf8');
 const previewCss = await readFile(resolve('map-lab/preview.css'), 'utf8');
 // Source map-lab stays developer-only. Strip its local CSP: the srcdoc inherits
 // the verified launcher's CSP, including the exact inline-script SHA-256 hash.
+const cspMeta = previewTemplate.split('\n').find((line) => line.includes('<meta http-equiv="Content-Security-Policy"'));
+if (!cspMeta) throw new Error('Missing map-lab CSP marker');
 let payload = previewTemplate
-  .replace(/  <meta http-equiv="Content-Security-Policy"[^\\n]*\\n/, '')
+  .replace(cspMeta + '\n', '')
   .replace('<link rel="stylesheet" href="./preview.css">', `<style>${previewCss}</style>`)
   .replace('<script type="module" src="./preview.mjs"></script>', `<script>${previewScript}</script>`);
 if (payload.includes('./preview.mjs') || payload.includes('http-equiv="Content-Security-Policy"')) {
@@ -167,7 +169,10 @@ if (payload.includes('./preview.mjs') || payload.includes('http-equiv="Content-S
 const escapeAttr = (str) => str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const betaPath = resolve(destination, 'map-beta', 'index.html');
 const betaTemplate = await readFile(betaPath, 'utf8');
-const wrapperScript = betaTemplate.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
+const wrapperOpen = betaTemplate.indexOf('<script>');
+const wrapperClose = betaTemplate.indexOf('</script>', wrapperOpen);
+const wrapperScript = wrapperOpen !== -1 && wrapperClose > wrapperOpen
+  ? betaTemplate.slice(wrapperOpen + '<script>'.length, wrapperClose) : '';
 if (!wrapperScript || !betaTemplate.includes('__RIDER_MAPS_SRCDOC__')) {
   throw new Error('Map beta launcher is missing its controlled script or sandbox placeholder');
 }
