@@ -2463,15 +2463,26 @@
     signOutButton.disabled = true;
     const active = session;
     clearStaffSession();
+    // Remove sensitive records from the screen immediately, even if server
+    // sign-out is slow or the device loses connectivity.
+    navEl.hidden = true;
+    footerEl.replaceChildren();
+    pageEl.replaceChildren(el('div', { class: 'card notice' }, [
+      emptyState('lock', 'Signing out', 'Closing the staff workspace on this device.'),
+    ]));
     // Signing out of this admin view must not revoke a separate rider-app
     // session used for navigation. Revoke only tokens issued for Staff.
     if (active?.source === 'staff') {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       try {
         await fetch(`${API_BASE_URL}/auth/logout`, {
           method: 'POST', headers: { Authorization: `Bearer ${active.token}` },
           credentials: 'omit', redirect: 'error', cache: 'no-store',
+          signal: controller.signal,
         });
       } catch { /* Local sign-out still removes the bearer token. */ }
+      finally { clearTimeout(timeout); }
     }
     location.reload();
   });
