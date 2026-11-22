@@ -169,7 +169,7 @@ export class CompanyCaseStore {
   async mutate(input: { id: string; actorId: string; actorRole: StaffRole;
     expectedVersion: number; action: 'note' | 'status' | 'priority' | 'assign';
     note: string; value?: string | null }): Promise<CaseMutation> {
-    return withTransaction(async (client) => {
+    return withTransaction<CaseMutation>(async (client) => {
       const { rows } = await client.query<CaseRow>('SELECT * FROM company_cases WHERE id = $1 FOR UPDATE', [input.id]);
       const row = rows[0];
       if (!row || !canAccessCaseKind(input.actorRole, row.kind)) return { ok: false, error: 'not_found' };
