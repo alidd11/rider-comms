@@ -1836,3 +1836,22 @@ html { scroll-padding-top: 78px; }
 .overview-more[open] { padding-bottom: 16px; }
 .overview-more > .company-hero { margin-top: 12px; }
 .overview-more > .company-portfolio { margin-top: 16px; }
+
+.workspace-disclosure {
+  margin: 0 0 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.workspace-disclosure > summary {
+  min-height: 44px; padding: 12px 15px;
+  cursor: pointer; color: var(--fg);
+  font-weight: 650; font-size: 13px;
+}
+.workspace-disclosure > summary:hover { color: var(--accent); }
+.workspace-disclosure > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.workspace-disclosure[open] > summary { border-bottom: 1px solid var(--border); }
+.workspace-disclosure > form,
+.workspace-disclosure > section,
+.workspace-disclosure > .card { margin: 12px; }
+.staff-roles-details { margin-top: 20px; }
