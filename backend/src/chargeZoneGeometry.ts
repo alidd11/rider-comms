@@ -5,6 +5,7 @@
  */
 import { validChargingZoneId, type ChargingSchemeId } from './chargingRules.ts';
 import { reviewChargeEvidenceFreshness } from './chargeSourceFreshness.ts';
+import { parseChargeInstant } from './chargeInstant.ts';
 
 type Position = readonly number[];
 type Ring = readonly Position[];
@@ -37,7 +38,6 @@ export interface ZoneScreenResult {
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
 const MAX_POLYGONS = 128;
 const MAX_VERTICES = 150_000;
 const MAX_ROUTE_POINTS = 10_000;
@@ -125,9 +125,7 @@ export function compileChargeZoneGeoJson(geojson: unknown, provenance: ChargeZon
     || !validDate(provenance.effectiveFrom) || !validDate(provenance.effectiveThrough)
     || !validDate(provenance.reviewedThrough) || provenance.effectiveFrom > provenance.effectiveThrough
     || provenance.reviewedThrough < provenance.effectiveFrom
-    || typeof provenance.checkedAt !== 'string' || !INSTANT.test(provenance.checkedAt)
-    || !validDate(provenance.checkedAt.slice(0, 10))
-    || !Number.isFinite(Date.parse(provenance.checkedAt))) return null;
+    || parseChargeInstant(provenance.checkedAt) === null) return null;
   if (!geojson || typeof geojson !== 'object' || rejectsCoordinateOverride(geojson)) return null;
   const obj = geojson as { type?: unknown; features?: unknown; geometry?: unknown; coordinates?: unknown };
   const geometries: unknown[] = obj.type === 'FeatureCollection' && Array.isArray(obj.features)

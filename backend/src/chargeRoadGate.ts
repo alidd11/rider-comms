@@ -8,6 +8,7 @@
  */
 import { londonChargingDate, validChargingZoneId, type ChargingSchemeId } from './chargingRules.ts';
 import type { RoutePosition } from './chargeZoneGeometry.ts';
+import { reviewChargeEvidenceFreshness } from './chargeSourceFreshness.ts';
 
 export type GateDirection = 'either' | 'negative_to_positive' | 'positive_to_negative';
 export interface ReviewedRoadGate {
@@ -16,6 +17,8 @@ export interface ReviewedRoadGate {
   zoneId?: string;
   /** Authority/source provenance must be checked before a gate is shipped. */
   sourceUrl: string;
+  /** When the operator's road geometry was actually rechecked (offset-bearing instant). */
+  checkedAt: string;
   effectiveFrom: string;
   effectiveThrough: string;
   reviewedThrough: string;
@@ -67,10 +70,13 @@ function validPosition(value: unknown): value is RoutePosition {
   return typeof p.lon === 'number' && Number.isFinite(p.lon) && Math.abs(p.lon) <= 180
     && typeof p.lat === 'number' && Number.isFinite(p.lat) && Math.abs(p.lat) <= 90;
 }
-function validGate(gate: ReviewedRoadGate, date: string): boolean {
+function validGate(gate: ReviewedRoadGate, date: string, passageAt: string): boolean {
   if (!gate || typeof gate.id !== 'string' || !/^[a-z][a-z0-9_-]{2,63}$/.test(gate.id)
     || !SCHEMES.has(gate.schemeId) || !validChargingZoneId(gate.schemeId, gate.zoneId)
     || !validHttps(gate.sourceUrl)
+    // A declared validity end does not prove that the source was recently checked.
+    // This remains advisory: a fresh timestamp is not proof of operator approval.
+    || reviewChargeEvidenceFreshness('geometry', gate.checkedAt, passageAt).status !== 'fresh'
     || !validDay(gate.effectiveFrom) || !validDay(gate.effectiveThrough) || !validDay(gate.reviewedThrough)
     || gate.effectiveFrom > gate.effectiveThrough || date < gate.effectiveFrom
     || date > gate.effectiveThrough || date > gate.reviewedThrough
@@ -110,7 +116,7 @@ export function screenReviewedRoadGates(
   if (!hasMovement) return unknown('invalid_route_or_date');
   if (!Array.isArray(gates) || gates.length === 0 || gates.length > MAX_GATE_COUNT
     || new Set(gates.map(g => g?.id)).size !== gates.length
-    || gates.some(g => !validGate(g, date))) return unknown('invalid_gate_data');
+    || gates.some(g => !validGate(g, date, passageAt))) return unknown('invalid_gate_data');
   const candidates: GateCandidate[] = [];
   let ambiguous = false;
   for (const gate of gates) {

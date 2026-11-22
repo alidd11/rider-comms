@@ -5,6 +5,7 @@ import { screenReviewedRoadGates, type ReviewedRoadGate } from '../src/chargeRoa
 const gate: ReviewedRoadGate = {
   id: 'sample_gate', schemeId: 'blackwall_silvertown',
   sourceUrl: 'https://tfl.gov.uk/modes/driving/silvertown-blackwall-tunnels-charge',
+  checkedAt: '2026-11-22T12:00:00Z',
   effectiveFrom: '2026-01-01', effectiveThrough: '2026-12-31', reviewedThrough: '2026-12-31',
   start: { lon: -1, lat: 0 }, end: { lon: 1, lat: 0 }, direction: 'either',
 };
@@ -63,6 +64,26 @@ describe('offline candidate road gate screening', () => {
     const caz: ReviewedRoadGate = { ...gate, schemeId: 'uk_caz', zoneId: 'bradford_caz' };
     assert.equal(screenReviewedRoadGates(north, date, [caz]).candidates[0]?.zoneId, 'bradford_caz');
     assert.equal(screenReviewedRoadGates(north, date, [{ ...caz, zoneId: undefined }]).reason, 'invalid_gate_data');
+  });
+  it('fails closed on stale, post-passage or malformed road-gate source reviews', () => {
+    assert.equal(screenReviewedRoadGates(north, date,
+      [{ ...gate, checkedAt: '2026-10-01T00:00:00Z' }]).reason, 'invalid_gate_data');
+    assert.equal(screenReviewedRoadGates(north, date,
+      [{ ...gate, checkedAt: '2026-11-24T12:00:00Z' }]).reason, 'invalid_gate_data');
+    assert.equal(screenReviewedRoadGates(north, date,
+      [{ ...gate, checkedAt: '2026-11-22T24:00:00Z' }]).reason, 'invalid_gate_data');
+    assert.equal(screenReviewedRoadGates(north, date,
+      [{ ...gate, checkedAt: '2026-11-22T12:00:00+14:30' }]).reason, 'invalid_gate_data');
+    assert.equal(screenReviewedRoadGates(north, date,
+      [{ ...gate, checkedAt: undefined as unknown as string }]).reason, 'invalid_gate_data');
+    // Boundary policy: exactly 30 days is admissible; one millisecond older isn't.
+    assert.equal(screenReviewedRoadGates(north, date,
+      [{ ...gate, checkedAt: '2026-10-24T12:00:00Z' }]).possibleGateContacts, 1);
+    assert.equal(screenReviewedRoadGates(north, date,
+      [{ ...gate, checkedAt: '2026-10-24T11:59:59.999Z' }]).reason, 'invalid_gate_data');
+    // BST offset must map to the same instant, not an incorrect local date.
+    assert.equal(screenReviewedRoadGates(north, '2026-07-01T11:00:00Z',
+      [{ ...gate, checkedAt: '2026-06-30T12:00:00+01:00' }]).possibleGateContacts, 1);
   });
   it('fails closed on missing, malformed, duplicated or too-long inputs', () => {
     assert.equal(screenReviewedRoadGates([], date, [gate]).reason, 'invalid_route_or_date');
