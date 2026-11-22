@@ -859,6 +859,28 @@ test.describe('staff dashboard', () => {
     await expect(page.getByRole('list', { name: 'Case activity history' })).toContainText('Confirmed account case opened');
   });
 
+  test('case titles remain inert text, not executable HTML', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#cases');
+    await page.getByRole('button', { name: 'New case' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New company case' });
+    await dialog.getByLabel('Case title').fill('<img src=x onerror="window.__case_xss=1">');
+    await dialog.getByRole('button', { name: 'Create internal case' }).click();
+    await expect(page.locator('.page-title')).toContainText('<img src=x onerror=');
+    expect(await page.evaluate(() => window.__case_xss)).toBeUndefined();
+    await expect(page.locator('#page img')).toHaveCount(0);
+  });
+
+  test('moderators can see internal appeal cases but not customer support or privacy records', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'moderator' });
+    await page.goto('/admin.html#cases');
+    await expect(page.locator('.case-item')).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'Moderation decision review' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Case categories' })).not.toContainText('Customer support');
+  });
+
   test('support sees support cases only, while analysts cannot open the case desk', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page, { role: 'support' });
