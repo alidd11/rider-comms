@@ -88,13 +88,13 @@ describe('native private account data export file handling', () => {
     expect(mockFiles.directoryExists).toBe(true);
     expect(mockFiles.createCalls).toBe(1);
     expect(file.name).toMatch(/^rider-comms-data-1800000000000-[a-z0-9]{8}\.json$/);
-    expect(JSON.parse((file as MockExportFile).data)).toEqual({ messages: [{ text: privateText }] });
+    expect(JSON.parse((file as unknown as MockExportFile).data)).toEqual({ messages: [{ text: privateText }] });
     expect(mockFiles.deleted).toEqual([]);
     pruneExpiredAccountExports(NOW + ACCOUNT_EXPORT_MAX_CACHE_AGE_MS - 1);
     expect(mockFiles.deleted).toEqual([]);
     pruneExpiredAccountExports(NOW + ACCOUNT_EXPORT_MAX_CACHE_AGE_MS);
     expect(mockFiles.deleted).toEqual([file.name]);
-    expect((file as MockExportFile).exists).toBe(false);
+    expect((file as unknown as MockExportFile).exists).toBe(false);
   });
 
   test('prunes only expired exported JSON and never deletes unrelated cache files', () => {
