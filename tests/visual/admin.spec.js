@@ -483,7 +483,8 @@ test.describe('staff dashboard', () => {
     // happen on first registration until a *different* worker is installed.
     expect(await page.evaluate(() => sessionStorage.getItem('__staff_update_applied'))).toBeNull();
     const reloaded = page.waitForEvent('load');
-    await page.evaluate(() => window.__staffTestUpdate.announce());
+    // Defer until after the evaluation context returns: activation reloads.
+    await page.evaluate(() => { setTimeout(() => window.__staffTestUpdate.announce(), 0); });
     await reloaded;
     expect(await page.evaluate(() => sessionStorage.getItem('__staff_update_applied'))).toBe('yes');
     await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
