@@ -35,7 +35,7 @@ assert.doesNotMatch(html, /'unsafe-inline'|'unsafe-eval'/);
 assert.match(adminJs, /\/auth\/staff-login/);
 assert.match(adminJs, /\/admin\/me/);
 assert.match(adminJs, /STAFF_SESSION_KEY/);
-assert.match(adminJs, /IS_STAFF_PWA && 'serviceWorker' in navigator/);
+assert.match(adminJs, /!IS_STAFF_PWA \|\| !\('serviceWorker' in navigator\)/);
 assert.match(adminJs, /workers\.register\('\.\/sw\.js', \{ scope: '\.\/', updateViaCache: 'none' \}/);
 assert.match(adminJs, /registration\.update\(\)/);
 assert.match(adminJs, /visibilitychange/);
