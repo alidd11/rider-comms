@@ -86,6 +86,7 @@ export function parseCaseCursor(raw: string | null): { at: number; id: string } 
 
 export class CompanyCaseStore {
   async list(kinds: CaseKind[], options: { kind?: CaseKind; status?: CaseStatus; limit: number;
+    owner: 'all' | 'mine' | 'unassigned'; actorId: string;
     before: { at: number; id: string } | null }) {
     const selected = options.kind ? kinds.filter((kind) => kind === options.kind) : kinds;
     if (selected.length === 0) return { items: [] as CompanyCase[], hasMore: false, nextCursor: null as string | null, generatedAt: Date.now() };
@@ -94,13 +95,44 @@ export class CompanyCaseStore {
        WHERE kind = ANY($1::text[])
        AND ($2::text IS NULL OR status = $2)
        AND ($3::bigint IS NULL OR (updated_at, id) < ($3::bigint, $4::uuid))
-       ORDER BY updated_at DESC, id DESC LIMIT $5`,
-      [selected, options.status ?? null, options.before?.at ?? null, options.before?.id ?? null, options.limit + 1],
+       AND ($5::text = 'all' OR ($5 = 'mine' AND assigned_to = $6)
+          OR ($5 = 'unassigned' AND assigned_to IS NULL))
+       ORDER BY updated_at DESC, id DESC LIMIT $7`,
+      [selected, options.status ?? null, options.before?.at ?? null, options.before?.id ?? null,
+        options.owner, options.actorId, options.limit + 1],
     );
     const hasMore = rows.length > options.limit;
     const items = rows.slice(0, options.limit).map(toCase);
     const last = items.at(-1);
     return { items, hasMore, nextCursor: hasMore && last ? last.updatedAt + ':' + last.id : null, generatedAt: Date.now() };
+  }
+
+  /** Real database counts, scoped to the caller's visible workstreams.
+   * Distinguishes all case records from actionable cases and own workload. */
+  async summary(kinds: CaseKind[], actorId: string) {
+    const { rows } = await getPool().query<{
+      kind: CaseKind; total: string; active: string; unassigned: string; mine: string; urgent: string;
+    }>(
+      `SELECT kind, COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed')) AS active,
+        COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed') AND assigned_to IS NULL) AS unassigned,
+        COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed') AND assigned_to = $2) AS mine,
+        COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed') AND priority = 'urgent') AS urgent
+       FROM company_cases WHERE kind = ANY($1::text[]) GROUP BY kind`,
+      [kinds, actorId],
+    );
+    const byKind = kinds.map((kind) => {
+      const row = rows.find((value) => value.kind === kind);
+      return { kind, total: Number(row?.total ?? 0), active: Number(row?.active ?? 0),
+        unassigned: Number(row?.unassigned ?? 0), mine: Number(row?.mine ?? 0),
+        urgent: Number(row?.urgent ?? 0) };
+    });
+    const totals = byKind.reduce((value, item) => ({
+      total: value.total + item.total, active: value.active + item.active,
+      unassigned: value.unassigned + item.unassigned, mine: value.mine + item.mine,
+      urgent: value.urgent + item.urgent,
+    }), { total: 0, active: 0, unassigned: 0, mine: 0, urgent: 0 });
+    return { generatedAt: Date.now(), byKind, totals };
   }
 
   async detail(id: string): Promise<{ item: CompanyCase; events: CaseEvent[] } | null> {
