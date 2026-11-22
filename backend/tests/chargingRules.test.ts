@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { assessChargeExposure, type ChargingRule, type ChargeAssessmentInput } from '../src/chargingRules.ts';
+import { assessChargeExposure, londonChargingDate, type ChargingRule, type ChargeAssessmentInput } from '../src/chargingRules.ts';
 
 // Synthetic, verified-through samples for deterministic contract tests only.
 // They are NOT production charge schedules or boundary sources.
@@ -65,6 +65,14 @@ describe('future road-charge assessment (never used by live routing)', () => {
     assert.equal(run({ rule: { ...congestionRule, exceptions: [{ date: '2026-02-30', periods: [] }] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, exceptions: [{ date: '2026-01-05', periods: [{ startMinute: -1, endMinute: 130 }] }] } }).outcome, 'unknown');
     assert.equal(run({ rule: { ...congestionRule, exceptions: [congestionRule.exceptions[0]!, congestionRule.exceptions[0]!] } }).outcome, 'unknown');
+  });
+  it('refuses normalised 24:00 and out-of-range offsets before assessing charging', () => {
+    for (const bad of ['2026-01-05T24:00:00Z','2026-01-05T08:00:00+14:01']) {
+      assert.equal(londonChargingDate(bad), null);
+      assert.equal(run({ passageAt: bad }).outcome, 'unknown');
+    }
+    assert.equal(run({ rule: { ...congestionRule,
+      checkedAt: '2026-01-04T24:00:00Z' } }).outcome, 'unknown');
   });
   it('does not extrapolate regulations beyond the verified date range or holiday coverage', () => {
     assert.deepEqual(run({ passageAt: '2027-01-01T09:00:00Z' }), { schemeId: 'london_congestion', outcome: 'unknown', reason: 'outside_verified_period' });

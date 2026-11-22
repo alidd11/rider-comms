@@ -5,6 +5,7 @@
  * Never turn client-declared passes into verified exemptions.
  */
 import { reviewChargeEvidenceFreshness } from './chargeSourceFreshness.ts';
+import { parseChargeInstant } from './chargeInstant.ts';
 
 export type ChargingSchemeId =
   | 'london_congestion' | 'london_ulez' | 'london_lez'
@@ -82,7 +83,6 @@ const LONDON_PARTS = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 });
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
 const WEEKDAYS: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 const VEHICLES = new Set<ChargeVehicleClass>(['motorcycle', 'car', 'van', 'heavy', 'other']);
 const WAIVERS = new Set(['exempt', 'compliant']);
@@ -107,10 +107,8 @@ function validDate(value: unknown): value is string {
   return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === value;
 }
 function parseInstant(value: unknown): Date | null {
-  if (typeof value !== 'string' || !ISO_INSTANT.test(value)) return null;
-  if (!validDate(value.slice(0, 10))) return null;
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? date : null;
+  const instant = parseChargeInstant(value);
+  return instant === null ? null : new Date(instant);
 }
 function validPeriod(value: unknown): value is { startMinute: number; endMinute: number } {
   if (!value || typeof value !== 'object') return false;

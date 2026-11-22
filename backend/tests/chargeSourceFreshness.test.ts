@@ -34,11 +34,15 @@ describe('future-only charge/entitlement/geometry review freshness', () => {
     assert.equal(screen('rule','2026-11-22T10:00:00Z').status, 'fresh');
     for (const bad of ['',null,123,{},'2026-02-30T00:00:00Z',
       '2026-11-22T12:00:00','2026-11-22','2026-11-22T12:00:00+14:01',
-      '2026-11-22T10:00:00+99:00']) {
+      '2026-11-22T10:00:00+99:00',
+      '2026-11-22T24:00:00Z','2026-11-22T23:60:00Z',
+      '2026-11-22T10:00:60Z','2026-11-22T10:00:00+14:30']) {
       assert.equal(screen('rule',bad).status, 'invalid_timestamp');
     }
     assert.equal(screen('rule', '2026-11-21T10:00:00Z','2026-02-30T10:00:00Z').status,'invalid_timestamp');
     assert.equal(screen('rule', '2026-11-21T10:00:00Z','bad').status,'invalid_timestamp');
+    assert.equal(screen('rule','2026-11-21T10:00:00Z',
+      '2026-11-22T24:00:00Z').status, 'invalid_timestamp');
   });
   it('correctly handles BST offsets, the leap day and a genuine cross-midnight interval', () => {
     assert.equal(screen('entitlement','2026-11-21T11:00:00+01:00').status, 'fresh');
