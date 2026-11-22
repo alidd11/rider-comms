@@ -1950,6 +1950,15 @@
     if (searchOpener?.isConnected && searchOpener.getClientRects().length) searchOpener.focus();
     searchOpener = null;
   });
+  // Some mobile Chromium/tablet configurations do not automatically dismiss
+  // a modal <dialog> on a simulated hardware Escape key. Handle it explicitly
+  // before the sidebar's own Escape listener and leave other dialogs alone.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !searchDialog.open) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    searchDialog.close();
+  }, true);
   document.addEventListener('keydown', (event) => {
     if (searchDialog.open || !me || event.altKey) return;
     const editable = event.target?.closest?.('input, textarea, select, [contenteditable="true"]');
