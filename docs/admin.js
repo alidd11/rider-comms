@@ -716,8 +716,9 @@
       el('span', { class: 'company-hero-metric-label', text: label }),
       el('strong', { class: 'company-hero-metric-value', text: formatNumber(value) }),
     ]);
-    const unit = ({ title, status, description, fact, destination, action, unavailable = false }) => {
-      const canOpen = destination && allowed(VIEW_PERMISSIONS[destination]);
+    const unit = ({ title, status, description, fact, destination, action, permittedRoles, unavailable = false }) => {
+      const canOpen = destination && allowed(VIEW_PERMISSIONS[destination])
+        && (!permittedRoles || permittedRoles.includes(me?.role));
       const button = canOpen ? el('button', { type: 'button', class: 'button button-small', text: action }) : null;
       if (button) button.addEventListener('click', () => selectView(destination));
       return el('article', { class: 'company-unit', dataset: { unavailable: String(unavailable) } }, [
@@ -764,7 +765,7 @@
           unit({ title: 'Customer support', status: 'Account tools',
             description: 'Investigate rider accounts and help with access, verification, devices and recovery. A durable ticket and SLA queue is not connected yet.',
             fact: 'Account assistance exists · support tickets are pending',
-            destination: 'cases', action: 'Open support cases' }),
+            destination: 'cases', action: 'Open support cases', permittedRoles: ['admin', 'support'] }),
           unit({ title: 'People & access', status: 'Role-gated',
             description: 'Manage operational staff roles, recent authentication events and privileged access.',
             fact: 'Roles: Admin · Moderator · Support · Analyst',
@@ -776,7 +777,7 @@
           unit({ title: 'Privacy & compliance', status: 'Partial',
             description: 'Staff audit history, admin-only rider data export and governance runbooks are available. Privacy request case tracking is not connected yet.',
             fact: 'Audit records available · request tracking pending',
-            destination: 'cases', action: 'Open privacy cases' }),
+            destination: 'cases', action: 'Open privacy cases', permittedRoles: ['admin'] }),
           unit({ title: 'Commercial & billing', status: 'Not connected', unavailable: true,
             description: 'Company revenue, subscriptions, refunds and payment reconciliation need an authorised reporting integration.',
             fact: 'No financial totals shown until validated against the billing provider' }),
