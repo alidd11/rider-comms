@@ -972,6 +972,39 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.page-title')).toHaveText('System');
   });
 
+  test('case activity reports come from a labelled full-history API without hiding the queue', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#cases');
+    await expect(page.locator('.case-item')).toHaveCount(4);
+    const report = page.locator('.case-activity-report');
+    await expect(report).toBeVisible();
+    await expect(report).toContainText('last 7 days');
+    await expect(report).not.toHaveAttribute('open', '');
+    await report.locator('summary').click();
+    await expect(report).toContainText('Complete counts from retained internal cases');
+    await expect(report).toContainText('not a response-time SLA');
+    await page.getByRole('combobox', { name: 'Reporting period' }).selectOption('30');
+    await expect(page.locator('.case-activity-report > summary')).toContainText('last 30 days');
+    await expect(page.locator('.case-item')).toHaveCount(4);
+  });
+
+  test('Social safety reporting is opt-in, source-scoped and leaves content moderation usable', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    await page.getByRole('button', { name: 'Social posts' }).click();
+    const report = page.locator('.social-activity-report');
+    await expect(report).toBeVisible();
+    await expect(report).toContainText('last 7 days');
+    await expect(report).not.toHaveAttribute('open', '');
+    await expect(page.locator('[data-post-id]')).toHaveCount(1);
+    await report.locator('summary').click();
+    await expect(report).toContainText('Hidden now');
+    await expect(report).toContainText('not a Social audience or engagement report');
+    await expect(page.getByRole('button', { name: 'Restore post' })).toBeVisible();
+  });
+
   test('case desk shows real staff-scoped workstreams and a full internal case detail', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
