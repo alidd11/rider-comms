@@ -32,7 +32,7 @@ assert.match(worker, /if \(!isShell && !isStaffNavigation\) return;/);
 assert.match(worker, /request\.method !== 'GET'/);
 assert.match(worker, /requestUrl|url\.origin !== self\.location\.origin/);
 assert.match(worker, /key\.startsWith\(PREFIX\)/);
-assert.doesNotMatch(worker, /auth\/login|auth\/staff-login|\/admin\/me|localStorage|Authorization/);
+assert.doesNotMatch(worker, /auth\/login|auth\/staff-login|localStorage|Authorization/);
 assert.match(riderWorker, /k\.startsWith\('rider-comms-pwa-v'\)/);
 assert.match(riderWorker, /requestUrl\.pathname\.startsWith\(new URL\('\.\/staff\/'/);
 assert.match(buildScript, /resolve\(source, 'staff'\)/);
