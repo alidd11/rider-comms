@@ -1908,9 +1908,13 @@
     const available = permittedCaseKinds();
     if (caseKind !== 'all' && !available.includes(caseKind)) caseKind = 'all';
     const params = new URLSearchParams({ kind: caseKind, status: caseStatus, owner: caseOwner, limit: '25' });
-    const [result, workload] = await Promise.all([
+    const [result, workload, history] = await Promise.all([
       api('GET', '/admin/cases?' + params.toString()),
       api('GET', '/admin/cases/summary'),
+      api('GET', '/admin/cases/activity?days=' + period).catch((error) => {
+        if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
+        return null;
+      }),
     ]);
     if (!isCurrentRender(generation)) return;
     const create = el('button', { type: 'button', class: 'button button-primary', text: 'New case' });
@@ -1937,6 +1941,24 @@
       metric('Unassigned', counts.unassigned, 'Active cases without an owner'),
       metric('Urgent', counts.urgent, 'Active high-priority escalation'),
     ]);
+    const caseActivity = el('details', { class: 'workspace-disclosure case-activity-report' }, [
+      el('summary', { text: history
+        ? `Case activity · last ${period} days · ${formatNumber(history.totals.created)} opened`
+        : 'Case activity report unavailable' }),
+      history ? el('div', { class: 'case-activity-body' }, [
+        el('p', { class: 'case-help', text:
+          'Complete counts from retained internal cases and events, across the workstreams your role may access. ' +
+          'This is not a response-time SLA or a legal deadline report.' }),
+        el('div', { class: 'case-activity-stats' }, [
+          el('span', { text: 'Opened ' + formatNumber(history.totals.created) }),
+          el('span', { text: 'Resolved/closed changes ' + formatNumber(history.totals.resolvedTransitions) }),
+          el('span', { text: 'Internal notes ' + formatNumber(history.totals.internalNotes) }),
+          el('span', { text: 'Owner changes ' + formatNumber(history.totals.assignmentChanges) }),
+          el('span', { text: 'Overdue internal targets ' + formatNumber(history.totals.overdueTargets) }),
+        ]),
+      ]) : el('p', { class: 'case-help', text:
+        'Historical case reporting could not be loaded. The case queue and its real-time workload remain available.' }),
+    ]);
     const list = el('ul', { class: 'case-list', 'aria-label': 'Internal work cases' },
       result.items.map(caseRecord));
     const recentCases = result.items.filter((item) => inReportingWindow(item.updatedAt)).length;
@@ -1962,6 +1984,7 @@
       pageHeader('Case desk', 'Manage the company’s internal support, appeal, privacy and incident work with a recorded audit trail.', [create]),
       el('section', { class: 'case-workspace' }, [
         workloadPanel,
+        caseActivity,
         el('div', { class: 'case-filter-label', text: 'Workstream' }),
         el('div', { class: 'scroll-row case-filters' }, [kindTabs]),
         el('div', { class: 'case-filter-label', text: 'Status' }),
