@@ -207,6 +207,36 @@ describe('staff tools', { skip: !hasDatabase && 'DATABASE_URL not set' }, () => 
       && e.previousAssignee === MOD && e.assigneeId === MOD2 && e.note === 'Supervisor reassigned'));
   });
 
+
+  it('releases active case ownership with an audit event on staff revocation or downgrade', async () => {
+    await report('rep-owner-revoke');
+    await report('rep-owner-downgrade');
+    assert.equal((await postJson(ctx, MOD, '/moderation/reports/rep-owner-revoke/assign',
+      { note: 'Owned for investigation' })).status, 200);
+    assert.equal((await postJson(ctx, MOD2, '/moderation/reports/rep-owner-downgrade/assign',
+      { note: 'Owned for investigation' })).status, 200);
+
+    const revoked = await store.removeStaffRole(MOD, ADMIN, 'Access revoked by administrator');
+    assert.equal(revoked.ok, true);
+    const downgraded = await store.setStaffRole(MOD2, 'support', ADMIN, 'New support role');
+    assert.equal(downgraded.ok, true);
+    assert.equal((await store.reportById('rep-owner-revoke'))?.assignedTo, null);
+    assert.equal((await store.reportById('rep-owner-downgrade'))?.assignedTo, null);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/moderation/reports/rep-owner-revoke')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, MOD2, '/moderation/reports/rep-owner-downgrade')).status, 403);
+
+    for (const id of ['rep-owner-revoke', 'rep-owner-downgrade']) {
+      const events = await store.assignmentHistory(id);
+      assert.equal(events?.length, 2);
+      assert.equal(events?.[0]?.event, 'released');
+      assert.equal(events?.[0]?.actorId, ADMIN);
+      assert.match(events?.[0]?.note ?? '', /Staff access changed/);
+      assert.equal(events?.[0]?.assigneeId, null);
+    }
+    assert.equal((await postJson(ctx, ADMIN, '/moderation/reports/rep-owner-revoke/assign',
+      { assigneeId: MOD, note: 'Attempt to reassign revoked moderator' })).status, 403);
+  });
+
   it('serialises competing case assignments and refuses changes after resolution', async () => {
     await report('rep-owner-race');
     const endpoint = '/moderation/reports/rep-owner-race/assign';
