@@ -26,8 +26,8 @@ The hierarchy should be:
 | Domain | Verified current capability | Limitation / implementation boundary |
 | --- | --- | --- |
 | Company overview | GET /admin/overview returns signups, riders, active riders, live rides, community aggregates, hazards, moderation, funnel and daily series | Snapshot-based; no payment, support SLA or Rider Social audience totals in this endpoint |
-| Rider support | Rider lookup, per-account detail, verify-email / reset-password / session revocation and data export | No end-to-end staff support ticket queue, response SLA or customer correspondence workflow represented by current dashboard |
-| Safety | Moderation report and hidden Social post queues, action inbox, assignment history and staff audit actions | Appeals, evidence handling and review SLAs require explicit backend contracts |
+| Rider support | Rider lookup, per-account detail, verify-email / reset-password / session revocation, and **PR #580 internal case desk** with owner/status/notes/events | Case desk is staff-created and internal-only; no rider correspondence, external intake, SLA automation or customer-visible ticketing yet |
+| Safety | Moderation report and hidden Social post queues, action inbox, assignment history and staff audit actions; **PR #580 manually created appeal cases** | User-initiated appeals, evidence handling, linkage to source moderation decisions and response SLAs still require backend contracts |
 | Staff | admin, moderator, support, analyst roles and permissions; privileged changes use a recent password recheck | Privileged MFA / passkeys, device trust, delegated approval and access reviews require further design and backend work |
 | Platform | /health, /ready, /admin/system, /admin/metrics, runbooks | Per-replica metrics are not whole-service SLOs or guaranteed availability figures |
 | Finance | Rider billing endpoints, app store and Google verification exist in the wider backend | No reconciled company financial report. Do not invent revenue, MRR, ARPU, costs or churn |
@@ -67,6 +67,15 @@ These sources guide design and backlog; they are not a claim that all obligation
 - Keep staff RBAC server-side and preserve legacy /admin.html and installed /staff/ parity (shared JS/CSS).
 - Run visual and accessibility checks across narrow phones, landscape, tablets, WebKit, keyboard and reduced motion.
 - Verify the precise PR head in CI and isolated security staging; do not merge or deploy on partial evidence.
+
+### Stage A.1 — internal company case workstream (implemented in draft PR #580)
+
+- PostgreSQL migration `0064_company_work_cases`, type-isolated staff case listing, cursor paging, detail and attributed event history.
+- Staff-created cases for customer support, appeals, privacy requests and incidents; actors must have their existing relevant staff roles.
+- Create, note, status transition, priority changes, ownership and admin reassignment endpoints; all writes reauthenticate and use row locking with optimistic version checks.
+- Linear-style Case Desk UI shared across /admin.html and /staff/, with responsive list, type/status filters, full case detail and history, safe text-only rendering and explanatory empty states.
+- Cases are **internal records only**, not customer-facing tickets, automatic data-subject-rights compliance, regulator reports or incident severity systems.
+- Still required: linked rider communications and intake, SLA timers, privacy verification/deadline safeguards, incident on-call/mitigation workflow, bulk triage, evidence pointers, exported record retention and independent production tests.
 
 ### Stage B — operational maturity
 
