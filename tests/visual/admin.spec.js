@@ -1575,6 +1575,8 @@ test.describe('staff dashboard', () => {
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText('Set on the backend');
 
+    await expect(page.locator('.staff-add-details')).not.toHaveAttribute('open', '');
+    await page.locator('.staff-add-details > summary').click();
     const form = page.locator('#addStaffForm');
     await form.getByRole('button', { name: 'Add to staff' }).click();
     await expect(form.locator('.error-text')).toHaveText('Enter their handle or rider ID and a reason.');
@@ -1607,6 +1609,9 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
 
+    // The permissions table is optional context, not an obligatory full-page wall of text.
+    await expect(page.locator('.staff-roles-details')).not.toHaveAttribute('open', '');
+    await page.locator('.staff-roles-details > summary').click();
     // The Case Desk permission adds an actual row to the staff rights matrix.
     await expect(page.locator('.matrix tbody tr')).toHaveCount(9);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
