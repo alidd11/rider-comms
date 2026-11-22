@@ -1275,6 +1275,15 @@ body.menu-visible { overflow: hidden; }
 .staff-login-form .error-text { margin: 0; line-height: 19px; }
 .staff-install-button { margin-top: 17px; min-height: 40px; }
 .staff-footer-account { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; overflow-wrap: anywhere; }
+.staff-footer-install-link {
+  display: block;
+  margin-top: 12px;
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 18px;
+  text-decoration: none;
+}
+.staff-footer-install-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .staff-signout {
   display: flex;
   align-items: center;
