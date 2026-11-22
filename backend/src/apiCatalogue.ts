@@ -32,6 +32,7 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
 
   e('POST', '/auth/signup', 'Account', 'public', 'Create an account'),
   e('POST', '/auth/login', 'Account', 'public', 'Sign in'),
+  e('POST', '/auth/staff-login', 'Account', 'public', 'Sign in to the Operations Hub using existing rider credentials; non-staff accounts are refused and any issued token is revoked'),
   e('POST', '/auth/verify-email', 'Account', 'public', 'Verify an email address with its link token'),
   e('POST', '/auth/password-reset/request', 'Account', 'public', 'Email a password reset link'),
   e('POST', '/auth/password-reset/confirm', 'Account', 'public', 'Set a new password with a reset token'),
