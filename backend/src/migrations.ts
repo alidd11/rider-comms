@@ -1084,4 +1084,26 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // A Social post report also creates a general safety report. Retain a
+    // source identifier after deletion so post decisions close linked cases.
+    name: '0062_social_safety_report_link',
+    sql: `
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS source_post_id UUID;
+      CREATE INDEX IF NOT EXISTS safety_reports_source_post_open_idx
+        ON safety_reports (source_post_id)
+        WHERE source_post_id IS NOT NULL AND status = 'open';
+      -- Backfill only when reporter, author, reason, time AND structured
+      -- prefix agree; a user-written report alone must not create a link.
+      UPDATE safety_reports r SET source_post_id = spr.post_id
+        FROM social_post_reports spr JOIN social_posts p ON p.id = spr.post_id
+       WHERE r.source_post_id IS NULL
+         AND r.reporter_id = spr.reporter_id
+         AND r.reported_rider_id = p.author_id
+         AND r.reason = spr.reason
+         AND r.created_at = spr.created_at
+         AND (r.details = 'Rider Social post ' || spr.post_id::text
+           OR r.details LIKE 'Rider Social post ' || spr.post_id::text || ':%');
+    `,
+  },
 ];

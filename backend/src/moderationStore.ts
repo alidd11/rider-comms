@@ -317,7 +317,9 @@ export class ModerationStore {
 
   /** The moderation queue: oldest open reports first by default, so reports
    * are handled in the order they arrived. */
-  async listReports(status: ReportStatus = 'open', limit = 50): Promise<QueuedSafetyReport[]> {
+  async listReports(status: ReportStatus = 'open', limit = 50,
+    { excludeHiddenSocial = false }: { excludeHiddenSocial?: boolean } = {},
+  ): Promise<QueuedSafetyReport[]> {
     await ensureMigrated();
     const { rows } = await getPool().query<QueuedReportRow>(
       `SELECT report.id, report.reporter_id, report.reported_rider_id, report.reason, report.details,
@@ -331,9 +333,13 @@ export class ModerationStore {
        FROM safety_reports report
        LEFT JOIN users u ON u.id = report.reported_rider_id
        WHERE report.status = $1
+         AND (NOT $4::boolean OR NOT EXISTS (
+           SELECT 1 FROM social_posts p
+           WHERE p.id = report.source_post_id AND p.hidden_at IS NOT NULL
+         ))
        ORDER BY report.created_at ${status === 'open' ? 'ASC' : 'DESC'}, report.id
        LIMIT $2`,
-      [status, limit, Date.now() - REPORT_CLAIM_TTL_MS],
+      [status, limit, Date.now() - REPORT_CLAIM_TTL_MS, excludeHiddenSocial],
     );
     return rows.map((row) => ({
       id: row.id,

@@ -43,7 +43,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     }
     const type = filter as InboxFilter;
     const [reports, socialPosts] = await Promise.all([
-      type === 'social_post' ? Promise.resolve([]) : moderationStore.listReports('open', INBOX_SAMPLE_SIZE),
+      type === 'social_post' ? Promise.resolve([]) : moderationStore.listReports('open', INBOX_SAMPLE_SIZE, { excludeHiddenSocial: true }),
       type === 'rider_report' ? Promise.resolve([]) : ctx.socialPostStore.listHidden(INBOX_SAMPLE_SIZE),
     ]);
     return sendJson(res, 200, buildActionInbox(reports, socialPosts, {
