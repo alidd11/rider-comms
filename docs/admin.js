@@ -2161,8 +2161,11 @@
     if (!appEl.classList.contains('menu-open')) return;
     if (event.key === 'Escape') { setMenu(false); menuToggle.focus(); return; }
     if (event.key !== 'Tab') return;
-    const focusables = [...document.querySelectorAll('.sidebar button:not([disabled]):not([hidden])')]
-      .filter((element) => element.getClientRects().length > 0);
+    // Include footer links as well as buttons in the mobile focus loop.
+    // Installed-app entry links and Staff sign-out are keyboard-reachable.
+    const focusables = [...document.querySelectorAll(
+      '.sidebar button:not([disabled]), .sidebar a[href], .sidebar input:not([disabled])',
+    )].filter((element) => !element.closest('[hidden]') && element.getClientRects().length > 0);
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
@@ -2511,7 +2514,7 @@
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         clearStaffSession();
-        renderStaffSignIn('This account no longer has staff access.');
+        renderStaffSignIn('This account does not have staff access.');
       } else if (error instanceof ApiError && error.status === 401) {
         clearStaffSession();
         renderStaffSignIn('Your session has expired. Please sign in again.');
