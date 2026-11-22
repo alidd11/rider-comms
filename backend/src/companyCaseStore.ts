@@ -107,10 +107,10 @@ export class CompanyCaseStore {
     const { rows } = await getPool().query<CaseRow>('SELECT * FROM company_cases WHERE id = $1', [id]);
     if (!rows[0]) return null;
     const history = await getPool().query<EventRow>(
-      'SELECT * FROM company_case_events WHERE case_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200',
+      'SELECT * FROM company_case_events WHERE case_id = $1 ORDER BY created_at DESC, id DESC LIMIT 200',
       [id],
     );
-    return { item: toCase(rows[0]), events: history.rows.map(toEvent) };
+    return { item: toCase(rows[0]), events: history.rows.reverse().map(toEvent) };
   }
 
   async create(input: { kind: CaseKind; title: string; description: string;
