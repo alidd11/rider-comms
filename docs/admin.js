@@ -2452,10 +2452,12 @@
   }
   const footerRole = el('span', { class: 'footer-role' });
   const footerInstall = installButton();
+  const legacyInstallLink = el('a', { class: 'staff-footer-install-link', href: './staff/',
+    text: 'Open installable Staff app' });
   const signOutButton = el('button', { type: 'button', class: 'staff-signout', text: 'Sign out of Staff' });
   const footerIdentity = (label) => footerEl.replaceChildren(
     el('div', { class: 'staff-footer-account' }, [label, footerRole]),
-    IS_STAFF_PWA ? footerInstall : null, signOutButton,
+    IS_STAFF_PWA ? footerInstall : legacyInstallLink, signOutButton,
   );
   signOutButton.addEventListener('click', async () => {
     signOutButton.disabled = true;
