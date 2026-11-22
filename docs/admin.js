@@ -1,15 +1,16 @@
-// Rider Comms staff dashboard: business overview, riders, moderation, the
-// audit log, staff roles and system health. Uses the PWA's own sign-in on
-// this origin (same session storage key), so staff sign in to the app in this
-// browser first. Each staff member has one role (admin, moderator, support or
-// analyst; backend/src/staffRoles.ts). The backend re-checks the role on
-// every /admin and /moderation request; this page only decides what to show.
+// Rider Comms Operations Hub: separate staff PWA login and web dashboard.
+// Staff authenticate using their Rider Comms account through /auth/staff-login.
+// The installed /staff/ app has its own session key, manifest and worker.
+// Every admin/moderation API still enforces the current server-side staff role.
 //
 // Rider-supplied text (names, report details, notes) is only ever inserted
 // with textContent, never parsed as HTML.
 (() => {
   const API_BASE_URL = 'https://backend-production-7fa0.up.railway.app';
   const SESSION_KEY = 'rider-comms-session-v1';
+  const STAFF_SESSION_KEY = 'rider-comms-staff-session-v1';
+  const STAFF_SIGNED_OUT_KEY = 'rider-comms-staff-signed-out-v1';
+  const IS_STAFF_PWA = /\/staff\/(?:index\.html)?$/.test(location.pathname);
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -108,15 +109,27 @@
   }
 
   function readSession() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STAFF_SESSION_KEY) || 'null');
+      if (stored?.token && stored?.riderId) return { ...stored, source: 'staff' };
+    } catch { /* Storage is optional; staff may sign in again. */ }
+    // Keep legacy /admin.html access for signed-in Rider Comms users, but
+    // installed /staff/ must NEVER depend on another app's isolated storage.
+    if (IS_STAFF_PWA) return null;
+    try { if (sessionStorage.getItem(STAFF_SIGNED_OUT_KEY) === '1') return null; } catch { /* no-op */ }
     for (const storage of [localStorage, sessionStorage]) {
       try {
         const stored = JSON.parse(storage.getItem(SESSION_KEY) || 'null');
-        if (stored?.token && stored?.riderId) return stored;
+        if (stored?.token && stored?.riderId) return { ...stored, source: 'legacy' };
       } catch { /* Ignore unreadable storage. */ }
     }
     return null;
   }
-  const session = readSession();
+  let session = readSession();
+  if (IS_STAFF_PWA && 'serviceWorker' in navigator) {
+    // Isolated scope: the main rider worker must never own the staff shell.
+    navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+  }
 
   class ApiError extends Error {
     constructor(status, code) {
@@ -2148,8 +2161,11 @@
     if (!appEl.classList.contains('menu-open')) return;
     if (event.key === 'Escape') { setMenu(false); menuToggle.focus(); return; }
     if (event.key !== 'Tab') return;
-    const focusables = [...document.querySelectorAll('.sidebar button:not([disabled]):not([hidden])')]
-      .filter((element) => element.getClientRects().length > 0);
+    // Include footer links as well as buttons in the mobile focus loop.
+    // Installed-app entry links and Staff sign-out are keyboard-reachable.
+    const focusables = [...document.querySelectorAll(
+      '.sidebar button:not([disabled]), .sidebar a[href], .sidebar input:not([disabled])',
+    )].filter((element) => !element.closest('[hidden]') && element.getClientRects().length > 0);
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
@@ -2304,15 +2320,191 @@
     }, 150);
   });
 
+  // Browser installation is optional; iOS uses Share > Add to Home Screen.
+  // No prompt is fired without an explicit user click.
+  let installPrompt = null;
+  const installControls = new Set();
+  window.addEventListener('beforeinstallprompt', (event) => {
+    if (!IS_STAFF_PWA) return;
+    event.preventDefault();
+    installPrompt = event;
+    for (const button of installControls) button.hidden = false;
+  });
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    for (const button of installControls) button.hidden = true;
+  });
+  function installButton() {
+    const button = el('button', {
+      type: 'button', class: 'button staff-install-button', hidden: !installPrompt,
+      text: 'Install staff app',
+    });
+    installControls.add(button);
+    button.addEventListener('click', async () => {
+      if (!installPrompt) return;
+      const prompt = installPrompt;
+      installPrompt = null;
+      for (const control of installControls) control.hidden = true;
+      await prompt.prompt();
+    });
+    return button;
+  }
+  function clearStaffSession() {
+    // Invalidate any in-flight queue/profile render before hiding staff data.
+    ++renderGeneration;
+    displayedKey = null;
+    session = null;
+    me = null;
+    try { localStorage.removeItem(STAFF_SESSION_KEY); } catch { /* no-op */ }
+    // Do not silently reenter staff mode through an old rider login
+    // after signing out of the Operations Hub.
+    try { sessionStorage.setItem(STAFF_SIGNED_OUT_KEY, '1'); } catch { /* no-op */ }
+  }
+  function renderStaffSignIn(message = '') {
+    navEl.hidden = true;
+    // Navigation/search/refresh are inoperable until /admin/me authorises staff.
+    if (appEl.classList.contains('menu-open')) setMenu(false);
+    document.getElementById('menuToggle').hidden = true;
+    refreshMobile.hidden = true;
+    document.querySelector('.workspace-toolbar').hidden = true;
+    footerEl.replaceChildren();
+    const username = el('input', { class: 'input staff-login-field', type: 'text', name: 'username',
+      autocomplete: 'username', maxlength: 100, required: true, 'aria-label': 'Rider Comms username',
+      placeholder: 'Your Rider Comms username' });
+    const password = el('input', { class: 'input staff-login-field', type: 'password',
+      name: 'password', autocomplete: 'current-password', required: true,
+      'aria-label': 'Password', placeholder: 'Your password' });
+    const error = el('p', { class: 'error-text', role: 'alert', text: message });
+    const submit = el('button', { type: 'submit', class: 'button button-primary staff-login-submit', text: 'Sign in to Operations Hub' });
+    const form = el('form', { class: 'staff-login-form', novalidate: true }, [
+      el('label', { class: 'staff-login-label' }, ['Username', username]),
+      el('label', { class: 'staff-login-label' }, ['Password', password]),
+      error,
+      submit,
+    ]);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!username.value.trim() || !password.value) {
+        error.textContent = 'Enter your username and password.';
+        return;
+      }
+      submit.disabled = true;
+      error.textContent = '';
+      try {
+        const login = await fetch(`${API_BASE_URL}/auth/staff-login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'omit', redirect: 'error', cache: 'no-store',
+          body: JSON.stringify({ username: username.value.trim(), password: password.value,
+            deviceName: 'Rider Comms Staff PWA' }),
+        });
+        const body = await login.json().catch(() => ({}));
+        if (!login.ok) throw new ApiError(login.status, body.error);
+        if (typeof body.token !== 'string' || typeof body.riderId !== 'string') {
+          throw new Error('Invalid staff login response');
+        }
+        // Recheck the live permissions before storing the new token locally.
+        const check = await fetch(`${API_BASE_URL}/admin/me`, {
+          headers: { Authorization: `Bearer ${body.token}` },
+          credentials: 'omit', redirect: 'error', cache: 'no-store',
+        });
+        if (!check.ok) {
+          await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST', headers: { Authorization: `Bearer ${body.token}` },
+            credentials: 'omit', redirect: 'error', cache: 'no-store',
+          }).catch(() => {});
+          throw new ApiError(check.status, 'staff_only');
+        }
+        const identity = await check.json();
+        if (!identity.role || !Array.isArray(identity.permissions)) {
+          throw new Error('Invalid staff permissions response');
+        }
+        session = { token: body.token, riderId: body.riderId, source: 'staff' };
+        try {
+          localStorage.setItem(STAFF_SESSION_KEY, JSON.stringify({
+            riderId: session.riderId, token: session.token,
+          }));
+          sessionStorage.removeItem(STAFF_SIGNED_OUT_KEY);
+        } catch { /* If storage is blocked, this tab stays signed in. */ }
+        password.value = '';
+        footerEl.textContent = `Signed in as ${session.riderId}`;
+        pageEl.replaceChildren();
+        void start();
+      } catch (failure) {
+        if (failure instanceof ApiError && failure.status === 429) error.textContent = 'Too many attempts. Try again later.';
+        else if (failure instanceof ApiError && failure.code === 'staff_only') error.textContent = 'This account does not have staff access.';
+        else if (failure instanceof ApiError && failure.code === 'account_suspended') error.textContent = 'This account is suspended.';
+        else if (failure instanceof ApiError && failure.status === 401) error.textContent = 'The username or password is incorrect.';
+        else error.textContent = 'Sign-in could not complete. Check your connection and try again.';
+        password.value = '';
+        submit.disabled = false;
+        password.focus();
+      }
+    });
+    const guide = el('p', { class: 'staff-install-guide',
+      text: 'On iPhone or iPad: open this page in Safari, tap Share, then Add to Home Screen. On Android or desktop: choose Install app in your browser menu.' });
+    const heading = el('h1', { class: 'staff-login-title', text: 'Your operations workspace.' });
+    pageEl.replaceChildren(el('section', { class: 'staff-login-shell' }, [
+      el('div', { class: 'staff-login-intro' }, [
+        el('span', { class: 'staff-login-kicker', text: 'Rider Comms / Staff' }),
+        heading,
+        el('p', { class: 'staff-login-description',
+          text: 'One secure workspace for rider support, trust and safety, and live operations. Access is based on your existing Rider Comms staff role.' }),
+        IS_STAFF_PWA ? guide : el('a', { class: 'staff-install-link', href: './staff/',
+          text: 'Open the installable Staff app' }),
+      ]),
+      el('div', { class: 'card staff-login-card' }, [
+        el('h2', { class: 'card-title', text: 'Staff sign in' }),
+        el('p', { class: 'card-description', text: 'Use your existing Rider Comms username and password.' }),
+        form,
+        IS_STAFF_PWA ? installButton() : null,
+      ]),
+    ]));
+    username.focus();
+  }
+  const footerRole = el('span', { class: 'footer-role' });
+  const footerInstall = installButton();
+  const legacyInstallLink = el('a', { class: 'staff-footer-install-link', href: './staff/',
+    text: 'Open installable Staff app' });
+  const signOutButton = el('button', { type: 'button', class: 'staff-signout', text: 'Sign out of Staff' });
+  const footerIdentity = (label) => footerEl.replaceChildren(
+    el('div', { class: 'staff-footer-account' }, [label, footerRole]),
+    IS_STAFF_PWA ? footerInstall : legacyInstallLink, signOutButton,
+  );
+  signOutButton.addEventListener('click', async () => {
+    signOutButton.disabled = true;
+    const active = session;
+    clearStaffSession();
+    // Remove sensitive records from the screen immediately, even if server
+    // sign-out is slow or the device loses connectivity.
+    navEl.hidden = true;
+    footerEl.replaceChildren();
+    pageEl.replaceChildren(el('div', { class: 'card notice' }, [
+      emptyState('lock', 'Signing out', 'Closing the staff workspace on this device.'),
+    ]));
+    // Signing out of this admin view must not revoke a separate rider-app
+    // session used for navigation. Revoke only tokens issued for Staff.
+    if (active?.source === 'staff') {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+          method: 'POST', headers: { Authorization: `Bearer ${active.token}` },
+          credentials: 'omit', redirect: 'error', cache: 'no-store',
+          signal: controller.signal,
+        });
+      } catch { /* Local sign-out still removes the bearer token. */ }
+      finally { clearTimeout(timeout); }
+    }
+    location.reload();
+  });
   if (!session) {
-    notice('lock', 'Sign in to continue', 'Sign in to the Rider Comms app in this browser (on this same site), then reload this page.');
+    renderStaffSignIn();
     return;
   }
-  footerEl.textContent = `Signed in as ${session.riderId}`;
-  const footerRole = el('span', { class: 'footer-role' });
+  footerIdentity(`Signed in as ${session.riderId}`);
   api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
     const name = profile?.displayName || profile?.handle;
-    if (name) footerEl.replaceChildren(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`, footerRole);
+    if (name && session) footerIdentity(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`);
   }).catch(() => {});
 
   // The role decides which pages appear; the backend enforces it either way.
@@ -2320,8 +2512,13 @@
     try {
       me = await api('GET', '/admin/me');
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
-      else if (error instanceof ApiError && error.status === 401) notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
+      if (error instanceof ApiError && error.status === 403) {
+        clearStaffSession();
+        renderStaffSignIn('This account does not have staff access.');
+      } else if (error instanceof ApiError && error.status === 401) {
+        clearStaffSession();
+        renderStaffSignIn('Your session has expired. Please sign in again.');
+      }
       else {
         const retry = el('button', { type: 'button', class: 'button button-primary', text: 'Try again' });
         retry.addEventListener('click', () => void start());
@@ -2332,6 +2529,9 @@
       }
       return;
     }
+    document.getElementById('menuToggle').hidden = false;
+    refreshMobile.hidden = false;
+    document.querySelector('.workspace-toolbar').hidden = false;
     for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
     for (const group of navEl.querySelectorAll('[data-nav-group]')) {
       group.hidden = ![...group.querySelectorAll('[data-view]')].some((button) => !button.hidden);
@@ -2341,7 +2541,7 @@
     document.getElementById('globalSearchMobile').hidden = false;
     workspaceSearchTrigger.hidden = false;
     footerRole.replaceChildren(roleBadge(me.role));
-    if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
+    if (!footerEl.contains(footerRole)) footerIdentity(`Signed in as ${session.riderId}`);
     if (!allowed(VIEW_PERMISSIONS[view])) {
       view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
       detailRiderId = null;
