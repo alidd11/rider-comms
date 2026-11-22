@@ -903,6 +903,7 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     await mockModerationApi(page);
     await page.goto('/admin.html');
+    await page.locator('.overview-more > summary').click();
     const pulse = page.getByRole('region', { name: 'Company pulse' });
     await expect(pulse).toContainText('240');
     await expect(pulse).toContainText('Group rides now');
@@ -927,6 +928,7 @@ test.describe('staff dashboard', () => {
     await signIn(page);
     await mockModerationApi(page, { role: 'analyst' });
     await page.goto('/admin.html');
+    await page.locator('.overview-more > summary').click();
     const company = page.getByRole('region', { name: 'Company operations' });
     await expect(company.getByRole('button', { name: 'Review Social queue' })).toHaveCount(0);
     await expect(company.getByRole('button', { name: 'Manage staff roles' })).toHaveCount(0);
@@ -1047,7 +1049,7 @@ test.describe('staff dashboard', () => {
     const current = page.locator('#workspaceCurrentSection');
     const trigger = page.getByRole('button', { name: 'Open command search' });
     await expect(current).toHaveText('Overview');
-    await expect(page.locator('.page-eyebrow')).toContainText('Operations hub');
+    await expect(page.locator('.page-eyebrow')).toHaveCount(0);
     await expect(page.locator('.page-title')).toHaveText('Overview');
     if (page.viewportSize().width >= 900) {
       await expect(toolbar).toBeVisible();
@@ -1066,6 +1068,39 @@ test.describe('staff dashboard', () => {
     await openSection(page, 'Action inbox');
     await expect(current).toHaveText('Action inbox');
     await expect(page.locator('.page-title')).toHaveText('Action inbox');
+  });
+
+  test('page headers keep tasks visible and context available without repeated branding', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+    await expect(page.locator('.page-eyebrow')).toHaveCount(0);
+    const context = page.locator('.page-context');
+    await expect(context).toHaveCount(1);
+    await expect(context).not.toHaveAttribute('open', '');
+    await context.locator('summary').click();
+    await expect(context.locator('.page-subtitle')).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Action inbox sources' })).toBeVisible();
+    const intro = page.locator('details.inbox-intro');
+    await expect(intro).not.toHaveAttribute('open', '');
+    await intro.locator('summary').click();
+    await expect(intro).toContainText('Review and assign work in Moderation');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+  });
+
+  test('overview makes rich company data optional without losing its routes', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#overview');
+    const details = page.locator('.overview-more');
+    await expect(details).not.toHaveAttribute('open', '');
+    await expect(page.locator('.kpi')).toHaveCount(8);
+    await expect(page.locator('.operations-grid')).toBeVisible();
+    await details.locator('summary').click();
+    await expect(page.getByRole('region', { name: 'Company operations' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Company pulse' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Review Social queue' })).toBeVisible();
   });
 
   test('command search shows permitted pages and opens a rider record without exposing markup', async ({ page }) => {
