@@ -87,6 +87,7 @@
   let inboxFocusTarget = null;
   let caseKind = 'all';
   let caseStatus = 'all';
+  let caseOwner = 'all';
   let riderQuery = '';
   let auditGroup = 'all';
   let auditRider = '';
@@ -101,6 +102,7 @@
   let focusHeadingOnNextRender = false;
   const renderKey = () => JSON.stringify([view, detailRiderId, detailCaseId,
     view === 'cases' ? caseKind : null, view === 'cases' ? caseStatus : null,
+    view === 'cases' ? caseOwner : null,
     view === 'riders' ? riderQuery : null,
     view === 'moderation' ? moderationView : null,
     view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
@@ -1843,8 +1845,11 @@
   async function renderCases(generation) {
     const available = permittedCaseKinds();
     if (caseKind !== 'all' && !available.includes(caseKind)) caseKind = 'all';
-    const params = new URLSearchParams({ kind: caseKind, status: caseStatus, limit: '25' });
-    const result = await api('GET', '/admin/cases?' + params.toString());
+    const params = new URLSearchParams({ kind: caseKind, status: caseStatus, owner: caseOwner, limit: '25' });
+    const [result, workload] = await Promise.all([
+      api('GET', '/admin/cases?' + params.toString()),
+      api('GET', '/admin/cases/summary'),
+    ]);
     if (!isCurrentRender(generation)) return;
     const create = el('button', { type: 'button', class: 'button button-primary', text: 'New case' });
     create.addEventListener('click', () => openNewCaseDialog(available));
@@ -1852,6 +1857,24 @@
       caseKind, (next) => { caseKind = next; renderAndFocus('[aria-label="Case categories"] [aria-pressed="true"]'); }, 'Case categories');
     const statusTabs = segmented([['all', 'All statuses'], ...CASE_STATUSES.map((k) => [k, CASE_STATUS_LABELS[k]])],
       caseStatus, (next) => { caseStatus = next; renderAndFocus('[aria-label="Case statuses"] [aria-pressed="true"]'); }, 'Case statuses');
+    const ownerTabs = segmented([
+      ['all', 'All owners'], ['mine', 'Assigned to me'], ['unassigned', 'Unassigned'],
+    ], caseOwner, (next) => {
+      caseOwner = next;
+      renderAndFocus('[aria-label="Case owners"] [aria-pressed="true"]');
+    }, 'Case owners');
+    const metric = (label, value, description) => el('div', { class: 'case-workload-metric' }, [
+      el('div', { class: 'case-workload-label', text: label }),
+      el('div', { class: 'case-workload-value', text: formatNumber(value) }),
+      el('div', { class: 'case-workload-description', text: description }),
+    ]);
+    const counts = workload.totals;
+    const workloadPanel = el('section', { class: 'case-workload', 'aria-label': 'Permitted case workload' }, [
+      metric('Active', counts.active, 'Open, in progress or waiting'),
+      metric('Mine', counts.mine, 'Active cases assigned to you'),
+      metric('Unassigned', counts.unassigned, 'Active cases without an owner'),
+      metric('Urgent', counts.urgent, 'Active high-priority escalation'),
+    ]);
     const list = el('ul', { class: 'case-list', 'aria-label': 'Internal work cases' },
       result.items.map(caseRecord));
     const note = el('p', { class: 'case-page-note', text: 'Showing the latest 25 matching cases at a time. This is not a company-wide count or a customer-facing support inbox.' });
@@ -1862,7 +1885,7 @@
       if (!cursor) return;
       more.disabled = true;
       try {
-        const next = new URLSearchParams({ kind: caseKind, status: caseStatus, limit: '25', before: cursor });
+        const next = new URLSearchParams({ kind: caseKind, status: caseStatus, owner: caseOwner, limit: '25', before: cursor });
         const page = await api('GET', '/admin/cases?' + next.toString());
         if (!isCurrentRender(generation)) return;
         list.append(...page.items.map(caseRecord));
@@ -1875,10 +1898,13 @@
     pageEl.replaceChildren(
       pageHeader('Case desk', 'Manage the company’s internal support, appeal, privacy and incident work with a recorded audit trail.', [create]),
       el('section', { class: 'case-workspace' }, [
+        workloadPanel,
         el('div', { class: 'case-filter-label', text: 'Workstream' }),
         el('div', { class: 'scroll-row case-filters' }, [kindTabs]),
         el('div', { class: 'case-filter-label', text: 'Status' }),
         el('div', { class: 'scroll-row case-filters' }, [statusTabs]),
+        el('div', { class: 'case-filter-label', text: 'Ownership' }),
+        el('div', { class: 'scroll-row case-filters' }, [ownerTabs]),
         result.items.length ? list : el('div', { class: 'card case-empty' }, [
           emptyState('inbox', 'No cases in this view', 'Create an internal case to start tracking this workstream.'),
         ]),
