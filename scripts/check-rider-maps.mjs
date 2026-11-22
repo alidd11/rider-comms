@@ -119,6 +119,11 @@ assert.throws(() => fromValhallaTrip(null));
 // Strict Valhalla research request builder: no network, no car fallback,
 // no implicit moped speed, no toll eligibility claims, no Google geometry.
 assert.equal(VALHALLA_MOTORCYCLE_ROUTING_ENABLED, false);
+// This must remain an offline-only research module. Neither the installed PWA
+// nor the static beta launcher may import the routing request constructor.
+assert.doesNotMatch(read('../docs/app.js'), /draftValhallaMotorcycleRequest/);
+assert.doesNotMatch(read('../docs/map-beta/index.html'), /draftValhallaMotorcycleRequest/);
+assert.doesNotMatch(read('../docs/map-beta/preview.mjs'), /draftValhallaMotorcycleRequest/);
 assert.equal(MAX_RESEARCH_ROUTE_LOCATIONS, 8);
 const researchCoordinates = [[-0.1276, 51.5072], [-0.115, 51.51]];
 const motorcycleDraft = draftValhallaMotorcycleRequest({
