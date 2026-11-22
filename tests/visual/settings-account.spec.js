@@ -111,6 +111,17 @@ test('direct standalone map URL cannot run third-party code in the top-level Rid
   expect(denied).toBe(true);
 });
 
+test('standalone map sandbox reports blocked MapLibre CDN instead of infinite loading', async ({ page }) => {
+  // Public geography only: verify failure state without a logged-in session.
+  await page.route('https://unpkg.com/**', (route) => route.abort());
+  await page.goto('/map-beta/');
+  await expect(page.locator('#mapBetaSandbox')).toHaveAttribute('sandbox', 'allow-scripts');
+  const map = page.frameLocator('#mapBetaSandbox');
+  await expect(map.locator('#status')).toHaveAttribute('data-load-state', 'error', { timeout: 15000 });
+  await expect(map.locator('#status')).toContainText('Couldn’t load the prototype map');
+  await expect(page.locator('#map')).toHaveCount(0);
+});
+
 test('PWA admin beta traps Tab and Shift+Tab above Settings, with reusable close button', async ({ page }) => {
   await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/admin/me'
     ? { body: { role: 'admin', permissions: [] } } : null);

@@ -235,7 +235,11 @@ assert.equal(read('../docs/map-beta/open-route.mjs'), read('../map-lab/open-rout
 assert.match(html, /Content-Security-Policy/);
 assert.match(html, /OpenStreetMap contributors/);
 assert.match(html, /OpenFreeMap/);
-assert.match(html, /maplibre-gl@6\.3\.0/);
+assert.match(html, /maplibre-gl@6\.17\.0/);
+assert.match(html, /worker-src blob: data:/, 'Research worker CSP must permit opaque-origin data workers');
+assert.match(betaHtml, /worker-src blob: data:/, 'Public launcher CSP must permit sandboxed MapLibre worker');
+assert.match(js, /maplibre-gl@6\.17\.0/, 'Map module must match pinned sandbox-compatible version');
+assert.match(js, /Map rendering did not finish/, 'Stalled worker must show an accessible failure');
 assert.match(js, /assertMapDataCompatibility/);
 assert.match(js, /RIDER_MAPS_RELEASED !== false/);
 assert.match(js, /map\.on\('style\.load',/);
