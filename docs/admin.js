@@ -1864,6 +1864,8 @@
           el('span', { text: item.assignedTo ? 'Owner: ' + item.assignedTo : 'Unassigned' }),
           el('span', { text: 'Updated ' }),
           timeEl(item.updatedAt),
+          item.dueAt ? el('span', { class: 'case-follow-up-target', text:
+            'Internal follow-up ' + new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }) : null,
         ]),
       ]),
       el('div', { class: 'case-item-badges' }, [
@@ -2056,7 +2058,20 @@
     const assign = el('button', { type: 'button', class: 'button', text: isMine ? 'Release ownership' : 'Take ownership',
       disabled: !canClaim });
     const addNote = el('button', { type: 'button', class: 'button button-primary', text: 'Add internal note' });
-    const actionButtons = [updateStatus, updatePriority, assign, addNote];
+    const canTarget = (me?.role === 'admin' || item.assignedTo === null || isMine)
+      && !['resolved', 'closed'].includes(item.status);
+    const targetInput = el('input', { class: 'input', type: 'datetime-local',
+      'aria-label': 'Internal follow-up target' });
+    if (item.dueAt) {
+      const timezoneOffset = new Date(item.dueAt).getTimezoneOffset() * 60_000;
+      targetInput.value = new Date(item.dueAt - timezoneOffset).toISOString().slice(0, 16);
+    }
+    targetInput.disabled = !canTarget;
+    const setTarget = el('button', { type: 'button', class: 'button',
+      text: 'Set follow-up target', disabled: !canTarget });
+    const clearTarget = el('button', { type: 'button', class: 'button',
+      text: 'Clear follow-up target', disabled: !canTarget || item.dueAt === null });
+    const actionButtons = [updateStatus, updatePriority, assign, addNote, setTarget, clearTarget];
     const commit = async (path, data) => {
       if (!note.value.trim()) { message.textContent = 'Enter a reason or internal note before making a change.'; note.focus(); return; }
       for (const button of actionButtons) button.disabled = true;
@@ -2072,8 +2087,21 @@
           : actionErrorMessage(error);
         for (const button of actionButtons) button.disabled = false;
         assign.disabled = !canClaim;
+        setTarget.disabled = !canTarget;
+        clearTarget.disabled = !canTarget || item.dueAt === null;
       }
     };
+    setTarget.addEventListener('click', () => {
+      const timestamp = Date.parse(targetInput.value);
+      if (!Number.isSafeInteger(timestamp) || timestamp < Date.now() + 60_000 ||
+        timestamp > Date.now() + 90 * 86_400_000) {
+        message.textContent = 'Choose a follow-up within the next 90 days, at least one minute from now.';
+        targetInput.focus();
+        return;
+      }
+      void commit('target', { dueAt: timestamp });
+    });
+    clearTarget.addEventListener('click', () => void commit('target', { dueAt: null }));
     updateStatus.addEventListener('click', () => void commit('status', { status: status.value }));
     updatePriority.addEventListener('click', () => void commit('priority', { priority: priority.value }));
     assign.addEventListener('click', () => void commit('assign', { assigneeId: isMine ? null : session.riderId }));
@@ -2087,7 +2115,17 @@
       ]),
       el('div', { class: 'case-owner-action' }, [assign]),
       el('label', { class: 'case-field' }, [el('span', { text: 'Update note' }), note]),
-      addNote, message,
+      addNote,
+      el('details', { class: 'case-follow-up workspace-disclosure' }, [
+        el('summary', { text: item.dueAt
+          ? 'Internal follow-up · ' + new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+          : 'Internal follow-up · not set' }),
+        el('p', { class: 'case-help', text:
+          'Optional internal work target only. Not a legal deadline, promised response SLA or automated escalation. An update requires the note above.' }),
+        el('label', { class: 'case-field' }, [el('span', { text: 'Follow-up date and time' }), targetInput]),
+        el('div', { class: 'actions' }, [setTarget, clearTarget]),
+      ]),
+      message,
     ]);
     if (me?.role === 'admin') {
       const assignee = el('input', { class: 'input', 'aria-label': 'Assign to staff rider ID', maxlength: 90,
@@ -2106,6 +2144,8 @@
       caseBadge(item.priority, CASE_PRIORITY_LABELS),
       el('span', { text: item.assignedTo ? 'Assigned to ' + item.assignedTo : 'Unassigned' }),
       el('span', { text: 'Version ' + item.version }),
+      item.dueAt ? el('span', { text: 'Internal target ' +
+        new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }) : null,
     ]);
     const trail = el('ol', { class: 'case-timeline', 'aria-label': 'Case activity history' },
       events.map((event) => el('li', { class: 'case-event' }, [
