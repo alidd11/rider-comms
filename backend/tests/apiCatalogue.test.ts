@@ -52,7 +52,12 @@ describe('API catalogue', () => {
     assert.deepEqual(internalCase.parameters!.map((parameter) => parameter.name), ['caseId']);
     assert.equal(doc.paths['/admin/cases']?.get?.['x-permission'], 'view_cases');
     assert.equal(doc.paths['/admin/cases/summary']?.get?.['x-permission'], 'view_cases');
+    assert.equal(doc.paths['/admin/cases/activity']?.get?.['x-permission'], 'view_cases');
+    assert.equal(doc.paths['/admin/social/activity']?.get?.['x-permission'], 'moderate');
     assert.equal(doc.paths['/admin/cases']?.post?.['x-permission'], 'view_cases');
+    const target = doc.paths['/admin/cases/{caseId}/target']!.post!;
+    assert.equal(target['x-permission'], 'view_cases');
+    assert.match(target.description, /re-entered within 15 minutes/);
     const staff = doc.paths['/admin/staff/{riderId}/remove']!.post!;
     assert.equal(staff['x-permission'], 'manage_staff');
     assert.match(staff.description, /re-entered within 15 minutes/);

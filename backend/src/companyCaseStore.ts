@@ -167,7 +167,7 @@ export class CompanyCaseStore {
 
   /** Row locking + version checks make competing ownership/state edits safe. */
   async mutate(input: { id: string; actorId: string; actorRole: StaffRole;
-    expectedVersion: number; action: 'note' | 'status' | 'priority' | 'assign';
+    expectedVersion: number; action: 'note' | 'status' | 'priority' | 'assign' | 'target';
     note: string; value?: string | null }): Promise<CaseMutation> {
     return withTransaction<CaseMutation>(async (client) => {
       const { rows } = await client.query<CaseRow>('SELECT * FROM company_cases WHERE id = $1 FOR UPDATE', [input.id]);
@@ -183,7 +183,7 @@ export class CompanyCaseStore {
         await appendEvent(client, input.id, input.actorId, 'note', input.note, null, null, now);
         return { ok: true, item: toCase(updated.rows[0]!) };
       }
-      let column: 'status' | 'priority' | 'assigned_to';
+      let column: 'status' | 'priority' | 'assigned_to' | 'due_at';
       let next: string | null;
       let event: string;
       if (input.action === 'status') {
@@ -203,6 +203,24 @@ export class CompanyCaseStore {
         if (!isCasePriority(input.value)) return { ok: false, error: 'invalid_transition' };
         if (row.priority === input.value) return { ok: false, error: 'unchanged' };
         column = 'priority'; next = input.value; event = 'priority';
+      } else if (input.action === 'target') {
+        // A target is only an internal follow-up reminder. Do not infer
+        // statutory GDPR deadlines or promise a customer-visible SLA.
+        if (['resolved', 'closed'].includes(row.status)) return { ok: false, error: 'invalid_transition' };
+        if (input.actorRole !== 'admin' && row.assigned_to && row.assigned_to !== input.actorId) {
+          return { ok: false, error: 'assigned_to_other' };
+        }
+        const timestamp = input.value === null ? null : Number(input.value);
+        const now = Date.now();
+        if (timestamp !== null &&
+          (!Number.isSafeInteger(timestamp) || timestamp < now + 60_000 ||
+            timestamp > now + 90 * 86_400_000)) {
+          return { ok: false, error: 'invalid_transition' };
+        }
+        if (timestamp === (row.due_at === null ? null : Number(row.due_at))) {
+          return { ok: false, error: 'unchanged' };
+        }
+        column = 'due_at'; next = timestamp === null ? null : String(timestamp); event = 'target';
       } else {
         column = 'assigned_to'; next = input.value ?? null; event = next ? 'assigned' : 'released';
         if (next === row.assigned_to) return { ok: false, error: 'unchanged' };
@@ -223,6 +241,7 @@ export class CompanyCaseStore {
         }
       }
       const before = column === 'assigned_to' ? row.assigned_to :
+        column === 'due_at' ? row.due_at :
         column === 'status' ? row.status : row.priority;
       const now = Date.now();
       const updated = await client.query<CaseRow>(

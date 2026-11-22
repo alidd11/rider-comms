@@ -171,6 +171,39 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.staff = state.staff.filter((member) => member.riderId !== decodeURIComponent(removeStaff[1]));
       return json(200, { ok: true });
     }
+    if (url.pathname === '/admin/cases/activity') {
+      if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required' });
+      const days = Number(url.searchParams.get('days') ?? 7);
+      if (![7, 30].includes(days)) return json(400, { error: 'invalid_report_window' });
+      const kinds = role === 'admin' ? ['support', 'appeal', 'privacy', 'incident']
+        : role === 'support' ? ['support'] : ['appeal'];
+      const items = state.companyCases.filter((item) => kinds.includes(item.kind));
+      const start = Date.now() - days * 86_400_000;
+      return json(200, { days, scope: 'permitted_internal_cases', completeForRetainedData: true,
+        totals: {
+          created: items.filter((item) => item.createdAt >= start).length,
+          active: items.filter((item) => !['resolved', 'closed'].includes(item.status)).length,
+          resolvedTransitions: state.companyCaseEvents.filter((event) => event.event === 'status'
+            && ['resolved', 'closed'].includes(event.toValue) && event.createdAt >= start
+            && items.some((item) => item.id === event.caseId)).length,
+          internalNotes: state.companyCaseEvents.filter((event) => event.event === 'note' && event.createdAt >= start
+            && items.some((item) => item.id === event.caseId)).length,
+          assignmentChanges: state.companyCaseEvents.filter((event) => ['assigned', 'released', 'assign'].includes(event.event)
+            && event.createdAt >= start && items.some((item) => item.id === event.caseId)).length,
+          configuredTargets: 0, overdueTargets: 0, dueSoonTargets: 0,
+        },
+      });
+    }
+    if (url.pathname === '/admin/social/activity') {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required' });
+      const days = Number(url.searchParams.get('days') ?? 7);
+      if (![7, 30].includes(days)) return json(400, { error: 'invalid_report_window' });
+      return json(200, { days, scope: 'social_content_safety', completeForRetainedData: true,
+        metrics: { posts: 12, photos: 9, reels: 3, reports: 4, reportedPosts: 2,
+          hiddenNow: state.socialPosts.length, moderationDecisions: 1 },
+        unavailable: ['social_audience_retention', 'customer_reply_sla', 'financial_reconciliation'],
+      });
+    }
     if (url.pathname === '/admin/cases/summary') {
       if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required', permission: 'view_cases' });
       const kinds = role === 'admin' ? ['support', 'appeal', 'privacy', 'incident'] : role === 'support' ? ['support'] : ['appeal'];
@@ -937,6 +970,39 @@ test.describe('staff dashboard', () => {
     await expect(company.getByRole('button', { name: 'Inspect platform' })).toBeVisible();
     await company.getByRole('button', { name: 'Inspect platform' }).click();
     await expect(page.locator('.page-title')).toHaveText('System');
+  });
+
+  test('case activity reports come from a labelled full-history API without hiding the queue', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#cases');
+    await expect(page.locator('.case-item')).toHaveCount(4);
+    const report = page.locator('.case-activity-report');
+    await expect(report).toBeVisible();
+    await expect(report).toContainText('last 7 days');
+    await expect(report).not.toHaveAttribute('open', '');
+    await report.locator('summary').click();
+    await expect(report).toContainText('Complete counts from retained internal cases');
+    await expect(report).toContainText('not a response-time SLA');
+    await page.getByRole('combobox', { name: 'Reporting period' }).selectOption('30');
+    await expect(page.locator('.case-activity-report > summary')).toContainText('last 30 days');
+    await expect(page.locator('.case-item')).toHaveCount(4);
+  });
+
+  test('Social safety reporting is opt-in, source-scoped and leaves content moderation usable', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    await page.getByRole('button', { name: 'Social posts' }).click();
+    const report = page.locator('.social-activity-report');
+    await expect(report).toBeVisible();
+    await expect(report).toContainText('last 7 days');
+    await expect(report).not.toHaveAttribute('open', '');
+    await expect(page.locator('[data-post-id]')).toHaveCount(1);
+    await report.locator('summary').click();
+    await expect(report).toContainText('Hidden now');
+    await expect(report).toContainText('not a Social audience or engagement report');
+    await expect(page.getByRole('button', { name: 'Restore post' })).toBeVisible();
   });
 
   test('case desk shows real staff-scoped workstreams and a full internal case detail', async ({ page }) => {
