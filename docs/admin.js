@@ -632,14 +632,17 @@
   function pageHeader(title, subtitle, actions = []) {
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
+    // The shell already identifies the Operations Hub and current section.
+    // Keep that context available, but avoid repeating an eyebrow and several
+    // paragraphs above the working area on every screen.
+    const context = subtitle ? el('details', { class: 'page-context' }, [
+      el('summary', { text: 'About this view', 'aria-label': 'About ' + title }),
+      el('p', { class: 'page-subtitle', text: subtitle }),
+    ]) : null;
     return el('div', { class: 'page-header' }, [
       el('div', { class: 'page-heading' }, [
-        el('span', { class: 'page-eyebrow' }, [
-          el('span', { class: 'page-eyebrow-dot', 'aria-hidden': 'true' }),
-          el('span', { text: 'Operations hub' }),
-        ]),
         el('h1', { class: 'page-title', tabindex: '-1', text: title }),
-        subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null,
+        context,
       ]),
       el('div', { class: 'actions page-header-actions' }, [
         ['overview', 'riders', 'inbox', 'cases', 'audit', 'staff'].includes(view)
