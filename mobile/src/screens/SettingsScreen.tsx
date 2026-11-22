@@ -636,14 +636,46 @@ function AccountPage(): React.JSX.Element {
     );
   }
 
+  const [deletePasswordOpen, setDeletePasswordOpen] = React.useState(false);
+  const [deletePassword, setDeletePassword] = React.useState('');
+  const [deletePasswordError, setDeletePasswordError] = React.useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = React.useState(false);
+
+  function cancelDeletePassword() {
+    if (deleteBusy) return;
+    setDeletePassword('');
+    setDeletePasswordError(null);
+    setDeletePasswordOpen(false);
+  }
+
+  async function submitDeletePassword() {
+    if (deleteBusy || !deletePassword || deletePassword.length > 128) return;
+    const password = deletePassword;
+    setDeletePassword('');
+    setDeleteBusy(true);
+    setDeletePasswordError(null);
+    try {
+      await client.reauthenticate(password);
+      await deleteAccount();
+      setDeletePasswordOpen(false);
+    } catch (error) {
+      const wrong = error instanceof ApiError && (error.body as { error?: string } | null)?.error === 'invalid_credentials';
+      setDeletePasswordError(wrong ? 'Incorrect password. Try again.' : 'Couldn’t delete your account. Check your connection and try again.');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   function confirmDeleteAccount() {
     Alert.alert(
       'Delete account?',
       'This permanently deletes your Rider Comms account and associated data. This can’t be undone.\n\nIt doesn’t cancel a Premium subscription: cancel that in your App Store or Google Play subscription settings.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete account', style: 'destructive', onPress: () => {
-          void deleteAccount().catch(() => Alert.alert('Couldn’t delete account', 'Check your connection and try again.'));
+        { text: 'Continue', style: 'destructive', onPress: () => {
+          setDeletePassword('');
+          setDeletePasswordError(null);
+          setDeletePasswordOpen(true);
         } },
       ]
     );
@@ -675,6 +707,30 @@ function AccountPage(): React.JSX.Element {
         <PlainRow title="Reset settings" chevron={false} onPress={confirmReset} />
         <PlainRow title="Delete account" danger chevron={false} onPress={confirmDeleteAccount} />
       </SettingsGroup>
+      <Modal visible={deletePasswordOpen} transparent animationType="fade" onRequestClose={cancelDeletePassword}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Confirm your password</Text>
+            <Text style={styles.modalSubtitle}>Enter your password before permanently deleting your Rider Comms account and its data.</Text>
+            <TextInput accessibilityLabel="Account password for deletion"
+              value={deletePassword} onChangeText={setDeletePassword}
+              secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="password"
+              maxLength={128} editable={!deleteBusy}
+              style={[styles.sheetInput, { marginHorizontal: 0, marginTop: spacing.md }]} />
+            {deletePasswordError ? <Text accessibilityRole="alert" style={[styles.profileSaveError, { marginTop: spacing.sm }]}>{deletePasswordError}</Text> : null}
+            <Pressable accessibilityRole="button" disabled={deleteBusy || !deletePassword}
+              style={[styles.modalDone, (deleteBusy || !deletePassword) && styles.sheetActionDisabled]}
+              onPress={() => void submitDeletePassword()}>
+              <Text style={styles.modalDoneText}>{deleteBusy ? 'Confirming…' : 'Delete account permanently'}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" disabled={deleteBusy}
+              style={[styles.modalDone, { backgroundColor: colors.surfaceRaised }, deleteBusy && styles.sheetActionDisabled]}
+              onPress={cancelDeletePassword}>
+              <Text style={[styles.modalDoneText, { color: colors.textPrimary }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }

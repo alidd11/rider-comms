@@ -263,6 +263,10 @@
   const {
     navigationHazardLabel,
     navigationHazardsAhead,
+    routeHazards,
+    routeHazardsSummary,
+    routeHazardStrip,
+    simplifyRoutePath,
   } = window.RiderNavigationRoadEvents;
 
   const { PositionAnimator } = window.RiderPositionInterpolation;
@@ -603,6 +607,10 @@
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
+        // Reject authenticated API redirects and avoid ambient browser credentials.
+        redirect: 'error',
+        credentials: 'omit',
+        cache: 'no-store',
       });
     } catch (error) {
       clearTimeout(timeout);
@@ -614,7 +622,7 @@
     if (!response.ok) {
       // A 401 means the expiring server-side session was revoked, deleted,
       // or has reached its lifetime. Clear local credentials immediately.
-      if (response.status === 401) {
+      if (response.status === 401 && !(path === '/auth/reauthenticate' && json?.error === 'invalid_credentials')) {
         const hadSession = Boolean(session);
         clearSession();
         if (hadSession) location.reload();
@@ -1126,6 +1134,7 @@
     }
     renderHazardMarkers();
     if (navSteps.length) renderNavigationRoadAhead();
+    if (routePreview) renderRoutePreview();
   }
 
   /** Refreshes nearbyHazards for the rider's real current position, falling
@@ -3678,9 +3687,91 @@
     }
   }
 
+  // Masked password confirmation is never saved in browser storage or app state.
+  function confirmAccountPassword() {
+    const tokenAtOpen = session?.token;
+    if (!tokenAtOpen || document.getElementById('accountStepupDialog')) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const dialog = document.createElement('dialog');
+      dialog.id = 'accountStepupDialog';
+      dialog.className = 'account-stepup-dialog';
+      dialog.setAttribute('aria-labelledby', 'accountStepupTitle');
+      dialog.innerHTML = '<form class="account-stepup-form"><h2 id="accountStepupTitle">Confirm your password</h2>'
+        + '<p>Enter your account password before permanently deleting your account.</p>'
+        + '<label for="accountStepupPassword">Account password</label>'
+        + '<input id="accountStepupPassword" type="password" autocomplete="current-password" maxlength="128" required>'
+        + '<p id="accountStepupError" role="alert" hidden></p>'
+        + '<div class="account-stepup-actions"><button type="button" data-stepup-cancel>Cancel</button>'
+        + '<button type="submit" data-stepup-submit>Confirm password</button></div></form>';
+      const input = dialog.querySelector('#accountStepupPassword');
+      const errorEl = dialog.querySelector('#accountStepupError');
+      const submit = dialog.querySelector('[data-stepup-submit]');
+      let busy = false;
+      let settled = false;
+      const focusReturn = document.activeElement;
+      dialog.addEventListener('keydown', (event) => {
+        // A topmost password dialog owns Escape and Tab, not Settings behind it.
+        if (event.key === 'Tab') {
+          event.stopPropagation();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!busy) finish(false);
+        }
+      });
+
+      const finish = (accepted) => {
+        if (settled) return;
+        settled = true;
+        input.value = '';
+        if (dialog.open) dialog.close();
+        dialog.remove();
+        if (focusReturn?.isConnected) focusReturn.focus({ preventScroll: true });
+        resolve(accepted);
+      };
+      dialog.addEventListener('cancel', (event) => {
+        event.preventDefault();
+        if (!busy) finish(false);
+      });
+      dialog.querySelector('[data-stepup-cancel]').addEventListener('click', () => {
+        if (!busy) finish(false);
+      });
+      dialog.querySelector('form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (busy) return;
+        const password = input.value;
+        input.value = '';
+        if (!password || password.length > 128) return;
+        busy = true;
+        input.disabled = true;
+        submit.disabled = true;
+        errorEl.hidden = true;
+        try {
+          await apiFetch('POST', '/auth/reauthenticate', { password });
+          finish(session?.token === tokenAtOpen);
+        } catch (error) {
+          if (!dialog.isConnected) return;
+          if (session?.token !== tokenAtOpen) return finish(false);
+          errorEl.textContent = error instanceof ApiError && error.body?.error === 'invalid_credentials'
+            ? 'Incorrect password. Try again.'
+            : 'Couldn’t confirm your password. Check your connection and try again.';
+          errorEl.hidden = false;
+          input.disabled = false;
+          submit.disabled = false;
+          busy = false;
+          input.focus({ preventScroll: true });
+        }
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      input.focus({ preventScroll: true });
+    });
+  }
+
   async function deleteCurrentAccount() {
     if (!window.confirm('Permanently delete your Rider Comms account and associated data? This doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.')) return;
     if (!window.confirm('This can’t be undone. Delete the account?')) return;
+    if (!(await confirmAccountPassword())) return;
     const button = $('#deleteAccountBtn');
     if (button) button.disabled = true;
     try {
@@ -5655,6 +5746,9 @@
     if (locked && activeChat) closeChat({ restoreFocus: false });
     if (locked) closeAppMenu({ restoreFocus: false });
     if (locked) setNavTripDetailsOpen(false);
+    // The stops list is a list to read and choose from: not while moving
+    // (native: StopsOnTheWaySheet's visible needs !lockedForSafety).
+    if (locked && $('#stopList')) closeSheet();
     // Moving with the route preview open: go, on the route it shows.
     if (locked) startRoutePreview();
   }
@@ -6975,7 +7069,26 @@
       }
       showDestinationCard(location, label, address);
     });
-    $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
+    $('[data-start-in-app-navigation]', card)?.addEventListener('click', async (event) => {
+      // Finding the rider and asking Google takes a moment: say so, and
+      // don't ask twice (native: "Starting route to …").
+      const button = event.currentTarget;
+      if (button.disabled) return;
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.setAttribute('aria-label', `Starting route to ${label || 'selected place'}`);
+      const caption = $('small', button);
+      const before = caption?.textContent;
+      if (caption) caption.textContent = 'Planning route…';
+      try {
+        await startInAppNavigation(location, label);
+      } finally {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        button.setAttribute('aria-label', 'Start route in Rider Comms');
+        if (caption) caption.textContent = before;
+      }
+    });
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
       hideDestinationCard();
       destinationMarker?.setMap(null);
@@ -7458,6 +7571,8 @@
   // goes through it until the rider gets there (native: navigationStop).
   let navStop = null;
   const NAV_STOP_REACHED_RADIUS_M = 80;
+  // When the rider stopped close to the destination (shared navigationArrival).
+  let navArrivalStoppedSince = null;
 
   /** A trip with a stop comes back in legs: ride them as one. */
   function routeTrip(route) {
@@ -7516,7 +7631,12 @@
     return choices.map((choice) => {
       const leg = routeTrip(routes[choice.index]);
       const seconds = routeLegSeconds(leg);
+      // What riders have reported on this way: Rider Comms' own feed.
+      const path = routePathOf(routes[choice.index]);
+      const hazards = routeHazards(path, routePreviewHazardList());
       return {
+        hazards: routeHazardsSummary(hazards),
+        hazardStrip: routeHazardStrip(hazards, path),
         ...choice,
         seconds,
         meters: leg?.distance?.value || 0,
@@ -7619,22 +7739,24 @@
   function renderRoutePreview() {
     const panel = $('#routePreview');
     if (!panel || !routePreview) return;
-    const { result, index, label, style, expanded } = routePreview;
+    const { result, index, label, style } = routePreview;
     const choices = routeChoiceSummaries(result);
     const chosen = choices.find((choice) => choice.index === index) || choices[0];
     $('#routePreviewTo').textContent = label || 'Destination';
     $('#routePreviewTitle').textContent = chosen ? `${chosen.time} to ${label || 'your destination'}` : '';
     document.querySelectorAll('#routePreviewStyles [data-preview-style]').forEach((chip) => {
-      chip.setAttribute('aria-pressed', String(chip.dataset.previewStyle === style));
+      chip.setAttribute('aria-checked', String(chip.dataset.previewStyle === style));
     });
-    document.querySelectorAll('#routePreviewAvoidMenu [data-preview-avoid]').forEach((chip) => {
+    document.querySelectorAll('#routePreviewOptions [data-preview-avoid]').forEach((chip) => {
       chip.setAttribute('aria-checked', String(state[chip.dataset.previewAvoid] === true));
     });
-    const avoiding = ROUTE_AVOID_KEYS.filter((key) => state[key] === true).length;
+    // The options button counts what's changed from the plain fastest way.
+    const changed = ROUTE_AVOID_KEYS.filter((key) => state[key] === true).length + (style === 'fastest' ? 0 : 1);
     const count = $('#routePreviewAvoidCount');
-    count.textContent = String(avoiding);
-    count.hidden = !avoiding;
-    $('#routePreviewAvoidBtn').setAttribute('aria-label', avoiding ? `Avoid tolls or ferries, ${avoiding} on` : 'Avoid tolls or ferries');
+    count.textContent = String(changed);
+    count.hidden = !changed;
+    const styleName = { fastest: 'Fastest', twisty: 'Twisty', no_motorways: 'No motorways' }[style] || 'Fastest';
+    $('#routePreviewAvoidBtn').setAttribute('aria-label', `Route options, ${styleName}${changed > (style === 'fastest' ? 0 : 1) ? ', avoiding tolls or ferries' : ''}`);
     if (chosen) {
       const time = $('#routePreviewTime');
       time.textContent = chosen.time;
@@ -7643,11 +7765,25 @@
       $('#routePreviewTag').textContent = chosen.label;
       $('#routePreviewTag').hidden = chosen.label === 'Alternative';
       $('#routePreviewMeta').textContent = [`Arrive ${chosen.arrival}`, chosen.via ? `via ${chosen.via}` : ''].filter(Boolean).join(' · ');
+      // Twisty asked for, but the bendiest way Google had is also the
+      // quickest (often so in town): say so, rather than seem to ignore it.
+      const twistyIsFastest = style === 'twisty' && chosen.label === 'Fastest';
+      const noteText = twistyIsFastest ? 'Also the twistiest way Google found' : chosen.note;
       const note = $('#routePreviewNote');
-      note.hidden = !chosen.note;
-      note.dataset.traffic = String(Boolean(chosen.traffic));
-      $('#routePreviewNoteText').textContent = chosen.note;
+      note.hidden = !noteText;
+      note.dataset.traffic = String(!twistyIsFastest && Boolean(chosen.traffic));
+      $('#routePreviewNoteText').textContent = noteText;
+      const hazards = $('#routePreviewHazards');
+      hazards.hidden = !chosen.hazards;
+      hazards.setAttribute('aria-label', chosen.hazards?.label || '');
+      hazards.innerHTML = routeHazardStripMarkup(chosen.hazardStrip);
     }
+    // A stop added before Start, which Start keeps (navStop).
+    const stop = routePreview.stop;
+    $('#routePreviewStop').hidden = !stop;
+    $('#routePreviewStopText').textContent = stop ? `Stop: ${stop.label}` : '';
+    $('#routePreviewStopRemove').setAttribute('aria-label', stop ? `Remove the stop at ${stop.label}` : 'Remove the stop');
+    $('#routePreviewAddStop').hidden = Boolean(stop);
     // In a group ride: who's in it, and Share sends them the route.
     const ride = state.activeRide;
     const strip = $('#routePreviewRide');
@@ -7659,21 +7795,43 @@
       $('#routePreviewRideText').textContent = `Group ride · ${count} ${count === 1 ? 'rider' : 'riders'}`;
     }
     const others = choices.length - 1;
-    $('#routePreviewMore').hidden = others < 1 && !expanded;
-    $('#routePreviewMoreText').textContent = expanded ? 'Fewer details' : others === 1 ? '1 other route' : `${others} other routes`;
-    $('#routePreviewMore').setAttribute('aria-expanded', String(Boolean(expanded)));
-    panel.classList.toggle('expanded', Boolean(expanded));
+    const size = routePreview.size;
+    $('#routePreviewMore').hidden = others < 1 || size === 'min';
+    $('#routePreviewMoreText').textContent = size === 'list' ? 'Hide other routes' : others === 1 ? '1 other route' : `${others} other routes`;
+    $('#routePreviewMore').setAttribute('aria-expanded', String(size === 'list'));
+    panel.classList.toggle('expanded', size === 'list');
+    panel.classList.toggle('minimised', size === 'min');
+    $('#routePreviewHandle').setAttribute('aria-label', size === 'min' ? 'Show the route details' : size === 'list' ? 'Hide the other routes' : (others ? 'Show the other routes' : 'Make the card smaller'));
     $('#routePreviewList').innerHTML = choices.map((choice) => {
       const meta = [`Arrive ${choice.arrival}`, choice.distance, choice.via ? `via ${choice.via}` : '', choice.traffic].filter(Boolean).join(' · ');
-      const name = [choice.text, `arrive ${choice.arrival}`, choice.distance, choice.via ? `via ${choice.via}` : '', choice.traffic].filter(Boolean).join(', ');
-      return `<button type="button" class="route-preview-row" role="radio" aria-checked="${choice.index === index}" aria-label="${escapeHtml(name)}" data-preview-route="${choice.index}"><strong data-traffic="${Boolean(choice.traffic)}">${escapeHtml(choice.time)}</strong><span class="route-preview-tag">${escapeHtml(choice.tag)}</span><span class="route-preview-meta">${escapeHtml(meta)}</span></button>`;
+      const name = [choice.text, `arrive ${choice.arrival}`, choice.distance, choice.via ? `via ${choice.via}` : '', choice.traffic, choice.hazards?.label.toLowerCase()].filter(Boolean).join(', ');
+      const icons = choice.hazards ? `<span class="route-hazard-chips small" aria-hidden="true">${routeHazardChipsMarkup(choice.hazards)}</span>` : '';
+      return `<button type="button" class="route-preview-row" role="radio" aria-checked="${choice.index === index}" aria-label="${escapeHtml(name)}" data-preview-route="${choice.index}"><strong data-traffic="${Boolean(choice.traffic)}">${escapeHtml(choice.time)}</strong><span class="route-preview-tag">${escapeHtml(choice.tag)}</span><span class="route-preview-meta">${escapeHtml(meta)}</span>${icons}</button>`;
     }).join('');
-    const steps = routeTrip(result.routes[index])?.steps || [];
-    $('#routePreviewStepsTitle').textContent = chosen ? `Steps on the ${chosen.label === 'Alternative' ? 'chosen route' : chosen.label.toLowerCase()}` : 'Steps';
-    $('#routePreviewSteps').innerHTML = [
-      ...steps.map((step) => `<li><span>${escapeHtml(stripHtml(step.instructions))}</span><em>${escapeHtml(formatNavDistance(step.distance?.value || 0))}</em></li>`),
-      `<li class="arrive"><span>Arrive at ${escapeHtml(label || 'your destination')}</span></li>`,
-    ].join('');
+  }
+
+  /** What riders reported on a way as icons, as in Waze and TomTom: the
+   * map pins' glyphs, one per kind with how many, most serious first and
+   * ringed red; four at most, then +N (native: RouteHazardChips). */
+  const ROUTE_HAZARD_CHIPS_SHOWN = 4;
+  function routeHazardChipsMarkup(summary) {
+    if (!summary) return '';
+    const shown = summary.groups.slice(0, ROUTE_HAZARD_CHIPS_SHOWN).map(({ type, count, serious }) => (
+      `<span class="route-hazard-chip" data-type="${escapeHtml(type)}" data-serious="${serious}">${hazardNavigationIconMarkup(type)}${count > 1 ? `<b>${count}</b>` : ''}</span>`
+    ));
+    const more = summary.groups.length - ROUTE_HAZARD_CHIPS_SHOWN;
+    if (more > 0) shown.push(`<span class="route-hazard-chip more">+${more}</span>`);
+    return shown.join('');
+  }
+
+  /** The reports on the chosen way along a straight line from you to the
+   * destination, as in Waze's trip overview: each icon where it is on the
+   * way, close ones merged with a count (native: RouteHazardStrip). */
+  function routeHazardStripMarkup(markers) {
+    const points = (markers || []).map(({ at, type, count, serious }) => (
+      `<span class="route-hazard-marker" data-type="${escapeHtml(type)}" data-serious="${serious}" style="--at:${Math.round(at * 1000) / 1000}">${hazardNavigationIconMarkup(type)}${count > 1 ? `<b>${count}</b>` : ''}</span>`
+    ));
+    return `<span class="route-hazard-strip-line"></span><span class="route-hazard-strip-start"></span><span class="route-hazard-strip-end"></span>${points.join('')}`;
   }
 
   function chooseRoutePreview(index) {
@@ -7684,15 +7842,87 @@
     drawRoutePreviewLines();
   }
 
-  function setRoutePreviewExpanded(expanded, { focusSteps = false } = {}) {
-    if (!routePreview) return;
-    routePreview.expanded = expanded;
+  /** The card's three sizes, as Google Maps' sheet: 'min' (time and Start),
+   * 'peek' (the chosen way) and 'list' (every way). A swipe or the handle
+   * moves between them; the map refits to the room left. */
+  const ROUTE_PREVIEW_SIZES = ['min', 'peek', 'list'];
+  function setRoutePreviewSize(size) {
+    if (!routePreview || !ROUTE_PREVIEW_SIZES.includes(size) || size === routePreview.size) return;
+    const others = routePreview.result.routes.length > 1;
+    routePreview.size = size === 'list' && !others ? 'peek' : size;
     renderRoutePreview();
-    if (focusSteps) $('#routePreviewStepsTitle')?.scrollIntoView({ block: 'start' });
+    requestAnimationFrame(() => fitRoutePreview());
+  }
+
+  function stepRoutePreviewSize(direction) {
+    if (!routePreview) return;
+    const sizes = routePreview.result.routes.length > 1 ? ROUTE_PREVIEW_SIZES : ['min', 'peek'];
+    const at = Math.max(0, sizes.indexOf(routePreview.size));
+    const next = sizes[Math.min(sizes.length - 1, Math.max(0, at + direction))];
+    if (next !== routePreview.size) { haptic('select'); setRoutePreviewSize(next); }
+  }
+
+  /** Swipe the card down to shrink it and up to grow it. A drag that starts
+   * on a button stays a tap; the list only gives way once scrolled to its top. */
+  function initRoutePreviewSwipe() {
+    const panel = $('#routePreview');
+    if (!panel) return;
+    let start = null;
+    panel.addEventListener('pointerdown', (event) => {
+      const onButton = event.target.closest?.('button:not(#routePreviewHandle)');
+      start = onButton ? null : { y: event.clientY, scrolled: panel.scrollTop > 0 };
+    });
+    panel.addEventListener('pointerup', (event) => {
+      if (!start) return;
+      const moved = event.clientY - start.y;
+      const begun = start;
+      start = null;
+      if (Math.abs(moved) < 40) return;
+      if (moved > 0 && begun.scrolled) return;
+      stepRoutePreviewSize(moved > 0 ? -1 : 1);
+    });
+    panel.addEventListener('pointercancel', () => { start = null; });
+  }
+
+  /** The reports for the preview: those round the rider (nearbyHazards,
+   * 40 miles) and those along the whole of each way shown. */
+  function routePreviewHazardList() {
+    const byId = new Map();
+    [...nearbyHazards, ...(routePreview?.alongHazards || [])].forEach((report) => byId.set(report.id, report));
+    return [...byId.values()];
+  }
+
+  /** Asks for the reports along each way shown, however long (native:
+   * MapScreen's getHazardsAlongRoute). Until they come, or if they don't,
+   * the reports round the rider show. */
+  async function loadRoutePreviewHazards() {
+    const planning = routePreview;
+    if (!planning) return;
+    const paths = planning.result.routes.map((route) => simplifyRoutePath(routePathOf(route)).map((point) => ({ lat: point.lat, lon: point.lng })));
+    try {
+      const answers = await Promise.all(paths.filter((path) => path.length >= 2).map((path) => apiFetch('POST', '/hazards/along-route', { path })));
+      if (!routePreview || routePreview.result !== planning.result) return;
+      routePreview.alongHazards = answers.flatMap((answer) => answer?.hazards || []);
+      renderRoutePreview();
+    } catch {
+      // The reports round the rider still show.
+    }
+  }
+
+  // The arrival time moves on while the preview is open, as in Google Maps.
+  let routePreviewClock = null;
+  function tickRoutePreview() {
+    clearInterval(routePreviewClock);
+    routePreviewClock = setInterval(() => {
+      if (routePreview) renderRoutePreview();
+      else { clearInterval(routePreviewClock); routePreviewClock = null; }
+    }, 30_000);
   }
 
   function showRoutePreview(result, destination, label, origin) {
-    routePreview = { result, destination, label, origin, style: 'fastest', expanded: false, index: fastestRouteIndex(result) };
+    routePreview = { result, destination, label, origin, style: 'fastest', size: 'peek', index: fastestRouteIndex(result), stop: null };
+    void loadRoutePreviewHazards();
+    tickRoutePreview();
     hideDestinationCard();
     setRoutePreviewAvoidMenu(false);
     $('#app').classList.add('route-preview-mode');
@@ -7706,7 +7936,7 @@
   function setRoutePreviewBusy(busy) {
     $('#routePreview')?.setAttribute('aria-busy', String(busy));
     $('#routePreview')?.classList.toggle('loading', busy);
-    $('#routePreviewStyles')?.classList.toggle('loading', busy);
+    $('#routePreviewOptions')?.classList.toggle('loading', busy);
     const start = $('#routePreviewStart');
     if (start) start.disabled = busy;
   }
@@ -7718,12 +7948,14 @@
   /** Asks Google again for the ways there with the preview's riding style
    * and the rider's avoid settings. `revert` undoes the change if none
    * comes back. */
-  function replanRoutePreview(style, revert) {
+  function replanRoutePreview(style, revert, stop = routePreview?.stop || null) {
     const planning = routePreview;
     if (!planning) return;
     setRoutePreviewBusy(true);
     const request = {
-      ...navigationRouteRequest(planning.origin, planning.destination, [], false),
+      // A stop added before Start: every way goes through it (Google then
+      // offers no others).
+      ...navigationRouteRequest(planning.origin, planning.destination, stop ? [stop] : [], false),
       avoidHighways: navigationGuidance.routeStyleAvoidsMotorways(style, state.avoidHighways === true),
     };
     getDirectionsService().route(request, (result, status) => {
@@ -7735,7 +7967,8 @@
         showToast('No route found that way. The routes shown are unchanged.');
         return;
       }
-      routePreview = { ...planning, result, style, index: routeIndexForStyle(result, style) };
+      routePreview = { ...planning, result, style, stop, alongHazards: [], index: routeIndexForStyle(result, style) };
+      void loadRoutePreviewHazards();
       renderRoutePreview();
       drawRoutePreviewLines({ fit: true });
     });
@@ -7753,7 +7986,7 @@
   }
 
   function setRoutePreviewAvoidMenu(open) {
-    const menu = $('#routePreviewAvoidMenu');
+    const menu = $('#routePreviewOptions');
     if (!menu) return;
     menu.hidden = !open;
     $('#routePreviewAvoidBtn')?.setAttribute('aria-expanded', String(open));
@@ -7800,9 +8033,11 @@
 
   function startRoutePreview() {
     if (!routePreview) return;
-    const { result, destination, label, index } = routePreview;
+    const { result, destination, label, index, stop } = routePreview;
     closeRoutePreview({ keepDestination: false });
     haptic('success');
+    // Reroutes keep going through the stop until the rider gets there.
+    navStop = stop || null;
     applyRoute(result, destination, label, { routeIndex: index });
   }
 
@@ -7811,15 +8046,25 @@
     if (row) chooseRoutePreview(Number(row.dataset.previewRoute));
   });
   $('#routePreviewStart')?.addEventListener('click', startRoutePreview);
-  $('#routePreviewStepsBtn')?.addEventListener('click', () => setRoutePreviewExpanded(true, { focusSteps: true }));
   $('#routePreviewShare')?.addEventListener('click', () => void shareRoutePreview());
+  $('#routePreviewAddStop')?.addEventListener('click', () => { if (routePreview && !routePreviewBusy()) openSheet('stopsOnTheWay'); });
+  $('#routePreviewStopRemove')?.addEventListener('click', () => {
+    if (!routePreview?.stop || routePreviewBusy()) return;
+    haptic('select');
+    replanRoutePreview(routePreview.style, null, null);
+  });
   $('#routePreviewRideShare')?.addEventListener('click', () => void shareRoutePreview());
-  $('#routePreviewMore')?.addEventListener('click', () => setRoutePreviewExpanded(!routePreview?.expanded));
-  $('#routePreviewHandle')?.addEventListener('click', () => setRoutePreviewExpanded(!routePreview?.expanded));
+  $('#routePreviewMore')?.addEventListener('click', () => setRoutePreviewSize(routePreview?.size === 'list' ? 'peek' : 'list'));
+  $('#routePreviewHandle')?.addEventListener('click', () => {
+    if (!routePreview) return;
+    const others = routePreview.result.routes.length > 1;
+    setRoutePreviewSize(routePreview.size === 'min' ? 'peek' : routePreview.size === 'list' ? 'peek' : others ? 'list' : 'min');
+  });
+  initRoutePreviewSwipe();
   $('#routePreviewTop')?.addEventListener('click', (event) => {
     const chip = event.target.closest?.('[data-preview-style]');
-    if (chip) chooseRoutePreviewStyle(chip.dataset.previewStyle);
-    if (event.target.closest?.('#routePreviewAvoidBtn')) setRoutePreviewAvoidMenu($('#routePreviewAvoidMenu').hidden);
+    if (chip) { chooseRoutePreviewStyle(chip.dataset.previewStyle); setRoutePreviewAvoidMenu(false); }
+    if (event.target.closest?.('#routePreviewAvoidBtn')) setRoutePreviewAvoidMenu($('#routePreviewOptions').hidden);
     const avoid = event.target.closest?.('[data-preview-avoid]');
     if (avoid) toggleRoutePreviewAvoid(avoid.dataset.previewAvoid);
   });
@@ -8369,11 +8614,14 @@
       && startDistance + accuracyMeters <= CURATED_STOP_REACHED_RADIUS_M
       && !plannedStops.slice(1).some((later) => metersBetween(origin, later) < startDistance);
     const remainingStops = atStart ? plannedStops.slice(1) : plannedStops;
-    getDirectionsService().route(
+    // Resolves once Google has answered, so the place card's Start route
+    // stays busy until the preview (or the route) is up.
+    await new Promise((resolve) => getDirectionsService().route(
       // A new navigation selection must not inherit a fuel stop left over
       // from a previous journey. Only reroutes preserve existing stops.
       navigationRouteRequest(origin, destination, remainingStops, false),
       (result, status) => {
+        resolve();
         if (status !== 'OK' || !result) {
           showToast('Couldn’t calculate the complete route. Try again.');
           return;
@@ -8386,7 +8634,7 @@
         if (!remainingStops.length && !syncMovementSafetyBanner()) showRoutePreview(result, destination, label, origin);
         else applyRoute(result, destination, label, { routeIndex: remainingStops.length ? 0 : fastestRouteIndex(result) });
       }
-    );
+    ));
   }
 
   // Curated Routes lives in docs/routes.js, while this is the existing
@@ -8526,6 +8774,13 @@
     if (!details || !toggle) return;
     const show = open && navSteps.length > 0 && !syncMovementSafetyBanner();
     if (show) renderNavTripTurns();
+    // With a stop on the way, Add stop becomes Skip it (native: onSkipStop).
+    $('#navTripAddStop').hidden = Boolean(navStop);
+    const skip = $('#navTripSkipStop');
+    if (skip) {
+      skip.hidden = !navStop;
+      skip.setAttribute('aria-label', navStop ? `Skip the stop at ${navStop.label}` : 'Skip stop');
+    }
     details.hidden = !show;
     $('#app').classList.toggle('nav-trip-open', show);
     toggle.setAttribute('aria-expanded', String(show));
@@ -8658,6 +8913,23 @@
 
     const lastStep = navSteps[navSteps.length - 1];
     const lastEnd = { lat: lastStep.end_location.lat(), lng: lastStep.end_location.lng() };
+    // Arrived: at the end point, or parked close to it (shared
+    // navigationArrival). Curated routes keep their own checkpoint rules.
+    const arrival = effectiveIndex === navSteps.length - 1 && navCuratedStops.length === 0
+      ? navigationGuidance.navigationArrival({
+        distanceMeters: metersBetween(here, lastEnd),
+        rawDistanceMeters: metersBetween(raw, lastEnd),
+        accuracyMeters: navCurrentAccuracyMeters,
+        speedMps: positionSpeedMps(position),
+        nowMs: position.timestamp || Date.now(),
+        stoppedSinceMs: navArrivalStoppedSince,
+      })
+      : null;
+    navArrivalStoppedSince = arrival?.stoppedSinceMs ?? null;
+    if (arrival?.arrived) {
+      finishNavigation(true);
+      return;
+    }
     if (effectiveIndex === navSteps.length - 1 && metersBetween(here, lastEnd) <= NAV_STEP_ARRIVAL_RADIUS_M) {
       if (navCuratedStops.length === 0) {
         finishNavigation(true);
@@ -8820,12 +9092,22 @@
   async function renderStopsOnTheWay(kindKey) {
     const list = $('#stopList');
     const kind = STOP_KINDS.find((entry) => entry.key === kindKey) || STOP_KINDS[0];
-    if (!list || !navSteps.length) return;
+    const planning = !navSteps.length ? routePreview : null;
+    if (!list || (!navSteps.length && !planning)) return;
     const search = ++stopSearch;
     list.innerHTML = '<p class="caption">Searching along the route…</p>';
-    const here = navHere();
-    const points = navSteps.flatMap((step) => navigationStepPath(step)).map((point) => ({ lat: point.lat, lon: point.lng }));
-    const path = here ? navigationGuidance.routeAheadPath(points, { lat: here.lat, lon: here.lng }) : [];
+    let path = [];
+    let remainingSeconds = navRemainingSeconds;
+    if (planning) {
+      // Before Start: along the whole of the way shown.
+      const way = planning.result.routes[planning.index];
+      path = routePathOf(way).map((point) => ({ lat: point.lat, lon: point.lng }));
+      remainingSeconds = routeLegSeconds(routeTrip(way));
+    } else {
+      const here = navHere();
+      const points = navSteps.flatMap((step) => navigationStepPath(step)).map((point) => ({ lat: point.lat, lon: point.lng }));
+      path = here ? navigationGuidance.routeAheadPath(points, { lat: here.lat, lon: here.lng }) : [];
+    }
     let stops = [];
     try {
       if (path.length >= 2) ({ places: stops } = await apiFetch('POST', '/places/along-route', { query: kind.query, path }));
@@ -8834,7 +9116,7 @@
       return;
     }
     if (search !== stopSearch || !$('#stopList')) return;
-    const ordered = navigationGuidance.stopsOnTheWay(stops || [], navRemainingSeconds);
+    const ordered = navigationGuidance.stopsOnTheWay(stops || [], remainingSeconds);
     if (!ordered.length) {
       list.innerHTML = `<p class="caption">No ${escapeHtml(kind.label.toLowerCase())} found along the rest of the route.</p>`;
       return;
@@ -8842,8 +9124,40 @@
     list.innerHTML = ordered.map(({ place, text }, index) => `<button type="button" data-stop-index="${index}" aria-label="${escapeHtml([place.name, place.address, text].filter(Boolean).join(', '))}"><span><strong>${escapeHtml(place.name)}</strong>${place.address ? `<small>${escapeHtml(place.address)}</small>` : ''}</span>${text ? `<em>${escapeHtml(text)}</em>` : ''}</button>`).join('');
     $$('[data-stop-index]', list).forEach((button) => button.addEventListener('click', () => {
       closeSheet();
-      addNavStop(ordered[Number(button.dataset.stopIndex)].place);
+      const { place } = ordered[Number(button.dataset.stopIndex)];
+      if (planning && routePreview === planning) addRoutePreviewStop(place);
+      else addNavStop(place);
     }));
+  }
+
+  /** Not stopping after all: drop the stop and route straight on, so
+   * reroutes stop steering back to it (native: skipNavigationStop). */
+  function skipNavStop() {
+    const here = navHere();
+    const stop = navStop;
+    if (!stop || !navDestination || !here) return;
+    navStop = null;
+    const destination = { lat: navDestination.lat, lng: navDestination.lng };
+    const label = navDestination.label;
+    navRerouting = true;
+    getDirectionsService().route(navigationRouteRequest(here, destination), (result, status) => {
+      navRerouting = false;
+      if (status !== 'OK' || !result) {
+        navStop = stop;
+        setNavStatusNotice('Couldn’t skip that stop. Try again.');
+        return;
+      }
+      const skipped = `Skipped ${stop.label}.`;
+      applyRoute(result, destination, label, { preserveMute: true, routeNotice: skipped });
+      if (!navMuted) speak(skipped);
+    });
+  }
+
+  /** Before Start: the ways there again, through the stop. */
+  function addRoutePreviewStop(place) {
+    if (!routePreview) return;
+    haptic('select');
+    replanRoutePreview(routePreview.style, null, { lat: place.lat, lng: place.lon, label: place.name });
   }
 
   /** Routes through a stop on the way, keeping the destination. */
@@ -8954,6 +9268,7 @@
     fasterRouteTimer = null;
     navTrafficScale = 1;
     navStop = null;
+    navArrivalStoppedSince = null;
     navCuratedStops = [];
     navCuratedFinishReplanAt = null;
     const traffic = $('#navTraffic');
@@ -9458,6 +9773,7 @@
     $('#navTripEnd').addEventListener('click', () => { haptic('tap'); finishNavigation(false); });
     $('#navTripShare').addEventListener('click', () => void shareNavigationEta());
     $('#navTripAddStop').addEventListener('click', () => { setNavTripDetailsOpen(false); openSheet('stopsOnTheWay'); });
+    $('#navTripSkipStop')?.addEventListener('click', () => { setNavTripDetailsOpen(false); haptic('select'); skipNavStop(); });
   }
 
   // --- Auth screen -----------------------------------------------------

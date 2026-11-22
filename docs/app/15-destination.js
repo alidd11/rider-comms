@@ -72,7 +72,26 @@
       }
       showDestinationCard(location, label, address);
     });
-    $('[data-start-in-app-navigation]', card)?.addEventListener('click', () => void startInAppNavigation(location, label));
+    $('[data-start-in-app-navigation]', card)?.addEventListener('click', async (event) => {
+      // Finding the rider and asking Google takes a moment: say so, and
+      // don't ask twice (native: "Starting route to …").
+      const button = event.currentTarget;
+      if (button.disabled) return;
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.setAttribute('aria-label', `Starting route to ${label || 'selected place'}`);
+      const caption = $('small', button);
+      const before = caption?.textContent;
+      if (caption) caption.textContent = 'Planning route…';
+      try {
+        await startInAppNavigation(location, label);
+      } finally {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        button.setAttribute('aria-label', 'Start route in Rider Comms');
+        if (caption) caption.textContent = before;
+      }
+    });
     $('[data-dismiss-destination]', card).addEventListener('click', () => {
       hideDestinationCard();
       destinationMarker?.setMap(null);

@@ -40,7 +40,7 @@ describe('moderation queue API', { skip: !hasDatabase && 'DATABASE_URL not set; 
   });
 
   beforeEach(async () => {
-    await getPool().query('TRUNCATE safety_reports, moderation_actions');
+    await getPool().query('TRUNCATE safety_report_assignment_events, safety_reports, moderation_actions');
     await getPool().query(`DELETE FROM users WHERE id = ANY($1::text[]) OR username LIKE 'modq_%'`, [SEEDED]);
     await getPool().query(
       `INSERT INTO users (id, username, password_hash, email_verified_at, is_admin, terms_version) VALUES

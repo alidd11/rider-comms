@@ -13,9 +13,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'riders', 'moderation', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', riders: 'Riders', moderation: 'Moderation', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', riders: 'view_riders', moderation: 'moderate', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'inbox', 'riders', 'moderation', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -72,6 +72,10 @@
   let { view, riderId: detailRiderId } = parseHash(location.hash.slice(1));
   let period = readPeriod();
   let moderationView = 'open';
+  let inboxFilter = 'all';
+  // A local view over the returned 50-item snapshot, never a global ownership count.
+  let inboxOwnerFilter = 'all';
+  let inboxFocusTarget = null;
   let riderQuery = '';
   let auditGroup = 'all';
   let auditRider = '';
@@ -79,6 +83,19 @@
   const allowed = (permission) => Boolean(me?.permissions?.includes(permission));
   let overviewCache = null;
   let chartSeq = 0;
+  // Ignore responses from a section or filter the staff member has already left.
+  let renderGeneration = 0;
+  const isCurrentRender = (generation) => generation === renderGeneration;
+  let displayedKey = null;
+  let focusHeadingOnNextRender = false;
+  const renderKey = () => JSON.stringify([view, detailRiderId,
+    view === 'riders' ? riderQuery : null,
+    view === 'moderation' ? moderationView : null,
+    view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
+    view === 'inbox' ? inboxFilter : null,
+    view === 'inbox' ? inboxOwnerFilter : null,
+    view === 'audit' ? auditGroup : null,
+    view === 'audit' ? auditRider : null]);
   const names = new Map();
 
   // ------------------------------------------------------------ Utilities
@@ -115,6 +132,9 @@
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
+      credentials: 'omit',
+      redirect: 'error',
+      cache: 'no-store',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const json = await response.json().catch(() => ({}));
@@ -301,6 +321,7 @@
   }
 
   function setBusy(busy) {
+    pageEl.setAttribute('aria-busy', String(busy));
     refreshMobile.setAttribute('aria-busy', String(busy));
     for (const button of pageEl.querySelectorAll('[data-refresh]')) button.setAttribute('aria-busy', String(busy));
   }
@@ -541,7 +562,14 @@
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
     return el('div', { class: 'page-header' }, [
-      el('div', {}, [el('h1', { class: 'page-title', text: title }), subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null]),
+      el('div', { class: 'page-heading' }, [
+        el('span', { class: 'page-eyebrow' }, [
+          el('span', { class: 'page-eyebrow-dot', 'aria-hidden': 'true' }),
+          el('span', { text: 'Operations hub' }),
+        ]),
+        el('h1', { class: 'page-title', tabindex: '-1', text: title }),
+        subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null,
+      ]),
       el('div', { class: 'actions' }, [...actions, refresh]),
     ]);
   }
@@ -624,6 +652,38 @@
     return el('section', { class: 'card funnel' }, [header, el('ol', { class: 'funnel-steps' }, rows), undercount]);
   }
 
+
+  /** Operational shortcuts are grounded in /admin/overview, not mock inbox data. */
+  function operationsSummary({ riders, activity, safety }) {
+    const card = ({ label, value, description, destination, action, attention = false }) => {
+      const children = [
+        el('div', { class: 'operation-label', text: label }),
+        el('strong', { class: 'operation-value', text: String(value) }),
+        el('p', { class: 'operation-description', text: description }),
+      ];
+      if (destination && allowed(VIEW_PERMISSIONS[destination])) {
+        const button = el('button', { type: 'button', class: 'button', text: action });
+        button.addEventListener('click', () => selectView(destination));
+        children.push(button);
+      }
+      return el('div', { class: 'operation-card', dataset: { attention: String(attention) } }, children);
+    };
+    return el('section', { class: 'operations-summary', 'aria-label': 'Operations at a glance' }, [
+      el('h2', { class: 'section-title', text: 'Operations at a glance' }),
+      el('p', { class: 'operations-lead', text: 'Current activity and next steps, based on the latest dashboard snapshot.' }),
+      el('div', { class: 'operations-grid' }, [
+        card({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
+          description: 'Open rider reports requiring a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }),
+        card({ label: 'New riders today', value: formatNumber(riders.newToday),
+          description: 'New sign-ups recorded today.', destination: 'riders', action: 'Find riders' }),
+        card({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
+          description: 'Active group rides. No private locations are displayed.' }),
+        card({ label: 'Platform diagnostics', value: 'System',
+          description: 'Inspect backend health, integrations and request metrics.', destination: 'system', action: 'View system' }),
+      ]),
+    ]);
+  }
+
   function renderOverview(data) {
     const days = period;
     const { riders, activity, social, content, safety, series, previous } = data;
@@ -640,7 +700,7 @@
     const stickiness = percent(activity.active24h, activity.active30d);
     const periodText = `vs previous ${days} days`;
 
-    const reportsLink = safety.openReports > 0 ? el('a', { href: '#moderation', text: 'Review queue' }) : null;
+    const reportsLink = safety.openReports > 0 && allowed('moderate') ? el('a', { href: '#moderation', text: 'Review queue' }) : null;
     const kpis = el('div', { class: 'kpis' }, [
       kpiCard({ label: 'New riders', value: formatNumber(newRiders), delta: deltaBadge(newRiders, newPrev), foot: periodText, spark: sparkline(slice(series.signups)) }),
       kpiCard({ label: 'Active riders', value: formatNumber(active), foot: `${percent(active, riders.total) ?? 0}% of all riders`, spark: sparkline(slice(series.activeRiders)) }),
@@ -673,9 +733,11 @@
       period = next;
       savePeriod(next);
       renderOverview(overviewCache);
+      pageEl.querySelector('[aria-label="Period"] [aria-pressed="true"]')?.focus({ preventScroll: true });
     }, 'Period');
     pageEl.replaceChildren(
       pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · days in UTC`, [periodControl]),
+      operationsSummary({ riders, activity, safety }),
       kpis,
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
@@ -720,19 +782,21 @@
     if (rider.emailVerified || !allowed('verify_email')) return null;
     const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'verify-email' }, text: 'Verify email', 'aria-label': `Mark ${rider.username}'s email verified` });
     button.addEventListener('click', async () => {
-      const note = window.prompt(`Mark ${rider.username}'s email as verified? Only do this for riders you know. Note for the audit log:`, 'Known rider; verification email not delivered.');
-      if (note === null) return;
-      if (!note.trim()) {
-        window.alert('A note is required. Every staff action is recorded with its reason.');
-        return;
-      }
+      const choice = await actionDialog({
+        title: `Mark ${rider.username}’s email verified?`,
+        description: 'Only verify an email address after confirming the rider’s identity.',
+        confirmLabel: 'Mark verified',
+        templates: ['Known rider; verification email not delivered.'],
+      });
+      if (!choice) return;
       button.disabled = true;
       try {
-        await api('POST', `/moderation/riders/${encodeURIComponent(rider.riderId)}/verify-email`, { note: note.trim() });
+        await api('POST', `/moderation/riders/${encodeURIComponent(rider.riderId)}/verify-email`, { note: choice.note });
         await render();
+        flash('Email verified.');
       } catch (error) {
         button.disabled = false;
-        window.alert(error instanceof ApiError && error.code === 'already_verified' ? 'This rider is already verified.' : actionErrorMessage(error));
+        flash(error instanceof ApiError && error.code === 'already_verified' ? 'This rider is already verified.' : actionErrorMessage(error), 'danger');
       }
     });
     return button;
@@ -744,28 +808,33 @@
     if (!allowed('manage_staff')) return null;
     const button = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'export-data' }, text: 'Export data', 'aria-label': `Export ${rider.username}'s data` });
     button.addEventListener('click', async () => {
-      const note = window.prompt(`Download everything held about ${rider.username}? Reason for the audit log (e.g. the access request it answers):`);
-      if (note === null) return;
-      if (!note.trim()) {
-        window.alert('A reason is required. Every export is recorded.');
-        return;
-      }
+      const choice = await actionDialog({
+        title: `Export ${rider.username}’s account data?`,
+        description: 'For a verified access request only. This download contains personal data; store and share it securely.',
+        confirmLabel: 'Export',
+      });
+      if (!choice) return;
       button.disabled = true;
       try {
-        const data = await api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note: note.trim() });
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const link = el('a', { href: URL.createObjectURL(blob), download: `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json` });
-        document.body.append(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        const data = await api('POST', `/admin/riders/${encodeURIComponent(rider.riderId)}/export`, { note: choice.note });
+        downloadJson(data, `rider-comms-data-${rider.riderId}-${new Date().toISOString().slice(0, 10)}.json`);
+        flash('Data export downloaded.');
       } catch (error) {
-        window.alert(actionErrorMessage(error));
+        flash(actionErrorMessage(error), 'danger');
       } finally {
         button.disabled = false;
       }
     });
     return button;
+  }
+
+  /** Keep keyboard focus with the control that triggered a rerender, unless superseded. */
+  function renderAndFocus(selector) {
+    const completion = render();
+    const generation = renderGeneration;
+    void completion.then(() => {
+      if (isCurrentRender(generation)) pageEl.querySelector(selector)?.focus({ preventScroll: true });
+    });
   }
 
   function renderRiders(riders) {
@@ -776,7 +845,7 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       riderQuery = input.value.trim();
-      void render();
+      renderAndFocus('input[aria-label="Search riders"]');
     });
 
     const displayName = (rider) => rider.displayName || rider.username;
@@ -831,6 +900,9 @@
   function actionErrorMessage(error) {
     if (!(error instanceof ApiError)) return 'Could not reach the server. Try again.';
     if (error.code === 'already_resolved') return 'Someone already resolved this report. Refresh to see the latest queue.';
+    if (error.code === 'assigned_to_other') return 'This case has another owner. Ask an administrator to transfer it.';
+    if (error.code === 'invalid_assignee') return 'Only active moderators or administrators can own a case.';
+    if (error.code === 'unchanged') return 'Ownership is already up to date. Refresh to see the current case.';
     if (error.code === 'forbidden_target') return 'You cannot suspend yourself or another admin.';
     if (error.code === 'not_suspended') return 'This rider is not suspended.';
     if (error.code === 'already_suspended') return 'This rider is already suspended.';
@@ -838,6 +910,27 @@
     if (error.code === 'reauth_cancelled') return 'Not changed: your password is needed for staff changes.';
     if (error.status === 403) return 'Your account is no longer staff.';
     return `Failed: ${error.code || error.message}`;
+  }
+
+  /** Accessible confirmation for destructive actions without a browser prompt. */
+  function confirmAction({ title, description, confirmLabel, danger = false }) {
+    return new Promise((resolve) => {
+      const dialog = el('dialog', { class: 'dialog', 'aria-labelledby': 'confirmActionTitle' });
+      const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel' });
+      const accept = el('button', { type: 'button', class: danger ? 'button button-danger' : 'button button-primary', text: confirmLabel });
+      dialog.append(el('div', { class: 'dialog-body' }, [
+        el('h2', { id: 'confirmActionTitle', class: 'card-title', text: title }),
+        el('p', { class: 'card-description', text: description }),
+        el('div', { class: 'actions' }, [cancel, accept]),
+      ]));
+      let confirmed = false;
+      cancel.addEventListener('click', () => dialog.close());
+      accept.addEventListener('click', () => { confirmed = true; dialog.close(); });
+      dialog.addEventListener('close', () => { dialog.remove(); resolve(confirmed); });
+      document.body.append(dialog);
+      dialog.showModal();
+      cancel.focus();
+    });
   }
 
   function wireAction(card, button, note, run) {
@@ -849,10 +942,18 @@
         note.focus();
         return;
       }
-      if (button.dataset.action === 'suspend'
-        && !window.confirm('Suspend this rider? They are signed out everywhere and cannot sign in until unsuspended.')) return;
-      if (button.dataset.action === 'remove'
-        && !window.confirm('Remove this post for everyone? Its photos or video are deleted. This can’t be undone.')) return;
+      if (button.dataset.action === 'suspend' && !(await confirmAction({
+        title: 'Suspend this rider?',
+        description: 'They are signed out everywhere and cannot sign in until the suspension ends or staff unsuspend them.',
+        confirmLabel: 'Suspend rider',
+        danger: true,
+      }))) return;
+      if (button.dataset.action === 'remove' && !(await confirmAction({
+        title: 'Remove this Social post?',
+        description: 'The post and its media will be removed for everyone. This cannot be undone.',
+        confirmLabel: 'Remove post',
+        danger: true,
+      }))) return;
       for (const other of card.querySelectorAll('button')) other.disabled = true;
       errorEl.textContent = '';
       try {
@@ -891,12 +992,16 @@
     const button = el('button', { type: 'button', class: 'button button-small claim', dataset: { action: mine ? 'release' : 'claim' }, text: mine ? 'You’re handling this · Let go' : 'Take this report' });
     button.addEventListener('click', async () => {
       button.disabled = true;
+      let failure = null;
       try {
         await api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/claim`, mine ? { release: true } : {});
       } catch (error) {
-        if (!(error instanceof ApiError) || error.code !== 'claimed_by_other') window.alert(actionErrorMessage(error));
+        failure = error;
       }
       await render();
+      if (failure) flash(failure instanceof ApiError && failure.code === 'claimed_by_other'
+        ? 'Another moderator is handling this report. The queue has been refreshed.'
+        : actionErrorMessage(failure), 'warning');
     });
     return button;
   }
@@ -911,6 +1016,9 @@
           report.reportsAgainstRider > 1 ? badge(`${report.reportsAgainstRider} reports against this rider`, null, true) : null,
           report.reportedRiderSuspended ? badge(report.reportedRiderSuspendedUntil ? `Suspended until ${formatUntil(report.reportedRiderSuspendedUntil)}` : 'Suspended', 'danger') : null,
           report.status === 'open' ? waitingBadge(report.createdAt) : null,
+          report.assignedTo
+            ? badge(`Case owner: ${riderLabel(report.assignedTo).name}`, 'accent')
+            : (report.status === 'open' ? badge('No permanent owner', null, true) : null),
         ]),
         el('span', { class: 'report-time' }, [timeEl(report.createdAt)]),
       ]),
@@ -937,6 +1045,87 @@
           return chip;
         })));
       }
+
+      if (report.status === 'open') {
+        // A persistent owner is different from the expiring 30-minute claim.
+        // Transfers performed by admins use the same audited assignment API.
+        const mine = report.assignedTo === session.riderId;
+        const assignable = !report.assignedTo || mine || allowed('manage_staff');
+        if (assignable) {
+          const assign = el('button', {
+            type: 'button', class: 'button button-small',
+            dataset: { action: mine ? 'release-owner' : 'assign-owner' },
+            text: mine ? 'Release permanent ownership'
+              : report.assignedTo ? 'Take ownership (admin)' : 'Assign permanently to me',
+          });
+          actions.prepend(assign);
+          wireAction(card, assign, note, (text) => api('POST',
+            `/moderation/reports/${encodeURIComponent(report.id)}/assign`,
+            { assigneeId: mine ? null : session.riderId, note: text }));
+        }
+      }
+      if (report.status === 'open' && allowed('manage_staff')) {
+        // Only admins can list staff and transfer cases to a different owner.
+        // The backend rechecks both permissions and eligibility at submission.
+        const transfer = el('button', { type: 'button', class: 'button button-small',
+          'aria-expanded': 'false', dataset: { action: 'handover-owner' }, text: 'Assign to team member' });
+        actions.prepend(transfer);
+        transfer.addEventListener('click', async () => {
+          const existing = card.querySelector('[data-handover-panel]');
+          if (existing) {
+            existing.remove();
+            transfer.setAttribute('aria-expanded', 'false');
+            transfer.focus();
+            return;
+          }
+          transfer.disabled = true;
+          const errorEl = card.querySelector('.error-text');
+          try {
+            const response = await api('GET', '/admin/staff');
+            // A delayed staff response must never resurrect a panel after navigation.
+            if (!card.isConnected) return;
+            const eligible = (Array.isArray(response.staff) ? response.staff : [])
+              .filter((member) => (member.role === 'admin' || member.role === 'moderator')
+                && typeof member.riderId === 'string' && member.riderId !== report.assignedTo);
+            const selector = el('select', { class: 'input select',
+              'aria-label': `Team member for report ${report.id}` }, [
+              el('option', { value: '', text: 'Choose a team member', selected: true }),
+              ...eligible.map((member) => el('option', { value: member.riderId,
+                text: `${member.displayName || member.handle || member.riderId} · ${ROLE_LABELS[member.role]}` })),
+            ]);
+            const assign = el('button', { type: 'button', class: 'button button-primary',
+              dataset: { action: 'assign-selected-owner' }, text: 'Assign selected member', disabled: true });
+            selector.addEventListener('change', () => { assign.disabled = !selector.value; });
+            wireAction(card, assign, note, (text) => api('POST',
+              `/moderation/reports/${encodeURIComponent(report.id)}/assign`,
+              { assigneeId: selector.value, note: text }));
+            const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel handover' });
+            const panel = el('div', { class: 'case-handover-panel', role: 'group',
+              'aria-label': `Staff handover for report ${report.id}`, dataset: { handoverPanel: '' } }, [
+              el('strong', { class: 'case-handover-title', text: 'Assign this report to a team member' }),
+              el('p', { class: 'case-handover-help',
+                text: 'Only moderators and administrators can own reports. Add an audit reason in the note field above. Eligibility is checked again when you save.' }),
+              ...(eligible.length
+                ? [el('div', { class: 'case-handover-controls' }, [selector, assign, cancel])]
+                : [el('p', { class: 'case-handover-help', text: 'No other eligible staff members were returned.' }), cancel]),
+            ]);
+            actions.before(panel);
+            transfer.setAttribute('aria-expanded', 'true');
+            cancel.addEventListener('click', () => {
+              panel.remove();
+              transfer.setAttribute('aria-expanded', 'false');
+              transfer.focus();
+            });
+            if (eligible.length) selector.focus();
+            else cancel.focus();
+            errorEl.textContent = '';
+          } catch (error) {
+            if (card.isConnected) errorEl.textContent = `Could not load the team. ${actionErrorMessage(error)}`;
+          } finally {
+            if (card.isConnected) transfer.disabled = false;
+          }
+        });
+      }
       if (report.reportedRiderSuspended) {
         const unsuspend = el('button', { type: 'button', class: 'button', dataset: { action: 'unsuspend' }, text: 'Unsuspend rider' });
         actions.append(unsuspend);
@@ -944,6 +1133,47 @@
       }
       card.append(note, actions);
     }
+
+    // History belongs to a specific report, not the bounded queue sample.
+    const historyButton = el('button', { type: 'button', class: 'button button-small case-history-toggle',
+      'aria-expanded': 'false', text: 'View ownership history' });
+    historyButton.addEventListener('click', async () => {
+      historyButton.disabled = true;
+      let region = card.querySelector('[data-assignment-history]');
+      if (region) {
+        region.remove();
+        historyButton.disabled = false;
+        historyButton.textContent = 'View ownership history';
+        historyButton.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      try {
+        const { events } = await api('GET',
+          `/moderation/reports/${encodeURIComponent(report.id)}/assignment-history?limit=50`);
+        await loadNames(events.flatMap((event) => [event.actorId, event.previousAssignee, event.assigneeId]));
+        region = el('div', { class: 'case-history-panel', role: 'region',
+          'aria-label': `Ownership history for report ${report.id}`, dataset: { assignmentHistory: '' } },
+        events.length ? [
+          el('strong', { class: 'case-history-heading', text: 'Ownership activity · latest 50 changes' }),
+          el('ol', { class: 'case-history-list' }, events.map((event) => el('li', { class: 'case-history-row' }, [
+            el('div', { class: 'case-history-body' }, [
+              el('span', { class: 'case-history-line',
+                text: `${riderLabel(event.actorId).name} · ${event.event}: ${event.previousAssignee ? riderLabel(event.previousAssignee).name : 'unassigned'} → ${event.assigneeId ? riderLabel(event.assigneeId).name : 'unassigned'}` }),
+              el('span', { class: 'case-history-note', text: event.note }),
+            ]),
+            el('span', { class: 'case-history-time' }, [timeEl(event.createdAt)]),
+          ]))),
+        ] : [el('p', { class: 'case-history-empty', text: 'No ownership changes recorded for this report.' })]);
+        card.append(region);
+        historyButton.textContent = 'Hide ownership history';
+        historyButton.setAttribute('aria-expanded', 'true');
+      } catch (error) {
+        flash(actionErrorMessage(error), 'warning');
+      } finally {
+        historyButton.disabled = false;
+      }
+    });
+    card.append(historyButton);
     card.append(el('p', { class: 'error-text', role: 'alert' }));
     return card;
   }
@@ -989,12 +1219,169 @@
     return card;
   }
 
-  async function renderModeration() {
+  // An operational reading view: decisions still happen on the existing
+  // moderation screens, so their notes, claims and reauthentication remain.
+  async function renderInbox(generation) {
+    const filter = inboxFilter;
+    const response = await api('GET', `/admin/action-inbox?type=${filter}&limit=50`);
+    if (!isCurrentRender(generation)) return;
+    const items = Array.isArray(response.items) ? response.items : [];
+    await loadNames(items.flatMap((item) => [item.riderId, item.claimedBy, item.assignedTo]));
+    if (!isCurrentRender(generation)) return;
+
+    const tabs = segmented([
+      ['all', 'All work'], ['rider_report', 'Rider reports'], ['social_post', 'Social posts'],
+    ], filter, (next) => {
+      inboxFilter = next;
+      if (next === 'social_post') inboxOwnerFilter = 'all';
+      renderAndFocus('[aria-label="Action inbox sources"] [aria-pressed="true"]');
+    }, 'Action inbox sources');
+
+    // Source filtering is server-side; owner filtering is explicitly local to
+    // this bounded response. Social posts have no durable owner model yet.
+    const validItems = items.filter((item) =>
+      (item.type === 'rider_report' && typeof item.reportId === 'string') ||
+      (item.type === 'social_post' && typeof item.postId === 'string'));
+    const visibleItems = validItems.filter((item) => inboxOwnerFilter === 'all' ||
+      (item.type === 'rider_report' && (inboxOwnerFilter === 'mine'
+        ? item.assignedTo === session.riderId : item.assignedTo == null)));
+    const ownershipTabs = filter === 'social_post' ? null : segmented([
+      ['all', 'All owners'], ['mine', 'Assigned to me'], ['unassigned', 'Unassigned'],
+    ], inboxOwnerFilter, (next) => {
+      inboxOwnerFilter = next;
+      renderAndFocus('[aria-label="Action inbox ownership"] [aria-pressed="true"]');
+    }, 'Action inbox ownership');
+
+    const itemCard = (item) => {
+      const isReport = item.type === 'rider_report';
+      const title = isReport ? `Rider report · ${REASON_LABELS[item.reason] || item.reason}`
+        : `Rider Social · ${item.kind === 'reel' ? 'Reel' : 'Photo post'}`;
+      const status = isReport
+        ? (item.assignedTo ? `Case owner: ${item.assignedTo === session.riderId ? 'you' : riderLabel(item.assignedTo).name}` : 'No permanent owner')
+        : `${formatNumber(item.reportCount)} reports`;
+      const description = isReport
+        ? `${formatNumber(item.reportsAgainstRider)} reports against this rider`
+        : (item.reasons?.length ? item.reasons.map((reason) => REASON_LABELS[reason] || reason).join(', ') : 'Reported content');
+      const quickClaim = isReport && item.claimedBy
+        ? `Quick claim: ${riderLabel(item.claimedBy).name}` : null;
+      const button = el('button', { type: 'button', class: 'button', text: isReport ? 'Review rider report' : 'Review Social post' });
+      button.addEventListener('click', () => {
+        inboxFocusTarget = {
+          type: item.type,
+          id: isReport ? item.reportId : item.postId,
+        };
+        moderationView = isReport ? 'open' : 'social';
+        selectView('moderation');
+      });
+      return el('article', { class: 'card inbox-item', dataset: { inboxId: item.id } }, [
+        el('div', { class: 'inbox-item-main' }, [
+          el('div', { class: 'inbox-item-top' }, [
+            el('h2', { class: 'inbox-item-title', text: title }),
+            waitingBadge(item.eventAt),
+          ]),
+          person(riderLabel(item.riderId).name, riderLabel(item.riderId).sub, item.riderId),
+          el('div', { class: 'inbox-item-meta' }, [
+            // Permanent assignment is a neutral coordination state, never an urgency signal.
+            badge(status, isReport && item.assignedTo ? 'accent' : null,
+              isReport && !item.assignedTo),
+            el('span', { class: 'inbox-item-detail', text: description }),
+            quickClaim ? el('span', { class: 'inbox-quick-claim', text: quickClaim }) : null,
+            el('span', { class: 'inbox-item-time' }, [timeEl(item.eventAt)]),
+          ]),
+        ]),
+        el('div', { class: 'inbox-item-actions' }, [button]),
+      ]);
+    };
+
+    const content = visibleItems.length
+      ? el('div', { class: 'inbox-items' }, visibleItems.map(itemCard))
+      : el('div', { class: 'card' }, [emptyState('inbox', validItems.length
+        ? 'No matching work in this sample' : 'Nothing waiting in this view',
+        validItems.length
+          ? 'Try All owners or another source. Ownership filters only apply to the items returned in this snapshot.'
+          : 'No open reports or reported Social posts were returned for this source. Refresh to check again.')]);
+
+    const note = response.mayHaveMore
+      ? el('p', { class: 'inbox-limit-note', role: 'status',
+        text: 'Showing up to 50 items from a bounded sample. More work may be waiting in Moderation.' })
+      : el('p', { class: 'inbox-limit-note',
+        text: 'Bounded queue snapshot, not a complete count or global priority order · refresh to check for new work.' });
+
+    pageEl.replaceChildren(
+      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.', [tabs]),
+      el('div', { class: 'inbox-intro', role: 'note' }, [
+        el('strong', { text: 'Review and assign work in Moderation' }),
+        el('span', { text: 'This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
+      ]),
+      el('div', { class: 'inbox-triage-toolbar' }, [
+        ownershipTabs,
+        el('span', { class: 'inbox-sample-count', role: 'status',
+          text: `Showing ${visibleItems.length} of ${validItems.length} returned items` }),
+      ]),
+      content,
+      note,
+    );
+  }
+
+  async function renderModeration(generation) {
     const tabs = segmented([['open', 'Open'], ['social', 'Social posts'], ['dismissed', 'Dismissed'], ['actioned', 'Actioned']], moderationView, (next) => {
       moderationView = next;
-      void render();
+      inboxFocusTarget = null;
+      renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
     }, 'Moderation queues');
     const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
+    // Exact-ID lookups bypass list sampling and sorting. A case could have
+    // been claimed, resolved or removed since the Action Inbox snapshot.
+    const selected = inboxFocusTarget &&
+      ((inboxFocusTarget.type === 'rider_report' && moderationView === 'open') ||
+       (inboxFocusTarget.type === 'social_post' && moderationView === 'social'))
+      ? inboxFocusTarget : null;
+    if (selected) {
+      const back = el('button', { type: 'button', class: 'button', text: 'Back to queue' });
+      back.addEventListener('click', () => {
+        inboxFocusTarget = null;
+        renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
+      });
+      let item;
+      try {
+        const url = selected.type === 'rider_report'
+          ? `/moderation/reports/${encodeURIComponent(selected.id)}`
+          : `/moderation/social-posts/${encodeURIComponent(selected.id)}`;
+        const response = await api('GET', url);
+        item = selected.type === 'rider_report' ? response.report : response.entry;
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        if (!isCurrentRender(generation)) return;
+        const unavailable = el('div', { class: 'card', dataset: { selectedUnavailable: '' }, tabindex: '-1' }, [
+          emptyState('inbox', 'Selected item is no longer available',
+            'It may have been removed or changed since your inbox snapshot. No resolution is assumed.'),
+          back,
+        ]);
+        pageEl.replaceChildren(header, unavailable);
+        return;
+      }
+      if (!isCurrentRender(generation)) return;
+      const riderIds = selected.type === 'rider_report'
+        ? [item.reporterId, item.reportedRiderId, item.resolvedBy, item.claimedBy, item.assignedTo]
+        : [item.post.authorId];
+      await loadNames(riderIds);
+      if (!isCurrentRender(generation)) return;
+      const changed = selected.type === 'rider_report' && item.status !== 'open';
+      pageEl.replaceChildren(
+        header,
+        el('div', { class: 'inbox-intro', role: 'note' }, [
+          el('strong', { text: changed ? `Report currently ${item.status}` : 'Showing the selected case' }),
+          el('span', { text: changed
+            ? 'This report changed after the Action Inbox snapshot. Its current status is displayed; no new decision can be made on this closed report.'
+            : 'Loaded directly by its identifier, independent of queue size and order.' }),
+          back,
+        ]),
+        el('div', { class: 'reports' }, [
+          selected.type === 'rider_report' ? reportCard(item) : socialPostCard(item),
+        ]),
+      );
+      return;
+    }
     if (moderationView === 'social') {
       let posts = [];
       try {
@@ -1002,14 +1389,18 @@
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 404) throw error;
       }
+      if (!isCurrentRender(generation)) return;
       await loadNames(posts.map((entry) => entry.post.authorId));
+      if (!isCurrentRender(generation)) return;
       pageEl.replaceChildren(header, el('div', { class: 'reports' }, posts.length
         ? posts.map(socialPostCard)
         : [el('div', { class: 'card' }, [emptyState('inbox', 'No hidden posts', 'Posts reported by three riders are hidden here until you restore or remove them.')])]));
       return;
     }
     const { reports } = await api('GET', `/moderation/reports?status=${moderationView}&limit=100`);
-    await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy]));
+    if (!isCurrentRender(generation)) return;
+    await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy, report.assignedTo]));
+    if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
     pageEl.replaceChildren(header, el('div', { class: 'reports' }, reports.length
       ? reports.map(reportCard)
@@ -1075,11 +1466,12 @@
 
   // ------------------------------------------------------------ Rider
 
-  async function renderRiderDetail(riderId) {
+  async function renderRiderDetail(riderId, generation) {
     const detail = await api('GET', `/admin/riders/${encodeURIComponent(riderId)}`).catch((error) => {
       if (error instanceof ApiError && error.status === 404) return null;
       throw error;
     });
+    if (!isCurrentRender(generation)) return;
     if (!detail) {
       pageEl.replaceChildren(pageHeader('Rider', null), el('div', { class: 'card' }, [emptyState('users', 'No such rider', 'They may have deleted their account.')]));
       return;
@@ -1090,6 +1482,7 @@
       ...(detail.reportsFiled ?? []).map((report) => report.reportedRiderId),
       ...(detail.actions ?? []).map((action) => action.moderatorId),
     ].filter((id) => id && id !== 'system'));
+    if (!isCurrentRender(generation)) return;
     const name = rider.displayName || rider.username;
     document.title = `${name} · Rider Comms staff`;
 
@@ -1146,10 +1539,29 @@
       person(`${REASON_LABELS[report.reason] || report.reason}`, [who, report.details].filter(Boolean).join(' · '), who === null ? null : report.reporterId, { link: false }),
       el('span', { class: 'trail' }, [badge(report.status === 'open' ? 'Open' : report.status === 'actioned' ? 'Actioned' : 'Dismissed', report.status === 'open' ? 'warning' : report.status === 'actioned' ? 'danger' : null), el('div', {}, [timeEl(report.createdAt)])]),
     ]);
+    const sectionId = (title) => 'rider-section-' + title.toLowerCase().replace(/[^a-z]+/g, '-').replace(/-$/, '');
     const section = (title, items, empty) => items === null ? [] : [
-      el('h2', { class: 'section-title', text: title }),
+      el('h2', { class: 'section-title rider-section-heading', id: sectionId(title), tabindex: '-1', text: title }),
       el('div', { class: 'card reports' }, items.length ? [el('ul', { class: 'list' }, items)] : [emptyState('inbox', empty, null)]),
     ];
+    const availableSections = [
+      ['Account details', true],
+      ['Reports about them', detail.reportsAgainst !== null],
+      ['Reports they filed', detail.reportsFiled !== null],
+      ['Staff history', detail.actions !== null],
+      ['Signed-in devices', detail.devices !== null],
+      ['Sign-in history', detail.securityEvents !== null],
+    ].filter(([, show]) => show);
+    const recordNavigation = el('nav', { class: 'rider-section-nav', 'aria-label': 'Rider record sections' },
+      availableSections.map(([title]) => {
+        const button = el('button', { type: 'button', text: title });
+        button.addEventListener('click', () => {
+          const heading = document.getElementById(sectionId(title));
+          heading?.scrollIntoView({ block: 'start', behavior: 'auto' });
+          heading?.focus({ preventScroll: true });
+        });
+        return button;
+      }));
 
     pageEl.replaceChildren(
       el('a', { class: 'back-link', href: '#riders', text: '← Riders' }),
@@ -1157,13 +1569,15 @@
         el('div', { class: 'person' }, [
           avatar(name, rider.riderId),
           el('div', { class: 'person-text' }, [
-            el('h1', { class: 'page-title', text: name }),
+            el('h1', { class: 'page-title', tabindex: '-1', text: name }),
             el('p', { class: 'page-subtitle', text: [rider.handle, rider.email].filter(Boolean).join(' · ') }),
           ]),
         ]),
         el('div', { class: 'actions' }, [riderBadges(rider)]),
       ]),
       el('div', { class: 'rider-actions' }, [suspend, unsuspend, verify, reset, signOut, exportData].filter(Boolean)),
+      recordNavigation,
+      el('h2', { class: 'section-title rider-section-heading', id: 'rider-section-account-details', tabindex: '-1', text: 'Account details' }),
       el('section', { class: 'card' }, [el('dl', { class: 'facts' }, facts.map(([label, value]) => el('div', { class: 'fact' }, [el('dt', { text: label }), el('dd', { text: value })])))]),
       ...section('Reports about them', detail.reportsAgainst && detail.reportsAgainst.map((report) => reportRow(report, `From ${riderLabel(report.reporterId).name}`)), 'No reports about this rider.'),
       ...section('Reports they filed', detail.reportsFiled && detail.reportsFiled.map((report) => reportRow(report, `About ${riderLabel(report.reportedRiderId).name}`)), 'They haven’t reported anyone.'),
@@ -1222,16 +1636,18 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
-  async function renderAudit() {
+  async function renderAudit(generation) {
     const query = auditRider ? `&riderId=${encodeURIComponent(auditRider)}` : '';
     const { actions } = await api('GET', `/moderation/actions?limit=200${query}`);
+    if (!isCurrentRender(generation)) return;
     await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
+    if (!isCurrentRender(generation)) return;
     const group = ACTION_GROUPS.find(([id]) => id === auditGroup) ?? ACTION_GROUPS[0];
     const shown = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
 
     const filters = segmented(ACTION_GROUPS.map(([id, label]) => [id, label]), auditGroup, (next) => {
       auditGroup = next;
-      void render();
+      renderAndFocus('[aria-label="Filter the audit log"] [aria-pressed="true"]');
     }, 'Filter the audit log');
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', placeholder: 'Rider ID, e.g. rider_ab12cd34', 'aria-label': 'Show actions for one rider', maxlength: 100, autocomplete: 'off' });
@@ -1240,7 +1656,7 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       auditRider = input.value.trim();
-      void render();
+      renderAndFocus('input[aria-label="Show actions for one rider"]');
     });
     const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
     exportButton.addEventListener('click', () => downloadAuditCsv(shown));
@@ -1313,37 +1729,50 @@
     if (member.role === 'admin') return el('span', { class: 'muted', text: 'Set on the backend' });
     const select = roleSelect(member.role, `Role for ${member.displayName || member.riderId}`);
     const remove = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'remove-staff' }, text: 'Remove' });
-    const ask = (question) => {
-      const note = window.prompt(question);
-      if (note === null) return null;
-      if (!note.trim()) {
-        window.alert('A reason is required. Every staff change is recorded.');
-        return null;
-      }
-      return note.trim();
-    };
     select.addEventListener('change', async () => {
-      const note = ask(`Change ${member.displayName || member.riderId} to ${ROLE_LABELS[select.value]}? Reason for the audit log:`);
-      if (note === null) {
+      const nextRole = select.value;
+      const choice = await actionDialog({
+        title: `Change ${member.displayName || member.riderId} to ${ROLE_LABELS[nextRole]}?`,
+        description: 'Their dashboard permissions change immediately. A reason goes in the audit log.',
+        confirmLabel: 'Change role',
+      });
+      if (!choice) {
         select.value = member.role;
         return;
       }
+      select.disabled = true;
+      remove.disabled = true;
       try {
-        await api('POST', '/admin/staff', { rider: member.riderId, role: select.value, note });
+        await api('POST', '/admin/staff', { rider: member.riderId, role: nextRole, note: choice.note });
         await render();
+        flash('Staff role updated.');
       } catch (error) {
         select.value = member.role;
-        window.alert(staffErrorMessage(error));
+        flash(staffErrorMessage(error), 'danger');
+      } finally {
+        select.disabled = false;
+        remove.disabled = false;
       }
     });
     remove.addEventListener('click', async () => {
-      const note = ask(`Remove ${member.displayName || member.riderId} from staff? Reason for the audit log:`);
-      if (note === null) return;
+      const choice = await actionDialog({
+        title: `Remove ${member.displayName || member.riderId} from staff?`,
+        description: 'Dashboard access ends immediately. Their rider account is not deleted.',
+        confirmLabel: 'Remove staff',
+        danger: true,
+      });
+      if (!choice) return;
+      select.disabled = true;
+      remove.disabled = true;
       try {
-        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/remove`, { note });
+        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/remove`, { note: choice.note });
         await render();
+        flash('Staff access removed.');
       } catch (error) {
-        window.alert(staffErrorMessage(error));
+        flash(staffErrorMessage(error), 'danger');
+      } finally {
+        select.disabled = false;
+        remove.disabled = false;
       }
     });
     return el('div', { class: 'row-actions' }, [select, remove]);
@@ -1386,17 +1815,20 @@
     ];
   }
 
-  async function renderStaff() {
+  async function renderStaff(generation) {
     const [{ staff }, events] = await Promise.all([
       api('GET', '/admin/staff'),
       api('GET', '/admin/security-events?staff=1&limit=20').then((body) => body.events).catch(() => null),
     ]);
+    if (!isCurrentRender(generation)) return;
     await loadNames((events ?? []).map((event) => event.riderId));
+    if (!isCurrentRender(generation)) return;
     const counts = staff.reduce((total, member) => ({ ...total, [member.role]: (total[member.role] ?? 0) + 1 }), {});
     const name = (member) => member.displayName || member.handle || member.riderId;
     const sub = (member) => [member.handle, member.email].filter(Boolean).join(' · ') || member.riderId;
     const granted = (member) => member.grantedAt ? el('span', {}, [timeEl(member.grantedAt), ` by ${riderLabel(member.grantedBy).name}`]) : el('span', { class: 'muted', text: 'ADMIN_RIDER_IDS' });
     await loadNames(staff.map((member) => member.grantedBy).filter(Boolean));
+    if (!isCurrentRender(generation)) return;
     pageEl.replaceChildren(
       pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
       addStaffForm(),
@@ -1524,8 +1956,17 @@
     ];
   }
 
-  async function renderSystem() {
-    const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), api('GET', '/admin/system').catch(() => null), api('GET', '/admin/metrics').catch(() => null)]);
+  async function renderSystem(generation) {
+    const detail = async (path) => {
+      try { return await api('GET', path); }
+      catch (error) {
+        // A revoked session or staff role must not look like missing monitoring data.
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw error;
+        return null;
+      }
+    };
+    const [health, ready, system, metrics] = await Promise.all([probe('/health'), probe('/ready'), detail('/admin/system'), detail('/admin/metrics')]);
+    if (!isCurrentRender(generation)) return;
     const row = (name, description, result) => el('li', { class: 'status-row' }, [
       el('div', {}, [el('div', { class: 'status-name', text: name }), el('div', { class: 'status-desc', text: description })]),
       el('span', { class: 'status-value' }, [
@@ -1534,9 +1975,17 @@
       ]),
     ]);
     const setup = setupRows(system);
+    const missing = [!system ? 'Service setup' : null, !metrics ? 'Traffic metrics' : null].filter(Boolean);
+    const retry = el('button', { type: 'button', class: 'button', text: 'Retry details' });
+    retry.addEventListener('click', () => void render());
     const runbook = (file, label) => el('li', {}, [el('a', { href: `https://github.com/alidd11/rider-comms/blob/main/${file}`, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { text: label }), icon('external')])]);
     pageEl.replaceChildren(
       pageHeader('System', `Checked ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} from this browser`),
+      ...(missing.length ? [el('section', { class: 'card system-warning', role: 'status' }, [
+        el('div', {}, [el('div', { class: 'status-name', text: 'Some system details are unavailable' }),
+          el('p', { class: 'card-description', text: `${missing.join(' and ')} could not be loaded. Other results below may still be current.` })]),
+        retry,
+      ])] : []),
       el('section', { class: 'card' }, [el('ul', { class: 'status-list' }, [
         row('API', 'Backend process is running', health),
         row('Database', 'Postgres reachable and migrations applied', ready),
@@ -1563,35 +2012,81 @@
   }
 
   async function render() {
+    const generation = ++renderGeneration;
+    const key = renderKey();
+    const focusHeading = focusHeadingOnNextRender;
+    focusHeadingOnNextRender = false;
     for (const button of navEl.querySelectorAll('[data-view]')) {
       if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
-    document.title = `${VIEW_TITLES[view]} · Rider Comms staff`;
+    document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
-    if (view === 'overview' && !overviewCache) pageEl.replaceChildren(...skeletonOverview());
-    else if (view !== 'overview') pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
+    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
+    // Refresh the current section in place; skeletons are for navigation only.
+    // Keep inbox filter controls available during a source refresh.
+    const refreshing = key === displayedKey ||
+      (view === 'inbox' && displayedKey?.startsWith('["inbox",'));
+    if (!refreshing) {
+      if (view === 'overview') pageEl.replaceChildren(...skeletonOverview());
+      else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
+    }
     setBusy(true);
     try {
       if (view === 'overview') {
-        overviewCache = await api('GET', '/admin/overview');
+        const overview = await api('GET', '/admin/overview');
+        if (!isCurrentRender(generation)) return;
+        overviewCache = overview;
         updateReportCount(overviewCache.safety.openReports);
         renderOverview(overviewCache);
+      } else if (view === 'inbox') {
+        await renderInbox(generation);
       } else if (view === 'riders') {
         const { riders } = await api('GET', `/admin/riders?limit=50&q=${encodeURIComponent(riderQuery)}`);
+        if (!isCurrentRender(generation)) return;
         renderRiders(riders);
       } else if (view === 'moderation') {
-        await renderModeration();
+        await renderModeration(generation);
       } else if (view === 'audit') {
-        await renderAudit();
+        await renderAudit(generation);
       } else if (view === 'staff') {
-        await renderStaff();
+        await renderStaff(generation);
       } else if (view === 'rider') {
-        await renderRiderDetail(detailRiderId);
+        await renderRiderDetail(detailRiderId, generation);
       } else {
-        await renderSystem();
+        await renderSystem(generation);
+      }
+      if (isCurrentRender(generation)) {
+        displayedKey = key;
+        if (view === 'moderation' && inboxFocusTarget) {
+          // Match data values as strings, not interpolated CSS selectors.
+          const { type, id } = inboxFocusTarget;
+          const attribute = type === 'rider_report' ? 'reportId' : 'postId';
+          const target = [...pageEl.querySelectorAll(type === 'rider_report' ? '[data-report-id]' : '[data-post-id]')]
+            .find((element) => element.dataset[attribute] === id);
+          if (target) {
+            target.setAttribute('tabindex', '-1');
+            target.focus({ preventScroll: true });
+            target.scrollIntoView({ block: 'start', behavior: 'auto' });
+          } else {
+            // A 404 has its own explicit unavailable state. Never infer a
+            // resolved or moved case from a bounded queue's missing item.
+            const unavailable = pageEl.querySelector('[data-selected-unavailable]');
+            if (unavailable) unavailable.focus({ preventScroll: true });
+          }
+        }
+        if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav') || document.activeElement?.closest('.sidebar-search-slot') || document.activeElement?.closest('.brand-actions'))) {
+          pageEl.querySelector('.page-title')?.focus({ preventScroll: true });
+        }
       }
     } catch (error) {
+      if (!isCurrentRender(generation)) return;
+      inboxFocusTarget = null;
+      if (refreshing && !(error instanceof ApiError && (error.status === 401 || error.status === 403))) {
+        flash('Couldn’t refresh this section. Showing the last loaded data; try refreshing again.', 'warning');
+        return;
+      }
+      displayedKey = null;
       if (error instanceof ApiError && error.code === 'permission_required') {
         pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('lock', 'Your role doesn’t include this page', 'Ask an admin if you need it.')]));
       } else if (error instanceof ApiError && error.status === 403) {
@@ -1599,18 +2094,31 @@
       } else if (error instanceof ApiError && error.status === 401) {
         notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
       } else {
-        pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [emptyState('wifiOff', 'Couldn’t load this section', 'Check your connection, then refresh.')]));
+        const retry = el('button', { type: 'button', class: 'button button-primary', text: 'Retry' });
+        retry.addEventListener('click', () => void render());
+        pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), el('div', { class: 'card' }, [
+          emptyState('wifiOff', 'Couldn’t load this section', 'Check your connection and try again.'),
+          el('div', { class: 'retry-action' }, [retry]),
+        ]));
       }
     } finally {
-      setBusy(false);
+      if (isCurrentRender(generation)) setBusy(false);
     }
   }
 
   function selectView(hash) {
     const next = parseHash(hash);
-    if ((next.view === 'overview' && hash !== 'overview' && hash !== '') || (me && !allowed(VIEW_PERMISSIONS[next.view]))) return;
+    if ((next.view === 'overview' && hash !== 'overview' && hash !== '')
+      || (me && !allowed(VIEW_PERMISSIONS[next.view]))) {
+      const current = view === 'rider' ? `rider/${detailRiderId}` : view;
+      history.replaceState(null, '', `#${current}`);
+      return;
+    }
+    if (next.view === view && next.riderId === detailRiderId) return;
+    if (next.view !== 'moderation') inboxFocusTarget = null;
     view = next.view;
     detailRiderId = next.riderId;
+    focusHeadingOnNextRender = true;
     const target = view === 'rider' ? `rider/${detailRiderId}` : view;
     if (location.hash !== `#${target}`) history.pushState(null, '', `#${target}`);
     window.scrollTo(0, 0);
@@ -1624,6 +2132,7 @@
   const menuBackdrop = document.getElementById('menuBackdrop');
   function setMenu(open) {
     appEl.classList.toggle('menu-open', open);
+    document.body.classList.toggle('menu-visible', open);
     menuBackdrop.hidden = !open;
     menuToggle.setAttribute('aria-expanded', String(open));
     menuToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
@@ -1636,7 +2145,21 @@
   });
   menuBackdrop.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
+    if (!appEl.classList.contains('menu-open')) return;
+    if (event.key === 'Escape') { setMenu(false); menuToggle.focus(); return; }
+    if (event.key !== 'Tab') return;
+    const focusables = [...document.querySelectorAll('.sidebar button:not([disabled]):not([hidden])')]
+      .filter((element) => element.getClientRects().length > 0);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !focusables.includes(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !focusables.includes(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
   });
   for (const button of navEl.querySelectorAll('[data-view]')) button.addEventListener('click', () => {
     if (appEl.classList.contains('menu-open')) { setMenu(false); menuToggle.focus(); }
@@ -1645,14 +2168,136 @@
   // Links to a rider (#rider/<id>) open their page.
   pageEl.addEventListener('click', (event) => {
     const link = event.target.closest?.('a[data-rider-link]');
-    if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     selectView(`rider/${link.dataset.riderLink}`);
   });
   window.addEventListener('hashchange', () => selectView(location.hash.slice(1)));
+  window.addEventListener('popstate', () => selectView(location.hash.slice(1)));
+
+  // Command search only offers authorised sections and the existing rider lookup API.
+  // All rider data remains text-only, never interpolated into HTML.
+  const searchDialog = document.getElementById('globalSearchDialog');
+  const searchInput = document.getElementById('globalSearchInput');
+  const searchSectionResults = document.getElementById('globalSearchSections');
+  const searchRiderResults = document.getElementById('globalSearchRiders');
+  const searchStatus = document.getElementById('globalSearchStatus');
+  const desktopSearchTrigger = document.getElementById('globalSearchTrigger');
+  const mobileSearchTrigger = document.getElementById('globalSearchMobile');
+  const workspaceSearchTrigger = document.getElementById('workspaceSearchTrigger');
+  let searchOpener = null;
+  let searchTimer = null;
+  let searchGeneration = 0;
+
+  function searchOption(title, subtitle, type, navigate) {
+    const option = el('button', { type: 'button', class: 'search-result' }, [
+      el('span', { class: 'search-result-main' }, [
+        el('span', { class: 'search-result-title', text: title }),
+        subtitle ? el('span', { class: 'search-result-sub', text: subtitle }) : null,
+      ]),
+      el('span', { class: 'search-result-type', text: type }),
+    ]);
+    option.addEventListener('click', () => {
+      searchDialog.close();
+      navigate();
+    });
+    return option;
+  }
+  function searchGroup(label, results) {
+    if (results.length === 0) return [];
+    return [el('div', { class: 'search-result-group', text: label }), ...results];
+  }
+  function updateCommandSearch() {
+    const generation = ++searchGeneration;
+    clearTimeout(searchTimer);
+    const term = searchInput.value.trim();
+    const normalized = term.toLowerCase();
+    const sections = [...navEl.querySelectorAll('[data-view]')]
+      .filter((button) => !button.hidden && (!term || VIEW_TITLES[button.dataset.view].toLowerCase().includes(normalized)))
+      .map((button) => searchOption(VIEW_TITLES[button.dataset.view], 'Open dashboard section', 'Page', () => selectView(button.dataset.view)));
+    searchSectionResults.replaceChildren(...searchGroup('Pages', sections));
+    searchRiderResults.replaceChildren();
+    if (!allowed('view_riders')) {
+      searchStatus.textContent = sections.length ? '' : 'No matching sections are available to your role.';
+      return;
+    }
+    if (term.length < 2) {
+      searchStatus.textContent = 'Enter at least two characters to search rider accounts.';
+      return;
+    }
+    searchStatus.textContent = 'Searching rider accounts…';
+    searchTimer = setTimeout(async () => {
+      try {
+        const response = await api('GET', '/admin/riders?limit=8&q=' + encodeURIComponent(term));
+        if (!searchDialog.open || generation !== searchGeneration) return;
+        const riders = Array.isArray(response.riders) ? response.riders : [];
+        const options = riders.filter((rider) => typeof rider.riderId === 'string' && /^rider_[A-Za-z0-9_-]{1,58}$/.test(rider.riderId)).map((rider) =>
+          searchOption(rider.displayName || rider.username || rider.handle || rider.riderId,
+            [rider.handle, rider.riderId].filter(Boolean).join(' · '),
+            'Rider', () => selectView('rider/' + rider.riderId)));
+        searchRiderResults.replaceChildren(...searchGroup('Rider accounts', options));
+        searchStatus.textContent = options.length ? '' : 'No matching riders found.';
+      } catch (error) {
+        if (!searchDialog.open || generation !== searchGeneration) return;
+        searchStatus.textContent = error instanceof ApiError && (error.status === 401 || error.status === 403)
+          ? 'Your staff access has changed. Refresh the dashboard to continue.'
+          : 'Rider search is unavailable. You can still open a dashboard section.';
+      }
+    }, 220);
+  }
+  function openCommandSearch(trigger) {
+    // Never cover a password confirmation or another sensitive staff action.
+    if (!me || searchDialog.open || document.querySelector('dialog[open]')) return;
+    searchOpener = appEl.classList.contains('menu-open') ? mobileSearchTrigger : trigger;
+    if (appEl.classList.contains('menu-open')) setMenu(false);
+    searchInput.value = '';
+    searchDialog.showModal();
+    updateCommandSearch();
+    searchInput.focus();
+  }
+  desktopSearchTrigger.addEventListener('click', () => openCommandSearch(desktopSearchTrigger));
+  mobileSearchTrigger.addEventListener('click', () => openCommandSearch(mobileSearchTrigger));
+  workspaceSearchTrigger.addEventListener('click', () => openCommandSearch(workspaceSearchTrigger));
+  document.getElementById('globalSearchClose').addEventListener('click', () => searchDialog.close());
+  searchInput.addEventListener('input', updateCommandSearch);
+  searchInput.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown') {
+      const first = searchDialog.querySelector('.search-result');
+      if (first) { event.preventDefault(); first.focus(); }
+    } else if (event.key === 'Enter') {
+      const first = searchDialog.querySelector('.search-result');
+      if (first) { event.preventDefault(); first.click(); }
+    }
+  });
+  searchDialog.addEventListener('close', () => {
+    ++searchGeneration;
+    clearTimeout(searchTimer);
+    if (searchOpener?.isConnected && searchOpener.getClientRects().length) searchOpener.focus();
+    searchOpener = null;
+  });
+  // Some mobile Chromium/tablet configurations do not automatically dismiss
+  // a modal <dialog> on a simulated hardware Escape key. Handle it explicitly
+  // before the sidebar's own Escape listener and leave other dialogs alone.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !searchDialog.open) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    searchDialog.close();
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (searchDialog.open || !me || event.altKey) return;
+    const editable = event.target?.closest?.('input, textarea, select, [contenteditable="true"]');
+    if (((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k')
+      || (event.key === '/' && !event.metaKey && !event.ctrlKey && !editable)) {
+      event.preventDefault();
+      openCommandSearch(innerWidth < 900 ? mobileSearchTrigger : desktopSearchTrigger);
+    }
+  });
+
   refreshMobile.addEventListener('click', () => void render());
   let resizeTimer;
   window.addEventListener('resize', () => {
+    if (innerWidth >= 900 && appEl.classList.contains('menu-open')) setMenu(false);
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (view === 'overview') for (const chart of pageEl.querySelectorAll('.chart-card')) chart.redraw?.();
@@ -1677,13 +2322,31 @@
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
       else if (error instanceof ApiError && error.status === 401) notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
-      else pageEl.replaceChildren(el('div', { class: 'card notice' }, [emptyState('wifiOff', 'Couldn’t reach the server', 'Check your connection, then reload.')]));
+      else {
+        const retry = el('button', { type: 'button', class: 'button button-primary', text: 'Try again' });
+        retry.addEventListener('click', () => void start());
+        pageEl.replaceChildren(el('div', { class: 'card notice' }, [
+          emptyState('wifiOff', 'Couldn’t reach the server', 'Check your connection and try again.'),
+          el('div', { class: 'retry-action' }, [retry]),
+        ]));
+      }
       return;
     }
     for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
+    for (const group of navEl.querySelectorAll('[data-nav-group]')) {
+      group.hidden = ![...group.querySelectorAll('[data-view]')].some((button) => !button.hidden);
+    }
+    document.querySelector('.sidebar-search-slot').hidden = false;
+    document.getElementById('globalSearchTrigger').hidden = false;
+    document.getElementById('globalSearchMobile').hidden = false;
+    workspaceSearchTrigger.hidden = false;
     footerRole.replaceChildren(roleBadge(me.role));
     if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
-    if (!allowed(VIEW_PERMISSIONS[view])) view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
+    if (!allowed(VIEW_PERMISSIONS[view])) {
+      view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
+      detailRiderId = null;
+      history.replaceState(null, '', `#${view}`);
+    }
     navEl.hidden = false;
     void render();
   }

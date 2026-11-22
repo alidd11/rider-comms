@@ -57,6 +57,20 @@ describe('hazard reports API', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.ok(hazards.every((h) => !('reportedBy' in h)), 'nearby must not reveal who reported a hazard');
   });
 
+  it('returns the reports along a route for the preview, never who reported them', async () => {
+    const created = await postJson(ctx, 'reporter-route', '/hazards', { type: 'camera', lat: 45.5, lon: -70.0 });
+    const report = await created.json() as { id: string };
+    const path = [{ lat: 45.0, lon: -70.0 }, { lat: 46.5, lon: -70.0 }];
+    const along = await postJson(ctx, 'reporter-route', '/hazards/along-route', { path });
+    assert.equal(along.status, 200);
+    const { hazards } = await along.json() as { hazards: { id: string; reportedBy?: string }[] };
+    assert.ok(hazards.some((h) => h.id === report.id));
+    assert.ok(hazards.every((h) => !('reportedBy' in h)), 'along-route must not reveal who reported a hazard');
+    for (const bad of [{}, { path: [path[0]] }, { path: [{ lat: 200, lon: 0 }, path[0]] }, { path: Array.from({ length: 401 }, () => path[0]) }]) {
+      assert.equal((await postJson(ctx, 'reporter-route', '/hazards/along-route', bad)).status, 400);
+    }
+  });
+
   it('only accepts POST for confirm/deny, so votes stay behind the verified-email gate', async () => {
     const created = await postJson(ctx, 'reporter-4', '/hazards', { type: 'camera', lat: 43.0, lon: -77.0 });
     const report = await created.json() as { id: string };

@@ -79,7 +79,7 @@ export class RiderCommsClient {
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
     const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
+      const res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal, redirect: 'error', credentials: 'omit', cache: 'no-store' });
       if (res.status === 204 && res.ok) return undefined as T;
       const contentType = res.headers?.get?.('content-type') ?? '';
       const json = contentType.includes('application/json') || !res.headers ? await res.json() : { error: await res.text() };
@@ -97,6 +97,7 @@ export class RiderCommsClient {
   acceptTerms(version: string): Promise<{ accepted: true }> { return this.request('POST', '/auth/accept-terms', { version }); }
   getSessions(): Promise<{ sessions: AccountSessionSummary[] }> { return this.request('GET', '/auth/sessions'); }
   revokeSession(id: string): Promise<void> { return this.request('DELETE', `/auth/sessions/${encodeURIComponent(id)}`); }
+  reauthenticate(password: string): Promise<{ reauthenticated: true; validForMs: number }> { return this.request('POST', '/auth/reauthenticate', { password }); }
   deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
   getBilling(): Promise<BillingStatus> { return this.request('GET', '/billing'); }
   /** The store can be slow to answer the server, so this waits longer. */
@@ -217,6 +218,10 @@ export class RiderCommsClient {
   deleteHideout(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/hideouts/${encodeURIComponent(id)}`); }
   createHazard(type: HazardType, lat: number, lon: number): Promise<HazardReport> { return this.request('POST', '/hazards', { type, lat, lon }); }
   getNearbyHazards(lat: number, lon: number): Promise<{ hazards: HazardReport[] }> { return this.request('GET', `/hazards/nearby?lat=${lat}&lon=${lon}`); }
+  /** Reports along a whole route (at most 400 points), for the route preview. */
+  getHazardsAlongRoute(path: readonly RouteCoordinate[]): Promise<{ hazards: HazardReport[] }> {
+    return this.request('POST', '/hazards/along-route', { path: path.map((point) => ({ lat: point.lat, lon: point.lon })) });
+  }
   confirmHazard(id: string): Promise<Record<string, never>> { return this.request('POST', `/hazards/${encodeURIComponent(id)}/confirm`, {}); }
   denyHazard(id: string): Promise<Record<string, never>> { return this.request('POST', `/hazards/${encodeURIComponent(id)}/deny`, {}); }
   deleteHazard(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/hazards/${encodeURIComponent(id)}`); }

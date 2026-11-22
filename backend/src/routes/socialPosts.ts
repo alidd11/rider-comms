@@ -289,6 +289,14 @@ export async function handleSocialModerationRoutes(ctx: SocialPostContext): Prom
       })),
     });
   }
+  if (req.method === 'GET' && s.length === 3 && isSocialId(s[2])) {
+    const entry = await socialPostStore.hiddenForStaff(s[2]);
+    if (!entry) return sendJson(res, 404, { error: 'not_found' });
+    const viewer = { riderId: actorId, sessionId: (await authStore.sessionIdForToken(bearerToken(req))) ?? '' };
+    return sendJson(res, 200, {
+      entry: { ...entry, post: ctx.socialMedia ? withLinks(ctx.socialMedia, viewer, entry.post) : entry.post },
+    });
+  }
   if (req.method === 'POST' && s.length === 4 && isSocialId(s[2]) && (s[3] === 'restore' || s[3] === 'remove')) {
     // Like every other moderation decision, it needs a note for the audit log.
     const body = await readJsonBody(req);

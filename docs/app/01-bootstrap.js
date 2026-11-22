@@ -263,6 +263,10 @@
   const {
     navigationHazardLabel,
     navigationHazardsAhead,
+    routeHazards,
+    routeHazardsSummary,
+    routeHazardStrip,
+    simplifyRoutePath,
   } = window.RiderNavigationRoadEvents;
 
   const { PositionAnimator } = window.RiderPositionInterpolation;

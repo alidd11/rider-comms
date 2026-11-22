@@ -24,6 +24,9 @@ import {
   routeIndexForStyle,
   routeTrafficNote,
   routeShareText,
+  navigationArrival,
+  ARRIVAL_NEAR_METERS,
+  ARRIVAL_STOPPED_MS,
 } from '../shared/src/navigationGuidance.ts';
 
 await import('../docs/navigation-guidance.js');
@@ -187,4 +190,19 @@ for (const [destination, arrival, metres, unit] of [['Box Hill', '4:35 pm', 12_4
 }
 for (const [destination, arrival, metres, unit, via] of [['Home', '7:25 PM', 17_700, 'mi', 'A41'], ['  ', '19:25', 900, 'km', ' ']]) {
   assert.equal(browser.routeShareText(destination, arrival, metres, unit, via), routeShareText(destination, arrival, metres, unit, via));
+}
+
+// Arriving: at the end point, or stopped close to it on a good fix.
+assert.equal(browser.ARRIVAL_NEAR_METERS, ARRIVAL_NEAR_METERS);
+assert.equal(browser.ARRIVAL_STOPPED_MS, ARRIVAL_STOPPED_MS);
+for (const check of [
+  { distanceMeters: 20, rawDistanceMeters: 60, accuracyMeters: null, speedMps: null, nowMs: 0, stoppedSinceMs: null },
+  { distanceMeters: 80, rawDistanceMeters: 80, accuracyMeters: 10, speedMps: 0.5, nowMs: 1000, stoppedSinceMs: null },
+  { distanceMeters: 80, rawDistanceMeters: 80, accuracyMeters: 10, speedMps: 0.5, nowMs: 20_000, stoppedSinceMs: 1000 },
+  { distanceMeters: 80, rawDistanceMeters: 80, accuracyMeters: 10, speedMps: 4, nowMs: 20_000, stoppedSinceMs: 1000 },
+  { distanceMeters: 80, rawDistanceMeters: 80, accuracyMeters: 70, speedMps: 0, nowMs: 20_000, stoppedSinceMs: 1000 },
+  { distanceMeters: 150, rawDistanceMeters: 150, accuracyMeters: 5, speedMps: 0, nowMs: 20_000, stoppedSinceMs: 1000 },
+  { distanceMeters: Number.NaN, rawDistanceMeters: Number.NaN, accuracyMeters: 5, speedMps: 0, nowMs: 0, stoppedSinceMs: null },
+]) {
+  assert.deepEqual(browser.navigationArrival(check), navigationArrival(check));
 }

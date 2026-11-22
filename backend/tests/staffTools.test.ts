@@ -162,6 +162,195 @@ describe('staff tools', { skip: !hasDatabase && 'DATABASE_URL not set' }, () => 
     assert.deepEqual(actions.sort(), ['password_reset_sent', 'sign_out_everywhere']);
   });
 
+
+  it('persists report ownership independently of expiring claims and audits every transition', async () => {
+    await report('rep-owner-1');
+    const url = '/moderation/reports/rep-owner-1';
+    const assign = (actorId: string, assigneeId: string | null, note = 'Review allocation') =>
+      postJson(ctx, actorId, url + '/assign', { assigneeId, note });
+    const details = async () => (await (await authenticatedFetch(ctx, MOD, url)).json() as
+      { report: { assignedTo: string | null; assignedAt: number | null; claimedBy: string | null } }).report;
+    assert.equal((await details()).assignedTo, null);
+    assert.equal((await fetch(ctx.baseUrl() + url + '/assignment-history')).status, 401);
+    assert.equal((await authenticatedFetch(ctx, SUPPORT, url + '/assignment-history')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, ANALYST, url + '/assignment-history')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, MOD, url + '/assignment-history?limit=0')).status, 400);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/moderation/reports/not-found/assignment-history')).status, 404);
+    assert.equal((await assign(SUPPORT, MOD)).status, 403);
+    assert.equal((await postJson(ctx, MOD, url + '/assign', { assigneeId: MOD })).status, 400);
+    assert.equal((await postJson(ctx, MOD, url + '/assign', { assigneeId: 'bad id', note: 'x' })).status, 400);
+    assert.equal((await assign(MOD, MOD2)).status, 409, 'a moderator may not assign a different owner');
+    assert.equal((await assign(ADMIN, SUPPORT)).status, 403, 'support cannot become case owner');
+    assert.equal((await assign(MOD, MOD)).status, 200);
+    assert.equal((await details()).assignedTo, MOD);
+    assert.ok((await details()).assignedAt !== null);
+    assert.equal((await assign(MOD, MOD)).status, 409, 'duplicate assignment is not audited twice');
+    assert.equal((await assign(MOD2, MOD2)).status, 409, 'cannot steal another moderator ownership');
+    // Quick claim may lapse, but the permanent owner remains assigned.
+    await getPool().query('UPDATE safety_reports SET claimed_by = $2, claimed_at = $3 WHERE id = $1',
+      ['rep-owner-1', MOD2, Date.now() - REPORT_CLAIM_TTL_MS - 1000]);
+    assert.equal((await details()).claimedBy, null);
+    assert.equal((await details()).assignedTo, MOD);
+    assert.equal((await assign(ADMIN, MOD2, 'Supervisor reassigned')).status, 200);
+    assert.equal((await details()).assignedTo, MOD2);
+    assert.equal((await assign(MOD, null)).status, 409);
+    assert.equal((await assign(MOD2, null, 'Handover complete')).status, 200);
+    assert.equal((await details()).assignedTo, null);
+    const historyResponse = await authenticatedFetch(ctx, MOD, url + '/assignment-history');
+    assert.equal(historyResponse.status, 200);
+    const history = await historyResponse.json() as { events: Array<{
+      actorId: string; previousAssignee: string | null; assigneeId: string | null; event: string; note: string;
+    }> };
+    assert.equal(history.events.length, 3);
+    assert.deepEqual(history.events.map((e) => e.event).sort(), ['assigned', 'released', 'transferred']);
+    assert.ok(history.events.some((e) => e.event === 'transferred' && e.actorId === ADMIN
+      && e.previousAssignee === MOD && e.assigneeId === MOD2 && e.note === 'Supervisor reassigned'));
+  });
+
+
+  it('releases active case ownership with an audit event on staff revocation or downgrade', async () => {
+    await report('rep-owner-revoke');
+    await report('rep-owner-downgrade');
+    assert.equal((await postJson(ctx, MOD, '/moderation/reports/rep-owner-revoke/assign',
+      { note: 'Owned for investigation' })).status, 200);
+    assert.equal((await postJson(ctx, MOD2, '/moderation/reports/rep-owner-downgrade/assign',
+      { note: 'Owned for investigation' })).status, 200);
+
+    const revoked = await store.removeStaffRole(MOD, ADMIN, 'Access revoked by administrator');
+    assert.equal(revoked.ok, true);
+    const downgraded = await store.setStaffRole(MOD2, 'support', ADMIN, 'New support role');
+    assert.equal(downgraded.ok, true);
+    assert.equal((await store.reportById('rep-owner-revoke'))?.assignedTo, null);
+    assert.equal((await store.reportById('rep-owner-downgrade'))?.assignedTo, null);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/moderation/reports/rep-owner-revoke')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, MOD2, '/moderation/reports/rep-owner-downgrade')).status, 403);
+
+    for (const id of ['rep-owner-revoke', 'rep-owner-downgrade']) {
+      const events = await store.assignmentHistory(id);
+      assert.equal(events?.length, 2);
+      assert.equal(events?.[0]?.event, 'released');
+      assert.equal(events?.[0]?.actorId, ADMIN);
+      assert.match(events?.[0]?.note ?? '', /Staff access changed/);
+      assert.equal(events?.[0]?.assigneeId, null);
+    }
+    assert.equal((await postJson(ctx, ADMIN, '/moderation/reports/rep-owner-revoke/assign',
+      { assigneeId: MOD, note: 'Attempt to reassign revoked moderator' })).status, 403);
+  });
+
+  it('serialises competing case assignments and refuses changes after resolution', async () => {
+    await report('rep-owner-race');
+    const endpoint = '/moderation/reports/rep-owner-race/assign';
+    const requests = await Promise.all([
+      postJson(ctx, MOD, endpoint, { note: 'Taking initial ownership' }),
+      postJson(ctx, MOD2, endpoint, { note: 'Taking initial ownership' }),
+    ]);
+    assert.deepEqual(requests.map((r) => r.status).sort(), [200, 409]);
+    const events = await (await authenticatedFetch(ctx, ADMIN, '/moderation/reports/rep-owner-race/assignment-history')).json() as
+      { events: Array<{ event: string }> };
+    assert.equal(events.events.length, 1, 'only the winner has an audit event');
+    const closed = await postJson(ctx, MOD, '/moderation/reports/rep-owner-race/resolve',
+      { note: 'Evidence reviewed', resolution: 'dismiss' });
+    assert.equal(closed.status, 200);
+    assert.equal((await postJson(ctx, ADMIN, endpoint, { assigneeId: MOD2, note: 'Too late' })).status, 409);
+    const reportState = await (await authenticatedFetch(ctx, ADMIN, '/moderation/reports/rep-owner-race')).json() as
+      { report: { status: string; assignedTo: string | null } };
+    assert.equal(reportState.report.status, 'dismissed');
+    assert.ok([MOD, MOD2].includes(reportState.report.assignedTo ?? ''));
+  });
+
+  it('serves a role-gated action inbox backed by the live moderation queue', async () => {
+    await report('rep-tool-inbox', 1_000);
+    assert.equal((await fetch(`${ctx.baseUrl()}/admin/action-inbox`)).status, 401);
+    assert.equal((await authenticatedFetch(ctx, SUPPORT, '/admin/action-inbox')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, ANALYST, '/admin/action-inbox')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/admin/action-inbox?limit=0')).status, 400);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/admin/action-inbox?limit=51')).status, 400);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/admin/action-inbox?type=unapproved')).status, 400);
+
+    const response = await authenticatedFetch(ctx, MOD, '/admin/action-inbox?type=rider_report&limit=5');
+    assert.equal(response.status, 200);
+    const body = await response.json() as {
+      items: Array<{ type: string; id: string; reportId: string; riderId: string; claimedBy: string | null }>;
+      filter: string; mayHaveMore: boolean; generatedAt: number;
+    };
+    assert.equal(body.filter, 'rider_report');
+    assert.deepEqual(body.items.map((item) => item.id), ['rider_report:rep-tool-inbox']);
+    assert.equal(body.items[0]?.riderId, TARGET);
+    assert.equal(body.items[0]?.claimedBy, null);
+    assert.equal(typeof body.generatedAt, 'number');
+    assert.equal(body.mayHaveMore, false);
+
+    assert.equal((await postJson(ctx, MOD, '/moderation/reports/rep-tool-inbox/claim', {})).status, 200);
+    const claimed = await (await authenticatedFetch(ctx, MOD2, '/admin/action-inbox?type=rider_report')).json() as
+      { items: Array<{ claimedBy: string | null }> };
+    assert.equal(claimed.items[0]?.claimedBy, MOD);
+
+    assert.equal((await postJson(ctx, MOD, '/moderation/reports/rep-tool-inbox/resolve',
+      { resolution: 'dismiss', note: 'Investigated evidence' })).status, 200);
+    const cleared = await (await authenticatedFetch(ctx, MOD, '/admin/action-inbox?type=rider_report')).json() as
+      { items: unknown[] };
+    assert.deepEqual(cleared.items, []);
+  });
+
+
+  it('opens an exact report beyond the first 100, preserves claims, and handles concurrent resolution', async () => {
+    // Hidden linked Social reports occupy the first 100 slots in the general
+    // moderation list but must not hide the valid independent inbox record.
+    const postId = '44444444-4444-4444-8444-444444444444';
+    await getPool().query(
+      `INSERT INTO social_posts (id, author_id, kind, caption, created_at, hidden_at)
+       VALUES ($1, $2, 'photo', '', 1, 2)`, [postId, TARGET]);
+    try {
+      await getPool().query(
+        `INSERT INTO social_post_reports (post_id, reporter_id, reason, created_at)
+         VALUES ($1,$2,'spam',1), ($1,$3,'spam',1), ($1,$4,'spam',1)`,
+        [postId, MOD, MOD2, SUPPORT]);
+      await getPool().query(
+        `INSERT INTO safety_reports
+          (id, reporter_id, reported_rider_id, reason, details, created_at, source_post_id)
+         SELECT 'rep-hidden-' || n::text, $2, $3, 'spam', 'Linked Social report', n, $1
+         FROM generate_series(1, 130) AS n`,
+        [postId, SUPPORT, TARGET]);
+      await report('rep-direct-late', 200);
+
+      const queue = await (await authenticatedFetch(ctx, MOD, '/moderation/reports?status=open&limit=100')).json() as
+        { reports: Array<{ id: string }> };
+      assert.equal(queue.reports.length, 100);
+      assert.ok(!queue.reports.some((row) => row.id === 'rep-direct-late'));
+
+      const inbox = await (await authenticatedFetch(ctx, MOD, '/admin/action-inbox?type=rider_report')).json() as
+        { items: Array<{ reportId: string }> };
+      assert.deepEqual(inbox.items.map((item) => item.reportId), ['rep-direct-late']);
+
+      const exactPath = '/moderation/reports/rep-direct-late';
+      assert.equal((await fetch(ctx.baseUrl() + exactPath)).status, 401);
+      assert.equal((await authenticatedFetch(ctx, SUPPORT, exactPath)).status, 403);
+      assert.equal((await authenticatedFetch(ctx, ANALYST, exactPath)).status, 403);
+      assert.equal((await authenticatedFetch(ctx, MOD, '/moderation/reports/no-such-record')).status, 404);
+      const read = async () => {
+        const response = await authenticatedFetch(ctx, MOD2, exactPath);
+        assert.equal(response.status, 200);
+        return (await response.json() as { report: { id: string; status: string; claimedBy: string | null; resolvedBy: string | null } }).report;
+      };
+      assert.deepEqual((await read()).id, 'rep-direct-late');
+      assert.equal((await read()).claimedBy, null);
+      assert.equal((await postJson(ctx, MOD, '/moderation/reports/rep-direct-late/claim', {})).status, 200);
+      assert.equal((await read()).claimedBy, MOD, 'exact lookup rechecks active claims');
+
+      // A stale inbox snapshot must reflect a concurrent moderation decision,
+      // not incorrectly say that a bounded queue caused the item to disappear.
+      const results = await Promise.all([
+        postJson(ctx, MOD, '/moderation/reports/rep-direct-late/resolve', { resolution: 'dismiss', note: 'Reviewed case' }),
+        postJson(ctx, MOD2, '/moderation/reports/rep-direct-late/resolve', { resolution: 'dismiss', note: 'Concurrent review' }),
+      ]);
+      assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+      assert.equal((await read()).status, 'dismissed');
+      assert.ok([MOD, MOD2].includes((await read()).resolvedBy ?? ''));
+    } finally {
+      await getPool().query('DELETE FROM social_posts WHERE id = $1', [postId]);
+    }
+  });
+
   it('shows each role the parts of a rider’s record it needs', async () => {
     await report('rep-tool-4');
     const detail = async (riderId: string) => authenticatedFetch(ctx, riderId, `/admin/riders/${TARGET}`);
