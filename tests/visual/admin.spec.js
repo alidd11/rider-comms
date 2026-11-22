@@ -633,6 +633,8 @@ test.describe('staff dashboard', () => {
     const current = page.locator('#workspaceCurrentSection');
     const trigger = page.getByRole('button', { name: 'Open command search' });
     await expect(current).toHaveText('Overview');
+    await expect(page.locator('.page-eyebrow')).toContainText('Operations hub');
+    await expect(page.locator('.page-title')).toHaveText('Overview');
     if (page.viewportSize().width >= 900) {
       await expect(toolbar).toBeVisible();
       await expect(trigger).toBeVisible();
