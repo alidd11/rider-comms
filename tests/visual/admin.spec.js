@@ -58,9 +58,9 @@ async function signIn(page) {
 }
 
 const ROLE_PERMISSIONS = {
-  admin: ['view_overview', 'view_system', 'view_riders', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff'],
-  moderator: ['view_overview', 'view_system', 'view_riders', 'moderate', 'view_audit'],
-  support: ['view_overview', 'view_system', 'view_riders', 'verify_email', 'account_help', 'view_audit'],
+  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff'],
+  moderator: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'view_audit'],
+  support: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit'],
   analyst: ['view_overview', 'view_system'],
 };
 
@@ -83,6 +83,13 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     staffLogins: [],
     staffLogouts: 0,
     actions: [],
+    companyCaseEvents: [],
+    companyCases: [
+      { id: '11111111-1111-4111-8111-111111111111', kind: 'support', title: 'Account sign-in assistance', description: 'Staff-only support investigation', status: 'open', priority: 'normal', subjectRiderId: 'rider_maya', createdBy: ADMIN_ID, assignedTo: null, version: 1, createdAt: Date.now() - 100_000, updatedAt: Date.now() - 100_000, dueAt: null },
+      { id: '22222222-2222-4222-8222-222222222222', kind: 'appeal', title: 'Moderation decision review', description: 'Internal review of a rider appeal', status: 'waiting', priority: 'high', subjectRiderId: 'rider_rex', createdBy: ADMIN_ID, assignedTo: null, version: 1, createdAt: Date.now() - 90_000, updatedAt: Date.now() - 90_000, dueAt: null },
+      { id: '33333333-3333-4333-8333-333333333333', kind: 'privacy', title: 'Data access verification', description: 'Identity verification needed before responding', status: 'in_progress', priority: 'normal', subjectRiderId: null, createdBy: ADMIN_ID, assignedTo: null, version: 1, createdAt: Date.now() - 80_000, updatedAt: Date.now() - 80_000, dueAt: null },
+      { id: '44444444-4444-4444-8444-444444444444', kind: 'incident', title: 'Route service degradation', description: 'Manual incident triage', status: 'open', priority: 'urgent', subjectRiderId: null, createdBy: ADMIN_ID, assignedTo: null, version: 1, createdAt: Date.now() - 70_000, updatedAt: Date.now() - 70_000, dueAt: null },
+    ],
     posts: [],
     riderQueries: [],
     reauthenticated: !reauth,
@@ -128,7 +135,7 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       return json(200, { reauthenticated: true, validForMs: 900000 });
     }
     // Like the backend: only staff changes need a recent password.
-    if (request.method() === 'POST' && /^\/(moderation|admin\/staff)/.test(url.pathname) && !state.reauthenticated) return json(403, { error: 'reauth_required', windowMs: 900000 });
+    if (request.method() === 'POST' && /^\/(moderation|admin\/(staff|cases))/.test(url.pathname) && !state.reauthenticated) return json(403, { error: 'reauth_required', windowMs: 900000 });
     if (url.pathname === '/admin/metrics') {
       const route = (name, count, errorRate, p50Ms, p95Ms) => ({ route: name, count, errorRate, clientErrorRate: 0, avgMs: p50Ms, p50Ms, p95Ms, p99Ms: p95Ms });
       return json(200, {
@@ -163,6 +170,71 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.posts.push({ path: url.pathname, body: request.postDataJSON() });
       state.staff = state.staff.filter((member) => member.riderId !== decodeURIComponent(removeStaff[1]));
       return json(200, { ok: true });
+    }
+    if (url.pathname === '/admin/cases/summary') {
+      if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required', permission: 'view_cases' });
+      const kinds = role === 'admin' ? ['support', 'appeal', 'privacy', 'incident'] : role === 'support' ? ['support'] : ['appeal'];
+      const byKind = kinds.map((kind) => {
+        const all = state.companyCases.filter((item) => item.kind === kind);
+        const active = all.filter((item) => !['resolved', 'closed'].includes(item.status));
+        return { kind, total: all.length, active: active.length,
+          unassigned: active.filter((item) => item.assignedTo === null).length,
+          mine: active.filter((item) => item.assignedTo === ADMIN_ID).length,
+          urgent: active.filter((item) => item.priority === 'urgent').length };
+      });
+      const totals = byKind.reduce((summary, item) => {
+        for (const name of ['total', 'active', 'unassigned', 'mine', 'urgent']) summary[name] += item[name];
+        return summary;
+      }, { total: 0, active: 0, unassigned: 0, mine: 0, urgent: 0 });
+      return json(200, { byKind, totals, generatedAt: Date.now() });
+    }
+    if (url.pathname === '/admin/cases' || /^\/admin\/cases\/[0-9a-f-]{36}(?:\/(?:notes|status|priority|assign))?$/.test(url.pathname)) {
+      if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required', permission: 'view_cases' });
+      const allowedKinds = role === 'admin' ? ['support', 'appeal', 'privacy', 'incident'] : role === 'support' ? ['support'] : ['appeal'];
+      if (url.pathname === '/admin/cases' && request.method() === 'GET') {
+        const kind = url.searchParams.get('kind');
+        if (kind && kind !== 'all' && !allowedKinds.includes(kind)) return json(403, { error: 'permission_required' });
+        const status = url.searchParams.get('status');
+        const owner = url.searchParams.get('owner') ?? 'all';
+        const items = state.companyCases.filter((item) => allowedKinds.includes(item.kind)
+          && (!kind || kind === 'all' || item.kind === kind)
+          && (!status || status === 'all' || item.status === status)
+          && (owner === 'all' || owner === 'mine' && item.assignedTo === ADMIN_ID || owner === 'unassigned' && item.assignedTo === null))
+          .sort((a, b) => b.updatedAt - a.updatedAt);
+        return json(200, { items, hasMore: false, nextCursor: null, generatedAt: Date.now() });
+      }
+      if (url.pathname === '/admin/cases' && request.method() === 'POST') {
+        const body = request.postDataJSON();
+        if (!allowedKinds.includes(body.kind)) return json(403, { error: 'permission_required' });
+        const item = { id: '55555555-5555-4555-8555-555555555555', kind: body.kind,
+          title: body.title, description: body.description, priority: body.priority || 'normal',
+          subjectRiderId: body.subjectRiderId || null, status: 'open', createdBy: ADMIN_ID,
+          assignedTo: null, createdAt: Date.now(), updatedAt: Date.now(), version: 1, dueAt: null };
+        state.companyCases.unshift(item);
+        state.companyCaseEvents.push({ id: 'ce-created', caseId: item.id, actorId: ADMIN_ID,
+          event: 'created', note: 'Internal case created', createdAt: item.createdAt, fromValue: null, toValue: 'open' });
+        return json(201, { item });
+      }
+      const bits = url.pathname.split('/');
+      const id = bits[3];
+      const item = state.companyCases.find((entry) => entry.id === id);
+      if (!item || !allowedKinds.includes(item.kind)) return json(404, { error: 'not_found' });
+      if (request.method() === 'GET') return json(200, { item,
+        events: state.companyCaseEvents.filter((event) => event.caseId === id) });
+      const body = request.postDataJSON();
+      if (item.version !== body.expectedVersion) return json(409, { error: 'stale_case' });
+      if (!body.note?.trim()) return json(400, { error: 'note_required' });
+      const action = bits[4];
+      let before = null, after = null;
+      if (action === 'status') { before = item.status; after = body.status; item.status = body.status; }
+      if (action === 'priority') { before = item.priority; after = body.priority; item.priority = body.priority; }
+      if (action === 'assign') { before = item.assignedTo; after = body.assigneeId || null; item.assignedTo = after; }
+      item.version += 1;
+      item.updatedAt = Date.now();
+      state.companyCaseEvents.push({ id: 'ce-' + item.version, caseId: item.id, actorId: ADMIN_ID,
+        event: action === 'notes' ? 'note' : action, note: body.note, fromValue: before,
+        toValue: after, createdAt: item.updatedAt });
+      return json(200, { ok: true, item });
     }
     if (url.pathname === '/admin/action-inbox') {
       if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
@@ -351,7 +423,100 @@ async function holdApiResponse(page, matcher, status, body) {
   return { received, release };
 }
 
+
+/** Simulate the Service Worker lifecycle deterministically. We do not replace
+ * the production worker, and the test never needs real network deployment. */
+async function mockStaffPwaUpdateLifecycle(page) {
+  await page.addInitScript(() => {
+    const containerListeners = new Map();
+    const registrationListeners = new Map();
+    const workerListeners = new Map();
+    const state = { messages: [], updateCalls: 0, registrationArgs: null };
+    const sw = {
+      controller: {},
+      register: async (url, options) => {
+        state.registrationArgs = { url, options };
+        return registration;
+      },
+      addEventListener: (name, cb) => containerListeners.set(name, cb),
+    };
+    const candidate = {
+      state: 'installing',
+      addEventListener: (name, cb) => workerListeners.set(name, cb),
+      postMessage: (message) => {
+        state.messages.push(message);
+        if (message.type === 'SKIP_WAITING') {
+          sessionStorage.setItem('__staff_update_applied', 'yes');
+          sw.controller = {};
+          containerListeners.get('controllerchange')?.();
+        }
+      },
+    };
+    const registration = {
+      waiting: null,
+      installing: null,
+      addEventListener: (name, cb) => registrationListeners.set(name, cb),
+      update: async () => { state.updateCalls += 1; },
+    };
+    state.announce = () => {
+      registration.installing = candidate;
+      registrationListeners.get('updatefound')?.();
+      registration.waiting = candidate;
+      candidate.state = 'installed';
+      workerListeners.get('statechange')?.();
+    };
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: sw });
+    window.__staffTestUpdate = state;
+  });
+}
+
 test.describe('staff dashboard', () => {
+
+  test('Staff PWA checks updates and activates an idle version on the next safe refresh', async ({ page }) => {
+    await mockStaffPwaUpdateLifecycle(page);
+    await mockModerationApi(page);
+    await page.goto('/staff/');
+    await expect.poll(() => page.evaluate(() =>
+      window.__staffTestUpdate?.registrationArgs?.options?.updateViaCache)).toBe('none');
+    await expect.poll(() => page.evaluate(() => window.__staffTestUpdate?.updateCalls)).toBeGreaterThan(0);
+    // Initial sign-in focus alone is not an unsaved edit; no reload should
+    // happen on first registration until a *different* worker is installed.
+    expect(await page.evaluate(() => sessionStorage.getItem('__staff_update_applied'))).toBeNull();
+    const reloaded = page.waitForEvent('load');
+    // Defer until after the evaluation context returns: activation reloads.
+    await page.evaluate(() => { setTimeout(() => window.__staffTestUpdate.announce(), 0); });
+    await reloaded;
+    expect(await page.evaluate(() => sessionStorage.getItem('__staff_update_applied'))).toBe('yes');
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+  });
+
+  test('Staff PWA defers updates during edits, respects Later, and confirms forced reload', async ({ page }) => {
+    await mockStaffPwaUpdateLifecycle(page);
+    await mockModerationApi(page);
+    await page.goto('/staff/');
+    await expect.poll(() => page.evaluate(() =>
+      window.__staffTestUpdate?.registrationArgs?.options?.updateViaCache)).toBe('none');
+    await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+    await page.getByLabel('Password', { exact: true }).fill('in-progress-secret');
+    await page.evaluate(() => window.__staffTestUpdate.announce());
+    const notice = page.locator('.staff-update-banner');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('Finish or save your edits');
+    expect(await page.evaluate(() => window.__staffTestUpdate.messages)).toEqual([]);
+    await notice.getByRole('button', { name: 'Later' }).click();
+    await expect(notice).toBeHidden();
+    // Simulate reopening a suspended iOS Home Screen app.
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(notice).toBeVisible();
+    expect(await page.evaluate(() => window.__staffTestUpdate.messages)).toEqual([]);
+    page.on('dialog', (dialog) => dialog.accept());
+    const reloaded = page.waitForEvent('load');
+    await notice.getByRole('button', { name: 'Update now' }).click();
+    await reloaded;
+    expect(await page.evaluate(() => sessionStorage.getItem('__staff_update_applied'))).toBe('yes');
+    expect(await page.evaluate(() => window.__staffTestUpdate?.registrationArgs?.options?.scope)).toBe('./');
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+  });
 
   test('installed staff entry has independent sign-in, install metadata and a revocable session', async ({ page }) => {
     // The main Rider Comms login must not automatically grant the isolated app a session.
@@ -733,6 +898,132 @@ test.describe('staff dashboard', () => {
     expect(await page.evaluate(() => localStorage.getItem('rider-comms-staff-session-v1'))).toBeNull();
   });
 
+
+  test('company command centre is backed by the existing overview and labels finance as disconnected', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const pulse = page.getByRole('region', { name: 'Company pulse' });
+    await expect(pulse).toContainText('240');
+    await expect(pulse).toContainText('Group rides now');
+    const company = page.getByRole('region', { name: 'Company operations' });
+    await expect(company).toContainText('Rider Comms');
+    await expect(company).toContainText('Rider Social');
+    await expect(company).toContainText('Trust & safety');
+    await expect(company).toContainText('Customer support');
+    await expect(company).toContainText('People & access');
+    await expect(company).toContainText('Privacy & compliance');
+    await expect(company).toContainText('Platform reliability');
+    const billing = company.locator('.company-unit', { hasText: 'Commercial & billing' });
+    await expect(billing).toContainText('Not connected');
+    await expect(billing).toContainText('No financial totals shown');
+    await expect(billing.getByRole('button')).toHaveCount(0);
+    await company.getByRole('button', { name: 'Review Social queue' }).click();
+    await expect(page).toHaveURL(/#inbox$/);
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+  });
+
+  test('company navigation respects server-provided staff permissions', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'analyst' });
+    await page.goto('/admin.html');
+    const company = page.getByRole('region', { name: 'Company operations' });
+    await expect(company.getByRole('button', { name: 'Review Social queue' })).toHaveCount(0);
+    await expect(company.getByRole('button', { name: 'Manage staff roles' })).toHaveCount(0);
+    await expect(company.getByRole('button', { name: 'Open support cases' })).toHaveCount(0);
+    await expect(company.getByRole('button', { name: 'Open privacy cases' })).toHaveCount(0);
+    await expect(company.getByRole('button', { name: 'Inspect platform' })).toBeVisible();
+    await company.getByRole('button', { name: 'Inspect platform' }).click();
+    await expect(page.locator('.page-title')).toHaveText('System');
+  });
+
+  test('case desk shows real staff-scoped workstreams and a full internal case detail', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#cases');
+    await expect(page.locator('.page-title')).toHaveText('Case desk');
+    const list = page.getByRole('list', { name: 'Internal work cases' });
+    await expect(page.getByRole('region', { name: 'Permitted case workload' })).toContainText('Urgent');
+    await expect(list.locator('.case-item')).toHaveCount(4);
+    await page.getByRole('group', { name: 'Case categories' }).getByRole('button', { name: 'Customer support' }).click();
+    await expect(list.locator('.case-item')).toHaveCount(1);
+    await page.getByRole('group', { name: 'Case owners' }).getByRole('button', { name: 'Unassigned' }).click();
+    await expect(list.locator('.case-item')).toHaveCount(1);
+    await page.getByRole('link', { name: 'Account sign-in assistance' }).click();
+    await expect(page).toHaveURL(/#case\/11111111-1111-4111-8111-111111111111$/);
+    await expect(page.getByRole('region', { name: 'Case actions' })).toBeVisible();
+    await page.getByLabel('Case update reason').fill('Investigation started after verified contact.');
+    await page.getByLabel('Case status').selectOption('in_progress');
+    await page.getByRole('button', { name: 'Update status' }).click();
+    await expect(page.getByRole('list', { name: 'Case activity history' })).toContainText('Investigation started');
+  });
+
+  test('staff can create a company case and every action stays on the same audit timeline', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#cases');
+    await page.getByRole('button', { name: 'New case' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New company case' });
+    await dialog.getByLabel('Case category').selectOption('support');
+    await dialog.getByLabel('Case title').fill('Rider cannot restore account access');
+    await dialog.getByLabel('Internal description').fill('Account recovery investigation only');
+    await dialog.getByRole('button', { name: 'Create internal case' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Rider cannot restore account access');
+    await page.getByLabel('Case update reason').fill('Confirmed account case opened by staff.');
+    await page.getByRole('button', { name: 'Add internal note' }).click();
+    await expect(page.getByRole('list', { name: 'Case activity history' })).toContainText('Confirmed account case opened');
+  });
+
+  test('case titles remain inert text, not executable HTML', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#cases');
+    await page.getByRole('button', { name: 'New case' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New company case' });
+    await dialog.getByLabel('Case title').fill('<img src=x onerror="window.__case_xss=1">');
+    await dialog.getByRole('button', { name: 'Create internal case' }).click();
+    await expect(page.locator('.page-title')).toContainText('<img src=x onerror=');
+    expect(await page.evaluate(() => window.__case_xss)).toBeUndefined();
+    await expect(page.locator('#page img')).toHaveCount(0);
+  });
+
+  test('moderators can see internal appeal cases but not customer support or privacy records', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'moderator' });
+    await page.goto('/admin.html#cases');
+    await expect(page.locator('.case-item')).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'Moderation decision review' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Case categories' })).not.toContainText('Customer support');
+  });
+
+  test('support sees support cases only, while analysts cannot open the case desk', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'support' });
+    await page.goto('/admin.html#cases');
+    await expect(page.locator('.page-title')).toHaveText('Case desk');
+    await expect(page.locator('.case-item')).toHaveCount(1);
+    await expect(page.getByRole('group', { name: 'Case categories' })).not.toContainText('Privacy requests');
+    await page.goto('/admin.html#case/33333333-3333-4333-8333-333333333333');
+    await expect(page).toHaveURL(/#case\/33333333-3333-4333-8333-333333333333$/);
+    await expect(page.locator('#page')).toContainText('Case not available');
+  });
+
+  test('mobile masthead stays fixed and the navigation drawer has a visible close button', async ({ page }, testInfo) => {
+    test.skip(!/phone/.test(testInfo.project.name), 'Phones only');
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    await expect(page.locator('.sidebar')).toHaveCSS('position', 'fixed');
+    await page.evaluate(() => window.scrollTo(0, 1100));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    const top = await page.locator('.sidebar').evaluate((node) => node.getBoundingClientRect().top);
+    expect(Math.abs(top)).toBeLessThanOrEqual(1);
+    await page.locator('#menuToggle').click();
+    await expect(page.getByText('Staff operations', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Close navigation' }).click();
+    await expect(page.locator('#menuToggle')).toBeFocused();
+    await expect(page.locator('#menuToggle')).toHaveAttribute('aria-expanded', 'false');
+  });
 
   test('operations home links real work to existing staff sections', async ({ page }) => {
     await signIn(page);
@@ -1229,7 +1520,9 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
 
-    await expect(page.locator('.matrix tbody tr')).toHaveCount(8);
+    // The Case Desk permission adds an actual row to the staff rights matrix.
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(9);
+    await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
     await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
   });
 
@@ -1281,7 +1574,12 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page, { role: 'support' });
     await page.goto('/admin.html#riders');
     await openMenuIfPhone(page);
-    await expect(page.locator('#nav [data-view]:visible')).toHaveText(['Overview', 'Riders', 'Audit log', 'System']);
+    // The new case workstream is intentionally visible to support, without
+    // exposing moderation or the restricted privacy and incident queues.
+    const visibleSections = await page.locator('#nav [data-view]:visible').evaluateAll((buttons) =>
+      buttons.map((button) => button.textContent.replace(/\s+/g, ' ').trim()));
+    expect(visibleSections).toEqual(['Overview', 'Riders', 'Audit log', 'Case desk', 'System']);
+    await expect(page.locator('#nav [data-view="moderation"]')).toBeHidden();
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
   });
@@ -1513,15 +1811,20 @@ test.describe('staff dashboard', () => {
     const signOut = page.getByRole('button', { name: 'Sign out of Staff' });
     await expect(signOut).toBeFocused();
     await page.keyboard.press('Tab');
-    await expect(toggle).toBeFocused();
+    const drawerClose = page.getByRole('button', { name: 'Close navigation' });
+    await expect(drawerClose).toBeFocused();
     await page.keyboard.press('Shift+Tab');
     await expect(signOut).toBeFocused();
     await page.keyboard.press('Tab');
-    await expect(toggle).toBeFocused();
+    await expect(drawerClose).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(toggle).toBeFocused();
 
+    await toggle.click();
+    await page.getByRole('button', { name: 'Close navigation' }).click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toBeFocused();
     await toggle.click();
     await page.locator('#menuBackdrop').click({ position: { x: page.viewportSize().width - 8, y: Math.round(page.viewportSize().height / 2) } });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
