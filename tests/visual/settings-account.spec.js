@@ -119,6 +119,10 @@ test('standalone map sandbox reports blocked MapLibre CDN instead of infinite lo
   const map = page.frameLocator('#mapBetaSandbox');
   await expect(map.locator('#status')).toHaveAttribute('data-load-state', 'error', { timeout: 15000 });
   await expect(map.locator('#status')).toContainText('Couldn’t load the prototype map');
+  // A failed CDN import must leave no apparently working map controls.
+  for (const id of ['#dayStyle', '#nightStyle', '#demoOverlay', '#resetCamera']) {
+    await expect(map.locator(id)).toBeDisabled();
+  }
   await expect(page.locator('#map')).toHaveCount(0);
 });
 

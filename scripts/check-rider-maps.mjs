@@ -243,6 +243,8 @@ assert.match(js, /Map rendering did not finish/, 'Stalled worker must show an ac
 assert.match(js, /assertMapDataCompatibility/);
 assert.match(js, /RIDER_MAPS_RELEASED !== false/);
 assert.match(js, /map\.on\('style\.load',/);
+assert.match(js, /!map\.isStyleLoaded\(\)/, 'Synthetic overlay must wait until the basemap style loads');
+assert.match(js, /status\.dataset\.loadState === 'loaded'/, 'Map controls must not mask loading or failure diagnostics');
 assert.match(js, /addDemoOverlay\(\)/);
 assert.match(html, /not road-matched/);
 assert.doesNotMatch(html + js + css, /googleapis\.com|google\.maps|maps\.google\.com/i, 'The experimental map must not fetch Google Maps content');

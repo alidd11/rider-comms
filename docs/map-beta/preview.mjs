@@ -28,6 +28,11 @@ const resetButton = document.getElementById('resetCamera');
 const demoOverlayButton = document.getElementById('demoOverlay');
 
 function updateStatus(message) { status.textContent = message; }
+// Map controls can be used during a style reload or after a tile failure.
+// Keep loading/error diagnostics authoritative until the renderer is ready.
+function announceReady(message) {
+  if (status.dataset.loadState === 'loaded') updateStatus(message);
+}
 // An opaque-origin iframe requires a compatible Web Worker implementation.
 // Report a silent CDN/worker stall instead of leaving the admin beta loading
 // indefinitely; the classic map stays active outside this isolated frame.
@@ -69,7 +74,7 @@ async function startPreview() {
     map.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left');
 
     function addDemoOverlay() {
-      if (!overlayVisible || map.getSource(demoSourceId)) return;
+      if (!overlayVisible || !map.isStyleLoaded() || map.getSource(demoSourceId)) return;
       map.addSource(demoSourceId, { type: 'geojson', data: illustrativeLine() });
       map.addLayer({
         id: demoSourceId,
@@ -106,17 +111,17 @@ async function startPreview() {
       overlayVisible = !overlayVisible;
       demoOverlayButton.setAttribute('aria-pressed', String(overlayVisible));
       if (overlayVisible) addDemoOverlay();
-      else if (map.getLayer(demoSourceId)) {
-        map.removeLayer(demoSourceId);
+      else if (map.getSource(demoSourceId)) {
+        if (map.getLayer(demoSourceId)) map.removeLayer(demoSourceId);
         map.removeSource(demoSourceId);
       }
-      updateStatus(overlayVisible
+      announceReady(overlayVisible
         ? 'Illustrative overlay shown · not real roads, hazards or navigation'
         : 'Illustrative overlay hidden · no live rider data');
     });
     resetButton.addEventListener('click', () => {
       map.easeTo({ center: [DEMO_CAMERA.longitude, DEMO_CAMERA.latitude], zoom: DEMO_CAMERA.zoom, pitch: 0, bearing: 0 });
-      updateStatus('Showing the London sample area · not your location');
+      announceReady('Showing the London sample area · not your location');
     });
     map.on('style.load', () => {
       // Switching styles removes custom sources/layers. Restore Rider-owned
