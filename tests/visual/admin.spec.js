@@ -80,6 +80,8 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
   const state = {
     reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended, assignedTo: null, assignedAt: null }],
     assignmentEvents: [],
+    staffLogins: [],
+    staffLogouts: 0,
     actions: [],
     posts: [],
     riderQueries: [],
@@ -107,6 +109,17 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     const json = (status, body) => route.fulfill({ status, headers, contentType: 'application/json', body: JSON.stringify(body) });
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     if ((url.pathname.startsWith('/moderation') || url.pathname.startsWith('/admin')) && !admin) return json(403, { error: 'admin_required' });
+    if (url.pathname === '/auth/staff-login') {
+      const body = request.postDataJSON();
+      state.staffLogins.push(body);
+      if (body.password !== 'right-password') return json(401, { error: 'invalid_credentials' });
+      if (!admin) return json(403, { error: 'staff_only' });
+      return json(200, { riderId: ADMIN_ID, token: 'staff-token', emailVerified: true });
+    }
+    if (url.pathname === '/auth/logout' && request.method() === 'POST') {
+      state.staffLogouts += 1;
+      return route.fulfill({ status: 204, headers, body: '' });
+    }
     if (url.pathname === '/admin/me') return json(200, { riderId: ADMIN_ID, role, permissions: ROLE_PERMISSIONS[role] });
     if (url.pathname === '/auth/reauthenticate') {
       const { password } = request.postDataJSON();
@@ -339,6 +352,59 @@ async function holdApiResponse(page, matcher, status, body) {
 }
 
 test.describe('staff dashboard', () => {
+
+  test('installed staff entry has independent sign-in, install metadata and a revocable session', async ({ page }) => {
+    // The main Rider Comms login must not automatically grant the isolated app a session.
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/staff/');
+    const heading = page.getByRole('heading', { name: 'Staff sign in' });
+    await expect(heading).toBeVisible();
+    await expect(page.getByText('Your operations workspace.')).toBeVisible();
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', './manifest.json');
+    const manifest = await page.request.get('/staff/manifest.json');
+    expect(manifest.status()).toBe(200);
+    expect(await manifest.json()).toMatchObject({
+      name: 'Rider Comms Staff', id: './', start_url: './', scope: './', display: 'standalone',
+    });
+    await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+    await page.getByRole('textbox', { name: 'Password' }).fill('right-password');
+    await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+    await expect.poll(() => state.staffLogins.length).toBe(1);
+    expect(state.staffLogins[0].deviceName).toBe('Rider Comms Staff PWA');
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('rider-comms-staff-session-v1')));
+    expect(stored.riderId).toBe(ADMIN_ID);
+    await openMenuIfPhone(page);
+    const signout = page.getByRole('button', { name: 'Sign out of Staff' });
+    await signout.click();
+    await expect(heading).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('rider-comms-staff-session-v1'))).toBeNull();
+    await expect.poll(() => state.staffLogouts).toBe(1);
+  });
+
+  test('staff PWA denies riders without staff access and never retains their token', async ({ page }) => {
+    await mockModerationApi(page, { admin: false });
+    await page.goto('/staff/');
+    await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('rider');
+    await page.getByRole('textbox', { name: 'Password' }).fill('right-password');
+    await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+    await expect(page.getByRole('alert')).toHaveText('This account does not have staff access.');
+    await expect(page.locator('#nav')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('rider-comms-staff-session-v1'))).toBeNull();
+  });
+
+  test('staff PWA handles incorrect credentials without retaining passwords', async ({ page }) => {
+    await mockModerationApi(page);
+    await page.goto('/staff/');
+    await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+    await page.getByRole('textbox', { name: 'Password' }).fill('wrong-password');
+    await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+    await expect(page.getByRole('alert')).toHaveText('The username or password is incorrect.');
+    await expect(page.getByRole('textbox', { name: 'Password' })).toHaveValue('');
+  });
+
 
 
   test('case owner survives refresh and history remains separate from the quick claim', async ({ page }) => {
