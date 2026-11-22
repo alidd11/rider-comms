@@ -625,6 +625,33 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.page-title')).toHaveText('Riders');
   });
 
+  test('workspace toolbar tracks navigation and opens command search with restored focus', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#overview');
+    const toolbar = page.getByRole('banner', { name: 'Workspace navigation' });
+    const current = page.locator('#workspaceCurrentSection');
+    const trigger = page.getByRole('button', { name: 'Open command search' });
+    await expect(current).toHaveText('Overview');
+    if (page.viewportSize().width >= 900) {
+      await expect(toolbar).toBeVisible();
+      await expect(trigger).toBeVisible();
+      await trigger.click();
+      const dialog = page.getByRole('dialog', { name: 'Search operations' });
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(dialog).not.toBeVisible();
+      await expect(trigger).toBeFocused();
+    } else {
+      await expect(toolbar).toBeHidden();
+    }
+    await openSection(page, 'Riders');
+    await expect(current).toHaveText('Riders');
+    await openSection(page, 'Action inbox');
+    await expect(current).toHaveText('Action inbox');
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+  });
+
   test('command search shows permitted pages and opens a rider record without exposing markup', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
