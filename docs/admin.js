@@ -586,7 +586,7 @@
   // unfiltered, so urgent work cannot vanish behind an analytics preference.
   function reportingWindow() {
     const label = el('label', { class: 'reporting-range' }, [
-      el('span', { class: 'reporting-range-caption', text: 'Date range' }),
+      el('span', { class: 'reporting-range-caption', text: 'Period' }),
     ]);
     const select = el('select', { class: 'reporting-range-select', 'aria-label': 'Reporting period' }, [
       el('option', { value: '7', text: 'Last 7 days' }),
@@ -647,18 +647,19 @@
       el('div', { class: 'actions page-header-actions' }, [
         ['insights', 'cases'].includes(view)
           ? reportingWindow()
-          : el('span', { class: 'reporting-scope', text: ({
-            overview: 'Current snapshot',
-            company: 'Connected services',
-            riders: 'Account records',
-            inbox: 'All open work',
-            audit: 'Recent audit sample',
-            staff: 'Current team',
+          : (({
             moderation: 'Live moderation queue',
+            audit: 'Recent audit sample',
             system: 'Live service status',
             rider: 'Account record',
             case: 'Full case history',
-          })[view] || 'Live data' }),
+          })[view] ? el('span', { class: 'reporting-scope', text: ({
+            moderation: 'Live moderation queue',
+            audit: 'Recent audit sample',
+            system: 'Live service status',
+            rider: 'Account record',
+            case: 'Full case history',
+          })[view] }) : null),
         ...actions, refresh,
       ]),
     ]);
