@@ -53,6 +53,18 @@ describe('Rider Social media service', () => {
     assert.equal(check({ riderId: 'rider_b', sessionId: SESSION }, 'file', link.exp, link.sig), false, 'another rider');
     assert.equal(check({ riderId: 'rider_a', sessionId: OTHER_SESSION }, 'file', link.exp, link.sig), false, 'another session');
     assert.equal(check({ riderId: 'rider_a', sessionId: 'not-a-session' }, 'file', link.exp, link.sig), false);
+    // Signed links must not accept UUID-looking tokens with misplaced hyphens.
+    for (const malformed of [
+      'aaaaaaaa1111-4111-8111-aaaaaaaaaaaa',
+      'aaaaaaaa-1111-4111-8111-aaaaaaaaaaa-',
+      'aaaaaaaa--1111-4111-8111-aaaaaaaaaaa',
+    ]) {
+      const forged = parts(signedMediaPath(secret, { riderId: 'rider_a', sessionId: malformed }, MEDIA, 'file', NOW));
+      assert.equal(check({ riderId: 'rider_a', sessionId: malformed }, 'file', forged.exp, forged.sig), false);
+    }
+    const compactSession = 'a'.repeat(32);
+    const compactLink = parts(signedMediaPath(secret, { riderId: 'rider_a', sessionId: compactSession }, MEDIA, 'file', NOW));
+    assert.equal(check({ riderId: 'rider_a', sessionId: compactSession }, 'file', compactLink.exp, compactLink.sig), true);
     assert.equal(check(viewer, 'poster', link.exp, link.sig), false);
     assert.equal(check(viewer, 'file', link.exp + 10 * MINUTE, link.sig), false);
     assert.equal(check(viewer, 'file', link.exp, link.sig, NOW, Buffer.alloc(32, 8)), false);
@@ -61,6 +73,14 @@ describe('Rider Social media service', () => {
     assert.equal(check(viewer, 'file', link.exp, link.sig, link.exp + 1), false);
     assert.equal(check(viewer, 'file', NOW + 31 * MINUTE, link.sig), false);
     assert.equal(check(viewer, 'file', Number.NaN, link.sig), false);
+    // Fuzz-style boundary cases: invalid expiries and malformed signatures
+    // must be rejected without throwing or granting access.
+    for (const invalidExpiry of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      assert.equal(check(viewer, 'file', invalidExpiry, link.sig), false);
+    }
+    for (const invalidSignature of ['', 'x'.repeat(1000), link.sig.slice(1), link.sig + '=', '!'.repeat(43), link.sig.slice(0, -1) + '!']) {
+      assert.equal(check(viewer, 'file', link.exp, invalidSignature), false);
+    }
   });
 
   it('accepts only a single byte range', () => {

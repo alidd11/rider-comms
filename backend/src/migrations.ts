@@ -1084,4 +1084,50 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // A Social post report also creates a general safety report. Retain a
+    // source identifier after deletion so post decisions close linked cases.
+    name: '0062_social_safety_report_link',
+    sql: `
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS source_post_id UUID;
+      CREATE INDEX IF NOT EXISTS safety_reports_source_post_open_idx
+        ON safety_reports (source_post_id)
+        WHERE source_post_id IS NOT NULL AND status = 'open';
+      -- Backfill only when reporter, author, reason, time AND structured
+      -- prefix agree; a user-written report alone must not create a link.
+      UPDATE safety_reports r SET source_post_id = spr.post_id
+        FROM social_post_reports spr JOIN social_posts p ON p.id = spr.post_id
+       WHERE r.source_post_id IS NULL
+         AND r.reporter_id = spr.reporter_id
+         AND r.reported_rider_id = p.author_id
+         AND r.reason = spr.reason
+         AND r.created_at = spr.created_at
+         AND (r.details = 'Rider Social post ' || spr.post_id::text
+           OR r.details LIKE 'Rider Social post ' || spr.post_id::text || ':%');
+    `,
+  },
+  {
+    // Durable moderation-case ownership is separate from the existing
+    // 30-minute quick claim. Assignment transitions have append-only history.
+    name: '0063_safety_report_assignment_history',
+    sql: `
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS assigned_to TEXT;
+      ALTER TABLE safety_reports ADD COLUMN IF NOT EXISTS assigned_at BIGINT;
+      CREATE INDEX IF NOT EXISTS safety_reports_open_assignee_idx
+        ON safety_reports (assigned_to, created_at)
+        WHERE status = 'open' AND assigned_to IS NOT NULL;
+      CREATE TABLE IF NOT EXISTS safety_report_assignment_events (
+        id UUID PRIMARY KEY,
+        report_id TEXT NOT NULL REFERENCES safety_reports(id) ON DELETE CASCADE,
+        actor_id TEXT NOT NULL,
+        previous_assignee TEXT,
+        assignee_id TEXT,
+        event TEXT NOT NULL CHECK (event IN ('assigned', 'transferred', 'released')),
+        note TEXT NOT NULL CHECK (length(note) BETWEEN 1 AND 1000),
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS safety_report_assignment_events_report_idx
+        ON safety_report_assignment_events (report_id, created_at DESC, id DESC);
+    `,
+  },
 ];

@@ -21,7 +21,7 @@ describe('ModerationStore', { skip: !hasDatabase && 'DATABASE_URL not set; skipp
 
   beforeEach(async () => {
     const pool = getPool();
-    await pool.query('TRUNCATE social_events, friend_requests, friendships, rider_blocks, safety_reports RESTART IDENTITY');
+    await pool.query('TRUNCATE social_events, friend_requests, friendships, rider_blocks, safety_report_assignment_events, safety_reports RESTART IDENTITY');
   });
 
   after(async () => {

@@ -308,9 +308,9 @@ export class SocialPostStore {
       // Keep the existing staff safety queue and the post-level report atomic.
       // If either insert fails, neither report nor the visibility change commits.
       await client.query(
-        'INSERT INTO safety_reports (id, reporter_id, reported_rider_id, reason, details, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        'INSERT INTO safety_reports (id, reporter_id, reported_rider_id, reason, details, created_at, source_post_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
         [randomUUID(), reporterId, String(post.rows[0].author_id), reason,
-          `Rider Social post ${postId}${details ? `: ${details}` : ''}`, now],
+          `Rider Social post ${postId}${details ? `: ${details}` : ''}`, now, postId],
       );
       const count = await client.query('SELECT count(*)::int AS n FROM social_post_reports WHERE post_id = $1', [postId]);
       const hidden = Number(count.rows[0].n) >= REPORTS_TO_HIDE;
@@ -329,6 +329,14 @@ export class SocialPostStore {
     return withTransaction(async (client) => {
       const post = await client.query('SELECT author_id FROM social_posts WHERE id = $1 FOR UPDATE', [postId]);
       if (!post.rows[0]) return false;
+      // One audited post decision resolves its linked open safety cases
+      // atomically; unrelated rider reports and past decisions are untouched.
+      await client.query(
+        `UPDATE safety_reports SET status = $2, resolved_at = $3, resolved_by = $4,
+                claimed_by = NULL, claimed_at = NULL
+          WHERE source_post_id = $1 AND status = 'open'`,
+        [postId, action === 'restore' ? 'dismissed' : 'actioned', now, moderatorId],
+      );
       if (action === 'restore') {
         await client.query('UPDATE social_posts SET hidden_at = NULL WHERE id = $1', [postId]);
         await client.query('DELETE FROM social_post_reports WHERE post_id = $1', [postId]);
@@ -346,8 +354,29 @@ export class SocialPostStore {
     });
   }
 
+
+  /** Read exactly one hidden post for a moderator. Never scan the top 100
+   * queue to decide whether a selected post still awaits review.
+   */
+  async hiddenForStaff(postId: string): Promise<{ post: SocialPost; reports: number; reasons: string[]; hiddenAt: number } | null> {
+    await ensureMigrated();
+    const { rows } = await getPool().query(
+      `SELECT q.*, (SELECT count(*)::int FROM social_post_reports r WHERE r.post_id = q.id) AS reports,
+          (SELECT array_agg(DISTINCT r.reason) FROM social_post_reports r WHERE r.post_id = q.id) AS reasons
+         FROM (${SELECT_POST} WHERE p.id = $1 AND p.hidden_at IS NOT NULL) q LIMIT 1`,
+      [postId],
+    );
+    const row = rows[0];
+    return row ? {
+      post: toPost(row, ''),
+      reports: Number(row.reports),
+      reasons: (row.reasons as string[] | null) ?? [],
+      hiddenAt: Number(row.hidden_at),
+    } : null;
+  }
+
   /** Hidden posts waiting for a moderator, most reported first. */
-  async listHidden(limit = 50): Promise<Array<{ post: SocialPost; reports: number; reasons: string[] }>> {
+  async listHidden(limit = 50): Promise<Array<{ post: SocialPost; reports: number; reasons: string[]; hiddenAt: number }>> {
     await ensureMigrated();
     const result = await getPool().query(
       `SELECT q.*, (SELECT count(*)::int FROM social_post_reports r WHERE r.post_id = q.id) AS reports,
@@ -360,6 +389,7 @@ export class SocialPostStore {
       post: toPost(row, ''),
       reports: Number(row.reports),
       reasons: (row.reasons as string[] | null) ?? [],
+      hiddenAt: Number(row.hidden_at),
     }));
   }
 

@@ -35,6 +35,9 @@ export interface QueuedSafetyReport extends SafetyReport {
   /** The moderator working this report, while their claim is fresh. */
   claimedBy: string | null;
   claimedAt: number | null;
+  /** Persistent assigned case owner, unlike the 30-minute quick claim. */
+  assignedTo: string | null;
+  assignedAt: number | null;
 }
 
 /** A moderator's claim on a report lapses after this long. */
@@ -51,6 +54,21 @@ export type SuspendResult =
 export type ClaimResult =
   | { ok: true; claimedBy: string | null; claimedAt: number | null }
   | { ok: false; error: 'not_found' | 'already_resolved' | 'claimed_by_other'; claimedBy?: string };
+
+export interface ReportAssignmentEvent {
+  id: string;
+  reportId: string;
+  actorId: string;
+  previousAssignee: string | null;
+  assigneeId: string | null;
+  event: 'assigned' | 'transferred' | 'released';
+  note: string;
+  createdAt: number;
+}
+
+export type AssignmentResult =
+  | { ok: true; assignedTo: string | null; assignedAt: number | null; event: ReportAssignmentEvent }
+  | { ok: false; error: 'not_found' | 'already_resolved' | 'unchanged' | 'assigned_to_other' | 'permission_required' | 'invalid_assignee' };
 
 export interface ModerationAction {
   id: string;
@@ -104,6 +122,29 @@ interface QueuedReportRow {
   reported_rider_suspended_until: string | number | null;
   claimed_by: string | null;
   claimed_at: string | number | null;
+  assigned_to: string | null;
+  assigned_at: string | number | null;
+}
+
+function mapQueuedReport(row: QueuedReportRow): QueuedSafetyReport {
+  return {
+    id: row.id,
+    reporterId: row.reporter_id,
+    reportedRiderId: row.reported_rider_id,
+    reason: row.reason,
+    details: row.details,
+    createdAt: Number(row.created_at),
+    status: row.status,
+    resolvedAt: row.resolved_at === null ? null : Number(row.resolved_at),
+    resolvedBy: row.resolved_by,
+    reportsAgainstRider: Number(row.reports_against_rider),
+    reportedRiderSuspended: row.reported_rider_suspended,
+    reportedRiderSuspendedUntil: row.reported_rider_suspended_until === null ? null : Number(row.reported_rider_suspended_until),
+    claimedBy: row.claimed_by ?? null,
+    claimedAt: row.claimed_at === null || row.claimed_at === undefined ? null : Number(row.claimed_at),
+    assignedTo: row.assigned_to ?? null,
+    assignedAt: row.assigned_at === null || row.assigned_at === undefined ? null : Number(row.assigned_at),
+  };
 }
 
 interface ModerationActionRow {
@@ -317,7 +358,9 @@ export class ModerationStore {
 
   /** The moderation queue: oldest open reports first by default, so reports
    * are handled in the order they arrived. */
-  async listReports(status: ReportStatus = 'open', limit = 50): Promise<QueuedSafetyReport[]> {
+  async listReports(status: ReportStatus = 'open', limit = 50,
+    { excludeHiddenSocial = false }: { excludeHiddenSocial?: boolean } = {},
+  ): Promise<QueuedSafetyReport[]> {
     await ensureMigrated();
     const { rows } = await getPool().query<QueuedReportRow>(
       `SELECT report.id, report.reporter_id, report.reported_rider_id, report.reason, report.details,
@@ -327,30 +370,45 @@ export class ModerationStore {
               COALESCE(u.suspended_at IS NOT NULL, FALSE) AS reported_rider_suspended,
               u.suspended_until AS reported_rider_suspended_until,
               CASE WHEN report.claimed_at > $3 THEN report.claimed_by END AS claimed_by,
-              CASE WHEN report.claimed_at > $3 THEN report.claimed_at END AS claimed_at
+              CASE WHEN report.claimed_at > $3 THEN report.claimed_at END AS claimed_at,
+              report.assigned_to, report.assigned_at
        FROM safety_reports report
        LEFT JOIN users u ON u.id = report.reported_rider_id
        WHERE report.status = $1
+         AND (NOT $4::boolean OR NOT EXISTS (
+           SELECT 1 FROM social_posts p
+           WHERE p.id = report.source_post_id AND p.hidden_at IS NOT NULL
+         ))
        ORDER BY report.created_at ${status === 'open' ? 'ASC' : 'DESC'}, report.id
        LIMIT $2`,
-      [status, limit, Date.now() - REPORT_CLAIM_TTL_MS],
+      [status, limit, Date.now() - REPORT_CLAIM_TTL_MS, excludeHiddenSocial],
     );
-    return rows.map((row) => ({
-      id: row.id,
-      reporterId: row.reporter_id,
-      reportedRiderId: row.reported_rider_id,
-      reason: row.reason,
-      details: row.details,
-      createdAt: Number(row.created_at),
-      status: row.status,
-      resolvedAt: row.resolved_at === null ? null : Number(row.resolved_at),
-      resolvedBy: row.resolved_by,
-      reportsAgainstRider: Number(row.reports_against_rider),
-      reportedRiderSuspended: row.reported_rider_suspended,
-      reportedRiderSuspendedUntil: row.reported_rider_suspended_until === null ? null : Number(row.reported_rider_suspended_until),
-      claimedBy: row.claimed_by ?? null,
-      claimedAt: row.claimed_at === null || row.claimed_at === undefined ? null : Number(row.claimed_at),
-    }));
+    return rows.map(mapQueuedReport);
+  }
+
+
+  /** Exact moderator-only record lookup, independent of bounded queue order.
+   * Includes current status/claim so stale inbox entries are never guessed
+   * to have been resolved or moved.
+   */
+  async reportById(reportId: string): Promise<QueuedSafetyReport | null> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<QueuedReportRow>(
+      `SELECT report.id, report.reporter_id, report.reported_rider_id, report.reason, report.details,
+              report.created_at, report.status, report.resolved_at, report.resolved_by,
+              (SELECT count(*) FROM safety_reports other WHERE other.reported_rider_id = report.reported_rider_id)
+                AS reports_against_rider,
+              COALESCE(u.suspended_at IS NOT NULL, FALSE) AS reported_rider_suspended,
+              u.suspended_until AS reported_rider_suspended_until,
+              CASE WHEN report.claimed_at > $2 THEN report.claimed_by END AS claimed_by,
+              CASE WHEN report.claimed_at > $2 THEN report.claimed_at END AS claimed_at,
+              report.assigned_to, report.assigned_at
+       FROM safety_reports report
+       LEFT JOIN users u ON u.id = report.reported_rider_id
+       WHERE report.id = $1 LIMIT 1`,
+      [reportId, Date.now() - REPORT_CLAIM_TTL_MS],
+    );
+    return rows[0] ? mapQueuedReport(rows[0]) : null;
   }
 
   /**
@@ -376,6 +434,83 @@ export class ModerationStore {
       await client.query('UPDATE safety_reports SET claimed_by = $2, claimed_at = $3 WHERE id = $1', [reportId, staffId, now]);
       return { ok: true, claimedBy: staffId, claimedAt: now };
     });
+  }
+
+
+  /**
+   * An explicit, durable owner for a rider safety report. Assignment is
+   * coordination metadata, not an authorisation bypass or proof of guilt.
+   * The report row lock serialises concurrent assignments and resolutions.
+   */
+  async assignReport(
+    reportId: string, actorId: string, assigneeId: string | null,
+    note: string, canOverride: boolean, now = Date.now(),
+  ): Promise<AssignmentResult> {
+    await ensureMigrated();
+    return withTransaction(async (client) => {
+      // Lock the prospective owner before the case row. Staff-role changes
+      // lock the user before releasing assigned cases, so the lock order
+      // cannot deadlock with an administrator revoking that role.
+      if (assigneeId !== null) {
+        const { rows } = await client.query<{ eligible: boolean }>(
+          `SELECT (u.is_admin OR s.role = 'moderator') AND u.suspended_at IS NULL AS eligible
+           FROM users u LEFT JOIN staff_roles s ON s.rider_id = u.id
+           WHERE u.id = $1 FOR UPDATE OF u`, [assigneeId],
+        );
+        if (!rows[0]?.eligible) return { ok: false, error: 'invalid_assignee' };
+      }
+      const found = await client.query<{ status: ReportStatus; assigned_to: string | null }>(
+        'SELECT status, assigned_to FROM safety_reports WHERE id = $1 FOR UPDATE', [reportId],
+      );
+      const report = found.rows[0];
+      if (!report) return { ok: false, error: 'not_found' };
+      if (report.status !== 'open') return { ok: false, error: 'already_resolved' };
+      const previous = report.assigned_to;
+      if (!canOverride && (previous !== null && previous !== actorId ||
+        assigneeId !== null && assigneeId !== actorId)) {
+        return { ok: false, error: 'assigned_to_other' };
+      }
+      if (previous === assigneeId) return { ok: false, error: 'unchanged' };
+      const at = assigneeId === null ? null : now;
+      await client.query(
+        'UPDATE safety_reports SET assigned_to = $2, assigned_at = $3 WHERE id = $1',
+        [reportId, assigneeId, at],
+      );
+      const eventType = assigneeId === null ? 'released' : previous === null ? 'assigned' : 'transferred';
+      const event: ReportAssignmentEvent = {
+        id: randomUUID(), reportId, actorId, previousAssignee: previous,
+        assigneeId, event: eventType, note, createdAt: now,
+      };
+      await client.query(
+        `INSERT INTO safety_report_assignment_events
+          (id, report_id, actor_id, previous_assignee, assignee_id, event, note, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [event.id, reportId, actorId, previous, assigneeId, event.event, note, now],
+      );
+      return { ok: true, assignedTo: assigneeId, assignedAt: at, event };
+    });
+  }
+
+  /** Read the latest ownership changes for exactly one case, in audit order. */
+  async assignmentHistory(reportId: string, limit = 50): Promise<ReportAssignmentEvent[] | null> {
+    await ensureMigrated();
+    const pool = getPool();
+    const exists = await pool.query('SELECT 1 FROM safety_reports WHERE id = $1', [reportId]);
+    if (!exists.rowCount) return null;
+    const { rows } = await pool.query<{
+      id: string; report_id: string; actor_id: string; previous_assignee: string | null;
+      assignee_id: string | null; event: ReportAssignmentEvent['event']; note: string; created_at: number | string;
+    }>(
+      `SELECT id, report_id, actor_id, previous_assignee, assignee_id, event, note, created_at
+       FROM safety_report_assignment_events
+       WHERE report_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`,
+      [reportId, Math.min(Math.max(limit, 1), 100)],
+    );
+    return rows.map((r) => ({
+      id: r.id, reportId: r.report_id, actorId: r.actor_id,
+      previousAssignee: r.previous_assignee, assigneeId: r.assignee_id,
+      event: r.event, note: r.note, createdAt: Number(r.created_at),
+    }));
   }
 
   /**
@@ -580,6 +715,26 @@ export class ModerationStore {
     }));
   }
 
+
+  /** Revoking or downgrading staff access cannot leave open cases owned by
+   * an ineligible rider. The caller has locked the affected users row first.
+   */
+  private async releaseOpenAssignmentsForStaff(
+    client: PoolClient, riderId: string, actorId: string, note: string, now: number,
+  ): Promise<void> {
+    await client.query(
+      `WITH released AS (
+         UPDATE safety_reports SET assigned_to = NULL, assigned_at = NULL
+          WHERE assigned_to = $1 AND status = 'open'
+          RETURNING id
+       )
+       INSERT INTO safety_report_assignment_events
+         (id, report_id, actor_id, previous_assignee, assignee_id, event, note, created_at)
+       SELECT gen_random_uuid(), id, $2, $1, NULL, 'released', $3, $4 FROM released`,
+      [riderId, actorId, `Staff access changed: ${note}`.slice(0, MAX_MODERATION_NOTE_LENGTH), now],
+    );
+  }
+
   /** Gives a rider a staff role, or changes it, and records why. */
   async setStaffRole(riderId: string, role: GrantableStaffRole, adminId: string, note: string, now = Date.now()): Promise<StaffChangeResult> {
     await ensureMigrated();
@@ -599,6 +754,9 @@ export class ModerationStore {
          ON CONFLICT (rider_id) DO UPDATE SET role = EXCLUDED.role, granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at`,
         [riderId, role, adminId, now],
       );
+      if (row.role === 'moderator' && role !== 'moderator') {
+        await this.releaseOpenAssignmentsForStaff(client, riderId, adminId, note, now);
+      }
       const change = row.role ? `${row.role} → ${role}` : role;
       const action = await this.recordAction(client, adminId, riderId, null, 'staff_grant', `${change}: ${note}`, now);
       return { ok: true, action };
@@ -614,6 +772,7 @@ export class ModerationStore {
       if (rows[0].is_admin) return { ok: false, error: 'is_admin' };
       const removed = await client.query<{ role: string }>('DELETE FROM staff_roles WHERE rider_id = $1 RETURNING role', [riderId]);
       if (!removed.rows[0]) return { ok: false, error: 'not_staff' };
+      await this.releaseOpenAssignmentsForStaff(client, riderId, adminId, note, now);
       const action = await this.recordAction(client, adminId, riderId, null, 'staff_revoke', `${removed.rows[0].role}: ${note}`, now);
       return { ok: true, action };
     });

@@ -78,7 +78,8 @@ async function openMenuIfPhone(page) {
 /** Minimal in-memory moderation backend. */
 async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false } = {}) {
   const state = {
-    reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended }],
+    reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended, assignedTo: null, assignedAt: null }],
+    assignmentEvents: [],
     actions: [],
     posts: [],
     riderQueries: [],
@@ -150,6 +151,31 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.staff = state.staff.filter((member) => member.riderId !== decodeURIComponent(removeStaff[1]));
       return json(200, { ok: true });
     }
+    if (url.pathname === '/admin/action-inbox') {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const type = url.searchParams.get('type') ?? 'all';
+      const hiddenIds = new Set(state.socialPosts.map((entry) => entry.post.id));
+      const riderReports = state.reports.filter((report) =>
+        report.status === 'open' && !hiddenIds.has(report.sourcePostId)).slice(0, 100)
+        .map((report) => ({
+          type: 'rider_report', id: `rider_report:${report.id}`,
+          reportId: report.id, riderId: report.reportedRiderId, eventAt: report.createdAt,
+          reason: report.reason, claimedBy: report.claimedBy ?? null, assignedTo: report.assignedTo ?? null,
+          reportsAgainstRider: report.reportsAgainstRider,
+        }));
+      const posts = state.socialPosts.slice(0, 100).map((entry) => ({
+        type: 'social_post', id: `social_post:${entry.post.id}`,
+        postId: entry.post.id, riderId: entry.post.authorId,
+        eventAt: entry.hiddenAt ?? entry.post.createdAt,
+        kind: entry.post.kind, reportCount: entry.reports, reasons: entry.reasons,
+      }));
+      const items = [
+        ...(type === 'social_post' ? [] : riderReports),
+        ...(type === 'rider_report' ? [] : posts),
+      ].sort((a, b) => a.eventAt - b.eventAt);
+      return json(200, { generatedAt: Date.now(), items: items.slice(0, 50), filter: type, limit: 50,
+        mayHaveMore: items.length > 50, sourceSampleLimit: 100 });
+    }
     if (url.pathname === '/admin/overview') return json(200, OVERVIEW);
     const riderDetail = url.pathname.match(/^\/admin\/riders\/(rider_[a-z0-9]+)$/);
     if (riderDetail && request.method() === 'GET') {
@@ -175,6 +201,33 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       if (riderAction[2] === 'password-reset') return json(200, { ok: true, emailDelivery: { configured: true } });
       return json(200, { ok: true, resolvedReportIds: [] });
     }
+    const assign = url.pathname.match(/^\/moderation\/reports\/([^/]+)\/assign$/);
+    if (assign && request.method() === 'POST') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required' });
+      if (!body.note) return json(400, { error: 'note_required' });
+      const report = state.reports.find((item) => item.id === decodeURIComponent(assign[1]));
+      if (!report) return json(404, { error: 'not_found' });
+      if (report.status !== 'open') return json(409, { error: 'already_resolved' });
+      const target = Object.hasOwn(body, 'assigneeId') ? body.assigneeId : ADMIN_ID;
+      if (report.assignedTo === target) return json(409, { error: 'unchanged' });
+      if (role !== 'admin' && ((report.assignedTo && report.assignedTo !== ADMIN_ID) ||
+        (target && target !== ADMIN_ID))) return json(409, { error: 'assigned_to_other' });
+      const event = { id: `own-${state.assignmentEvents.length + 1}`, reportId: report.id, actorId: ADMIN_ID,
+        previousAssignee: report.assignedTo ?? null, assigneeId: target, event: target === null ? 'released'
+          : report.assignedTo ? 'transferred' : 'assigned', note: body.note, createdAt: Date.now() };
+      report.assignedTo = target;
+      report.assignedAt = target === null ? null : event.createdAt;
+      state.assignmentEvents.unshift(event);
+      return json(200, { ok: true, assignedTo: target, assignedAt: report.assignedAt, event });
+    }
+    const assignmentHistory = url.pathname.match(/^\/moderation\/reports\/([^/]+)\/assignment-history$/);
+    if (assignmentHistory && request.method() === 'GET') {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required' });
+      return json(200, { events: state.assignmentEvents.filter((e) =>
+        e.reportId === decodeURIComponent(assignmentHistory[1])) });
+    }
     const claim = url.pathname.match(/^\/moderation\/reports\/([^/]+)\/claim$/);
     if (claim) {
       const body = request.postDataJSON();
@@ -185,7 +238,11 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     }
     if (url.pathname === '/admin/riders') {
       state.riderQueries.push(url.searchParams.get('q'));
-      return json(200, { riders: url.searchParams.get('q') === 'nobody' ? [] : state.riders });
+      const query = (url.searchParams.get('q') || '').toLowerCase();
+      const matches = state.riders.filter((rider) => [
+        rider.displayName, rider.username, rider.handle, rider.email, rider.riderId,
+      ].some((value) => String(value ?? '').toLowerCase().includes(query)));
+      return json(200, { riders: matches });
     }
     if (url.pathname === '/admin/system') {
       return json(200, { socialMediaStorage: false, socialMediaScanning: true, socialPosting: true, contentCheck: { allowed: 7, rejected: 1, unavailable: 2 }, providers: { google_places: { lastOkAt: null, lastErrorAt: Date.now(), lastError: '403 · PERMISSION_DENIED' }, google_routes: { lastOkAt: Date.now(), lastErrorAt: null, lastError: null } }, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
@@ -199,15 +256,27 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
         rider_badactor: { displayName: 'Rex', handle: '@rex' },
       } });
     }
+    const reportId = url.pathname.match(/^\/moderation\/reports\/([^/]+)$/);
+    if (request.method() === 'GET' && reportId) {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const report = state.reports.find((row) => row.id === decodeURIComponent(reportId[1]));
+      return report ? json(200, { report }) : json(404, { error: 'not_found' });
+    }
+    const hiddenPostId = url.pathname.match(/^\/moderation\/social-posts\/([^/]+)$/);
+    if (request.method() === 'GET' && hiddenPostId) {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const entry = state.socialPosts.find((row) => row.post.id === decodeURIComponent(hiddenPostId[1]));
+      return entry ? json(200, { entry }) : json(404, { error: 'not_found' });
+    }
     if (url.pathname === '/moderation/reports') {
       const status = url.searchParams.get('status');
-      return json(200, { reports: state.reports.filter((report) => report.status === status) });
+      return json(200, { reports: state.reports.filter((report) => report.status === status).slice(0, 100) });
     }
     if (url.pathname === '/moderation/actions') {
       const riderId = url.searchParams.get('riderId');
       return json(200, { actions: riderId ? state.actions.filter((action) => action.targetRiderId === riderId) : state.actions });
     }
-    if (url.pathname === '/moderation/social-posts' && request.method() === 'GET') return json(200, { posts: state.socialPosts });
+    if (url.pathname === '/moderation/social-posts' && request.method() === 'GET') return json(200, { posts: state.socialPosts.slice(0, 100) });
     if (url.pathname.startsWith('/social/media/')) {
       // A 1×1 PNG for the post's photo.
       return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC', 'base64') });
@@ -249,7 +318,329 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
   return state;
 }
 
+/** Hold one response until a newer dashboard view has finished loading. */
+async function holdApiResponse(page, matcher, status, body) {
+  let requested;
+  let release;
+  const received = new Promise((resolve) => { requested = resolve; });
+  const gate = new Promise((resolve) => { release = resolve; });
+  await page.route(matcher, async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fallback();
+    requested();
+    await gate;
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify(body),
+    });
+  });
+  return { received, release };
+}
+
 test.describe('staff dashboard', () => {
+
+
+  test('case owner survives refresh and history remains separate from the quick claim', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const report = page.locator('[data-report-id="report-1"]');
+    await expect(report).toContainText('No permanent owner');
+    await report.locator('textarea').fill('Taking long-term responsibility');
+    await report.getByRole('button', { name: 'Assign permanently to me' }).click();
+    await expect(report).toContainText('Case owner:');
+    await expect(report).toContainText('Take this report');
+    await expect.poll(() => state.posts.at(-1)).toEqual({
+      path: '/moderation/reports/report-1/assign',
+      body: { assigneeId: ADMIN_ID, note: 'Taking long-term responsibility' },
+    });
+    await report.getByRole('button', { name: 'View ownership history' }).click();
+    const history = report.getByRole('region', { name: 'Ownership history for report report-1' });
+    await expect(history).toContainText('Taking long-term responsibility');
+    await expect(history).toContainText('assigned');
+    await report.getByRole('button', { name: 'Hide ownership history' }).click();
+    await expect(history).toHaveCount(0);
+    await report.locator('textarea').fill('Handing over permanently');
+    await report.getByRole('button', { name: 'Release permanent ownership' }).click();
+    await expect(report).toContainText('No permanent owner');
+    await report.getByRole('button', { name: 'View ownership history' }).click();
+    await expect(report.getByRole('region', { name: 'Ownership history for report report-1' })).toContainText('Handing over permanently');
+    await openSection(page, 'Action inbox');
+    await expect(page.locator('.inbox-item').first()).toContainText('No permanent owner');
+  });
+
+  test('an administrator can hand over a report to a moderator with an audited reason', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const report = page.locator('[data-report-id="report-1"]');
+    await report.getByRole('button', { name: 'Assign to team member' }).click();
+    const handover = report.getByRole('group', { name: 'Staff handover for report report-1' });
+    const member = handover.getByRole('combobox', { name: 'Team member for report report-1' });
+    await expect(member).toBeFocused();
+    await expect(handover).not.toContainText('maya@example.com');
+    await expect(handover.getByRole('button', { name: 'Assign selected member' })).toBeDisabled();
+    await member.selectOption('rider_maya');
+    await report.locator('textarea').fill('Handed over for a second reviewer');
+    await handover.getByRole('button', { name: 'Assign selected member' }).click();
+    await expect(report).toContainText('Case owner:');
+    await expect.poll(() => state.reports[0].assignedTo).toBe('rider_maya');
+    await expect.poll(() => state.posts.at(-1)).toEqual({
+      path: '/moderation/reports/report-1/assign',
+      body: { assigneeId: 'rider_maya', note: 'Handed over for a second reviewer' },
+    });
+    await report.getByRole('button', { name: 'View ownership history' }).click();
+    await expect(report.getByRole('region', { name: 'Ownership history for report report-1' })).toContainText('Handed over for a second reviewer');
+  });
+
+  test('moderators cannot open admin-only team handover controls', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'moderator' });
+    await page.goto('/admin.html#moderation');
+    const report = page.locator('[data-report-id="report-1"]');
+    await expect(report.getByRole('button', { name: 'Assign to team member' })).toHaveCount(0);
+    await expect(report.getByRole('button', { name: 'Assign permanently to me' })).toBeVisible();
+  });
+
+  test('team handover can be cancelled without assigning a rider', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const report = page.locator('[data-report-id="report-1"]');
+    const trigger = report.getByRole('button', { name: 'Assign to team member' });
+    await trigger.click();
+    const panel = report.getByRole('group', { name: 'Staff handover for report report-1' });
+    await panel.getByRole('button', { name: 'Cancel handover' }).click();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(panel).toHaveCount(0);
+    expect(state.reports[0].assignedTo).toBeNull();
+  });
+
+  test('assigned cases are shown in the inbox without leaking underlying notes', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports[0].assignedTo = ADMIN_ID;
+    state.reports[0].assignedAt = Date.now() - 10_000;
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item').first()).toContainText('Case owner: you');
+    await expect(page.locator('.inbox-item').first().locator('.inbox-item-meta .badge')).toHaveAttribute('data-tone', 'accent');
+    await expect(page.locator('.inbox-item').first()).not.toContainText('Private report details');
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page.locator('[data-report-id="report-1"]')).toContainText('Case owner:');
+  });
+
+  test('quick claim does not imply permanent case ownership or urgency', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports[0].claimedBy = ADMIN_ID;
+    await page.goto('/admin.html#inbox');
+    const report = page.locator('.inbox-item').filter({ hasText: 'Rider report' });
+    await expect(report.locator('.inbox-item-meta .badge')).toHaveText('No permanent owner');
+    await expect(report.locator('.inbox-item-meta .badge')).not.toHaveAttribute('data-tone', 'accent');
+    await expect(report.locator('.inbox-item-meta .badge')).not.toHaveAttribute('data-tone', 'warning');
+    await expect(report.locator('.inbox-quick-claim')).toContainText('Quick claim:');
+  });
+
+  test('action inbox owner filters show only matching returned reports', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports[0].assignedTo = ADMIN_ID;
+    state.reports[0].assignedAt = Date.now();
+    await page.goto('/admin.html#inbox');
+
+    const ownership = page.getByRole('group', { name: 'Action inbox ownership' });
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    await expect(page.locator('.inbox-sample-count')).toHaveText('Showing 2 of 2 returned items');
+
+    await ownership.getByRole('button', { name: 'Assigned to me' }).click();
+    await expect(ownership.getByRole('button', { name: 'Assigned to me' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(ownership.getByRole('button', { name: 'Assigned to me' })).toBeFocused();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item').first()).toContainText('Case owner: you');
+    await expect(page.locator('.inbox-sample-count')).toHaveText('Showing 1 of 2 returned items');
+
+    await ownership.getByRole('button', { name: 'Unassigned' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(0);
+    await expect(page.getByText('No matching work in this sample')).toBeVisible();
+    await expect(page.locator('.inbox-sample-count')).toHaveText('Showing 0 of 2 returned items');
+    await ownership.getByRole('button', { name: 'All owners' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+  });
+
+  test('Social posts source clears owner filter because Social ownership is unavailable', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports[0].assignedTo = ADMIN_ID;
+    await page.goto('/admin.html#inbox');
+
+    await page.getByRole('group', { name: 'Action inbox ownership' })
+      .getByRole('button', { name: 'Assigned to me' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item').first()).toContainText('Rider Social');
+    await expect(page.getByRole('group', { name: 'Action inbox ownership' })).toHaveCount(0);
+    await sources.getByRole('button', { name: 'All work' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    await expect(page.getByRole('group', { name: 'Action inbox ownership' })
+      .getByRole('button', { name: 'All owners' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('action inbox shows true moderation sources and opens the selected rider report', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+    const list = page.locator('.inbox-item');
+    await expect(list).toHaveCount(2);
+    await expect(list.first()).toContainText('Rider report');
+    await expect(list.last()).toContainText('Rider Social');
+    await list.first().getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page).toHaveURL(/#moderation$/);
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+    await expect(page.locator('[data-report-id="report-1"]')).toBeFocused();
+  });
+
+  test('action inbox filters sources and opens the selected Social post', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(sources.getByRole('button', { name: 'Social posts' })).toBeFocused();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toBeFocused();
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+  });
+
+
+  test('inbox navigation retrieves a report outside 100 linked Social safety reports', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    const hiddenPost = state.socialPosts[0].post.id;
+    state.reports = [
+      ...Array.from({ length: 130 }, (_, n) => ({
+        ...OPEN_REPORT, id: `linked-${n}`, createdAt: n + 1, sourcePostId: hiddenPost,
+      })),
+      { ...OPEN_REPORT, id: 'last-independent', createdAt: 500, sourcePostId: null },
+    ];
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toBeFocused();
+    await expect(page.locator('.inbox-intro')).toContainText('Loaded directly by its identifier');
+    await page.getByRole('button', { name: 'Take this report' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toBeFocused();
+    await expect(page.locator('[data-report-id="last-independent"]')).toContainText('You’re handling this');
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toHaveCount(0,
+      'ordinary bounded moderation queue excludes the selected report');
+  });
+
+  test('Social post navigation survives a concurrent reorder beyond the first 100', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    const selectedPost = state.socialPosts[0];
+    await page.goto('/admin.html#inbox');
+    await page.getByRole('group', { name: 'Action inbox sources' }).getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    state.socialPosts.unshift(...Array.from({ length: 110 }, (_, n) => ({
+      post: { ...selectedPost.post, id: `newer-hidden-${n}`, media: [] },
+      reports: 9, reasons: ['spam'],
+    })));
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toBeFocused();
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toHaveCount(0);
+  });
+
+  test('inbox shows changed report status instead of claiming a moved queue item', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    state.reports[0].status = 'dismissed';
+    state.reports[0].resolvedAt = Date.now();
+    state.reports[0].resolvedBy = ADMIN_ID;
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page.locator('[data-report-id="report-1"]')).toBeFocused();
+    await expect(page.locator('.inbox-intro')).toContainText('Report currently dismissed');
+    await expect(page.locator('[data-report-id="report-1"] [data-action="dismiss"]')).toHaveCount(0);
+  });
+
+  test('inbox does not infer resolution when the selected record disappears', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    state.reports = [];
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    const missing = page.locator('[data-selected-unavailable]');
+    await expect(missing).toBeFocused();
+    await expect(missing).toContainText('No resolution is assumed');
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No open reports');
+  });
+
+  test('inbox filter changes keep controls available and ignore late source responses', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(
+      page,
+      (url) => url.pathname === '/admin/action-inbox' && url.searchParams.get('type') === 'rider_report',
+      200,
+      { generatedAt: Date.now(), filter: 'rider_report', limit: 50, sourceSampleLimit: 100,
+        mayHaveMore: false, items: [{ type: 'rider_report', id: 'rider_report:stale',
+          reportId: 'stale', riderId: 'rider_reporter', eventAt: Date.now(),
+          reason: 'spam', claimedBy: null, reportsAgainstRider: 1 }] },
+    );
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Rider reports' }).click();
+    await hold.received;
+    await expect(sources.getByRole('button', { name: 'Social posts' })).toBeVisible();
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item')).toContainText('Rider Social');
+    const stale = page.waitForResponse((response) => new URL(response.url()).pathname === '/admin/action-inbox'
+      && new URL(response.url()).searchParams.get('type') === 'rider_report');
+    hold.release();
+    await stale;
+    await page.waitForTimeout(100);
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item')).toContainText('Rider Social');
+  });
+
+  test('support and analyst accounts cannot access the action inbox', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'support' });
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('#nav [data-view="inbox"]')).toBeHidden();
+    await expect(page).toHaveURL(/#overview$/);
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+  });
+
+  test('action inbox shows an honest empty state without fabricated tickets', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    const post = page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]');
+    await post.locator('textarea').fill('Removed impersonation scam.');
+    await post.getByRole('button', { name: 'Restore post' }).click();
+    await openSection(page, 'Action inbox');
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('Nothing waiting in this view');
+  });
+
   test('asks a signed-out visitor to sign in to the app first', async ({ page }) => {
     await mockModerationApi(page);
     await page.goto('/admin.html');
@@ -265,12 +656,152 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('#nav')).toBeHidden();
   });
 
+
+  test('operations home links real work to existing staff sections', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    const operations = page.getByRole('region', { name: 'Operations at a glance' });
+    await expect(operations).toContainText('Reports awaiting review');
+    await expect(operations).toContainText('Rides in progress');
+    await operations.getByRole('button', { name: 'Review reports' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Moderation');
+    await openSection(page, 'Overview');
+    await operations.getByRole('button', { name: 'Find riders' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+  });
+
+  test('workspace toolbar tracks navigation and opens command search with restored focus', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#overview');
+    const toolbar = page.getByRole('banner', { name: 'Workspace navigation' });
+    const current = page.locator('#workspaceCurrentSection');
+    const trigger = page.getByRole('button', { name: 'Open command search' });
+    await expect(current).toHaveText('Overview');
+    await expect(page.locator('.page-eyebrow')).toContainText('Operations hub');
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+    if (page.viewportSize().width >= 900) {
+      await expect(toolbar).toBeVisible();
+      await expect(trigger).toBeVisible();
+      await trigger.click();
+      const dialog = page.getByRole('dialog', { name: 'Search operations' });
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(dialog).not.toBeVisible();
+      await expect(trigger).toBeFocused();
+    } else {
+      await expect(toolbar).toBeHidden();
+    }
+    await openSection(page, 'Riders');
+    await expect(current).toHaveText('Riders');
+    await openSection(page, 'Action inbox');
+    await expect(current).toHaveText('Action inbox');
+    await expect(page.locator('.page-title')).toHaveText('Action inbox');
+  });
+
+  test('command search shows permitted pages and opens a rider record without exposing markup', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html');
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    const trigger = await page.locator('#globalSearchMobile').isVisible()
+      ? page.locator('#globalSearchMobile') : page.locator('#globalSearchTrigger');
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Moderation/ })).toBeVisible();
+    await dialog.getByRole('searchbox', { name: 'Search pages and riders' }).fill('maya');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect.poll(() => state.riderQueries).toContain('maya');
+    await dialog.getByRole('button', { name: /Maya.*Rider/ }).click();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
+    await expect(page.locator('.rider-header h1')).toHaveText('Maya');
+    await expect(dialog).not.toBeVisible();
+  });
+
+
+  test('a late search response cannot replace newer results or execute rider markup', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(page,
+      (url) => url.pathname === '/admin/riders' && url.searchParams.get('q') === 'maya',
+      200, { riders: [RIDERS[0]] });
+    await page.goto('/admin.html');
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    await page.keyboard.press('/');
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    const input = dialog.getByRole('searchbox', { name: 'Search pages and riders' });
+    await input.fill('maya');
+    await hold.received;
+    await input.fill('rex');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toContainText('<b>Rex</b>');
+    await expect(dialog.locator('#globalSearchRiders .search-result b')).toHaveCount(0);
+    const stale = page.waitForResponse((item) => new URL(item.url()).pathname === '/admin/riders'
+      && new URL(item.url()).searchParams.get('q') === 'maya');
+    hold.release();
+    await stale;
+    await page.waitForTimeout(100);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(1);
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toContainText('<b>Rex</b>');
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+  });
+
+  test('command search respects analyst permissions and closes with Escape', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page, { role: 'analyst' });
+    await page.goto('/admin.html');
+    // The nav is authorised after /admin/me but intentionally stays in a closed drawer on mobile.
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    await page.keyboard.press('ControlOrMeta+k');
+    const dialog = page.getByRole('dialog', { name: 'Search operations' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Overview/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /System/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Riders/ })).toHaveCount(0);
+    await dialog.getByRole('searchbox', { name: 'Search pages and riders' }).fill('maya');
+    await expect(dialog.locator('#globalSearchRiders .search-result')).toHaveCount(0);
+    expect(state.riderQueries).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+  });
+
+
+  test('global search never replaces an open staff confirmation dialog', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#rider/rider_maya');
+    await page.locator('.rider-actions').getByRole('button', { name: 'Suspend' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Suspend Maya?' });
+    await expect(confirmation).toBeVisible();
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(page.getByRole('dialog', { name: 'Search operations' })).toBeHidden();
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
+  });
+
+  test('rider 360 section shortcuts scroll without changing the record route', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#rider/rider_maya');
+    const jump = page.getByRole('navigation', { name: 'Rider record sections' });
+    await expect(jump.getByRole('button', { name: 'Account details' })).toBeVisible();
+    await jump.getByRole('button', { name: 'Sign-in history' }).click();
+    await expect(page.locator('#rider-section-sign-in-history')).toBeFocused();
+    await expect(page).toHaveURL(/#rider\/rider_maya$/);
+  });
+
   test('reviews a hidden Rider Social post: its photo, a required note, and the audit log', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
     await page.goto('/admin.html#moderation');
     await page.getByRole('button', { name: 'Social posts' }).click();
-    // Five tabs are wider than a small phone: the tab row scrolls, the page doesn't.
+    await expect(page.getByRole('button', { name: 'Social posts' })).toBeFocused();
+    // Tabs scroll horizontally on phones without widening the page.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     const card = page.locator('article[data-post-id]');
     await expect(card).toContainText('3 reports');
@@ -280,8 +811,10 @@ test.describe('staff dashboard', () => {
     await card.getByRole('button', { name: 'Remove post' }).click();
     await expect(card.locator('.error-text')).toContainText('Write a note first');
     await card.locator('textarea').fill('Scam listing.');
-    page.once('dialog', (dialog) => dialog.accept());
     await card.getByRole('button', { name: 'Remove post' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Remove this Social post?' });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Remove post' }).click();
     await expect(page.locator('.empty-title')).toHaveText('No hidden posts');
     expect(state.posts.at(-1)).toEqual({ path: '/moderation/social-posts/11111111-1111-4111-8111-111111111111/remove', body: { note: 'Scam listing.' } });
     await openSection(page, 'Audit log');
@@ -328,12 +861,13 @@ test.describe('staff dashboard', () => {
     const card = page.locator('.report[data-report-id="report-1"]');
     await card.locator('textarea').fill('Repeated threats in messages.');
 
-    page.once('dialog', (dialog) => dialog.dismiss());
     await card.getByRole('button', { name: 'Suspend rider' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Suspend this rider?' });
+    await confirmation.getByRole('button', { name: 'Cancel' }).click();
     expect(state.posts).toHaveLength(0);
 
-    page.once('dialog', (dialog) => dialog.accept());
     await card.getByRole('button', { name: 'Suspend rider' }).click();
+    await confirmation.getByRole('button', { name: 'Suspend rider' }).click();
     await expect(page.locator('.empty-title')).toHaveText('No open reports');
     expect(state.posts[0]).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Repeated threats in messages.', days: 7 } });
 
@@ -368,6 +902,7 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('body')).toContainText('Blocked by the content filter this week');
 
     await page.getByRole('button', { name: '30 days' }).click();
+    await expect(page.getByRole('button', { name: '30 days' })).toBeFocused();
     await expect(kpi('New riders').locator('.kpi-value')).toHaveText('310');
     await expect(kpi('New riders').locator('.delta')).toHaveText('0%');
     await expect(page.locator('.chart-card').first().locator('.card-description')).toHaveText('Sign-ups in the last 30 days');
@@ -410,6 +945,138 @@ test.describe('staff dashboard', () => {
     await expect(signups.locator('thead')).toContainText('Previous period');
   });
 
+  for (const [status, body] of [
+    [200, OVERVIEW],
+    [403, { error: 'permission_required', permission: 'view_overview' }],
+  ]) {
+    test(`a late overview ${status} response cannot replace the current riders page`, async ({ page }) => {
+      await signIn(page);
+      await mockModerationApi(page);
+      const hold = await holdApiResponse(page, `${API}/admin/overview`, status, body);
+      await page.goto('/admin.html');
+      await hold.received;
+
+      await openSection(page, 'Riders');
+      await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+      const response = page.waitForResponse((item) => item.url() === `${API}/admin/overview`);
+      hold.release();
+      await response;
+      // Give the browser an opportunity to process the earlier request's continuation.
+      await page.waitForTimeout(100);
+      await expect(page.locator('.page-title')).toHaveText('Riders');
+      await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+      // On narrow screens the drawer is deliberately closed, even when staff
+      // navigation remains available. Do not require it to be visually open.
+      await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    });
+  }
+
+  test('a late moderation queue cannot overwrite the riders page', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    const hold = await holdApiResponse(
+      page,
+      (url) => url.pathname === '/moderation/reports' && url.searchParams.get('status') === 'open',
+      200,
+      { reports: [OPEN_REPORT] },
+    );
+    await page.goto('/admin.html#moderation');
+    await hold.received;
+
+    await openSection(page, 'Riders');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    const response = page.waitForResponse((item) => new URL(item.url()).pathname === '/moderation/reports');
+    hold.release();
+    await response;
+    await page.waitForTimeout(100);
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+    await expect(page.locator('.report')).toHaveCount(0);
+  });
+
+  test('browser Back and Forward restore sections and their headings', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html');
+    await openSection(page, 'Riders');
+    await expect(page.getByRole('heading', { name: 'Riders', exact: true })).toBeFocused();
+    await openSection(page, 'System');
+    await expect(page.locator('.page-title')).toHaveText('System');
+    await page.goBack();
+    await expect(page).toHaveURL(/#riders$/);
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    await page.goForward();
+    await expect(page).toHaveURL(/#system$/);
+    await expect(page.locator('.page-title')).toHaveText('System');
+  });
+
+  test('a failed section load offers Retry and recovers', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route((url) => url.pathname === '/admin/riders', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (first) {
+        first = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+    await page.goto('/admin.html#riders');
+    await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+  });
+
+  test('refresh retains existing rider content until the new reply arrives', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    const hold = await holdApiResponse(page, (url) => url.pathname === '/admin/riders', 200, { riders: RIDERS });
+    if (await page.locator('#refreshMobile').isVisible()) await page.locator('#refreshMobile').click();
+    else await page.locator('.desktop-refresh').click();
+    await hold.received;
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeVisible();
+    await expect(page.locator('.skeleton')).toHaveCount(0);
+    hold.release();
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+  });
+
+  test('a failed refresh keeps previously loaded rider results visible', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.goto('/admin.html#riders');
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    let fail = true;
+    await page.route((url) => url.pathname === '/admin/riders', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (fail) {
+        fail = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else await route.fallback();
+    });
+    const refresh = await page.locator('#refreshMobile').isVisible()
+      ? page.locator('#refreshMobile')
+      : page.locator('.desktop-refresh');
+    await refresh.click();
+    await expect(page.locator('.flash[data-tone="warning"]')).toContainText('Showing the last loaded data');
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    await refresh.click();
+    await expect(page.locator('[data-rider-id]:visible')).toHaveCount(2);
+    await expect(page.locator('.page-title')).toHaveText('Riders');
+  });
+
   test('rider lookup searches and shows account details as text', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
@@ -423,6 +1090,7 @@ test.describe('staff dashboard', () => {
     await page.getByRole('searchbox', { name: 'Search riders' }).fill('nobody');
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.locator('.empty-title')).toHaveText('No riders found');
+    await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeFocused();
     expect(state.riderQueries).toEqual(['', 'nobody']);
   });
 
@@ -434,8 +1102,10 @@ test.describe('staff dashboard', () => {
     await expect(rex.getByRole('button', { name: "Mark rex's email verified" })).toBeVisible();
     await expect(page.locator('[data-rider-id="rider_maya"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
 
-    page.once('dialog', (dialog) => dialog.accept('Known tester'));
     await rex.getByRole('button', { name: "Mark rex's email verified" }).click();
+    const verify = page.getByRole('dialog', { name: /email verified/ });
+    await verify.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Known tester');
+    await verify.getByRole('button', { name: 'Mark verified' }).click();
     await expect.poll(() => state.posts.find((post) => post.path === '/moderation/riders/rider_rex/verify-email')?.body).toEqual({ note: 'Known tester' });
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toHaveCount(0);
   });
@@ -464,11 +1134,21 @@ test.describe('staff dashboard', () => {
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff', body: { rider: '@sam_rides', role: 'support', note: 'Help desk' } });
 
     const maya = page.locator('[data-rider-id="rider_maya"]:visible');
-    page.once('dialog', (dialog) => dialog.accept('Covers reports now'));
     await maya.getByLabel('Role for Maya').selectOption('analyst');
+    const change = page.getByRole('dialog', { name: 'Change Maya to Analyst?' });
+    await change.getByRole('button', { name: 'Change role' }).click();
+    await expect(change.locator('.error-text')).toContainText('Write a reason first');
+    await change.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Covers reports now');
+    await change.getByRole('button', { name: 'Change role' }).click();
     await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/admin/staff', body: { rider: 'rider_maya', role: 'analyst', note: 'Covers reports now' } });
-    page.once('dialog', (dialog) => dialog.accept('Left the team'));
-    await page.locator('[data-rider-id="rider_maya"]:visible').getByRole('button', { name: 'Remove' }).click();
+    const mayaUpdated = page.locator('[data-rider-id="rider_maya"]:visible');
+    await mayaUpdated.getByLabel('Role for Maya').selectOption('support');
+    await page.getByRole('dialog', { name: 'Change Maya to Support?' }).getByRole('button', { name: 'Cancel' }).click();
+    await expect(mayaUpdated.getByLabel('Role for Maya')).toHaveValue('analyst');
+    await mayaUpdated.getByRole('button', { name: 'Remove' }).click();
+    const remove = page.getByRole('dialog', { name: 'Remove Maya from staff?' });
+    await remove.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Left the team');
+    await remove.getByRole('button', { name: 'Remove staff' }).click();
     await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
 
@@ -486,11 +1166,13 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#audit');
     await expect(page.locator('.list-row')).toHaveCount(2);
     await page.getByRole('button', { name: 'Accounts' }).click();
+    await expect(page.getByRole('button', { name: 'Accounts' })).toBeFocused();
     await expect(page.locator('.list-row')).toHaveCount(1);
     await expect(page.locator('.list-row .person-name')).toHaveText('Verified email: Maya');
     await page.getByRole('button', { name: 'All actions' }).click();
     await page.getByLabel('Show actions for one rider').fill('rider_badactor');
     await page.getByRole('button', { name: 'Filter' }).click();
+    await expect(page.getByRole('searchbox', { name: 'Show actions for one rider' })).toBeFocused();
     await expect(page.locator('.list-row')).toHaveCount(1);
     await expect(page.locator('.page-subtitle')).toContainText('for rider_badactor');
 
@@ -525,6 +1207,37 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('#nav [data-view]:visible')).toHaveText(['Overview', 'Riders', 'Audit log', 'System']);
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
+  });
+
+  test('expired staff access on System is not disguised as missing metrics', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    await page.route(`${API}/admin/system`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      await route.fulfill({ status: 401, headers: { 'Access-Control-Allow-Origin': '*' },
+        contentType: 'application/json', body: JSON.stringify({ error: 'session_expired' }) });
+    });
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.empty-title')).toHaveText('Your session has expired');
+    await expect(page.locator('#nav')).toBeHidden();
+  });
+
+  test('an unavailable staff access check offers a retry', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route(`${API}/admin/me`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (first) {
+        first = false;
+        await route.fulfill({ status: 503, headers: { 'Access-Control-Allow-Origin': '*' },
+          contentType: 'application/json', body: JSON.stringify({ error: 'temporarily_unavailable' }) });
+      } else await route.fallback();
+    });
+    await page.goto('/admin.html');
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Overview');
   });
 
   test('a page the role lacks says so', async ({ page }) => {
@@ -567,9 +1280,11 @@ test.describe('staff dashboard', () => {
     const state = await mockModerationApi(page);
     await page.goto('/admin.html#riders');
     const maya = page.locator('[data-rider-id="rider_maya"]:visible');
-    page.once('dialog', (dialog) => dialog.accept('Access request, ticket 42'));
-    const download = page.waitForEvent('download');
     await maya.getByRole('button', { name: "Export maya's data" }).click();
+    const dialog = page.getByRole('dialog', { name: /Export maya’s account data/ });
+    await dialog.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Access request, ticket 42');
+    const download = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'Export', exact: true }).click();
     const file = await download;
     expect(file.suggestedFilename()).toMatch(/^rider-comms-data-rider_maya-\d{4}-\d{2}-\d{2}\.json$/);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/riders/rider_maya/export', body: { note: 'Access request, ticket 42' } });
@@ -642,9 +1357,35 @@ test.describe('staff dashboard', () => {
     await card.getByRole('button', { name: 'Harassment of other riders.' }).click();
     await expect(card.locator('textarea')).toHaveValue('Harassment of other riders.');
     await card.getByLabel('Suspension length for report report-1').selectOption('');
-    page.once('dialog', (dialog) => dialog.accept());
     await card.getByRole('button', { name: 'Suspend rider' }).click();
+    await page.getByRole('dialog', { name: 'Suspend this rider?' }).getByRole('button', { name: 'Suspend rider' }).click();
     await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/reports/report-1/resolve', body: { resolution: 'suspend', note: 'Harassment of other riders.' } });
+  });
+
+  test('system view labels unavailable details and can retry just that view', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page);
+    let first = true;
+    await page.route(`${API}/admin/system`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (first) {
+        first = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'temporarily_unavailable' }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+    await page.goto('/admin.html#system');
+    await expect(page.locator('.system-warning')).toContainText('Service setup could not be loaded');
+    await expect(page.locator('.traffic-kpis')).toBeVisible();
+    await page.getByRole('button', { name: 'Retry details' }).click();
+    await expect(page.locator('.system-warning')).toHaveCount(0);
+    await expect(page.locator('.status-row', { hasText: 'Email delivery' })).toBeVisible();
   });
 
   test('system view shows the last hour of traffic', async ({ page }) => {
@@ -686,6 +1427,9 @@ test.describe('staff dashboard', () => {
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#nav').getByRole('button', { name: 'Overview' })).toBeFocused();
     await expect(page.locator('#sidebarFooter')).toBeVisible();
+    await page.locator('#nav [data-view="system"]').focus();
+    await page.keyboard.press('Tab');
+    await expect(toggle).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(toggle).toBeFocused();

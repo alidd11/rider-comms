@@ -58,6 +58,56 @@ describe('security events and staff re-authentication', { skip: !hasDatabase && 
     assert.equal(body.events.at(-1)!.device, 'Test phone');
   });
 
+  it('prevents cross-account session revocation and invalidates only the revoked device', async () => {
+    const owner = await signUp();
+    const stranger = await signUp();
+    const additional = await ctx.authStore.logIn(owner.username, PASSWORD, 'Second test device');
+    assert.ok('token' in additional);
+
+    const listing = await call(owner.token, '/auth/sessions');
+    assert.equal(listing.status, 200);
+    const { sessions } = await listing.json() as { sessions: Array<{ id: string; deviceName: string }> };
+    const target = sessions.find((session) => session.deviceName === 'Second test device');
+    assert.ok(target);
+
+    const forbidden = await call(stranger.token, `/auth/sessions/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
+    assert.equal(forbidden.status, 404);
+    assert.deepEqual(await forbidden.json(), { error: 'session_not_found' });
+    assert.equal((await call(additional.token, '/auth/me')).status, 200, 'stranger cannot revoke owner session');
+
+    const strangerListing = await call(stranger.token, '/auth/sessions');
+    assert.equal(strangerListing.status, 200);
+    const strangerSessions = await strangerListing.json() as { sessions: Array<{ id: string }> };
+    assert.equal(strangerSessions.sessions.some(({ id }) => id === target.id), false);
+
+    assert.equal((await call(owner.token, `/auth/sessions/${encodeURIComponent(target.id)}`, { method: 'DELETE' })).status, 204);
+    assert.equal((await call(additional.token, '/auth/me')).status, 401, 'revoked device may not reuse its token');
+    assert.equal((await call(owner.token, '/auth/me')).status, 200, 'owner current device remains signed in');
+  });
+
+  it('does not trust spoofed rider or role headers for staff authorization', async () => {
+    const admin = await signUp();
+    const ordinary = await signUp();
+    await getPool().query('UPDATE users SET is_admin = true WHERE id = $1', [admin.riderId]);
+
+    const spoofed = await fetch(`${ctx.baseUrl()}/admin/me`, {
+      headers: {
+        Authorization: `Bearer ${ordinary.token}`,
+        'X-Rider-Id': admin.riderId,
+        'X-Staff-Role': 'admin',
+      },
+    });
+    assert.equal(spoofed.status, 403);
+    assert.deepEqual(await spoofed.json(), { error: 'admin_required' });
+
+    const attempt = await call(ordinary.token, '/admin/staff', {
+      method: 'POST', body: JSON.stringify({ rider: ordinary.riderId, role: 'moderator', note: 'spoofed grant' }),
+    });
+    assert.equal(attempt.status, 403);
+    const { rows } = await getPool().query('SELECT 1 FROM staff_roles WHERE rider_id = $1', [ordinary.riderId]);
+    assert.equal(rows.length, 0, 'denied request must not change role state');
+  });
+
   it('records a password reset', async () => {
     const { riderId } = await signUp();
     await getPool().query('INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES ($1, $2, now() + interval \'1 hour\')', [sessionTokenHash('reset-token-sec'), riderId]);

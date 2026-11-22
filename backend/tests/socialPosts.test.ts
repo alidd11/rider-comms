@@ -200,6 +200,22 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.deepEqual([filtered.status, await filtered.json()], [400, { error: 'objectionable_content' }]);
   });
 
+
+  it('preserves XSS and SQL-like caption text without executing it', async () => {
+    const hostile = '<img src=x onerror="window.__socialXss=1"> ' + "'; DROP TABLE social_posts; --";
+    const created = await photoPost(ctx, 'social_a', hostile);
+    const reply = await authenticatedFetch(ctx, 'social_a', `/social/posts/${created.id}`);
+    assert.equal(reply.status, 200);
+    const byId = await reply.json() as { post: { caption: string } };
+    assert.equal(byId.post.caption, hostile);
+    const list = await authenticatedFetch(ctx, 'social_b', '/social/feed?scope=for-you');
+    assert.equal(list.status, 200);
+    const listing = await list.json() as { posts: Array<{ caption: string }> };
+    assert.equal(listing.posts[0]?.caption, hostile);
+    const present = await getPool().query('SELECT count(*)::int AS total FROM social_posts');
+    assert.equal(Number(present.rows[0]?.total), 1, 'SQL-like text never executed as a query');
+  });
+
   it('serves feeds newest first, with Following limited to friends, and pages through them', async () => {
     await getPool().query(`INSERT INTO friendships (rider_id, friend_id, created_at) VALUES ('social_a', 'social_b', 0), ('social_b', 'social_a', 0)`);
     const first = await photoPost(ctx, 'social_b', 'one');
@@ -357,6 +373,74 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.equal((await get(link)).status, 404);
   });
 
+  it('prevents cross-account post deletion and media reuse without affecting the owner', async () => {
+    const ownerPost = await photoPost(ctx, 'social_a');
+    const ownerLink = ownerPost.media[0]!.url;
+    const attackerDelete = await authenticatedFetch(ctx, 'social_b', `/social/posts/${ownerPost.id}`, { method: 'DELETE' });
+    assert.notEqual(attackerDelete.status, 200);
+    assert.notEqual(attackerDelete.status, 204);
+    assert.equal((await authenticatedFetch(ctx, 'social_a', `/social/posts/${ownerPost.id}`)).status, 200);
+    assert.equal((await fetch(ctx.baseUrl() + ownerLink)).status, 200, 'attacker cannot revoke the owner media');
+
+    const ownerUpload = await upload(ctx, 'social_a', JPEG, 'image/jpeg');
+    assert.equal(ownerUpload.status, 201);
+    const { media } = await ownerUpload.json() as { media: { id: string } };
+    const stolen = await postJson(ctx, 'social_b', '/social/posts', {
+      kind: 'photo', caption: 'attempted cross-account media reuse', mediaIds: [media.id],
+    });
+    assert.equal(stolen.status, 404, 'upload belongs to a different account');
+    const legitimate = await postJson(ctx, 'social_a', '/social/posts', {
+      kind: 'photo', caption: 'owner retains the upload', mediaIds: [media.id],
+    });
+    assert.equal(legitimate.status, 201);
+  });
+
+  it('rejects tampered signed media parameters while preserving the valid owner link', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    const valid = post.media[0]!.url;
+    const base = ctx.baseUrl();
+    const mutate = (key: string, value: string) => {
+      const url = new URL(valid, base);
+      url.searchParams.set(key, value);
+      return url.toString();
+    };
+    assert.equal((await fetch(base + valid)).status, 200);
+    for (const [key, value] of [
+      ['exp', 'Infinity'], ['exp', '-1'], ['exp', '1.5'],
+      ['exp', String(Number.MAX_SAFE_INTEGER + 1)],
+      ['sig', ''], ['sig', 'x'.repeat(1024)],
+      ['s', 'aaaaaaaa--1111-4111-8111-aaaaaaaaaaa'],
+    ] as const) {
+      const result = await fetch(mutate(key, value));
+      assert.equal(result.status, 403, `tampered ${key}=${value.slice(0, 32)}`);
+    }
+    assert.equal((await fetch(base + valid)).status, 200, 'tampering cannot revoke legitimate access');
+  });
+
+  it('revokes previously issued media links when either rider blocks the other', async () => {
+    const post = await photoPost(ctx, 'social_a');
+    const { token } = ctx.authStore.createTestSession('social_b');
+    const read = async () => fetch(ctx.baseUrl() + `/social/posts/${post.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const first = await read();
+    assert.equal(first.status, 200);
+    const link = (await first.json() as { post: { media: Array<{ url: string }> } }).post.media[0]!.url;
+    const fetchMedia = () => fetch(ctx.baseUrl() + link);
+    assert.equal((await fetchMedia()).status, 200);
+    for (const [blocker, blocked] of [['social_a', 'social_b'], ['social_b', 'social_a']] as const) {
+      await getPool().query(
+        'INSERT INTO rider_blocks (rider_id, blocked_rider_id, created_at) VALUES ($1, $2, 0)',
+        [blocker, blocked],
+      );
+      assert.equal((await read()).status, 404, 'blocked post is no longer readable');
+      assert.equal((await fetchMedia()).status, 404, 'old signed URL cannot bypass a new block; hide inaccessible objects');
+      await getPool().query('DELETE FROM rider_blocks WHERE rider_id = $1 AND blocked_rider_id = $2', [blocker, blocked]);
+      assert.equal((await read()).status, 200, 'access returns after block is removed');
+      assert.equal((await fetchMedia()).status, 200, 'existing link respects restored authorization');
+    }
+  });
+
   it('stops a link working once the session it was issued to signs out', async () => {
     const post = await photoPost(ctx, 'social_a');
     const { token } = ctx.authStore.createTestSession('social_b');
@@ -381,6 +465,97 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.ok(reserved.every((row) => row.later === true), 'deleted after an hour, not straight away');
     assert.ok(reserved.some((row) => media.objects.has(String(row.object_key))), 'the stored video is among them');
     assert.equal((await getPool().query(`SELECT count(*)::int AS n FROM social_media WHERE kind = 'video'`)).rows[0].n, 0);
+  });
+
+
+  it('keeps reported Social posts and safety cases consistent after restore or removal', async () => {
+    await getPool().query(`INSERT INTO users (id, username, password_hash, is_admin)
+      VALUES ('social_mod', 'social_mod', 'x', true)`);
+    for (const action of ['restore', 'remove'] as const) {
+      const post = await photoPost(ctx, 'social_a');
+      for (let i = 0; i < REPORTS_TO_HIDE; i += 1) {
+        const response = await postJson(ctx, `social_r${i}`, `/social/posts/${post.id}/report`,
+          { reason: 'spam', details: 'Investigate this post' });
+        assert.equal(response.status, 202);
+      }
+      const linked = await getPool().query(
+        'SELECT id, status, source_post_id FROM safety_reports WHERE source_post_id = $1 ORDER BY id', [post.id]);
+      assert.equal(linked.rows.length, REPORTS_TO_HIDE);
+      assert.ok(linked.rows.every((row) => row.status === 'open' && String(row.source_post_id) === post.id));
+      // A report merely pretending to be about this post is not a linked
+      // case, even if someone copies the structured prefix into free text.
+      const spoofId = `unrelated-${action}`;
+      await getPool().query(
+        `INSERT INTO safety_reports (id, reporter_id, reported_rider_id, reason, details, created_at)
+         VALUES ($1, 'social_b', 'social_a', 'spam', $2, $3)`,
+        [spoofId, `Rider Social post ${post.id}: free text`, Date.now() + 11],
+      );
+      const before = await (await authenticatedFetch(ctx, 'social_mod', '/admin/action-inbox')).json() as
+        { items: Array<{ type: string; id: string }> };
+      assert.equal(before.items.filter((item) => item.id === `social_post:${post.id}`).length, 1);
+      assert.equal(before.items.filter((item) => linked.rows.some((row) => item.id === `rider_report:${row.id}`)).length, 0,
+        'the hidden post is one work item, not one per linked safety report');
+      assert.equal((await postJson(ctx, 'social_mod', `/moderation/reports/${linked.rows[0].id}/claim`, {})).status, 200);
+      const decision = await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/${action}`,
+        { note: `Evidence reviewed: ${action}` });
+      assert.equal(decision.status, 200);
+      const after = await getPool().query(
+        'SELECT status, resolved_by, resolved_at, claimed_by FROM safety_reports WHERE source_post_id = $1', [post.id]);
+      assert.equal(after.rows.length, REPORTS_TO_HIDE);
+      for (const row of after.rows) {
+        assert.equal(row.status, action === 'restore' ? 'dismissed' : 'actioned');
+        assert.equal(row.resolved_by, 'social_mod');
+        assert.ok(Number(row.resolved_at) > 0);
+        assert.equal(row.claimed_by, null);
+      }
+      const unrelated = await getPool().query('SELECT status, source_post_id FROM safety_reports WHERE id = $1', [spoofId]);
+      assert.deepEqual(unrelated.rows, [{ status: 'open', source_post_id: null }]);
+      const afterInbox = await (await authenticatedFetch(ctx, 'social_mod', '/admin/action-inbox')).json() as
+        { items: Array<{ id: string }> };
+      assert.equal(afterInbox.items.some((item) => item.id === `social_post:${post.id}` ||
+        linked.rows.some((row) => item.id === `rider_report:${row.id}`)), false);
+    }
+  });
+
+
+  it('fetches an exact hidden Social post beyond the first 100, enforcing staff permissions', async () => {
+    const post = await photoPost(ctx, 'social_a', 'Selected item requiring direct review');
+    for (let i = 0; i < REPORTS_TO_HIDE; i += 1) {
+      assert.equal((await postJson(ctx, `social_r${i}`, `/social/posts/${post.id}/report`,
+        { reason: 'spam' })).status, 202);
+    }
+    await getPool().query(`INSERT INTO users (id, username, password_hash, is_admin)
+      VALUES ('social_mod', 'social_mod', 'x', true)`);
+    // The general hidden-post queue prioritises these 110 (four reports)
+    // ahead of the chosen post (three reports), regardless of its age.
+    await getPool().query(
+      `INSERT INTO social_posts (id, author_id, kind, caption, created_at, hidden_at)
+       SELECT gen_random_uuid(), 'social_a', 'photo', 'bulk-hidden', n, n
+       FROM generate_series(1, 110) AS n`);
+    await getPool().query(
+      `INSERT INTO social_post_reports (post_id, reporter_id, reason, created_at)
+       SELECT p.id, reporters.id, 'spam', p.created_at FROM social_posts p
+         CROSS JOIN (VALUES ('social_b'), ('social_c'), ('social_r0'), ('social_r1')) AS reporters(id)
+       WHERE p.caption = 'bulk-hidden'`);
+    const queue = await (await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts?limit=100')).json() as
+      { posts: Array<{ post: { id: string } }> };
+    assert.equal(queue.posts.length, 100);
+    assert.equal(queue.posts.some((item) => item.post.id === post.id), false);
+
+    const url = `/moderation/social-posts/${post.id}`;
+    assert.equal((await fetch(ctx.baseUrl() + url)).status, 401);
+    assert.equal((await authenticatedFetch(ctx, 'social_b', url)).status, 403);
+    const response = await authenticatedFetch(ctx, 'social_mod', url);
+    assert.equal(response.status, 200);
+    const detail = await response.json() as { entry: { post: { id: string; media: Array<{ url: string }> }; reports: number } };
+    assert.equal(detail.entry.post.id, post.id);
+    assert.equal(detail.entry.reports, REPORTS_TO_HIDE);
+    assert.ok(detail.entry.post.media[0]?.url, 'signed staff media link is preserved');
+    assert.equal((await postJson(ctx, 'social_mod', `/moderation/social-posts/${post.id}/restore`,
+      { note: 'No violation after review' })).status, 200);
+    assert.equal((await authenticatedFetch(ctx, 'social_mod', url)).status, 404,
+      'a restored post cannot be presented as still hidden');
+    assert.equal((await authenticatedFetch(ctx, 'social_mod', '/moderation/social-posts/invalid-uuid')).status, 404);
   });
 
   it('lets moderators review hidden posts, see their files, and restore or remove them', async () => {

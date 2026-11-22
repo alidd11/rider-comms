@@ -2,6 +2,30 @@
 import { expect, test } from '@playwright/test';
 import { RIDER_ID, mockAuthenticatedApi, assertNoViewportOverflow, installStandaloneFixture } from './helpers.js';
 
+
+test('PWA keeps hostile friend names and direct messages inert', async ({ page }) => {
+  const name = '<img src=x onerror="window.__riderPwaXss=1">';
+  const message = '<svg onload="window.__riderPwaXss=2"></svg> SELECT * FROM messages; --';
+  await mockAuthenticatedApi(page, 'stationary', ({ request, url }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/friends`) return { body: { friends: [
+      { riderId: 'rider_friend01', displayName: name, handle: '@maya_moto', avatarId: 'ridge' },
+      { riderId: 'rider_friend02', displayName: 'Jay', handle: '@jay125', avatarId: 'moss' },
+    ], nextCursor: null } };
+    if (url.pathname === '/profiles/rider_friend01') return { body: { riderId: 'rider_friend01', displayName: name, handle: '@maya_moto', avatarId: 'ridge' } };
+    if (url.pathname === '/messages' && request.method() === 'GET')
+      return { body: { messages: [{ id: 'message-hostile', fromRiderId: 'rider_friend01', toRiderId: RIDER_ID, text: message, createdAt: 1_700_000_000_000 }], nextCursor: null, peerReadThroughMessageId: null } };
+    return null;
+  });
+  await page.goto('/#friends');
+  await expect(page.locator('#friendList')).toContainText(name);
+  await expect(page.locator('#friendList [onerror]')).toHaveCount(0);
+  await page.locator('[data-friend="rider_friend01"]').click();
+  await page.locator('#messageFriend').click();
+  await expect(page.locator('#chatMessages')).toContainText(message);
+  await expect(page.locator('#chatMessages svg[onload]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__riderPwaXss)).toBeUndefined();
+});
+
 test('PWA Friends remains usable when realtime transport is temporarily unavailable', async ({ page }) => {
   await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
     if (url.pathname === '/social/events') return { status: 503, body: { error: 'temporarily_unavailable' } };
