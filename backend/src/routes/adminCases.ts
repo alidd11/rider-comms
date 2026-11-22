@@ -20,6 +20,9 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
   const lacks = (permission: StaffPermission) => sendJson(res, 403, { error: 'permission_required', permission });
   if (!caseKindsForRole(role).length) return lacks('view_cases');
 
+  if (url.pathname === '/admin/cases/summary' && req.method === 'GET') {
+    return sendJson(res, 200, await store.summary(caseKindsForRole(role), actorId));
+  }
   if (url.pathname === '/admin/cases' && req.method === 'GET') {
     const kindRaw = url.searchParams.get('kind');
     const kind = kindRaw === null || kindRaw === 'all' ? undefined : kindRaw;
@@ -38,8 +41,12 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
     }
     const before = parseCaseCursor(url.searchParams.get('before'));
     if (before === undefined) return sendJson(res, 400, { error: 'invalid_cursor' });
+    const owner = url.searchParams.get('owner') ?? 'all';
+    if (!['all', 'mine', 'unassigned'].includes(owner)) {
+      return sendJson(res, 400, { error: 'invalid_owner_filter' });
+    }
     return sendJson(res, 200, await store.list(caseKindsForRole(role), {
-      kind, status, limit, before,
+      kind, status, limit, before, owner: owner as 'all' | 'mine' | 'unassigned', actorId,
     }));
   }
   if (url.pathname === '/admin/cases' && req.method === 'POST') {
