@@ -31,8 +31,10 @@ await cp(
 // Sign-in and ride hero photos, self-hosted so they work offline and no
 // third-party image host sees riders' requests.
 await cp(resolve(source, 'assets', 'hero'), resolve(destination, 'assets', 'hero'), { recursive: true });
-// The static admin map beta is public geography only; no authenticated data.
-await cp(resolve(source, 'map-beta'), resolve(destination, 'map-beta'), { recursive: true });
+// Publish only a trusted launcher. Do not publish an executable third-party
+// map document as a top-level page on the authenticated Rider Comms origin.
+await mkdir(resolve(destination, 'map-beta'), { recursive: true });
+await cp(resolve(source, 'map-beta', 'index.html'), resolve(destination, 'map-beta', 'index.html'));
 
 const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
 await Promise.all(required.map((file) => readFile(resolve(destination, file))));
@@ -136,18 +138,46 @@ await Promise.all(minified.map(async (file) => {
   await writeFile(path, code);
 }));
 
-// A sandboxed opaque-origin iframe cannot import same-site ES modules
-// without CORS headers. Compile local map-beta ES modules to one classic
-// script; keep the third-party MapLibre library in the isolated iframe only.
-await build({
+// The standalone /map-beta/ document is a trusted, inert launcher. It does
+// not load MapLibre or any third-party JS into its own top-level execution
+// context. Instead, it renders a SECOND sandboxed iframe with an opaque
+// origin. Both direct-browser (native) and PWA-embedded previews use it.
+const { outputFiles } = await build({
   entryPoints: [resolve(source, 'map-beta', 'preview.mjs')],
-  outfile: resolve(destination, 'map-beta', 'preview.bundle.js'),
-  bundle: true, format: 'iife', platform: 'browser', target: 'es2022',
-  minify: true, legalComments: 'none',
+  write: false, bundle: true, format: 'iife', platform: 'browser',
+  target: 'es2022', minify: true, legalComments: 'none',
 });
-const betaHtml = await readFile(resolve(destination, 'map-beta', 'index.html'), 'utf8');
-const betaBundle = await readFile(resolve(destination, 'map-beta', 'preview.bundle.js'), 'utf8');
-if (!betaHtml.includes('src="./preview.bundle.js"') || !betaBundle.includes('rider-comms-close-map-beta')) {
-  throw new Error('Map beta preview is missing from the built PWA');
+const previewScript = outputFiles?.[0]?.text;
+if (!previewScript || /<\\/script/i.test(previewScript)) {
+  throw new Error('Unsafe or empty map preview bundle');
 }
+const previewTemplate = await readFile(resolve('map-lab/index.html'), 'utf8');
+const previewCss = await readFile(resolve('map-lab/preview.css'), 'utf8');
+// Source map-lab stays developer-only. Strip its local CSP: the srcdoc inherits
+// the verified launcher's CSP, including the exact inline-script SHA-256 hash.
+let payload = previewTemplate
+  .replace(/  <meta http-equiv="Content-Security-Policy"[^\\n]*\\n/, '')
+  .replace('<link rel="stylesheet" href="./preview.css">', `<style>${previewCss}</style>`)
+  .replace('<script type="module" src="./preview.mjs"></script>', `<script>${previewScript}</script>`);
+if (payload.includes('./preview.mjs') || payload.includes('http-equiv="Content-Security-Policy"')) {
+  throw new Error('Unconverted map preview template');
+}
+// HTML attribute encoding lets the nested srcdoc reconstruct the exact
+// bytes; do not let third-party HTML or any user input enter this template.
+const escapeAttr = (str) => str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+const betaPath = resolve(destination, 'map-beta', 'index.html');
+const betaTemplate = await readFile(betaPath, 'utf8');
+const wrapperScript = betaTemplate.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
+if (!wrapperScript || !betaTemplate.includes('__RIDER_MAPS_SRCDOC__')) {
+  throw new Error('Map beta launcher is missing its controlled script or sandbox placeholder');
+}
+const hash = (value) => createHash('sha256').update(value).digest('base64');
+const betaHtml = betaTemplate
+  .replace('__RIDER_MAPS_LAUNCHER_HASH__', hash(wrapperScript))
+  .replace('__RIDER_MAPS_PAYLOAD_HASH__', hash(previewScript))
+  .replace('__RIDER_MAPS_SRCDOC__', escapeAttr(payload));
+if (betaHtml.includes('__RIDER_MAPS_') || !betaHtml.includes('sandbox="allow-scripts"')) {
+  throw new Error('Map beta launcher is incompletely isolated');
+}
+await writeFile(betaPath, betaHtml);
 console.log(`Built PWA at ${destination}`);

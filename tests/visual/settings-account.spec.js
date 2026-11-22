@@ -73,6 +73,8 @@ test('PWA admin beta stays inside the app and can return to the classic map', as
   await expect(page.locator('#riderMapBetaFrame')).toHaveAttribute('src', './map-beta/');
   await expect(page.locator('#riderMapBetaFrame')).toHaveAttribute('sandbox', 'allow-scripts');
   await expect(page.frameLocator('#riderMapBetaFrame').locator('.return-classic')).toBeVisible();
+  const mapChild = page.frameLocator('#riderMapBetaFrame').frameLocator('#mapBetaSandbox');
+  await expect(mapChild.locator('#map')).toBeVisible();
   const storageIsolated = await page.frameLocator('#riderMapBetaFrame').locator('body').evaluate(() => {
     try { window.localStorage.getItem('rider-comms-session-v1'); return false; } catch { return true; }
   });
@@ -90,6 +92,23 @@ test('PWA admin beta stays inside the app and can return to the classic map', as
   await expect(dialog).toHaveCount(0);
   await expect(page).toHaveURL(/#settings$/);
   expect(checks).toBeGreaterThanOrEqual(3);
+});
+
+test('direct standalone map URL cannot run third-party code in the top-level Rider Comms origin', async ({ page }) => {
+  await page.goto('/map-beta/');
+  await expect(page.locator('.return-classic')).toBeVisible();
+  await expect(page.locator('#mapBetaSandbox')).toHaveAttribute('sandbox', 'allow-scripts');
+  await expect(page.locator('#map')).toHaveCount(0);
+  // Third-party scripts, when fetched, must run in the opaque-origin child.
+  const topLevelScripts = await page.locator('script').evaluateAll((scripts) => scripts.map((s) => s.src));
+  expect(topLevelScripts.every((url) => !url || !url.includes('unpkg.com'))).toBe(true);
+  const child = page.frameLocator('#mapBetaSandbox');
+  await expect(child.locator('#map')).toBeVisible();
+  const denied = await child.locator('body').evaluate(() => {
+    try { window.localStorage.getItem('rider-comms-session-v1'); return false; }
+    catch { return true; }
+  });
+  expect(denied).toBe(true);
 });
 
 test('PWA admin map preview supports Escape and restores Settings focus', async ({ page }) => {

@@ -3,39 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#07141b">
-  <meta name="description" content="Experimental Rider Comms Maps basemap preview. Not part of the released application.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' https://unpkg.com; style-src 'self' https://unpkg.com 'unsafe-inline'; connect-src https://tiles.openfreemap.org https://assets.openfreemap.com https://unpkg.com; font-src https://assets.openfreemap.com data:; img-src 'self' data: blob: https://tiles.openfreemap.org https://assets.openfreemap.com; worker-src blob:">
   <meta name="robots" content="noindex,nofollow">
-  <title>Rider Comms Maps · admin beta</title>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="./preview.css">
-  <script defer src="./preview.bundle.js"></script>
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#07141b">
+  <title>Rider Comms Maps · isolated research preview</title>
+  <!-- CSP hashes are written by scripts/build-pwa.mjs. The source page has no active map. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'sha256-__RIDER_MAPS_LAUNCHER_HASH__' 'sha256-__RIDER_MAPS_PAYLOAD_HASH__' https://unpkg.com; style-src 'unsafe-inline' https://unpkg.com; connect-src https://tiles.openfreemap.org https://assets.openfreemap.com https://unpkg.com; font-src https://assets.openfreemap.com data:; img-src data: blob: https://tiles.openfreemap.org https://assets.openfreemap.com; worker-src blob:; frame-src 'self'">
+  <style>
+    :root{color-scheme:dark;font:14px/1.4 system-ui,-apple-system,sans-serif;background:#07141b;color:#eaf5fa}
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
+    .launcher{height:100dvh;display:flex;flex-direction:column;min-height:0}
+    header{display:flex;gap:14px;justify-content:space-between;align-items:center;padding:12px max(14px,env(safe-area-inset-right)) 12px max(14px,env(safe-area-inset-left));background:#102633}
+    header div{min-width:0}strong,small{display:block}strong{font-size:14px}small{color:#b7d5de;font-size:11px}
+    .return-classic{flex:none;min-height:44px;padding:11px 13px;border:1px solid #65c5df;border-radius:10px;color:#fff;text-decoration:none;font-weight:700}
+    .return-classic:focus-visible{outline:3px solid #58ccf3;outline-offset:3px}
+    #mapBetaSandbox{border:0;width:100%;flex:1;min-height:0;background:#102634}
+    footer{padding:7px 12px max(7px,env(safe-area-inset-bottom));background:#102633;color:#c6dae1;font-size:10px;text-align:center}
+  </style>
 </head>
 <body>
-  <main class="map-shell">
-    <div id="map" role="region" aria-label="Experimental OpenStreetMap basemap centred on London"></div>
-    <header class="toolbar">
-      <div class="branding">
-        <span class="brand-icon" aria-hidden="true">RC</span>
-        <div><strong>Rider Comms Maps</strong><span>Basemap research preview</span></div>
-      </div>
-      <a class="return-classic" href="../index.html" aria-label="Return to Rider Comms classic map">Use classic map</a>
+  <main class="launcher">
+    <header>
+      <div><strong>Rider Comms Maps</strong><small>Sandboxed admin research preview · not navigation</small></div>
+      <a class="return-classic" href="../index.html" aria-label="Return to the classic Rider Comms map">Use classic map</a>
     </header>
-    <section class="controls" aria-label="Map appearance">
-      <div class="control-heading">Map appearance</div>
-      <div class="segmented" role="group" aria-label="Map theme">
-        <button type="button" id="dayStyle" aria-pressed="true">Day</button>
-        <button type="button" id="nightStyle" aria-pressed="false">Night</button>
-      </div>
-      <button type="button" id="demoOverlay" class="reset" aria-pressed="false">Show illustrative route overlay</button>
-      <button type="button" id="resetCamera" class="reset">Return to sample area</button>
-      <p>The overlay is synthetic, not road-matched and never navigation advice. No real location, traffic, routing, search or hazard data is accessed.</p>
-    </section>
-    <div class="bottom-bar">
-      <output id="status" role="status" aria-live="polite">Loading map…</output>
-      <span>Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · Tiles by <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer">OpenFreeMap</a></span>
-    </div>
+    <!-- The live map exists ONLY in the opaque-origin srcdoc child injected by the build. -->
+    <iframe id="mapBetaSandbox" title="OpenStreetMap experimental basemap"
+      sandbox="allow-scripts" referrerpolicy="no-referrer"
+      allow="geolocation 'none'; microphone 'none'; camera 'none'"
+      srcdoc="__RIDER_MAPS_SRCDOC__"></iframe>
+    <footer>© OpenStreetMap contributors · Tiles by OpenFreeMap · This is not a route or rider-location view</footer>
   </main>
+  <script>(() => {
+  const back = document.querySelector('.return-classic');
+  if (window.parent !== window && back) {
+    back.addEventListener('click', (event) => {
+      event.preventDefault();
+      // Only a close signal, never tokens, rider positions or URL parameters.
+      window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, '*');
+    });
+  }
+})();</script>
 </body>
 </html>
