@@ -1990,6 +1990,7 @@
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
+    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
     // Refresh the current section in place; skeletons are for navigation only.
     // Keep inbox filter controls available during a source refresh.
     const refreshing = key === displayedKey ||
@@ -2151,6 +2152,7 @@
   const searchStatus = document.getElementById('globalSearchStatus');
   const desktopSearchTrigger = document.getElementById('globalSearchTrigger');
   const mobileSearchTrigger = document.getElementById('globalSearchMobile');
+  const workspaceSearchTrigger = document.getElementById('workspaceSearchTrigger');
   let searchOpener = null;
   let searchTimer = null;
   let searchGeneration = 0;
@@ -2223,6 +2225,7 @@
   }
   desktopSearchTrigger.addEventListener('click', () => openCommandSearch(desktopSearchTrigger));
   mobileSearchTrigger.addEventListener('click', () => openCommandSearch(mobileSearchTrigger));
+  workspaceSearchTrigger.addEventListener('click', () => openCommandSearch(workspaceSearchTrigger));
   document.getElementById('globalSearchClose').addEventListener('click', () => searchDialog.close());
   searchInput.addEventListener('input', updateCommandSearch);
   searchInput.addEventListener('keydown', (event) => {
@@ -2304,6 +2307,7 @@
     document.querySelector('.sidebar-search-slot').hidden = false;
     document.getElementById('globalSearchTrigger').hidden = false;
     document.getElementById('globalSearchMobile').hidden = false;
+    workspaceSearchTrigger.hidden = false;
     footerRole.replaceChildren(roleBadge(me.role));
     if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
     if (!allowed(VIEW_PERMISSIONS[view])) {
