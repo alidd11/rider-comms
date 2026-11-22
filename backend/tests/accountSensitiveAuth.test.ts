@@ -89,4 +89,35 @@ describe('sensitive account HTTP ownership', {
       'the deleted rider session must no longer authorize any request');
     assert.equal((await request(stranger.token, '/auth/export')).status, 401);
   });
+  it('requires a recent password on the same session when the staged gate is on', async () => {
+    const previous = process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED;
+    process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED = 'true';
+    try {
+      const a = await signUp();
+      const b = await signUp();
+      const deletion = (token: string) => request(token, '/auth/me', { method: 'DELETE' });
+      const confirm = (token: string, password: string) => request(token, '/auth/reauthenticate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+      });
+      assert.equal((await request(a.token, '/auth/export')).status, 403);
+      assert.equal((await deletion(a.token)).status, 403);
+      assert.equal((await confirm(a.token, 'incorrect-password')).status, 401);
+      assert.equal((await request(a.token, '/auth/me')).status, 200);
+      assert.equal((await confirm(b.token, PASSWORD)).status, 200);
+      assert.equal((await request(a.token, '/auth/export')).status, 403);
+      assert.equal((await deletion(a.token)).status, 403);
+      assert.equal((await request(b.token, '/auth/export')).status, 200);
+      assert.equal((await confirm(a.token, PASSWORD)).status, 200);
+      const exported = await request(a.token, '/auth/export');
+      assert.equal(exported.status, 200);
+      assert.equal((await exported.json() as { account: { rider_id: string } }).account.rider_id, a.riderId);
+      assert.equal((await deletion(a.token)).status, 200);
+      assert.equal((await request(a.token, '/auth/me')).status, 401);
+      assert.equal((await request(b.token, '/auth/me')).status, 200);
+    } finally {
+      if (previous === undefined) delete process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED;
+      else process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED = previous;
+    }
+  });
+
 });

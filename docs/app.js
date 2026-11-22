@@ -622,7 +622,7 @@
     if (!response.ok) {
       // A 401 means the expiring server-side session was revoked, deleted,
       // or has reached its lifetime. Clear local credentials immediately.
-      if (response.status === 401) {
+      if (response.status === 401 && !(path === '/auth/reauthenticate' && json?.error === 'invalid_credentials')) {
         const hadSession = Boolean(session);
         clearSession();
         if (hadSession) location.reload();
@@ -3648,9 +3648,78 @@
     }
   }
 
+  // Masked password confirmation is never saved in browser storage or app state.
+  function confirmAccountPassword() {
+    const tokenAtOpen = session?.token;
+    if (!tokenAtOpen || document.getElementById('accountStepupDialog')) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const dialog = document.createElement('dialog');
+      dialog.id = 'accountStepupDialog';
+      dialog.className = 'account-stepup-dialog';
+      dialog.setAttribute('aria-labelledby', 'accountStepupTitle');
+      dialog.innerHTML = '<form class="account-stepup-form"><h2 id="accountStepupTitle">Confirm your password</h2>'
+        + '<p>Enter your account password before permanently deleting your account.</p>'
+        + '<label for="accountStepupPassword">Account password</label>'
+        + '<input id="accountStepupPassword" type="password" autocomplete="current-password" maxlength="128" required>'
+        + '<p id="accountStepupError" role="alert" hidden></p>'
+        + '<div class="account-stepup-actions"><button type="button" data-stepup-cancel>Cancel</button>'
+        + '<button type="submit" data-stepup-submit>Confirm password</button></div></form>';
+      const input = dialog.querySelector('#accountStepupPassword');
+      const errorEl = dialog.querySelector('#accountStepupError');
+      const submit = dialog.querySelector('[data-stepup-submit]');
+      let busy = false;
+      let settled = false;
+      const finish = (accepted) => {
+        if (settled) return;
+        settled = true;
+        input.value = '';
+        if (dialog.open) dialog.close();
+        dialog.remove();
+        resolve(accepted);
+      };
+      dialog.addEventListener('cancel', (event) => {
+        event.preventDefault();
+        if (!busy) finish(false);
+      });
+      dialog.querySelector('[data-stepup-cancel]').addEventListener('click', () => {
+        if (!busy) finish(false);
+      });
+      dialog.querySelector('form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (busy) return;
+        const password = input.value;
+        input.value = '';
+        if (!password || password.length > 128) return;
+        busy = true;
+        input.disabled = true;
+        submit.disabled = true;
+        errorEl.hidden = true;
+        try {
+          await apiFetch('POST', '/auth/reauthenticate', { password });
+          finish(session?.token === tokenAtOpen);
+        } catch (error) {
+          if (!dialog.isConnected) return;
+          if (session?.token !== tokenAtOpen) return finish(false);
+          errorEl.textContent = error instanceof ApiError && error.body?.error === 'invalid_credentials'
+            ? 'Incorrect password. Try again.'
+            : 'Could not confirm your password. Check your connection and try again.';
+          errorEl.hidden = false;
+          input.disabled = false;
+          submit.disabled = false;
+          busy = false;
+          input.focus({ preventScroll: true });
+        }
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      input.focus({ preventScroll: true });
+    });
+  }
+
   async function deleteCurrentAccount() {
     if (!window.confirm('Permanently delete your Rider Comms account and associated data? This doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.')) return;
     if (!window.confirm('This can’t be undone. Delete the account?')) return;
+    if (!(await confirmAccountPassword())) return;
     const button = $('#deleteAccountBtn');
     if (button) button.disabled = true;
     try {

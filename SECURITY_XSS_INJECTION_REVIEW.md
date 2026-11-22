@@ -176,3 +176,10 @@ This is an internal source review and synthetic security-test supplement, **not 
 ### Remaining risks and scope
 
 The previously added `backend/tests/privateRidePrivacy.test.ts` remains in PR #562; keep its membership, consent, block, spoofed identity, expulsion and location-purge assertions in exact-head CI. Existing DM, Social post/media, session and staff regressions are preserved. Script-readable web bearer tokens, Maps-compatible CSP restrictions, remaining moderate Expo production advisories and limited passive ZAP scope require dedicated release tracking. No live accounts, secrets or production services were probed; no merge/deployment was performed based on this handoff.
+
+
+## 22 November 2026 — staged sensitive account step-up
+
+The export and deletion routes support an explicit `ACCOUNT_SENSITIVE_REAUTH_ENFORCED=true` gate using the existing 15-minute, bearer-session-specific password reauthentication. **The default is off**, to prevent older installed native clients being locked out of account deletion until a coordinated PWA/iOS/Android upgrade is shipped and verified. This is a staged compatibility gate, not a claim of active production enforcement.
+
+The new client flows prompt for a masked password before irreversible deletion. The PWA must avoid interpreting `401 invalid_credentials` from password reauthentication as a revoked bearer token. Regression coverage verifies synthetic cross-session isolation and request semantics. Do not enable the production flag until device QA, older-version transition, cancellation/error handling and an accessible account-export UX are complete and explicitly approved. No merge or deployment is authorised by this increment.

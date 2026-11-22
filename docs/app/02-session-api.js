@@ -93,7 +93,7 @@
     if (!response.ok) {
       // A 401 means the expiring server-side session was revoked, deleted,
       // or has reached its lifetime. Clear local credentials immediately.
-      if (response.status === 401) {
+      if (response.status === 401 && !(path === '/auth/reauthenticate' && json?.error === 'invalid_credentials')) {
         const hadSession = Boolean(session);
         clearSession();
         if (hadSession) location.reload();
