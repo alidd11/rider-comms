@@ -1172,8 +1172,10 @@
         ? (item.assignedTo ? `Case owner: ${item.assignedTo === session.riderId ? 'you' : riderLabel(item.assignedTo).name}` : 'No permanent owner')
         : `${formatNumber(item.reportCount)} reports`;
       const description = isReport
-        ? `${formatNumber(item.reportsAgainstRider)} reports against this rider${item.claimedBy ? ` · Quick claim: ${riderLabel(item.claimedBy).name}` : ''}`
+        ? `${formatNumber(item.reportsAgainstRider)} reports against this rider`
         : (item.reasons?.length ? item.reasons.map((reason) => REASON_LABELS[reason] || reason).join(', ') : 'Reported content');
+      const quickClaim = isReport && item.claimedBy
+        ? `Quick claim: ${riderLabel(item.claimedBy).name}` : null;
       const button = el('button', { type: 'button', class: 'button', text: isReport ? 'Review rider report' : 'Review Social post' });
       button.addEventListener('click', () => {
         inboxFocusTarget = {
@@ -1191,8 +1193,11 @@
           ]),
           person(riderLabel(item.riderId).name, riderLabel(item.riderId).sub, item.riderId),
           el('div', { class: 'inbox-item-meta' }, [
-            badge(status, isReport && item.claimedBy ? 'accent' : isReport ? 'warning' : null),
-            el('span', { text: description }),
+            // Permanent assignment is a neutral coordination state, never an urgency signal.
+            badge(status, isReport && item.assignedTo ? 'accent' : null,
+              isReport && !item.assignedTo),
+            el('span', { class: 'inbox-item-detail', text: description }),
+            quickClaim ? el('span', { class: 'inbox-quick-claim', text: quickClaim }) : null,
             el('span', { class: 'inbox-item-time' }, [timeEl(item.eventAt)]),
           ]),
         ]),
