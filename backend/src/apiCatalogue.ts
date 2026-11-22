@@ -129,6 +129,8 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
 
   e('GET', '/moderation/reports', 'Moderation', 'staff', 'The report queue', { permission: 'moderate' }),
   e('GET', '/moderation/reports/{reportId}', 'Moderation', 'staff', 'Look up an exact report and its current state', { permission: 'moderate' }),
+  e('GET', '/moderation/reports/{reportId}/assignment-history', 'Moderation', 'staff', 'Read the recorded case ownership transitions', { permission: 'moderate' }),
+  e('POST', '/moderation/reports/{reportId}/assign', 'Moderation', 'staff', 'Assign, release or reassign an open rider report with a required note', { permission: 'moderate', reauth: true }),
   e('GET', '/moderation/actions', 'Moderation', 'staff', 'The audit log', { permission: 'view_audit' }),
   e('POST', '/moderation/reports/{reportId}/resolve', 'Moderation', 'staff', 'Dismiss a report or suspend the rider', { permission: 'moderate', reauth: true }),
   e('POST', '/moderation/reports/{reportId}/claim', 'Moderation', 'staff', 'Take a report, or let it go ({ release: true })', { permission: 'moderate' }),

@@ -890,6 +890,9 @@
   function actionErrorMessage(error) {
     if (!(error instanceof ApiError)) return 'Could not reach the server. Try again.';
     if (error.code === 'already_resolved') return 'Someone already resolved this report. Refresh to see the latest queue.';
+    if (error.code === 'assigned_to_other') return 'This case has another owner. Ask an administrator to transfer it.';
+    if (error.code === 'invalid_assignee') return 'Only active moderators or administrators can own a case.';
+    if (error.code === 'unchanged') return 'Ownership is already up to date. Refresh to see the current case.';
     if (error.code === 'forbidden_target') return 'You cannot suspend yourself or another admin.';
     if (error.code === 'not_suspended') return 'This rider is not suspended.';
     if (error.code === 'already_suspended') return 'This rider is already suspended.';
@@ -1003,6 +1006,9 @@
           report.reportsAgainstRider > 1 ? badge(`${report.reportsAgainstRider} reports against this rider`, null, true) : null,
           report.reportedRiderSuspended ? badge(report.reportedRiderSuspendedUntil ? `Suspended until ${formatUntil(report.reportedRiderSuspendedUntil)}` : 'Suspended', 'danger') : null,
           report.status === 'open' ? waitingBadge(report.createdAt) : null,
+          report.assignedTo
+            ? badge(`Case owner: ${riderLabel(report.assignedTo).name}`, 'accent')
+            : (report.status === 'open' ? badge('No permanent owner', null, true) : null),
         ]),
         el('span', { class: 'report-time' }, [timeEl(report.createdAt)]),
       ]),
@@ -1029,6 +1035,25 @@
           return chip;
         })));
       }
+
+      if (report.status === 'open') {
+        // A persistent owner is different from the expiring 30-minute claim.
+        // Transfers performed by admins use the same audited assignment API.
+        const mine = report.assignedTo === session.riderId;
+        const assignable = !report.assignedTo || mine || allowed('manage_staff');
+        if (assignable) {
+          const assign = el('button', {
+            type: 'button', class: 'button button-small',
+            dataset: { action: mine ? 'release-owner' : 'assign-owner' },
+            text: mine ? 'Release permanent ownership'
+              : report.assignedTo ? 'Take ownership (admin)' : 'Assign permanently to me',
+          });
+          actions.prepend(assign);
+          wireAction(card, assign, note, (text) => api('POST',
+            `/moderation/reports/${encodeURIComponent(report.id)}/assign`,
+            { assigneeId: mine ? null : session.riderId, note: text }));
+        }
+      }
       if (report.reportedRiderSuspended) {
         const unsuspend = el('button', { type: 'button', class: 'button', dataset: { action: 'unsuspend' }, text: 'Unsuspend rider' });
         actions.append(unsuspend);
@@ -1036,6 +1061,47 @@
       }
       card.append(note, actions);
     }
+
+    // History belongs to a specific report, not the bounded queue sample.
+    const historyButton = el('button', { type: 'button', class: 'button button-small case-history-toggle',
+      'aria-expanded': 'false', text: 'View ownership history' });
+    historyButton.addEventListener('click', async () => {
+      historyButton.disabled = true;
+      let region = card.querySelector('[data-assignment-history]');
+      if (region) {
+        region.remove();
+        historyButton.disabled = false;
+        historyButton.textContent = 'View ownership history';
+        historyButton.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      try {
+        const { events } = await api('GET',
+          `/moderation/reports/${encodeURIComponent(report.id)}/assignment-history?limit=50`);
+        await loadNames(events.flatMap((event) => [event.actorId, event.previousAssignee, event.assigneeId]));
+        region = el('div', { class: 'case-history-panel', role: 'region',
+          'aria-label': `Ownership history for report ${report.id}`, dataset: { assignmentHistory: '' } },
+        events.length ? [
+          el('strong', { class: 'case-history-heading', text: 'Ownership activity · latest 50 changes' }),
+          el('ol', { class: 'case-history-list' }, events.map((event) => el('li', { class: 'case-history-row' }, [
+            el('div', { class: 'case-history-body' }, [
+              el('span', { class: 'case-history-line',
+                text: `${riderLabel(event.actorId).name} · ${event.event}: ${event.previousAssignee ? riderLabel(event.previousAssignee).name : 'unassigned'} → ${event.assigneeId ? riderLabel(event.assigneeId).name : 'unassigned'}` }),
+              el('span', { class: 'case-history-note', text: event.note }),
+            ]),
+            el('span', { class: 'case-history-time' }, [timeEl(event.createdAt)]),
+          ]))),
+        ] : [el('p', { class: 'case-history-empty', text: 'No ownership changes recorded for this report.' })]);
+        card.append(region);
+        historyButton.textContent = 'Hide ownership history';
+        historyButton.setAttribute('aria-expanded', 'true');
+      } catch (error) {
+        flash(actionErrorMessage(error), 'warning');
+      } finally {
+        historyButton.disabled = false;
+      }
+    });
+    card.append(historyButton);
     card.append(el('p', { class: 'error-text', role: 'alert' }));
     return card;
   }
@@ -1088,7 +1154,7 @@
     const response = await api('GET', `/admin/action-inbox?type=${filter}&limit=50`);
     if (!isCurrentRender(generation)) return;
     const items = Array.isArray(response.items) ? response.items : [];
-    await loadNames(items.flatMap((item) => [item.riderId, item.claimedBy]));
+    await loadNames(items.flatMap((item) => [item.riderId, item.claimedBy, item.assignedTo]));
     if (!isCurrentRender(generation)) return;
 
     const tabs = segmented([
@@ -1103,11 +1169,13 @@
       const title = isReport ? `Rider report · ${REASON_LABELS[item.reason] || item.reason}`
         : `Rider Social · ${item.kind === 'reel' ? 'Reel' : 'Photo post'}`;
       const status = isReport
-        ? (item.claimedBy ? `Being handled by ${item.claimedBy === session.riderId ? 'you' : riderLabel(item.claimedBy).name}` : 'Unassigned')
+        ? (item.assignedTo ? `Case owner: ${item.assignedTo === session.riderId ? 'you' : riderLabel(item.assignedTo).name}` : 'No permanent owner')
         : `${formatNumber(item.reportCount)} reports`;
       const description = isReport
         ? `${formatNumber(item.reportsAgainstRider)} reports against this rider`
         : (item.reasons?.length ? item.reasons.map((reason) => REASON_LABELS[reason] || reason).join(', ') : 'Reported content');
+      const quickClaim = isReport && item.claimedBy
+        ? `Quick claim: ${riderLabel(item.claimedBy).name}` : null;
       const button = el('button', { type: 'button', class: 'button', text: isReport ? 'Review rider report' : 'Review Social post' });
       button.addEventListener('click', () => {
         inboxFocusTarget = {
@@ -1125,8 +1193,11 @@
           ]),
           person(riderLabel(item.riderId).name, riderLabel(item.riderId).sub, item.riderId),
           el('div', { class: 'inbox-item-meta' }, [
-            badge(status, isReport && item.claimedBy ? 'accent' : isReport ? 'warning' : null),
-            el('span', { text: description }),
+            // Permanent assignment is a neutral coordination state, never an urgency signal.
+            badge(status, isReport && item.assignedTo ? 'accent' : null,
+              isReport && !item.assignedTo),
+            el('span', { class: 'inbox-item-detail', text: description }),
+            quickClaim ? el('span', { class: 'inbox-quick-claim', text: quickClaim }) : null,
             el('span', { class: 'inbox-item-time' }, [timeEl(item.eventAt)]),
           ]),
         ]),
@@ -1197,7 +1268,7 @@
       }
       if (!isCurrentRender(generation)) return;
       const riderIds = selected.type === 'rider_report'
-        ? [item.reporterId, item.reportedRiderId, item.resolvedBy, item.claimedBy]
+        ? [item.reporterId, item.reportedRiderId, item.resolvedBy, item.claimedBy, item.assignedTo]
         : [item.post.authorId];
       await loadNames(riderIds);
       if (!isCurrentRender(generation)) return;
@@ -1234,7 +1305,7 @@
     }
     const { reports } = await api('GET', `/moderation/reports?status=${moderationView}&limit=100`);
     if (!isCurrentRender(generation)) return;
-    await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy]));
+    await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy, report.assignedTo]));
     if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
     pageEl.replaceChildren(header, el('div', { class: 'reports' }, reports.length

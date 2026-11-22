@@ -11,7 +11,7 @@ describe('social write abuse controls', { skip: !hasDatabase && 'DATABASE_URL no
     await getPool().query('SELECT 1');
     await ensureMigrated();
     await getPool().query(
-      'TRUNCATE social_rate_events, friend_requests, friendships, direct_messages, rider_blocks, safety_reports',
+      'TRUNCATE social_rate_events, friend_requests, friendships, direct_messages, rider_blocks, safety_report_assignment_events, safety_reports',
     );
   });
 

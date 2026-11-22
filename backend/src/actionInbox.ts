@@ -18,6 +18,7 @@ export interface InboxRiderReport {
   eventAt: number;
   reason: string;
   claimedBy: string | null;
+  assignedTo: string | null;
   reportsAgainstRider: number;
 }
 
@@ -34,7 +35,7 @@ export interface InboxSocialPost {
 
 export type ActionInboxItem = InboxRiderReport | InboxSocialPost;
 export type InboxReportSource = Pick<QueuedSafetyReport,
-  'id' | 'reportedRiderId' | 'createdAt' | 'reason' | 'claimedBy' | 'reportsAgainstRider'>;
+  'id' | 'reportedRiderId' | 'createdAt' | 'reason' | 'claimedBy' | 'assignedTo' | 'reportsAgainstRider'>;
 export type InboxSocialSource = {
   post: Pick<SocialPost, 'id' | 'authorId' | 'kind'>;
   reports: number;
@@ -60,6 +61,7 @@ export function buildActionInbox(
         eventAt: report.createdAt,
         reason: report.reason,
         claimedBy: report.claimedBy,
+        assignedTo: report.assignedTo,
         reportsAgainstRider: report.reportsAgainstRider,
       });
     }

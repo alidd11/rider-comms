@@ -584,6 +584,38 @@ a { color: inherit; }
 }
 .report-details.empty { color: var(--muted-fg); font-style: italic; }
 .report-meta { margin: 10px 0 0; font-size: 12px; color: var(--muted-fg); }
+/* Permanent case ownership: an accessible, readable timeline distinct from
+   the time-limited quick-claim controls and existing moderation decisions. */
+.case-history-toggle { margin-top: 14px; min-height: 40px; }
+.case-history-panel {
+  margin-top: 10px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--fg);
+}
+.case-history-heading { display: block; font-size: 13px; line-height: 1.45; font-weight: 650; margin-bottom: 8px; }
+.case-history-list { list-style: none; padding: 0; margin: 0; }
+.case-history-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.case-history-body { min-width: 0; display: grid; gap: 4px; }
+.case-history-line { font-size: 13px; line-height: 1.45; font-weight: 550; overflow-wrap: anywhere; }
+.case-history-note { font-size: 12px; line-height: 1.55; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.case-history-time { flex: none; font-size: 11px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
+.case-history-empty { margin: 0; color: var(--muted-fg); font-size: 13px; }
+@media (max-width: 599px) {
+  .report .actions [data-action="assign-owner"], .report .actions [data-action="release-owner"] { min-height: 44px; flex: 1 1 100%; }
+  .case-history-toggle { min-height: 44px; width: 100%; }
+  .case-history-row { flex-direction: column; gap: 4px; }
+  .case-history-time { font-size: 12px; }
+}
 /* A hidden Rider Social post's photos or Reel, for review. */
 .social-media { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 10px; }
 .social-media img, .social-media video { flex: none; height: 220px; max-width: 100%; border-radius: 8px; background: #000; object-fit: contain; }
@@ -830,10 +862,24 @@ body.menu-visible { overflow: hidden; }
 .inbox-item-time { color: var(--muted-fg); }
 .inbox-item-actions { flex: none; }
 .inbox-item-actions .button { min-height: 40px; }
+/* Operational work cards: a readable case hierarchy without implying severity from report volume. */
+.inbox-item { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.inbox-item:hover, .inbox-item:focus-within { border-color: var(--border-strong); }
+.inbox-item:focus-within { box-shadow: 0 0 0 2px var(--accent-soft); }
+.inbox-item-title { font-size: 15px; line-height: 21px; letter-spacing: -0.015em; }
+.inbox-item .person { max-width: 100%; }
+.inbox-item-meta .badge { flex: none; }
+.inbox-item-detail { color: var(--fg-2); }
+.inbox-quick-claim { padding-left: 10px; border-left: 1px solid var(--border-strong); color: var(--fg-2); }
+.inbox-item-time { margin-left: auto; font-variant-numeric: tabular-nums; }
+.inbox-item-actions .button { min-height: 42px; }
+@media (prefers-reduced-motion: reduce) { .inbox-item { transition: none; } }
 .inbox-limit-note { margin: 14px 0 0; color: var(--muted-fg); font-size: 12px; }
 @media (max-width: 700px) {
   .inbox-item { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
   .inbox-item-main { gap: 8px; }
   .inbox-item-actions, .inbox-item-actions .button { width: 100%; }
   .inbox-item-actions .button { justify-content: center; min-height: 44px; }
+  .inbox-item-time { margin-left: 0; }
+  .inbox-quick-claim { padding-left: 0; border-left: 0; }
 }
