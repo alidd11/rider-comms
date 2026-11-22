@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radii, type, elevation, MIN_TOUCH_TARGET } from '../theme';
 import * as Location from 'expo-location';
+import { waitForLocationPermissionOrTimeout } from './onboardingLocationPermission';
 
 export const ONBOARDING_COMPLETED_KEY = '@rider-comms/onboarding/completed';
 
@@ -64,9 +65,15 @@ function LocationPrimingStep({ onContinue }: { onContinue: () => Promise<void> }
 
 export function OnboardingScreen({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [step, setStep] = React.useState<0 | 1>(0);
+  const continuing = React.useRef(false);
 
   const handleContinue = React.useCallback(async () => {
-    await Location.requestForegroundPermissionsAsync().catch(() => undefined);
+    // iOS can leave the permission-request promise pending even after the
+    // rider taps Continue. Never trap them on onboarding indefinitely.
+    // Repeated taps must not start overlapping native permission dialogs.
+    if (continuing.current) return;
+    continuing.current = true;
+    await waitForLocationPermissionOrTimeout(() => Location.requestForegroundPermissionsAsync());
     AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true').catch(() => {
       // Best-effort — if this write fails, onboarding just shows again next
       // launch, which is a minor annoyance, not a broken app.
