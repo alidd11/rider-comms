@@ -83,7 +83,7 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
   if (await refuseWithoutRecentReauth(ctx)) return;
   const body = await readJsonBody(req);
   const expectedVersion = body.expectedVersion;
-  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
+  if (typeof expectedVersion !== 'number' || !Number.isInteger(expectedVersion) || expectedVersion < 1) {
     return sendJson(res, 400, { error: 'expected_version_required' });
   }
   if (!validNote(body.note)) return sendJson(res, 400, { error: 'note_required' });
@@ -96,10 +96,12 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
     if (!isCasePriority(body.priority)) return sendJson(res, 400, { error: 'invalid_case_priority' });
     value = body.priority;
   } else if (action === 'assign') {
-    value = body.assigneeId === undefined ? actorId : body.assigneeId;
-    if (value !== null && (typeof value !== 'string' || !subjectPattern.test(value))) {
+    const candidate = body.assigneeId;
+    if (candidate !== undefined && candidate !== null &&
+      (typeof candidate !== 'string' || !subjectPattern.test(candidate))) {
       return sendJson(res, 400, { error: 'invalid_assignee' });
     }
+    value = typeof candidate === 'string' ? candidate : candidate === null ? null : actorId;
   }
   const changed = await store.mutate({
     id, actorId, actorRole: role, expectedVersion,
