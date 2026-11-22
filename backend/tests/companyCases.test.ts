@@ -85,6 +85,7 @@ describe('company case API and audit', { skip: !hasDatabase && 'DATABASE_URL not
     assert.equal((await list(ADMIN, '?limit=51')).status, 400);
     assert.equal((await list(ADMIN, '?limit=0')).status, 400);
     assert.equal((await list(ADMIN, '?before=broken')).status, 400);
+    assert.equal((await list(ADMIN, '?owner=other')).status, 400);
     assert.equal((await create(SUPPORT, 'support', 'x')).status, 400);
     assert.equal((await create(SUPPORT, 'support', '<img src=x onerror=1>')).status, 201);
     assert.equal((await postJson(ctx, ADMIN, '/admin/cases', {
@@ -106,6 +107,17 @@ describe('company case API and audit', { skip: !hasDatabase && 'DATABASE_URL not
     const assigned = (await assign.json() as { item: { assignedTo: string; version: number } }).item;
     assert.equal(assigned.assignedTo, SUPPORT);
     assert.equal(assigned.version, 2);
+    const supportSummary = await (await authenticatedFetch(ctx, SUPPORT, '/admin/cases/summary')).json() as {
+      byKind: Array<{ kind: string; active: number }>;
+      totals: { active: number; mine: number; unassigned: number };
+    };
+    assert.deepEqual(supportSummary.byKind.map((entry) => entry.kind), ['support']);
+    assert.deepEqual(supportSummary.totals, { ...supportSummary.totals,
+      active: 1, mine: 1, unassigned: 0 });
+    const myCases = await (await list(SUPPORT, '?owner=mine')).json() as { items: { id: string }[] };
+    assert.deepEqual(myCases.items.map((entry) => entry.id), [item.id]);
+    const unassigned = await (await list(SUPPORT, '?owner=unassigned')).json() as { items: unknown[] };
+    assert.equal(unassigned.items.length, 0);
     assert.equal((await postJson(ctx, SUPPORT, caseUrl(item.id) + '/status', {
       note: 'Investigating account access', status: 'in_progress', expectedVersion: 1,
     })).status, 409, 'stale mutation cannot silently overwrite the new owner');
@@ -186,6 +198,18 @@ describe('company case API and audit', { skip: !hasDatabase && 'DATABASE_URL not
     assert.deepEqual(s.items.map((v) => v.kind), ['support']);
     const m = await (await list(MOD)).json() as { items: { kind: string }[] };
     assert.deepEqual(m.items.map((v) => v.kind), ['appeal']);
+    const summary = await (await authenticatedFetch(ctx, ADMIN, '/admin/cases/summary')).json() as {
+      totals: { total: number; active: number; unassigned: number; urgent: number };
+      byKind: Array<{ kind: string }>;
+    };
+    assert.equal(summary.totals.total, 4);
+    assert.equal(summary.totals.active, 4);
+    assert.equal(summary.totals.unassigned, 4);
+    assert.equal(summary.byKind.length, 4);
+    const restricted = await (await authenticatedFetch(ctx, MOD, '/admin/cases/summary')).json() as {
+      byKind: Array<{ kind: string }>;
+    };
+    assert.deepEqual(restricted.byKind.map((entry) => entry.kind), ['appeal']);
     const first = await (await list(ADMIN, '?limit=2')).json() as {
       items: { id: string }[]; hasMore: boolean; nextCursor: string;
     };
