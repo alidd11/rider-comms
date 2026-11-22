@@ -56,6 +56,18 @@
     </aside>
     <div class="menu-backdrop" id="menuBackdrop" hidden></div>
     <div class="main">
+      <header class="workspace-toolbar" aria-label="Workspace navigation">
+        <div class="workspace-crumbs" aria-label="Current location">
+          <span class="workspace-crumb-root">Workspace</span>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 3.5 4 4.5-4 4.5"/></svg>
+          <span class="workspace-crumb-current" id="workspaceCurrentSection">Overview</span>
+        </div>
+        <button type="button" class="workspace-command" id="workspaceSearchTrigger" aria-haspopup="dialog" aria-controls="globalSearchDialog" aria-label="Open command search" hidden>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+          <span>Quick search</span>
+          <kbd>Ctrl / ⌘ K</kbd>
+        </button>
+      </header>
       <main class="page" id="page" aria-live="polite"></main>
     </div>
   </div>

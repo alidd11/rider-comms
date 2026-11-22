@@ -559,7 +559,14 @@
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
     return el('div', { class: 'page-header' }, [
-      el('div', {}, [el('h1', { class: 'page-title', tabindex: '-1', text: title }), subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null]),
+      el('div', { class: 'page-heading' }, [
+        el('span', { class: 'page-eyebrow' }, [
+          el('span', { class: 'page-eyebrow-dot', 'aria-hidden': 'true' }),
+          el('span', { text: 'Operations hub' }),
+        ]),
+        el('h1', { class: 'page-title', tabindex: '-1', text: title }),
+        subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null,
+      ]),
       el('div', { class: 'actions' }, [...actions, refresh]),
     ]);
   }
@@ -1053,6 +1060,68 @@
             `/moderation/reports/${encodeURIComponent(report.id)}/assign`,
             { assigneeId: mine ? null : session.riderId, note: text }));
         }
+      }
+      if (report.status === 'open' && allowed('manage_staff')) {
+        // Only admins can list staff and transfer cases to a different owner.
+        // The backend rechecks both permissions and eligibility at submission.
+        const transfer = el('button', { type: 'button', class: 'button button-small',
+          'aria-expanded': 'false', dataset: { action: 'handover-owner' }, text: 'Assign to team member' });
+        actions.prepend(transfer);
+        transfer.addEventListener('click', async () => {
+          const existing = card.querySelector('[data-handover-panel]');
+          if (existing) {
+            existing.remove();
+            transfer.setAttribute('aria-expanded', 'false');
+            transfer.focus();
+            return;
+          }
+          transfer.disabled = true;
+          const errorEl = card.querySelector('.error-text');
+          try {
+            const response = await api('GET', '/admin/staff');
+            // A delayed staff response must never resurrect a panel after navigation.
+            if (!card.isConnected) return;
+            const eligible = (Array.isArray(response.staff) ? response.staff : [])
+              .filter((member) => (member.role === 'admin' || member.role === 'moderator')
+                && typeof member.riderId === 'string' && member.riderId !== report.assignedTo);
+            const selector = el('select', { class: 'input select',
+              'aria-label': `Team member for report ${report.id}` }, [
+              el('option', { value: '', text: 'Choose a team member', selected: true }),
+              ...eligible.map((member) => el('option', { value: member.riderId,
+                text: `${member.displayName || member.handle || member.riderId} · ${ROLE_LABELS[member.role]}` })),
+            ]);
+            const assign = el('button', { type: 'button', class: 'button button-primary',
+              dataset: { action: 'assign-selected-owner' }, text: 'Assign selected member', disabled: true });
+            selector.addEventListener('change', () => { assign.disabled = !selector.value; });
+            wireAction(card, assign, note, (text) => api('POST',
+              `/moderation/reports/${encodeURIComponent(report.id)}/assign`,
+              { assigneeId: selector.value, note: text }));
+            const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel handover' });
+            const panel = el('div', { class: 'case-handover-panel', role: 'group',
+              'aria-label': `Staff handover for report ${report.id}`, dataset: { handoverPanel: '' } }, [
+              el('strong', { class: 'case-handover-title', text: 'Assign this report to a team member' }),
+              el('p', { class: 'case-handover-help',
+                text: 'Only moderators and administrators can own reports. Add an audit reason in the note field above. Eligibility is checked again when you save.' }),
+              ...(eligible.length
+                ? [el('div', { class: 'case-handover-controls' }, [selector, assign, cancel])]
+                : [el('p', { class: 'case-handover-help', text: 'No other eligible staff members were returned.' }), cancel]),
+            ]);
+            actions.before(panel);
+            transfer.setAttribute('aria-expanded', 'true');
+            cancel.addEventListener('click', () => {
+              panel.remove();
+              transfer.setAttribute('aria-expanded', 'false');
+              transfer.focus();
+            });
+            if (eligible.length) selector.focus();
+            else cancel.focus();
+            errorEl.textContent = '';
+          } catch (error) {
+            if (card.isConnected) errorEl.textContent = `Could not load the team. ${actionErrorMessage(error)}`;
+          } finally {
+            if (card.isConnected) transfer.disabled = false;
+          }
+        });
       }
       if (report.reportedRiderSuspended) {
         const unsuspend = el('button', { type: 'button', class: 'button', dataset: { action: 'unsuspend' }, text: 'Unsuspend rider' });
@@ -1928,6 +1997,7 @@
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
     document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
+    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
     // Refresh the current section in place; skeletons are for navigation only.
     // Keep inbox filter controls available during a source refresh.
     const refreshing = key === displayedKey ||
@@ -2089,6 +2159,7 @@
   const searchStatus = document.getElementById('globalSearchStatus');
   const desktopSearchTrigger = document.getElementById('globalSearchTrigger');
   const mobileSearchTrigger = document.getElementById('globalSearchMobile');
+  const workspaceSearchTrigger = document.getElementById('workspaceSearchTrigger');
   let searchOpener = null;
   let searchTimer = null;
   let searchGeneration = 0;
@@ -2161,6 +2232,7 @@
   }
   desktopSearchTrigger.addEventListener('click', () => openCommandSearch(desktopSearchTrigger));
   mobileSearchTrigger.addEventListener('click', () => openCommandSearch(mobileSearchTrigger));
+  workspaceSearchTrigger.addEventListener('click', () => openCommandSearch(workspaceSearchTrigger));
   document.getElementById('globalSearchClose').addEventListener('click', () => searchDialog.close());
   searchInput.addEventListener('input', updateCommandSearch);
   searchInput.addEventListener('keydown', (event) => {
@@ -2242,6 +2314,7 @@
     document.querySelector('.sidebar-search-slot').hidden = false;
     document.getElementById('globalSearchTrigger').hidden = false;
     document.getElementById('globalSearchMobile').hidden = false;
+    workspaceSearchTrigger.hidden = false;
     footerRole.replaceChildren(roleBadge(me.role));
     if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
     if (!allowed(VIEW_PERMISSIONS[view])) {
