@@ -12,6 +12,15 @@ if (returnClassic && window.parent !== window) {
   });
 }
 
+// Keyboard events do not bubble across sandboxed frame boundaries. Forward
+// only a fixed close signal, never session data or arbitrary commands.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || window.parent === window) return;
+  event.preventDefault();
+  event.stopPropagation();
+  window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, '*');
+}, { capture: true });
+
 const status = document.getElementById('status');
 const dayButton = document.getElementById('dayStyle');
 const nightButton = document.getElementById('nightStyle');

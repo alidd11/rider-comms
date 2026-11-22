@@ -36,13 +36,31 @@
   </main>
   <script>(() => {
   const back = document.querySelector('.return-classic');
+  const mapFrame = document.querySelector('#mapBetaSandbox');
+  const requestParentClose = () => {
+    if (window.parent !== window) {
+      // The only permitted command to the outer Rider Comms PWA frame.
+      window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, '*');
+    }
+  };
   if (window.parent !== window && back) {
     back.addEventListener('click', (event) => {
       event.preventDefault();
-      // Only a close signal, never tokens, rider positions or URL parameters.
-      window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, '*');
+      requestParentClose();
     });
   }
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || window.parent === window) return;
+    event.preventDefault();
+    event.stopPropagation();
+    requestParentClose();
+  }, { capture: true });
+  window.addEventListener('message', (event) => {
+    if (event.origin !== 'null'
+        || event.source !== mapFrame?.contentWindow
+        || event.data?.type !== 'rider-comms-close-map-beta') return;
+    requestParentClose();
+  });
 })();</script>
 </body>
 </html>

@@ -132,6 +132,13 @@ assert.ok(pwaBundle.includes('sandbox="allow-scripts"'), 'The beta iframe must h
 assert.ok(pwaBundle.includes("event.origin === 'null'"), 'Only opaque-origin messages allowed');
 assert.ok(pwaBundle.includes("session?.token !== tokenAtOpen"), 'Session switch must close beta');
 assert.ok(pwaBundle.includes('window.clearInterval(roleTimer)'), 'Role timer must be cleaned up');
+assert.ok(pwaBundle.includes("dialog.addEventListener('cancel'"), 'Native dialog cancel must call the common cleanup path');
+assert.ok(pwaBundle.includes("event.stopPropagation();"), 'Modal must prevent Escape reaching Settings');
+assert.ok(read('../docs/app/18-map-init-events.js').includes("$('#riderMapBetaDialog')?.open"), 'Settings must yield keyboard to topmost dialog');
+assert.ok(pwaBundle.includes("window.removeEventListener('storage', onStorage)"), 'Session listener must be removed on close');
+assert.ok(betaHtml.includes("event.source !== mapFrame?.contentWindow"), 'Nested frame messages require source verification');
+assert.ok(betaHtml.includes("event.origin !== 'null'"), 'Nested frame messages require opaque-origin verification');
+assert.ok(js.includes("event.key !== 'Escape'"), 'Sandbox must relay Escape to parent launcher');
 const betaBuilder = read('../scripts/build-pwa.mjs');
 assert.ok(betaBuilder.includes("resolve(source, 'map-beta', 'index.html')"), 'Only launcher HTML may be published');
 assert.ok(betaBuilder.includes('write: false'), 'Preview JS must remain in an inline sandboxed payload');

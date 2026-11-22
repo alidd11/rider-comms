@@ -111,6 +111,101 @@ test('direct standalone map URL cannot run third-party code in the top-level Rid
   expect(denied).toBe(true);
 });
 
+test('PWA admin beta traps Tab and Shift+Tab above Settings, with reusable close button', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/admin/me'
+    ? { body: { role: 'admin', permissions: [] } } : null);
+  await page.goto('/#settings');
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  const entry = page.locator('#openMapBetaPreview');
+  const dialog = page.locator('#riderMapBetaDialog');
+  for (let index = 0; index < 2; index += 1) {
+    await entry.click();
+    await expect(dialog).toBeVisible();
+    await expect(page.locator('.rider-map-beta-return')).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    expect(await page.evaluate(() => document.querySelector('#riderMapBetaDialog')
+      .contains(document.activeElement))).toBe(true);
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.querySelector('#riderMapBetaDialog')
+      .contains(document.activeElement))).toBe(true);
+    await page.locator('.rider-map-beta-return').click();
+    await expect(dialog).toHaveCount(0);
+    await expect(entry).toBeFocused();
+    await expect(page.locator('#sheetTitle')).toHaveText('Map & navigation');
+    await expect(page.locator('#riderMapBetaFrame')).toHaveCount(0);
+  }
+});
+
+test('PWA admin beta Escape closes when focus is inside either sandboxed iframe', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/admin/me'
+    ? { body: { role: 'admin', permissions: [] } } : null);
+  await page.goto('/#settings');
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  const entry = page.locator('#openMapBetaPreview');
+  const dialog = page.locator('#riderMapBetaDialog');
+  await entry.click();
+  const outer = page.frameLocator('#riderMapBetaFrame');
+  await outer.locator('.return-classic').focus();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(entry).toBeFocused();
+  await entry.click();
+  const nested = page.frameLocator('#riderMapBetaFrame').frameLocator('#mapBetaSandbox');
+  await expect(nested.locator('#map')).toBeVisible();
+  await nested.locator('#map').evaluate((el) => { el.tabIndex = 0; el.focus(); });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(entry).toBeFocused();
+  await expect(page.locator('#sheetTitle')).toHaveText('Map & navigation');
+});
+
+test('PWA admin beta closes on Ride Safe lock or cross-tab session change', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/admin/me'
+    ? { body: { role: 'admin', permissions: [] } } : null);
+  await page.goto('/#settings');
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  const entry = page.locator('#openMapBetaPreview');
+  const dialog = page.locator('#riderMapBetaDialog');
+  await entry.click();
+  await page.evaluate(() => {
+    window.RiderMovementSafety.isLockedForSafety = () => true;
+  });
+  await expect(dialog).toHaveCount(0);
+  await expect(entry).toBeFocused();
+  await page.evaluate(() => {
+    window.RiderMovementSafety.isLockedForSafety = (state) => state === 'moving';
+  });
+  await entry.click();
+  await expect(dialog).toBeVisible();
+  await page.evaluate(() => {
+    window.dispatchEvent(new StorageEvent('storage', { key: 'rider-comms-session-v1', newValue: null }));
+  });
+  await expect(dialog).toHaveCount(0);
+  await expect(entry).toBeFocused();
+});
+
+test('PWA admin beta closes on periodic role revocation without reopening Settings', async ({ page }) => {
+  let role = 'admin';
+  let checks = 0;
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => {
+    if (url.pathname !== '/admin/me') return null;
+    checks += 1;
+    return { body: { role, permissions: [] } };
+  });
+  await page.clock.install();
+  await page.goto('/#settings');
+  await page.locator('[data-settings-open="mapNavigation"]').click();
+  const entry = page.locator('#openMapBetaPreview');
+  await entry.click();
+  await expect(page.locator('#riderMapBetaDialog')).toBeVisible();
+  role = 'moderator';
+  await page.clock.fastForward(30_100);
+  await expect(page.locator('#riderMapBetaDialog')).toHaveCount(0);
+  await expect(entry).toBeFocused();
+  await expect(page.locator('#sheetTitle')).toHaveText('Map & navigation');
+  expect(checks).toBeGreaterThanOrEqual(3);
+});
+
 test('PWA admin map preview supports Escape and restores Settings focus', async ({ page }) => {
   await mockAuthenticatedApi(page, 'stationary', ({ url }) => url.pathname === '/admin/me'
     ? { body: { role: 'admin', permissions: [] } } : null);

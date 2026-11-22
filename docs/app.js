@@ -3243,6 +3243,18 @@
     const frame = dialog.querySelector('#riderMapBetaFrame');
     const closeButton = dialog.querySelector('.rider-map-beta-return');
     const close = () => { if (dialog.open) dialog.close(); };
+    // This is the topmost native modal. Settings must not treat its Escape
+    // as a request to navigate the underlying sheet.
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    });
+    dialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      close(); // triggers the one-time cleanup + focus restoration
+    });
     const onMessage = (event) => {
       if (event.origin === 'null'
           && event.source === frame.contentWindow
@@ -3251,6 +3263,12 @@
     window.addEventListener('message', onMessage);
     closeButton.addEventListener('click', close);
     const tokenAtOpen = session?.token;
+    // Across browser tabs the in-memory session may not update promptly.
+    // A changed persisted session is sufficient reason to close the beta.
+    const onStorage = (event) => {
+      if (event.key === SESSION_KEY || event.key === null) close();
+    };
+    window.addEventListener('storage', onStorage);
     const safetyTimer = window.setInterval(() => {
       if (!tokenAtOpen || session?.token !== tokenAtOpen
           || window.RiderMovementSafety.isLockedForSafety(movementState)) close();
@@ -3268,6 +3286,7 @@
       window.clearInterval(safetyTimer);
       window.clearInterval(roleTimer);
       window.removeEventListener('message', onMessage);
+      window.removeEventListener('storage', onStorage);
       frame.removeAttribute('src'); // stop tile requests on return to classic
       dialog.remove();
       if (trigger?.isConnected) trigger.focus({ preventScroll: true });
@@ -9723,6 +9742,9 @@
     $('#closeSheetAll').addEventListener('click', () => closeSheet());
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {
+      // A native <dialog> is above the Settings sheet: it owns Escape and
+      // Tab focus while open. Never navigate the sheet under the map beta.
+      if ($('#riderMapBetaDialog')?.open) return;
       if ($('#sheetBackdrop').hidden) return;
       if (event.key === 'Escape') {
         event.preventDefault();
