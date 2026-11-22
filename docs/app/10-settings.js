@@ -82,6 +82,13 @@
     // This is the topmost native modal. Settings must not treat its Escape
     // as a request to navigate the underlying sheet.
     dialog.addEventListener('keydown', (event) => {
+      // In Chromium, reverse-tab from the first button can otherwise move
+      // focus to <body> before the frame receives it. Keep it in the dialog.
+      if (event.key === 'Tab' && event.shiftKey && document.activeElement === closeButton) {
+        event.preventDefault();
+        frame.focus();
+        return;
+      }
       if (event.key !== 'Escape') return;
       event.preventDefault();
       event.stopPropagation();
