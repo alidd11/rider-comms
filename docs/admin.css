@@ -862,10 +862,24 @@ body.menu-visible { overflow: hidden; }
 .inbox-item-time { color: var(--muted-fg); }
 .inbox-item-actions { flex: none; }
 .inbox-item-actions .button { min-height: 40px; }
+/* Operational work cards: a readable case hierarchy without implying severity from report volume. */
+.inbox-item { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.inbox-item:hover, .inbox-item:focus-within { border-color: var(--border-strong); }
+.inbox-item:focus-within { box-shadow: 0 0 0 2px var(--accent-soft); }
+.inbox-item-title { font-size: 15px; line-height: 21px; letter-spacing: -0.015em; }
+.inbox-item .person { max-width: 100%; }
+.inbox-item-meta .badge { flex: none; }
+.inbox-item-detail { color: var(--fg-2); }
+.inbox-quick-claim { padding-left: 10px; border-left: 1px solid var(--border-strong); color: var(--fg-2); }
+.inbox-item-time { margin-left: auto; font-variant-numeric: tabular-nums; }
+.inbox-item-actions .button { min-height: 42px; }
+@media (prefers-reduced-motion: reduce) { .inbox-item { transition: none; } }
 .inbox-limit-note { margin: 14px 0 0; color: var(--muted-fg); font-size: 12px; }
 @media (max-width: 700px) {
   .inbox-item { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
   .inbox-item-main { gap: 8px; }
   .inbox-item-actions, .inbox-item-actions .button { width: 100%; }
   .inbox-item-actions .button { justify-content: center; min-height: 44px; }
+  .inbox-item-time { margin-left: 0; }
+  .inbox-quick-claim { padding-left: 0; border-left: 0; }
 }
