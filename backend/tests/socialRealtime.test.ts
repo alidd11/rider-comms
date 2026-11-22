@@ -18,7 +18,7 @@ describe('social activity and realtime API', { skip: !hasDatabase && 'DATABASE_U
 
   beforeEach(async () => {
     await getPool().query(
-      'TRUNCATE social_events, rider_activity, friend_requests, friendships, direct_message_reads, direct_messages, rider_blocks, safety_reports, social_rate_events RESTART IDENTITY',
+      'TRUNCATE social_events, rider_activity, friend_requests, friendships, direct_message_reads, direct_messages, rider_blocks, safety_report_assignment_events, safety_reports, social_rate_events RESTART IDENTITY',
     );
   });
 
