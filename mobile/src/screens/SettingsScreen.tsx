@@ -5,7 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
-import { File, Paths } from 'expo-file-system';
+import type { File } from 'expo-file-system';
+import { createTemporaryAccountExport } from '../security/accountExportFiles';
 import { MAX_PROFILE_BIO_LENGTH, type SocialVisibility } from '@rider-comms/shared';
 import { colors, spacing, pressedFeedback } from '../theme';
 import { BlockedRidersList } from './BlockedRidersList';
@@ -648,17 +649,15 @@ function AccountPage(): React.JSX.Element {
         // Write only after password confirmation. This is a local, sandboxed
         // cache file, never a web upload or permanent app settings value.
         const data = await client.exportAccountData();
-        const file = new File(Paths.cache, `rider-comms-data-${Date.now()}.json`);
+        const file = await createTemporaryAccountExport(data);
         pendingFile = file;
-        file.create();
-        await file.write(JSON.stringify(data, null, 2) + '\n');
         // Android may not have a JSON viewer; a plain-text viewer can display
         // the same .json contents without changing their encoding.
         const mimeType = await file.canPreview({ mimeType: 'application/json' })
           ? 'application/json' : 'text/plain';
         if (!(await file.canPreview({ mimeType }))) throw new Error('file_preview_unavailable');
         await file.preview({ title: 'Rider Comms account data', mimeType });
-        pendingFile = null; // Keep the file available while the system viewer uses it.
+        pendingFile = null; // The next app launch prunes exports older than 24h.
       }
       setSensitiveAction(null);
     } catch (error) {

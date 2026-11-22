@@ -25,6 +25,7 @@ import { LEGAL_LINKS } from '../legalLinks';
 import { AUTH_MUTED, AUTH_TEXT, styles } from './AuthContext.styles';
 import { AUTH_HERO_IMAGE, BRAND_MARK_IMAGE } from '../brandAssets';
 import { ApiError, RiderCommsClient } from '../api/client';
+import { pruneExpiredAccountExports } from '../security/accountExportFiles';
 import type { LoginSession } from '../api/client';
 import { pressedFeedback } from '../theme';
 
@@ -549,6 +550,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const [termsVersion, setTermsVersion] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    // A file preview resolves on handoff, before the OS viewer closes. Old
+    // private export copies are pruned on app launch, not immediately on handoff.
+    try { pruneExpiredAccountExports(); } catch { /* Cache cleanup must not block sign-in. */ }
     let cancelled = false;
     void (async () => {
       const splashStartedAt = Date.now();
