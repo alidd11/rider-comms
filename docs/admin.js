@@ -559,7 +559,14 @@
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
     return el('div', { class: 'page-header' }, [
-      el('div', {}, [el('h1', { class: 'page-title', tabindex: '-1', text: title }), subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null]),
+      el('div', { class: 'page-heading' }, [
+        el('span', { class: 'page-eyebrow' }, [
+          el('span', { class: 'page-eyebrow-dot', 'aria-hidden': 'true' }),
+          el('span', { text: 'Operations hub' }),
+        ]),
+        el('h1', { class: 'page-title', tabindex: '-1', text: title }),
+        subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null,
+      ]),
       el('div', { class: 'actions' }, [...actions, refresh]),
     ]);
   }
