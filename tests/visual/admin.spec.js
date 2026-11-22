@@ -745,7 +745,9 @@ test.describe('staff dashboard', () => {
     await expect(company).toContainText('Rider Comms');
     await expect(company).toContainText('Rider Social');
     await expect(company).toContainText('Trust & safety');
+    await expect(company).toContainText('Customer support');
     await expect(company).toContainText('People & access');
+    await expect(company).toContainText('Privacy & compliance');
     await expect(company).toContainText('Platform reliability');
     const billing = company.locator('.company-unit', { hasText: 'Commercial & billing' });
     await expect(billing).toContainText('Not connected');
@@ -763,6 +765,8 @@ test.describe('staff dashboard', () => {
     const company = page.getByRole('region', { name: 'Company operations' });
     await expect(company.getByRole('button', { name: 'Review Social queue' })).toHaveCount(0);
     await expect(company.getByRole('button', { name: 'Manage staff roles' })).toHaveCount(0);
+    await expect(company.getByRole('button', { name: 'Find customer account' })).toHaveCount(0);
+    await expect(company.getByRole('button', { name: 'Inspect audit records' })).toHaveCount(0);
     await expect(company.getByRole('button', { name: 'Inspect platform' })).toBeVisible();
     await company.getByRole('button', { name: 'Inspect platform' }).click();
     await expect(page.locator('.page-title')).toHaveText('System');
