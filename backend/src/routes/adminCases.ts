@@ -6,6 +6,7 @@ import { CompanyCaseStore, CASE_KINDS, CASE_STATUSES, CASE_PRIORITIES,
   canAccessCaseKind, caseKindsForRole, isCaseKind, isCasePriority, isCaseStatus, parseCaseCursor,
 } from '../companyCaseStore.ts';
 import type { StaffRole, StaffPermission } from '../staffRoles.ts';
+import { caseActivityReport, parseOperationsWindow } from '../operationsReports.ts';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const subjectPattern = /^rider_[A-Za-z0-9_-]{1,80}$/;
@@ -23,6 +24,12 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
   if (url.pathname === '/admin/cases/summary' && req.method === 'GET') {
     return sendJson(res, 200, await store.summary(caseKindsForRole(role), actorId));
   }
+  if (url.pathname === '/admin/cases/activity' && req.method === 'GET') {
+    const days = parseOperationsWindow(url.searchParams.get('days'));
+    if (days === null) return sendJson(res, 400, { error: 'invalid_report_window', values: [7, 30] });
+    return sendJson(res, 200, await caseActivityReport(caseKindsForRole(role), days));
+  }
+
   if (url.pathname === '/admin/cases' && req.method === 'GET') {
     const kindRaw = url.searchParams.get('kind');
     const kind = kindRaw === null || kindRaw === 'all' ? undefined : kindRaw;
