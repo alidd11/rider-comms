@@ -80,6 +80,8 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
   const state = {
     reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended, assignedTo: null, assignedAt: null }],
     assignmentEvents: [],
+    staffLogins: [],
+    staffLogouts: 0,
     actions: [],
     posts: [],
     riderQueries: [],
@@ -107,6 +109,17 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     const json = (status, body) => route.fulfill({ status, headers, contentType: 'application/json', body: JSON.stringify(body) });
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
     if ((url.pathname.startsWith('/moderation') || url.pathname.startsWith('/admin')) && !admin) return json(403, { error: 'admin_required' });
+    if (url.pathname === '/auth/staff-login') {
+      const body = request.postDataJSON();
+      state.staffLogins.push(body);
+      if (body.password !== 'right-password') return json(401, { error: 'invalid_credentials' });
+      if (!admin) return json(403, { error: 'staff_only' });
+      return json(200, { riderId: ADMIN_ID, token: 'staff-token', emailVerified: true });
+    }
+    if (url.pathname === '/auth/logout' && request.method() === 'POST') {
+      state.staffLogouts += 1;
+      return route.fulfill({ status: 204, headers, body: '' });
+    }
     if (url.pathname === '/admin/me') return json(200, { riderId: ADMIN_ID, role, permissions: ROLE_PERMISSIONS[role] });
     if (url.pathname === '/auth/reauthenticate') {
       const { password } = request.postDataJSON();
@@ -339,6 +352,59 @@ async function holdApiResponse(page, matcher, status, body) {
 }
 
 test.describe('staff dashboard', () => {
+
+  test('installed staff entry has independent sign-in, install metadata and a revocable session', async ({ page }) => {
+    // The main Rider Comms login must not automatically grant the isolated app a session.
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/staff/');
+    const heading = page.getByRole('heading', { name: 'Staff sign in' });
+    await expect(heading).toBeVisible();
+    await expect(page.getByText('Your operations workspace.')).toBeVisible();
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', './manifest.json');
+    const manifest = await page.request.get('/staff/manifest.json');
+    expect(manifest.status()).toBe(200);
+    expect(await manifest.json()).toMatchObject({
+      name: 'Rider Comms Staff', id: './', start_url: './', scope: './', display: 'standalone',
+    });
+    await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+    await page.getByLabel('Password', { exact: true }).fill('right-password');
+    await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+    await expect(page.locator('#nav')).not.toHaveAttribute('hidden', '');
+    await expect(page.locator('.page-title')).toHaveText('Overview');
+    await expect.poll(() => state.staffLogins.length).toBe(1);
+    expect(state.staffLogins[0].deviceName).toBe('Rider Comms Staff PWA');
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('rider-comms-staff-session-v1')));
+    expect(stored.riderId).toBe(ADMIN_ID);
+    await openMenuIfPhone(page);
+    const signout = page.getByRole('button', { name: 'Sign out of Staff' });
+    await signout.click();
+    await expect(heading).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('rider-comms-staff-session-v1'))).toBeNull();
+    await expect.poll(() => state.staffLogouts).toBe(1);
+  });
+
+  test('staff PWA denies riders without staff access and never retains their token', async ({ page }) => {
+    await mockModerationApi(page, { admin: false });
+    await page.goto('/staff/');
+    await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('rider');
+    await page.getByLabel('Password', { exact: true }).fill('right-password');
+    await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+    await expect(page.getByRole('alert')).toHaveText('This account does not have staff access.');
+    await expect(page.locator('#nav')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('rider-comms-staff-session-v1'))).toBeNull();
+  });
+
+  test('staff PWA handles incorrect credentials without retaining passwords', async ({ page }) => {
+    await mockModerationApi(page);
+    await page.goto('/staff/');
+    await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+    await page.getByLabel('Password', { exact: true }).fill('wrong-password');
+    await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+    await expect(page.getByRole('alert')).toHaveText('The username or password is incorrect.');
+    await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+  });
+
 
 
   test('case owner survives refresh and history remains separate from the quick claim', async ({ page }) => {
@@ -641,19 +707,30 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.empty-title')).toHaveText('Nothing waiting in this view');
   });
 
-  test('asks a signed-out visitor to sign in to the app first', async ({ page }) => {
+  test('shows a direct, accessible Staff login when no Rider Comms session exists', async ({ page }) => {
     await mockModerationApi(page);
     await page.goto('/admin.html');
-    await expect(page.locator('.empty-title')).toHaveText('Sign in to continue');
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your operations workspace.' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Rider Comms username' })).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in to Operations Hub' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open the installable Staff app' })).toHaveAttribute('href', './staff/');
     await expect(page.locator('#nav')).toBeHidden();
+    await expect(page.locator('#menuToggle')).toBeHidden();
+    await expect(page.locator('.workspace-toolbar')).toBeHidden();
   });
 
-  test('tells a non-staff account it has no access', async ({ page }) => {
+  test('blocks a revoked or non-staff legacy rider session and offers only Staff sign in', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page, { admin: false });
     await page.goto('/admin.html');
-    await expect(page.locator('.empty-title')).toHaveText('This account is not staff');
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveText('This account does not have staff access.');
     await expect(page.locator('#nav')).toBeHidden();
+    await expect(page.locator('#menuToggle')).toBeHidden();
+    await expect(page.locator('.page-title')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('rider-comms-staff-session-v1'))).toBeNull();
   });
 
 
@@ -1428,6 +1505,17 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('#nav').getByRole('button', { name: 'Overview' })).toBeFocused();
     await expect(page.locator('#sidebarFooter')).toBeVisible();
     await page.locator('#nav [data-view="system"]').focus();
+    await page.keyboard.press('Tab');
+    const installLink = page.getByRole('link', { name: 'Open installable Staff app' });
+    await expect(installLink).toBeFocused();
+    await expect(installLink).toHaveAttribute('href', './staff/');
+    await page.keyboard.press('Tab');
+    const signOut = page.getByRole('button', { name: 'Sign out of Staff' });
+    await expect(signOut).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(toggle).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(signOut).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(toggle).toBeFocused();
     await page.keyboard.press('Escape');

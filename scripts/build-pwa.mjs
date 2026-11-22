@@ -20,6 +20,8 @@ const publicFiles = [
   'privacy.html', 'terms.html', 'guidelines.html', 'support.html', 'legal.css',
 ];
 await Promise.all(publicFiles.map((file) => cp(resolve(source, file), resolve(destination, file))));
+// Dedicated /staff/ PWA: separate manifest, scope, service worker and shell.
+await cp(resolve(source, 'staff'), resolve(destination, 'staff'), { recursive: true });
 await cp(resolve(source, 'icons'), resolve(destination, 'icons'), { recursive: true });
 // Self-hosted Inter (SIL Open Font License) for the staff dashboard.
 await cp(resolve(source, 'fonts'), resolve(destination, 'fonts'), { recursive: true });
@@ -83,6 +85,21 @@ for (const file of ['index.html', 'sw.js']) {
   if (rewritten !== original) await writeFile(path, rewritten);
 }
 
+// Version the Staff service worker when its shell changes. Its scope and
+// cache namespace stay independent of the Rider Comms main PWA.
+const staffWorkerPath = resolve(destination, 'staff', 'sw.js');
+const staffVersion = createHash('sha256')
+  .update(await readFile(resolve(destination, 'staff', 'index.html')))
+  .update(await readFile(resolve(destination, 'staff', 'manifest.json')))
+  .update(await readFile(resolve(destination, 'admin.css')))
+  .update(await readFile(resolve(destination, 'admin.js')))
+  .digest('hex').slice(0, 10);
+await writeFile(staffWorkerPath, (await readFile(staffWorkerPath, 'utf8'))
+  .replace(/rider-comms-staff-v[\w-]+/, `rider-comms-staff-v${staffVersion}`));
+const staffHtml = await readFile(resolve(destination, 'staff', 'index.html'), 'utf8');
+if (!staffHtml.includes('href="./manifest.json"') || !staffHtml.includes('src="../admin.js"')) {
+  throw new Error('Staff install shell must reference its own manifest and the shared admin client');
+}
 const html = await readFile(resolve(destination, 'index.html'), 'utf8');
 for (const asset of ['app.css', 'config.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js', 'position-interpolation.js', 'app.js', 'movement-safety.js', 'message-state.js', 'manifest.json', 'routes.css', 'routes.js']) {
   if (!html.includes(asset)) throw new Error(`PWA shell does not reference ${asset}`);

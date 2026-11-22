@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
+import { File, Paths } from 'expo-file-system';
 import { MAX_PROFILE_BIO_LENGTH, type SocialVisibility } from '@rider-comms/shared';
 import { colors, spacing, pressedFeedback } from '../theme';
 import { BlockedRidersList } from './BlockedRidersList';
@@ -612,34 +613,78 @@ function AccountPage(): React.JSX.Element {
     );
   }
 
-  const [deletePasswordOpen, setDeletePasswordOpen] = React.useState(false);
-  const [deletePassword, setDeletePassword] = React.useState('');
-  const [deletePasswordError, setDeletePasswordError] = React.useState<string | null>(null);
-  const [deleteBusy, setDeleteBusy] = React.useState(false);
+  const [sensitiveAction, setSensitiveAction] = React.useState<'export' | 'delete' | null>(null);
+  const [sensitivePassword, setSensitivePassword] = React.useState('');
+  const [sensitiveError, setSensitiveError] = React.useState<string | null>(null);
+  const [sensitiveBusy, setSensitiveBusy] = React.useState(false);
 
-  function cancelDeletePassword() {
-    if (deleteBusy) return;
-    setDeletePassword('');
-    setDeletePasswordError(null);
-    setDeletePasswordOpen(false);
+  function startSensitiveAction(action: 'export' | 'delete') {
+    if (sensitiveBusy) return;
+    setSensitivePassword('');
+    setSensitiveError(null);
+    setSensitiveAction(action);
   }
 
-  async function submitDeletePassword() {
-    if (deleteBusy || !deletePassword || deletePassword.length > 128) return;
-    const password = deletePassword;
-    setDeletePassword('');
-    setDeleteBusy(true);
-    setDeletePasswordError(null);
+  function cancelSensitiveAction() {
+    if (sensitiveBusy) return;
+    setSensitivePassword('');
+    setSensitiveError(null);
+    setSensitiveAction(null);
+  }
+
+  async function submitSensitiveAction() {
+    if (!sensitiveAction || sensitiveBusy || !sensitivePassword || sensitivePassword.length > 128) return;
+    const action = sensitiveAction;
+    const password = sensitivePassword;
+    setSensitivePassword('');
+    setSensitiveBusy(true);
+    setSensitiveError(null);
+    let pendingFile: File | null = null;
     try {
       await client.reauthenticate(password);
-      await deleteAccount();
-      setDeletePasswordOpen(false);
+      if (action === 'delete') {
+        await deleteAccount();
+      } else {
+        // Write only after password confirmation. This is a local, sandboxed
+        // cache file, never a web upload or permanent app settings value.
+        const data = await client.exportAccountData();
+        const file = new File(Paths.cache, `rider-comms-data-${Date.now()}.json`);
+        pendingFile = file;
+        file.create();
+        await file.write(JSON.stringify(data, null, 2) + '\n');
+        // Android may not have a JSON viewer; a plain-text viewer can display
+        // the same .json contents without changing their encoding.
+        const mimeType = await file.canPreview({ mimeType: 'application/json' })
+          ? 'application/json' : 'text/plain';
+        if (!(await file.canPreview({ mimeType }))) throw new Error('file_preview_unavailable');
+        await file.preview({ title: 'Rider Comms account data', mimeType });
+        pendingFile = null; // Keep the file available while the system viewer uses it.
+      }
+      setSensitiveAction(null);
     } catch (error) {
+      if (pendingFile) {
+        try { pendingFile.delete(); } catch { /* Best-effort cleanup after a failed export. */ }
+      }
       const wrong = error instanceof ApiError && (error.body as { error?: string } | null)?.error === 'invalid_credentials';
-      setDeletePasswordError(wrong ? 'Incorrect password. Try again.' : 'Couldn’t delete your account. Check your connection and try again.');
+      setSensitiveError(wrong
+        ? 'Incorrect password. Try again.'
+        : action === 'export'
+          ? 'Couldn’t open your account-data file. Check your connection or file viewer and try again.'
+          : 'Couldn’t delete your account. Check your connection and try again.');
     } finally {
-      setDeleteBusy(false);
+      setSensitiveBusy(false);
     }
+  }
+
+  function confirmExportAccount() {
+    Alert.alert(
+      'Download your account data?',
+      'The export includes private account information. Your device may offer other apps to open or save the file. Store your copy securely.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: () => startSensitiveAction('export') },
+      ]
+    );
   }
 
   function confirmDeleteAccount() {
@@ -649,9 +694,7 @@ function AccountPage(): React.JSX.Element {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Continue', style: 'destructive', onPress: () => {
-          setDeletePassword('');
-          setDeletePasswordError(null);
-          setDeletePasswordOpen(true);
+          startSensitiveAction('delete');
         } },
       ]
     );
@@ -681,27 +724,30 @@ function AccountPage(): React.JSX.Element {
       <SettingsGroup title="Advanced" note="Deleting your account permanently removes it and its data straight away.">
         <PlainRow first title="Sign out" chevron={false} onPress={confirmLogOut} />
         <PlainRow title="Reset settings" chevron={false} onPress={confirmReset} />
+        <PlainRow title="Download my data" chevron={false} onPress={confirmExportAccount} />
         <PlainRow title="Delete account" danger chevron={false} onPress={confirmDeleteAccount} />
       </SettingsGroup>
-      <Modal visible={deletePasswordOpen} transparent animationType="fade" onRequestClose={cancelDeletePassword}>
+      <Modal visible={sensitiveAction !== null} transparent animationType="fade" onRequestClose={cancelSensitiveAction}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Confirm your password</Text>
-            <Text style={styles.modalSubtitle}>Enter your password before permanently deleting your Rider Comms account and its data.</Text>
-            <TextInput accessibilityLabel="Account password for deletion"
-              value={deletePassword} onChangeText={setDeletePassword}
+            <Text style={styles.modalSubtitle}>{sensitiveAction === 'export'
+              ? 'Enter your password before downloading a private copy of your Rider Comms data.'
+              : 'Enter your password before permanently deleting your Rider Comms account and its data.'}</Text>
+            <TextInput accessibilityLabel={sensitiveAction === 'export' ? 'Account password for data download' : 'Account password for deletion'}
+              value={sensitivePassword} onChangeText={setSensitivePassword}
               secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="password"
-              maxLength={128} editable={!deleteBusy}
+              maxLength={128} editable={!sensitiveBusy}
               style={[styles.sheetInput, { marginHorizontal: 0, marginTop: spacing.md }]} />
-            {deletePasswordError ? <Text accessibilityRole="alert" style={[styles.profileSaveError, { marginTop: spacing.sm }]}>{deletePasswordError}</Text> : null}
-            <Pressable accessibilityRole="button" disabled={deleteBusy || !deletePassword}
-              style={[styles.modalDone, (deleteBusy || !deletePassword) && styles.sheetActionDisabled]}
-              onPress={() => void submitDeletePassword()}>
-              <Text style={styles.modalDoneText}>{deleteBusy ? 'Confirming…' : 'Delete account permanently'}</Text>
+            {sensitiveError ? <Text accessibilityRole="alert" style={[styles.profileSaveError, { marginTop: spacing.sm }]}>{sensitiveError}</Text> : null}
+            <Pressable accessibilityRole="button" disabled={sensitiveBusy || !sensitivePassword}
+              style={[styles.modalDone, (sensitiveBusy || !sensitivePassword) && styles.sheetActionDisabled]}
+              onPress={() => void submitSensitiveAction()}>
+              <Text style={styles.modalDoneText}>{sensitiveBusy ? 'Confirming…' : sensitiveAction === 'export' ? 'Download my data' : 'Delete account permanently'}</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" disabled={deleteBusy}
-              style={[styles.modalDone, { backgroundColor: colors.surfaceRaised }, deleteBusy && styles.sheetActionDisabled]}
-              onPress={cancelDeletePassword}>
+            <Pressable accessibilityRole="button" disabled={sensitiveBusy}
+              style={[styles.modalDone, { backgroundColor: colors.surfaceRaised }, sensitiveBusy && styles.sheetActionDisabled]}
+              onPress={cancelSensitiveAction}>
               <Text style={[styles.modalDoneText, { color: colors.textPrimary }]}>Cancel</Text>
             </Pressable>
           </View>

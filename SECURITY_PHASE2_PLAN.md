@@ -13,7 +13,7 @@ ACCOUNT_SENSITIVE_REAUTH_ENFORCED is off by default. Tests enable it temporarily
 ### Release gate for enforcement
 
 1. Test compatible PWA, iOS and Android clients on real devices: cancelled prompts, incorrect password, session revocation mid-prompt, timeout, connectivity failure and the 401-versus-403 distinction.
-2. Implement an accessible, user-visible account-data export action on both PWA and native, protected by password confirmation, without leaking the export into analytics, debug logs or caches. Plan recovery for older installed app versions.
+2. Review and device-test the new draft user-visible data-export flows in this PR: PWA generates a private JSON download after password confirmation, and native opens a JSON file written to the sandboxed temporary cache through Expo FileSystem. Verify iOS/Android file-viewer availability, iOS installed-PWA downloads, accessibility, cancellation, and export-data integrity. Plan secure cleanup of native temporary export files after handoff and an upgrade/recovery path for older installed clients. Never log or upload the export.
 3. Validate account deletion accessibility and app-store requirements; agree a staged compatibility and rollback policy.
 4. Obtain explicit owner approval to enable the flag, verify the deployed backend configuration and retest. Green CI alone is not proof that production currently enforces step-up.
 
@@ -43,3 +43,7 @@ Follow BACKUP_RESTORE.md. The infrastructure owner must configure both secrets w
 ## Evidence and ownership
 
 Each change requires green exact-head CI, Social, native and isolated security checks, plus review of any runtime configuration implications. Report residual risk. Do not merge, deploy, enable enforcement or change other agents' branches without owner approval.
+
+## Client data-export implementation — draft QA evidence needed
+
+This PR adds a `Download my data` action in both PWA and native Account settings. Both require the existing password-confirming backend endpoint before calling the current-rider export API. Native uses the installed Expo SDK 58 `expo-file-system` module to create a temporary JSON file and presents it with the OS file viewer; the file stays in the app cache while another app may read it, so **native cleanup and device QA remain mandatory before release**. PWA constructs a JSON Blob URL without storing the export in localStorage or sending it to third parties; the object URL is revoked after the browser has had time to download it. Existing older clients remain supported while the server-side gate is default-off.
