@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
 import {
+  clearTemporaryAccountExports,
   createTemporaryAccountExport,
   pruneExpiredAccountExports,
 } from '../../src/security/accountExportFiles';
@@ -12,6 +13,7 @@ const mockFiles = {
   createCalls: 0,
   failWrite: false,
   failDelete: false,
+  failList: false,
 };
 
 jest.mock('expo-file-system', () => {
@@ -22,7 +24,10 @@ jest.mock('expo-file-system', () => {
       mockFiles.directoryExists = true;
       mockFiles.createCalls += 1;
     }
-    list() { return mockFiles.entries; }
+    list() {
+      if (mockFiles.failList) throw new Error('mock cache listing unavailable');
+      return mockFiles.entries;
+    }
   }
   class FakeFile {
     name: string;
@@ -78,6 +83,7 @@ beforeEach(() => {
   mockFiles.createCalls = 0;
   mockFiles.failWrite = false;
   mockFiles.failDelete = false;
+  mockFiles.failList = false;
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
 });
 
@@ -122,6 +128,42 @@ describe('native private account data export file handling', () => {
     mockFiles.failDelete = false;
     pruneExpiredAccountExports(NOW);
     expect(old.exists).toBe(false);
+  });
+
+  test('clears recent account exports at sign-out but preserves unrelated files', () => {
+    const recent = fakeExistingFile('rider-comms-data-' + NOW + '-abc12345.json');
+    const old = fakeExistingFile('rider-comms-data-' +
+      (NOW - ACCOUNT_EXPORT_MAX_CACHE_AGE_MS - 1) + '-abc12345.json');
+    const unrelated = fakeExistingFile('other-file.json');
+    const badName = fakeExistingFile('rider-comms-data-123-invalid.json');
+
+    clearTemporaryAccountExports();
+
+    expect(mockFiles.deleted).toEqual([recent.name, old.name]);
+    expect(recent.exists).toBe(false);
+    expect(old.exists).toBe(false);
+    expect(unrelated.exists).toBe(true);
+    expect(badName.exists).toBe(true);
+  });
+
+  test('cleanup does not throw if the OS cache listing fails', () => {
+    fakeExistingFile('rider-comms-data-' + NOW + '-abc12345.json');
+    mockFiles.failList = true;
+    expect(() => clearTemporaryAccountExports()).not.toThrow();
+    expect(() => pruneExpiredAccountExports(NOW + ACCOUNT_EXPORT_MAX_CACHE_AGE_MS)).not.toThrow();
+    mockFiles.failList = false;
+    clearTemporaryAccountExports();
+    expect(mockFiles.deleted).toHaveLength(1);
+  });
+
+  test('sign-out cleanup tolerates a locked viewer and can retry later', () => {
+    const recent = fakeExistingFile('rider-comms-data-' + NOW + '-abc12345.json');
+    mockFiles.failDelete = true;
+    expect(() => clearTemporaryAccountExports()).not.toThrow();
+    expect(recent.exists).toBe(true);
+    mockFiles.failDelete = false;
+    clearTemporaryAccountExports();
+    expect(recent.exists).toBe(false);
   });
 
   test('deletes a partial temporary export if writing sensitive JSON fails', async () => {

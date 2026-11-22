@@ -16,6 +16,12 @@ const LEGACY_GUEST_KEY = '@rider-comms/auth-v1';
 const mockGetItemAsync = jest.fn();
 const mockSetItemAsync = jest.fn();
 const mockDeleteItemAsync = jest.fn();
+const mockClearTemporaryExports = jest.fn();
+
+jest.mock('../../src/security/accountExportFiles', () => ({
+  pruneExpiredAccountExports: jest.fn(),
+  clearTemporaryAccountExports: (...args: unknown[]) => mockClearTemporaryExports(...args),
+}));
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: (...args: unknown[]) => mockGetItemAsync(...args),
@@ -59,6 +65,7 @@ beforeEach(() => {
   mockGetItemAsync.mockReset().mockResolvedValue(null);
   mockSetItemAsync.mockReset().mockResolvedValue(undefined);
   mockDeleteItemAsync.mockReset().mockResolvedValue(undefined);
+  mockClearTemporaryExports.mockReset();
   mockClientImpl = {
     getMe: jest.fn(async () => ({ riderId: 'me', username: 'me', emailVerified: true })),
     logOut: jest.fn(async () => undefined),
@@ -150,6 +157,20 @@ test('logOut calls the server, then always clears the local session even if that
   })).rejects.toThrow('network down');
 
   expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
+});
+
+test('local sign-out continues when the private export cache cannot be cleared', async () => {
+  mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession() : null));
+  mockClearTemporaryExports.mockImplementationOnce(() => { throw new Error('locked external viewer'); });
+  const { result } = await renderAuth();
+  await flushSplashDelay();
+  await waitFor(() => expect(result.current.riderId).toBe('me'));
+
+  await act(async () => { await result.current.logOut(); });
+
+  expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
 });
 
 test('deleteAccount clears the local session only after the server call succeeds', async () => {
@@ -164,6 +185,7 @@ test('deleteAccount clears the local session only after the server call succeeds
 
   expect(mockClientImpl.deleteAccount).toHaveBeenCalled();
   expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
 });
 
 test('deleting an account forgets that rider\'s data on the phone, and nobody else\'s', async () => {
@@ -199,6 +221,7 @@ test('deleteAccount leaves the local session intact when the server call fails',
   })).rejects.toThrow('network down');
 
   expect(mockDeleteItemAsync).not.toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).not.toHaveBeenCalled();
   expect(result.current.riderId).toBe('me');
 });
 

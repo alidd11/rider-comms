@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   ACCOUNT_EXPORT_MAX_CACHE_AGE_MS,
   isExpiredAccountExportFile,
+  isManagedAccountExportFile,
 } from '../src/security/accountExportRetention.ts';
 
 const now = 1_800_000_000_000;
@@ -10,6 +11,15 @@ const name = (createdAt: number, suffix = 'abc12345') =>
   'rider-comms-data-' + createdAt + '-' + suffix + '.json';
 
 describe('private account export cache retention', () => {
+  it('recognises only app-managed export filenames for account-exit cleanup', () => {
+    assert.equal(isManagedAccountExportFile(name(now)), true);
+    assert.equal(isManagedAccountExportFile(name(now - ACCOUNT_EXPORT_MAX_CACHE_AGE_MS)), true);
+    assert.equal(isManagedAccountExportFile('unrelated-account-data.json'), false);
+    assert.equal(isManagedAccountExportFile(name(0)), false);
+    assert.equal(isManagedAccountExportFile(name(Number.MAX_SAFE_INTEGER + 1)), false);
+    assert.equal(isManagedAccountExportFile('rider-comms-data-1700000000000.json'), false);
+  });
+
   it('keeps recently generated files available for the OS preview handoff', () => {
     assert.equal(isExpiredAccountExportFile(name(now), now), false);
     assert.equal(isExpiredAccountExportFile(name(now - 1), now), false);

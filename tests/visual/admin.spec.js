@@ -1269,14 +1269,14 @@ test.describe('staff dashboard', () => {
     await expect(kpi('Open reports').getByRole('link', { name: 'Review queue' })).toHaveAttribute('href', '#moderation');
     await expect(page.locator('body')).toContainText('Blocked by the content filter this week');
 
-    await page.getByRole('button', { name: '30 days' }).click();
-    await expect(page.getByRole('button', { name: '30 days' })).toBeFocused();
+    await page.getByRole('combobox', { name: 'Reporting period' }).selectOption('30');
+    await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
     await expect(kpi('New riders').locator('.kpi-value')).toHaveText('310');
     await expect(kpi('New riders').locator('.delta')).toHaveText('0%');
     await expect(page.locator('.chart-card').first().locator('.card-description')).toHaveText('Sign-ups in the last 30 days');
     // The choice is remembered for next time.
     await page.reload();
-    await expect(page.getByRole('button', { name: '30 days' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
   });
 
   test('area charts compare periods, average distinct-rider counts and read out values', async ({ page }) => {
@@ -1894,4 +1894,63 @@ test('staff dashboard views have no automatically detectable accessibility viola
     await expect(page.locator('main')).toBeVisible();
     await expectNoAxeViolations(page, view);
   }
+});
+
+
+// CI visual baselines are screenshots of the real rendered Staff PWA shell
+// against deterministic, non-production API fixtures. Do not mistake fixture
+// counts, names or mocked health checks for screenshots of live customer data.
+for (const [deviceProject, label] of [
+  ['phone-modern', 'mobile'],
+  ['iphone-17-pro-max-webkit', 'ios-dark'],
+  ['viewport-desktop-chromium', 'desktop'],
+]) {
+  test(`staff Operations Hub screenshot evidence on ${label}${deviceProject.includes('viewport') ? ' @viewport' : ''}`,
+    async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== deviceProject, 'Capture once for each target');
+      await page.addInitScript((riderId) => {
+        localStorage.setItem('rider-comms-staff-session-v1', JSON.stringify({ riderId, token: 'admin-token' }));
+      }, ADMIN_ID);
+      await mockModerationApi(page);
+      const sections = [
+        ['overview', 'overview'], ['inbox', 'action-inbox'], ['riders', 'riders'],
+        ['moderation', 'moderation'], ['cases', 'case-desk'],
+        ['audit', 'audit-log'], ['staff', 'staff'], ['system', 'system'],
+        ['rider/rider_maya', 'rider-detail'],
+        ['case/11111111-1111-4111-8111-111111111111', 'case-detail'],
+      ];
+      for (const [route, name] of sections) {
+        await page.goto(`/staff/#${route}`);
+        await expect(page.locator('main .page-title')).toBeVisible();
+        await expect(page.locator('#page')).toHaveAttribute('aria-busy', 'false');
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        });
+        const filename = `staff-${label}-${name}.png`;
+        const filePath = testInfo.outputPath(filename);
+        await page.screenshot({ path: filePath, fullPage: true, animations: 'disabled' });
+        await testInfo.attach(filename, { path: filePath, contentType: 'image/png' });
+      }
+    });
+}
+
+test('reporting periods are consistent, persistent and do not hide operational queues', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html#cases');
+  const range = page.getByRole('combobox', { name: 'Reporting period' });
+  await expect(range).toHaveValue('7');
+  await range.selectOption('30');
+  await expect(page.getByText(/loaded cases updated in the last 30 days/)).toBeVisible();
+  await expect(page.locator('.case-item')).toHaveCount(4);
+  await openSection(page, 'Action inbox');
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+  await expect(page.getByText(/All open work remains visible regardless of age/)).toBeVisible();
+  await openSection(page, 'Moderation');
+  await expect(page.locator('.reporting-scope')).toHaveText('Live moderation queue');
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveCount(0);
+  await openSection(page, 'Overview');
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+  await expect(page.locator('.kpi').first().locator('.kpi-value')).toHaveText('310');
 });

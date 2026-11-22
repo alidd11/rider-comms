@@ -1,5 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system';
-import { isExpiredAccountExportFile } from './accountExportRetention';
+import { isExpiredAccountExportFile, isManagedAccountExportFile } from './accountExportRetention';
 
 /** App-private cache location for exports being viewed by the OS.
  * Never store the JSON in AsyncStorage, SecureStore, logs, or a shared folder. */
@@ -12,17 +12,29 @@ function accountExportDirectory(): Directory {
 /** Best-effort eviction: the OS preview handoff resolves before the viewer
  * closes, so deleting immediately after preview could truncate a download.
  * Older copies are deleted when the app starts or another export is made. */
-export function pruneExpiredAccountExports(nowMs = Date.now()): void {
+function deleteAccountExportFiles(shouldDelete: (filename: string) => boolean): void {
   const directory = accountExportDirectory();
   if (!directory.exists) return;
-  for (const entry of directory.list()) {
-    if (!(entry instanceof File) || !isExpiredAccountExportFile(entry.name, nowMs)) continue;
-    try {
-      entry.delete();
-    } catch {
-      // An external viewer might still have the file open. Retry next launch.
+  // A cache listing failure must never block sign-out or another export.
+  let entries: Array<File | Directory>;
+  try { entries = directory.list(); } catch { return; }
+  for (const entry of entries) {
+    if (!(entry instanceof File) || !shouldDelete(entry.name)) continue;
+    try { entry.delete(); } catch {
+      // A viewer may still hold a file open. The next launch retries expiry.
     }
   }
+}
+
+export function pruneExpiredAccountExports(nowMs = Date.now()): void {
+  deleteAccountExportFiles((filename) => isExpiredAccountExportFile(filename, nowMs));
+}
+
+/** Best effort at account exit: remove even recent private exports when the
+ * rider signs out or deletes the account. Only managed export files qualify.
+ * A copied file in another app is outside our control. */
+export function clearTemporaryAccountExports(): void {
+  deleteAccountExportFiles(isManagedAccountExportFile);
 }
 
 /** Create a private temporary file for the OS preview flow. Caller owns

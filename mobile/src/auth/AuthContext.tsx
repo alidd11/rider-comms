@@ -25,7 +25,7 @@ import { LEGAL_LINKS } from '../legalLinks';
 import { AUTH_MUTED, AUTH_TEXT, styles } from './AuthContext.styles';
 import { AUTH_HERO_IMAGE, BRAND_MARK_IMAGE } from '../brandAssets';
 import { ApiError, RiderCommsClient } from '../api/client';
-import { pruneExpiredAccountExports } from '../security/accountExportFiles';
+import { clearTemporaryAccountExports, pruneExpiredAccountExports } from '../security/accountExportFiles';
 import type { LoginSession } from '../api/client';
 import { pressedFeedback } from '../theme';
 
@@ -606,6 +606,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     if (!session) return null;
     const client = new RiderCommsClient(API_BASE_URL, fetch, session.token);
     const clearLocalSession = async () => {
+      // Export JSON is private to the rider. Clear locally retained copies
+      // whenever this session exits, even when server logout is offline.
+      // A locked OS viewer must never prevent local sign-out.
+      try { clearTemporaryAccountExports(); } catch { /* Best-effort cleanup. */ }
       await savedSession(() => SecureStore.deleteItemAsync(KEY));
       setSession(null);
     };
