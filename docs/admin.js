@@ -894,14 +894,18 @@
     ]);
 
     const companySections = companyCommandCentre(data);
+    const companyDetails = el('details', { class: 'overview-more', 'aria-label': 'Company operations and services' }, [
+      el('summary', { text: 'Company areas and connected services' }),
+      companySections[0],
+      companySections[1],
+    ]);
     pageEl.replaceChildren(
       pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · reporting in UTC`),
-      companySections[0],
       operationsSummary({ riders, activity, safety }),
       kpis,
-      companySections[1],
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
+      companyDetails,
       el('h2', { class: 'section-title', text: 'Growth' }),
       funnelCard(data.funnel),
       el('h2', { class: 'section-title', text: 'Community and safety' }),
@@ -1036,9 +1040,9 @@
     const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt)).length;
     pageEl.replaceChildren(
       pageHeader('Riders', riderQuery ? `${riders.length} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”` : `Newest ${riders.length} riders`),
-      el('p', { class: 'period-context', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last ${period} days. Search results and existing accounts are never hidden by this range.` }),
       form,
       ...[].concat(content),
+      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last ${period} days. Search results and existing accounts are never hidden by this range.` }),
     );
   }
 
@@ -1473,10 +1477,11 @@
         text: sampleText + ' This is not a company-wide count or priority order.' });
 
     pageEl.replaceChildren(
-      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.', [tabs]),
-      el('div', { class: 'inbox-intro', role: 'note' }, [
-        el('strong', { text: 'Review and assign work in Moderation' }),
-        el('span', { text: 'This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
+      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.'),
+      tabs,
+      el('details', { class: 'inbox-intro' }, [
+        el('summary', { text: 'How this queue works' }),
+        el('span', { text: 'Review and assign work in Moderation. This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
       ]),
       el('div', { class: 'inbox-triage-toolbar' }, [
         ownershipTabs,
@@ -1494,7 +1499,7 @@
       inboxFocusTarget = null;
       renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
     }, 'Moderation queues');
-    const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
+    const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.');
     // Exact-ID lookups bypass list sampling and sorting. A case could have
     // been claimed, resolved or removed since the Action Inbox snapshot.
     const selected = inboxFocusTarget &&
@@ -1522,7 +1527,7 @@
             'It may have been removed or changed since your inbox snapshot. No resolution is assumed.'),
           back,
         ]);
-        pageEl.replaceChildren(header, unavailable);
+        pageEl.replaceChildren(header, tabs, unavailable);
         return;
       }
       if (!isCurrentRender(generation)) return;
@@ -1534,6 +1539,7 @@
       const changed = selected.type === 'rider_report' && item.status !== 'open';
       pageEl.replaceChildren(
         header,
+        tabs,
         el('div', { class: 'inbox-intro', role: 'note' }, [
           el('strong', { text: changed ? `Report currently ${item.status}` : 'Showing the selected case' }),
           el('span', { text: changed
@@ -1557,7 +1563,7 @@
       if (!isCurrentRender(generation)) return;
       await loadNames(posts.map((entry) => entry.post.authorId));
       if (!isCurrentRender(generation)) return;
-      pageEl.replaceChildren(header, el('div', { class: 'reports' }, posts.length
+      pageEl.replaceChildren(header, tabs, el('div', { class: 'reports' }, posts.length
         ? posts.map(socialPostCard)
         : [el('div', { class: 'card' }, [emptyState('inbox', 'No hidden posts', 'Posts reported by three riders are hidden here until you restore or remove them.')])]));
       return;
@@ -1567,7 +1573,7 @@
     await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy, report.assignedTo]));
     if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
-    pageEl.replaceChildren(header, el('div', { class: 'reports' }, reports.length
+    pageEl.replaceChildren(header, tabs, el('div', { class: 'reports' }, reports.length
       ? reports.map(reportCard)
       : [el('div', { class: 'card' }, [emptyState('inbox', moderationView === 'open' ? 'No open reports' : 'Nothing here yet', moderationView === 'open' ? 'You’re all caught up.' : null)])]));
   }
