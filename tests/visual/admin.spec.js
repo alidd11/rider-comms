@@ -153,13 +153,15 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     if (url.pathname === '/admin/action-inbox') {
       if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
       const type = url.searchParams.get('type') ?? 'all';
-      const riderReports = state.reports.filter((report) => report.status === 'open')
+      const hiddenIds = new Set(state.socialPosts.map((entry) => entry.post.id));
+      const riderReports = state.reports.filter((report) =>
+        report.status === 'open' && !hiddenIds.has(report.sourcePostId)).slice(0, 100)
         .map((report) => ({
           type: 'rider_report', id: `rider_report:${report.id}`,
           reportId: report.id, riderId: report.reportedRiderId, eventAt: report.createdAt,
           reason: report.reason, claimedBy: report.claimedBy ?? null, reportsAgainstRider: report.reportsAgainstRider,
         }));
-      const posts = state.socialPosts.map((entry) => ({
+      const posts = state.socialPosts.slice(0, 100).map((entry) => ({
         type: 'social_post', id: `social_post:${entry.post.id}`,
         postId: entry.post.id, riderId: entry.post.authorId,
         eventAt: entry.hiddenAt ?? entry.post.createdAt,
@@ -169,7 +171,8 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
         ...(type === 'social_post' ? [] : riderReports),
         ...(type === 'rider_report' ? [] : posts),
       ].sort((a, b) => a.eventAt - b.eventAt);
-      return json(200, { generatedAt: Date.now(), items, filter: type, limit: 50, mayHaveMore: false, sourceSampleLimit: 100 });
+      return json(200, { generatedAt: Date.now(), items: items.slice(0, 50), filter: type, limit: 50,
+        mayHaveMore: items.length > 50, sourceSampleLimit: 100 });
     }
     if (url.pathname === '/admin/overview') return json(200, OVERVIEW);
     const riderDetail = url.pathname.match(/^\/admin\/riders\/(rider_[a-z0-9]+)$/);
@@ -224,15 +227,27 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
         rider_badactor: { displayName: 'Rex', handle: '@rex' },
       } });
     }
+    const reportId = url.pathname.match(/^\/moderation\/reports\/([^/]+)$/);
+    if (request.method() === 'GET' && reportId) {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const report = state.reports.find((row) => row.id === decodeURIComponent(reportId[1]));
+      return report ? json(200, { report }) : json(404, { error: 'not_found' });
+    }
+    const hiddenPostId = url.pathname.match(/^\/moderation\/social-posts\/([^/]+)$/);
+    if (request.method() === 'GET' && hiddenPostId) {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required', permission: 'moderate' });
+      const entry = state.socialPosts.find((row) => row.post.id === decodeURIComponent(hiddenPostId[1]));
+      return entry ? json(200, { entry }) : json(404, { error: 'not_found' });
+    }
     if (url.pathname === '/moderation/reports') {
       const status = url.searchParams.get('status');
-      return json(200, { reports: state.reports.filter((report) => report.status === status) });
+      return json(200, { reports: state.reports.filter((report) => report.status === status).slice(0, 100) });
     }
     if (url.pathname === '/moderation/actions') {
       const riderId = url.searchParams.get('riderId');
       return json(200, { actions: riderId ? state.actions.filter((action) => action.targetRiderId === riderId) : state.actions });
     }
-    if (url.pathname === '/moderation/social-posts' && request.method() === 'GET') return json(200, { posts: state.socialPosts });
+    if (url.pathname === '/moderation/social-posts' && request.method() === 'GET') return json(200, { posts: state.socialPosts.slice(0, 100) });
     if (url.pathname.startsWith('/social/media/')) {
       // A 1×1 PNG for the post's photo.
       return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC', 'base64') });
@@ -322,6 +337,75 @@ test.describe('staff dashboard', () => {
     await page.getByRole('button', { name: 'Review Social post' }).click();
     await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toBeFocused();
     await expect(page.locator('.page-title')).toHaveText('Moderation');
+  });
+
+
+  test('inbox navigation retrieves a report outside 100 linked Social safety reports', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    const hiddenPost = state.socialPosts[0].post.id;
+    state.reports = [
+      ...Array.from({ length: 130 }, (_, n) => ({
+        ...OPEN_REPORT, id: `linked-${n}`, createdAt: n + 1, sourcePostId: hiddenPost,
+      })),
+      { ...OPEN_REPORT, id: 'last-independent', createdAt: 500, sourcePostId: null },
+    ];
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toBeFocused();
+    await expect(page.locator('.inbox-intro')).toContainText('Loaded directly by its identifier');
+    await page.getByRole('button', { name: 'Take this report' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toBeFocused();
+    await expect(page.locator('[data-report-id="last-independent"]')).toContainText('You’re handling this');
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('[data-report-id="last-independent"]')).toHaveCount(0,
+      'ordinary bounded moderation queue excludes the selected report');
+  });
+
+  test('Social post navigation survives a concurrent reorder beyond the first 100', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    const selectedPost = state.socialPosts[0];
+    await page.goto('/admin.html#inbox');
+    await page.getByRole('group', { name: 'Action inbox sources' }).getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    state.socialPosts.unshift(...Array.from({ length: 110 }, (_, n) => ({
+      post: { ...selectedPost.post, id: `newer-hidden-${n}`, media: [] },
+      reports: 9, reasons: ['spam'],
+    })));
+    await page.getByRole('button', { name: 'Review Social post' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toBeFocused();
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('[data-post-id="11111111-1111-4111-8111-111111111111"]')).toHaveCount(0);
+  });
+
+  test('inbox shows changed report status instead of claiming a moved queue item', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    state.reports[0].status = 'dismissed';
+    state.reports[0].resolvedAt = Date.now();
+    state.reports[0].resolvedBy = ADMIN_ID;
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    await expect(page.locator('[data-report-id="report-1"]')).toBeFocused();
+    await expect(page.locator('.inbox-intro')).toContainText('Report currently dismissed');
+    await expect(page.locator('[data-report-id="report-1"] [data-action="dismiss"]')).toHaveCount(0);
+  });
+
+  test('inbox does not infer resolution when the selected record disappears', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#inbox');
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    state.reports = [];
+    await page.getByRole('button', { name: 'Review rider report' }).click();
+    const missing = page.locator('[data-selected-unavailable]');
+    await expect(missing).toBeFocused();
+    await expect(missing).toContainText('No resolution is assumed');
+    await page.getByRole('button', { name: 'Back to queue' }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No open reports');
   });
 
   test('inbox filter changes keep controls available and ignore late source responses', async ({ page }) => {
