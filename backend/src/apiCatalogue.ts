@@ -149,6 +149,7 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('GET', '/admin/overview', 'Staff dashboard', 'staff', 'Business overview', { permission: 'view_overview' }),
   e('GET', '/admin/action-inbox', 'Staff dashboard', 'staff', 'Read the unified pending rider report and hidden Social post queue', { permission: 'moderate' }),
   e('GET', '/admin/cases', 'Company operations', 'staff', 'List case records by permitted workstream with bounded cursor pagination', { permission: 'view_cases' }),
+  e('GET', '/admin/cases/summary', 'Company operations', 'staff', 'Role-scoped support, appeal, privacy and incident workload totals', { permission: 'view_cases' }),
   e('POST', '/admin/cases', 'Company operations', 'staff', 'Create an internal support, appeal, privacy or incident case (type-restricted)', { permission: 'view_cases', reauth: true }),
   e('GET', '/admin/cases/{caseId}', 'Company operations', 'staff', 'Read an authorised internal case and its attributed history', { permission: 'view_cases' }),
   e('POST', '/admin/cases/{caseId}/notes', 'Company operations', 'staff', 'Append an internal-only case note', { permission: 'view_cases', reauth: true }),
