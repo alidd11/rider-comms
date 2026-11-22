@@ -681,7 +681,7 @@
   function skeletonOverview() {
     const kpi = () => el('div', { class: 'card kpi' }, [el('div', { class: 'skeleton sk-label' }), el('div', { class: 'skeleton sk-value' }), el('div', { class: 'skeleton sk-foot' })]);
     return [
-      pageHeader('Overview', 'Loading…'),
+      pageHeader('Insights', 'Loading…'),
       el('div', { class: 'kpis' }, Array.from({ length: 8 }, kpi)),
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, Array.from({ length: 2 }, () => el('div', { class: 'card' }, [el('div', { class: 'skeleton sk-chart' })]))),
@@ -854,7 +854,51 @@
     ];
   }
 
+  // The landing workspace is a short operational briefing, not every report.
   function renderOverview(data) {
+    const { riders, activity, social, safety } = data;
+    const insights = el('button', { type: 'button', class: 'button button-primary', text: 'Explore insights' });
+    insights.addEventListener('click', () => selectView('insights'));
+    const highlight = (label, value, description) => el('div', { class: 'overview-highlight' }, [
+      el('span', { class: 'overview-highlight-label', text: label }),
+      el('strong', { class: 'overview-highlight-value', text: value }),
+      el('span', { class: 'overview-highlight-description', text: description }),
+    ]);
+    const generated = new Date(data.generatedAt);
+    const snapshot = Number.isNaN(generated.getTime()) ? 'recently' :
+      generated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    pageEl.replaceChildren(
+      pageHeader('Overview', 'Your immediate operational priorities and a short platform snapshot.', [insights]),
+      el('p', { class: 'overview-snapshot', text:
+        'Snapshot updated ' + snapshot + '. Operational work remains visible regardless of the reporting preference.' }),
+      operationsSummary({ riders, activity, safety }),
+      el('section', { class: 'overview-highlights', 'aria-label': 'Platform highlights' }, [
+        el('div', { class: 'overview-highlights-heading' }, [
+          el('h2', { class: 'section-title', text: 'Platform highlights' }),
+          el('span', { class: 'overview-highlight-note', text: 'Totals and 7-day activity · full breakdown in Insights' }),
+        ]),
+        el('div', { class: 'overview-highlight-grid' }, [
+          highlight('Total riders', formatNumber(riders.total), 'All registered riders'),
+          highlight('Active riders · 7 days', formatNumber(activity.active7d), 'Distinct active accounts'),
+          highlight('Messages · 7 days', formatNumber(social.messages7d), 'Recorded direct messages'),
+        ]),
+      ]),
+    );
+  }
+
+  function renderCompany(data) {
+    const sections = companyCommandCentre(data);
+    pageEl.replaceChildren(
+      pageHeader('Company areas', 'Connected teams and services, with unavailable integrations identified.'),
+      sections[1],
+      el('details', { class: 'overview-more company-pulse-details' }, [
+        el('summary', { text: 'Platform pulse and reporting scope' }),
+        sections[0],
+      ]),
+    );
+  }
+
+  function renderInsights(data) {
     const days = period;
     const { riders, activity, social, content, safety, series, previous } = data;
     const slice = (values) => values.slice(-days);
@@ -899,19 +943,11 @@
       el('ul', { class: 'stat-list' }, rows.map(([name, value]) => el('li', {}, [el('span', { class: 'stat-name', text: name }), el('span', { class: 'stat-value', text: value })]))),
     ]);
 
-    const companySections = companyCommandCentre(data);
-    const companyDetails = el('details', { class: 'overview-more', 'aria-label': 'Company operations and services' }, [
-      el('summary', { text: 'Company areas and connected services' }),
-      companySections[0],
-      companySections[1],
-    ]);
     pageEl.replaceChildren(
-      pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · reporting in UTC`),
-      operationsSummary({ riders, activity, safety }),
+      pageHeader('Insights', 'Period-based activity from the backend snapshot; chart labels explain coverage.'),
       kpis,
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
-      companyDetails,
       el('h2', { class: 'section-title', text: 'Growth' }),
       funnelCard(data.funnel),
       el('h2', { class: 'section-title', text: 'Community and safety' }),
