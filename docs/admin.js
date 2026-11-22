@@ -1,15 +1,16 @@
-// Rider Comms staff dashboard: business overview, riders, moderation, the
-// audit log, staff roles and system health. Uses the PWA's own sign-in on
-// this origin (same session storage key), so staff sign in to the app in this
-// browser first. Each staff member has one role (admin, moderator, support or
-// analyst; backend/src/staffRoles.ts). The backend re-checks the role on
-// every /admin and /moderation request; this page only decides what to show.
+// Rider Comms Operations Hub: separate staff PWA login and web dashboard.
+// Staff authenticate using their Rider Comms account through /auth/staff-login.
+// The installed /staff/ app has its own session key, manifest and worker.
+// Every admin/moderation API still enforces the current server-side staff role.
 //
 // Rider-supplied text (names, report details, notes) is only ever inserted
 // with textContent, never parsed as HTML.
 (() => {
   const API_BASE_URL = 'https://backend-production-7fa0.up.railway.app';
   const SESSION_KEY = 'rider-comms-session-v1';
+  const STAFF_SESSION_KEY = 'rider-comms-staff-session-v1';
+  const STAFF_SIGNED_OUT_KEY = 'rider-comms-staff-signed-out-v1';
+  const IS_STAFF_PWA = /\/staff\/(?:index\.html)?$/.test(location.pathname);
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -108,15 +109,27 @@
   }
 
   function readSession() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STAFF_SESSION_KEY) || 'null');
+      if (stored?.token && stored?.riderId) return { ...stored, source: 'staff' };
+    } catch { /* Storage is optional; staff may sign in again. */ }
+    // Keep legacy /admin.html access for signed-in Rider Comms users, but
+    // installed /staff/ must NEVER depend on another app's isolated storage.
+    if (IS_STAFF_PWA) return null;
+    try { if (sessionStorage.getItem(STAFF_SIGNED_OUT_KEY) === '1') return null; } catch { /* no-op */ }
     for (const storage of [localStorage, sessionStorage]) {
       try {
         const stored = JSON.parse(storage.getItem(SESSION_KEY) || 'null');
-        if (stored?.token && stored?.riderId) return stored;
+        if (stored?.token && stored?.riderId) return { ...stored, source: 'legacy' };
       } catch { /* Ignore unreadable storage. */ }
     }
     return null;
   }
-  const session = readSession();
+  let session = readSession();
+  if (IS_STAFF_PWA && 'serviceWorker' in navigator) {
+    // Isolated scope: the main rider worker must never own the staff shell.
+    navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+  }
 
   class ApiError extends Error {
     constructor(status, code) {
