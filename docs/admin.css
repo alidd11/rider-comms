@@ -1624,3 +1624,129 @@ html { scroll-padding-top: 78px; }
   }
   .staff-update-actions .button { flex: 1 1 110px; }
 }
+
+
+/* Operations Hub design system v2 — shared by desktop /admin.html and /staff/.
+   Focused on a stable visual rhythm, one filter language, and reliable touch
+   targets; the generated brand palette above remains authoritative. */
+:root {
+  --admin-space-xs: 6px;
+  --admin-space-sm: 10px;
+  --admin-space-md: 16px;
+  --admin-space-lg: 24px;
+  --admin-space-xl: 36px;
+  --admin-panel-radius: 12px;
+}
+.main { min-height: 100dvh; }
+.workspace-toolbar {
+  min-height: 58px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+.page { max-width: 1540px; }
+.page-header { gap: 18px 24px; padding: 3px 0 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.page-header-actions { gap: 9px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+.page-header-actions > .scroll-row { max-width: 100%; }
+.page-eyebrow { letter-spacing: .12em; font-weight: 750; }
+.page-title { letter-spacing: -.042em; line-height: 1.17; font-weight: 740; }
+.page-subtitle { color: var(--muted-fg); max-width: 80ch; }
+.reporting-range {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-width: 0;
+  gap: 10px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  border-radius: 8px;
+  min-height: 38px;
+  box-shadow: var(--shadow-sm);
+}
+.reporting-range:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reporting-range-caption { color: var(--muted-fg); white-space: nowrap; font-size: 11px; font-weight: 700; }
+.reporting-range-select {
+  display: block;
+  min-height: 36px;
+  max-width: 165px;
+  padding: 0 19px 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  color-scheme: inherit;
+  outline: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reporting-range-select:focus-visible { outline: none; }
+.reporting-scope {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 7px;
+  padding: 0 12px;
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.reporting-scope::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--success);
+}
+.period-context { color: var(--muted-fg); font-size: 12px; line-height: 1.6; margin: -5px 0 16px; }
+.section-title { font-size: 11px; font-weight: 760; letter-spacing: .095em; margin-top: 36px; }
+.card { border-radius: var(--admin-panel-radius); }
+.kpis, .charts, .panels, .operations-grid, .company-grid { row-gap: 14px; column-gap: 14px; }
+.kpi { min-height: 158px; }
+.kpi-value { font-weight: 750; letter-spacing: -.048em; }
+.company-unit { border-radius: var(--admin-panel-radius); }
+.case-workload { border-radius: var(--admin-panel-radius); }
+.case-workload-metric { padding: 20px; }
+.case-workload-value { font-size: clamp(27px,2.4vw,35px); }
+.case-item { transition: background-color .16s ease; }
+.case-item:focus-within { outline: 2px solid var(--accent); outline-offset: -2px; }
+.table th { font-size: 11px; letter-spacing: .025em; }
+.table td { vertical-align: middle; }
+.nav-item { transition: background-color .16s ease, color .16s ease; }
+.nav-group-label { font-size: 10px; font-weight: 760; }
+@media (min-width: 900px) {
+  .page { padding: 33px clamp(24px, 3.4vw, 56px) 72px; }
+  .page-header-actions { max-width: min(60%, 720px); }
+  .sidebar { border-right-color: var(--border); }
+  .nav-item[aria-current="page"] { box-shadow: inset 2px 0 0 var(--accent); }
+}
+@media (max-width: 899px) {
+  .page-header { padding-bottom: 17px; }
+  .page-header-actions { justify-content: flex-start; }
+  .page-header .actions { max-width: 100%; }
+  .page-header .reporting-range { max-width: 100%; }
+  .page-header .reporting-range-select { max-width: 130px; }
+  .reporting-range { min-height: 44px; }
+  .reporting-range-select { min-height: 42px; }
+}
+@media (max-width: 620px) {
+  .page-header { gap: 16px; }
+  .page-header-actions { width: 100%; justify-content: flex-start; }
+  .page-header-actions .reporting-range { flex: 0 0 auto; }
+  .page-header-actions .desktop-refresh { flex: 0 0 auto; }
+  .page-header-actions .scroll-row { flex: 1 1 100%; order: 5; }
+  .page-header .segmented { width: max-content; }
+  .page-header .segmented button { flex: none; min-height: 42px; }
+  .period-context { margin-top: 0; }
+  .case-workload-metric { padding: 16px; }
+  .table-scroll { overscroll-behavior-x: contain; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .case-item, .nav-item { transition: none; }
+}
