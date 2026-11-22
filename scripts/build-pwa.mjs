@@ -160,9 +160,18 @@ if (!cspMeta) throw new Error('Missing map-lab CSP marker');
 let payload = previewTemplate
   .replace(cspMeta + '\n', '')
   .replace('<link rel="stylesheet" href="./preview.css">', `<style>${previewCss}</style>`)
-  .replace('<script type="module" src="./preview.mjs"></script>', `<script>${previewScript}</script>`);
+  // Unlike a module, an inline classic script executes as soon as the
+  // parser reaches it. Move it after the controls/status DOM so an aborted
+  // MapLibre CDN request is handled rather than leaving infinite loading.
+  .replace('<script type="module" src="./preview.mjs"></script>', '')
+  .replace('</body>', `<script>${previewScript}</script>\n</body>`);
 if (payload.includes('./preview.mjs') || payload.includes('http-equiv="Content-Security-Policy"')) {
   throw new Error('Unconverted map preview template');
+}
+const statusMarkup = payload.indexOf('<output id="status"');
+const scriptMarkup = payload.lastIndexOf('<script>');
+if (statusMarkup < 0 || scriptMarkup <= statusMarkup) {
+  throw new Error('Map beta renderer must execute after the status DOM');
 }
 // HTML attribute encoding lets the nested srcdoc reconstruct the exact
 // bytes; do not let third-party HTML or any user input enter this template.
