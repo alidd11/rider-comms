@@ -33,6 +33,9 @@ self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
   if (event.request.method !== 'GET' || requestUrl.origin !== self.location.origin) return;
   const isNavigation = event.request.mode === 'navigate';
+  // /staff/ has its own service worker and independent offline shell.
+  // Never substitute the rider home page for an offline Staff navigation.
+  if (isNavigation && requestUrl.pathname.startsWith(new URL('./staff/', self.location.href).pathname)) return;
   const isShellAsset = SHELL_URLS.has(requestUrl.href);
   // Never put arbitrary same-origin GETs in the offline cache. In particular,
   // future authenticated/API routes must pass through untouched.
