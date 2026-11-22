@@ -370,6 +370,54 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.inbox-item').first()).toContainText('No permanent owner');
   });
 
+  test('an administrator can hand over a report to a moderator with an audited reason', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const report = page.locator('[data-report-id="report-1"]');
+    await report.getByRole('button', { name: 'Assign to team member' }).click();
+    const handover = report.getByRole('group', { name: 'Staff handover for report report-1' });
+    const member = handover.getByRole('combobox', { name: 'Team member for report report-1' });
+    await expect(member).toBeFocused();
+    await expect(handover).not.toContainText('maya@example.com');
+    await expect(handover.getByRole('button', { name: 'Assign selected member' })).toBeDisabled();
+    await member.selectOption('rider_maya');
+    await report.locator('textarea').fill('Handed over for a second reviewer');
+    await handover.getByRole('button', { name: 'Assign selected member' }).click();
+    await expect(report).toContainText('Case owner:');
+    await expect.poll(() => state.reports[0].assignedTo).toBe('rider_maya');
+    await expect.poll(() => state.posts.at(-1)).toEqual({
+      path: '/moderation/reports/report-1/assign',
+      body: { assigneeId: 'rider_maya', note: 'Handed over for a second reviewer' },
+    });
+    await report.getByRole('button', { name: 'View ownership history' }).click();
+    await expect(report.getByRole('region', { name: 'Ownership history for report report-1' })).toContainText('Handed over for a second reviewer');
+  });
+
+  test('moderators cannot open admin-only team handover controls', async ({ page }) => {
+    await signIn(page);
+    await mockModerationApi(page, { role: 'moderator' });
+    await page.goto('/admin.html#moderation');
+    const report = page.locator('[data-report-id="report-1"]');
+    await expect(report.getByRole('button', { name: 'Assign to team member' })).toHaveCount(0);
+    await expect(report.getByRole('button', { name: 'Assign permanently to me' })).toBeVisible();
+  });
+
+  test('team handover can be cancelled without assigning a rider', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.goto('/admin.html#moderation');
+    const report = page.locator('[data-report-id="report-1"]');
+    const trigger = report.getByRole('button', { name: 'Assign to team member' });
+    await trigger.click();
+    const panel = report.getByRole('group', { name: 'Staff handover for report report-1' });
+    await panel.getByRole('button', { name: 'Cancel handover' }).click();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(panel).toHaveCount(0);
+    expect(state.reports[0].assignedTo).toBeNull();
+  });
+
   test('assigned cases are shown in the inbox without leaking underlying notes', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
