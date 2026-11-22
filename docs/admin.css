@@ -1855,3 +1855,22 @@ html { scroll-padding-top: 78px; }
 .workspace-disclosure > section,
 .workspace-disclosure > .card { margin: 12px; }
 .staff-roles-details { margin-top: 20px; }
+
+/* Source-backed operations reports never displace the active work queue. */
+.case-activity-report, .social-activity-report {
+  margin: 4px 0 14px;
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+.case-activity-report > summary, .social-activity-report > summary {
+  font-size: 12px; font-weight: 620;
+}
+.case-activity-body { padding: 12px 15px 16px; }
+.case-activity-body .case-help { margin: 0 0 12px; }
+.case-activity-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 8px 14px; }
+.case-activity-stats > span {
+  display: flex; align-items: center; min-height: 36px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface); color: var(--fg-2);
+  padding: 7px 10px; font-size: 12px; overflow-wrap: anywhere;
+}
