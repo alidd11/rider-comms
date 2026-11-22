@@ -707,19 +707,30 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.empty-title')).toHaveText('Nothing waiting in this view');
   });
 
-  test('asks a signed-out visitor to sign in to the app first', async ({ page }) => {
+  test('shows a direct, accessible Staff login when no Rider Comms session exists', async ({ page }) => {
     await mockModerationApi(page);
     await page.goto('/admin.html');
-    await expect(page.locator('.empty-title')).toHaveText('Sign in to continue');
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your operations workspace.' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Rider Comms username' })).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in to Operations Hub' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open the installable Staff app' })).toHaveAttribute('href', './staff/');
     await expect(page.locator('#nav')).toBeHidden();
+    await expect(page.locator('#menuToggle')).toBeHidden();
+    await expect(page.locator('.workspace-toolbar')).toBeHidden();
   });
 
-  test('tells a non-staff account it has no access', async ({ page }) => {
+  test('blocks a revoked or non-staff legacy rider session and offers only Staff sign in', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page, { admin: false });
     await page.goto('/admin.html');
-    await expect(page.locator('.empty-title')).toHaveText('This account is not staff');
+    await expect(page.getByRole('heading', { name: 'Staff sign in' })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveText('This account does not have staff access.');
     await expect(page.locator('#nav')).toBeHidden();
+    await expect(page.locator('#menuToggle')).toBeHidden();
+    await expect(page.locator('.page-title')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('rider-comms-staff-session-v1'))).toBeNull();
   });
 
 
@@ -1494,6 +1505,17 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('#nav').getByRole('button', { name: 'Overview' })).toBeFocused();
     await expect(page.locator('#sidebarFooter')).toBeVisible();
     await page.locator('#nav [data-view="system"]').focus();
+    await page.keyboard.press('Tab');
+    const installLink = page.getByRole('link', { name: 'Open installable Staff app' });
+    await expect(installLink).toBeFocused();
+    await expect(installLink).toHaveAttribute('href', './staff/');
+    await page.keyboard.press('Tab');
+    const signOut = page.getByRole('button', { name: 'Sign out of Staff' });
+    await expect(signOut).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(toggle).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(signOut).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(toggle).toBeFocused();
     await page.keyboard.press('Escape');
