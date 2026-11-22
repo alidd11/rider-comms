@@ -2725,14 +2725,33 @@
   workspaceSearchTrigger.addEventListener('click', () => openCommandSearch(workspaceSearchTrigger));
   document.getElementById('globalSearchClose').addEventListener('click', () => searchDialog.close());
   searchInput.addEventListener('input', updateCommandSearch);
+  // One predictable keyboard path through both authorised page and rider
+  // results. Native buttons retain Tab/Shift+Tab and Enter/Space semantics.
+  // Home/End in the search field keep their normal text-editing behaviour.
+  searchDialog.addEventListener('keydown', (event) => {
+    const key = event.key;
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(key)) return;
+    const options = [...searchDialog.querySelectorAll('.search-result')]
+      .filter((option) => !option.disabled && option.getClientRects().length > 0);
+    if (!options.length) return;
+    const inSearchField = document.activeElement === searchInput;
+    const index = options.indexOf(document.activeElement);
+    if (!inSearchField && index === -1) return;
+    if (inSearchField && (key === 'Home' || key === 'End')) return;
+
+    const next = key === 'Home' ? options[0]
+      : key === 'End' ? options[options.length - 1]
+      : key === 'ArrowDown' ? options[index < 0 ? 0 : (index + 1) % options.length]
+      : index < 0 ? options[options.length - 1]
+      : index === 0 ? searchInput : options[index - 1];
+    event.preventDefault();
+    next.focus();
+    if (next !== searchInput) next.scrollIntoView({ block: 'nearest' });
+  });
   searchInput.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowDown') {
-      const first = searchDialog.querySelector('.search-result');
-      if (first) { event.preventDefault(); first.focus(); }
-    } else if (event.key === 'Enter') {
-      const first = searchDialog.querySelector('.search-result');
-      if (first) { event.preventDefault(); first.click(); }
-    }
+    if (event.key !== 'Enter') return;
+    const first = searchDialog.querySelector('.search-result');
+    if (first) { event.preventDefault(); first.click(); }
   });
   searchDialog.addEventListener('close', () => {
     ++searchGeneration;
