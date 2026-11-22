@@ -162,6 +162,72 @@ describe('staff tools', { skip: !hasDatabase && 'DATABASE_URL not set' }, () => 
     assert.deepEqual(actions.sort(), ['password_reset_sent', 'sign_out_everywhere']);
   });
 
+
+  it('persists report ownership independently of expiring claims and audits every transition', async () => {
+    await report('rep-owner-1');
+    const url = '/moderation/reports/rep-owner-1';
+    const assign = (actorId: string, assigneeId: string | null, note = 'Review allocation') =>
+      postJson(ctx, actorId, url + '/assign', { assigneeId, note });
+    const details = async () => (await (await authenticatedFetch(ctx, MOD, url)).json() as
+      { report: { assignedTo: string | null; assignedAt: number | null; claimedBy: string | null } }).report;
+    assert.equal((await details()).assignedTo, null);
+    assert.equal((await fetch(ctx.baseUrl() + url + '/assignment-history')).status, 401);
+    assert.equal((await authenticatedFetch(ctx, SUPPORT, url + '/assignment-history')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, ANALYST, url + '/assignment-history')).status, 403);
+    assert.equal((await authenticatedFetch(ctx, MOD, url + '/assignment-history?limit=0')).status, 400);
+    assert.equal((await authenticatedFetch(ctx, MOD, '/moderation/reports/not-found/assignment-history')).status, 404);
+    assert.equal((await assign(SUPPORT, MOD)).status, 403);
+    assert.equal((await postJson(ctx, MOD, url + '/assign', { assigneeId: MOD })).status, 400);
+    assert.equal((await postJson(ctx, MOD, url + '/assign', { assigneeId: 'bad id', note: 'x' })).status, 400);
+    assert.equal((await assign(MOD, MOD2)).status, 409, 'a moderator may not assign a different owner');
+    assert.equal((await assign(ADMIN, SUPPORT)).status, 403, 'support cannot become case owner');
+    assert.equal((await assign(MOD, MOD)).status, 200);
+    assert.equal((await details()).assignedTo, MOD);
+    assert.ok((await details()).assignedAt !== null);
+    assert.equal((await assign(MOD, MOD)).status, 409, 'duplicate assignment is not audited twice');
+    assert.equal((await assign(MOD2, MOD2)).status, 409, 'cannot steal another moderator ownership');
+    // Quick claim may lapse, but the permanent owner remains assigned.
+    await getPool().query('UPDATE safety_reports SET claimed_by = $2, claimed_at = $3 WHERE id = $1',
+      ['rep-owner-1', MOD2, Date.now() - REPORT_CLAIM_TTL_MS - 1000]);
+    assert.equal((await details()).claimedBy, null);
+    assert.equal((await details()).assignedTo, MOD);
+    assert.equal((await assign(ADMIN, MOD2, 'Supervisor reassigned')).status, 200);
+    assert.equal((await details()).assignedTo, MOD2);
+    assert.equal((await assign(MOD, null)).status, 409);
+    assert.equal((await assign(MOD2, null, 'Handover complete')).status, 200);
+    assert.equal((await details()).assignedTo, null);
+    const historyResponse = await authenticatedFetch(ctx, MOD, url + '/assignment-history');
+    assert.equal(historyResponse.status, 200);
+    const history = await historyResponse.json() as { events: Array<{
+      actorId: string; previousAssignee: string | null; assigneeId: string | null; event: string; note: string;
+    }> };
+    assert.equal(history.events.length, 3);
+    assert.deepEqual(history.events.map((e) => e.event).sort(), ['assigned', 'released', 'transferred']);
+    assert.ok(history.events.some((e) => e.event === 'transferred' && e.actorId === ADMIN
+      && e.previousAssignee === MOD && e.assigneeId === MOD2 && e.note === 'Supervisor reassigned'));
+  });
+
+  it('serialises competing case assignments and refuses changes after resolution', async () => {
+    await report('rep-owner-race');
+    const endpoint = '/moderation/reports/rep-owner-race/assign';
+    const requests = await Promise.all([
+      postJson(ctx, MOD, endpoint, { note: 'Taking initial ownership' }),
+      postJson(ctx, MOD2, endpoint, { note: 'Taking initial ownership' }),
+    ]);
+    assert.deepEqual(requests.map((r) => r.status).sort(), [200, 409]);
+    const events = await (await authenticatedFetch(ctx, ADMIN, '/moderation/reports/rep-owner-race/assignment-history')).json() as
+      { events: Array<{ event: string }> };
+    assert.equal(events.events.length, 1, 'only the winner has an audit event');
+    const closed = await postJson(ctx, MOD, '/moderation/reports/rep-owner-race/resolve',
+      { note: 'Evidence reviewed', resolution: 'dismiss' });
+    assert.equal(closed.status, 200);
+    assert.equal((await postJson(ctx, ADMIN, endpoint, { assigneeId: MOD2, note: 'Too late' })).status, 409);
+    const reportState = await (await authenticatedFetch(ctx, ADMIN, '/moderation/reports/rep-owner-race')).json() as
+      { report: { status: string; assignedTo: string | null } };
+    assert.equal(reportState.report.status, 'dismissed');
+    assert.ok([MOD, MOD2].includes(reportState.report.assignedTo ?? ''));
+  });
+
   it('serves a role-gated action inbox backed by the live moderation queue', async () => {
     await report('rep-tool-inbox', 1_000);
     assert.equal((await fetch(`${ctx.baseUrl()}/admin/action-inbox`)).status, 401);

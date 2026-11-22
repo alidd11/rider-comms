@@ -5,9 +5,9 @@ import { buildActionInbox } from '../src/actionInbox.ts';
 describe('action inbox view model', () => {
   const reports = [
     { id: 'r-new', reportedRiderId: 'rider_a', reason: 'spam' as const, createdAt: 3_000,
-      claimedBy: 'rider_staff', reportsAgainstRider: 2, details: 'Private report details' },
+      claimedBy: 'rider_staff', assignedTo: 'rider_owner', reportsAgainstRider: 2, details: 'Private report details' },
     { id: 'r-old', reportedRiderId: 'rider_b', reason: 'harassment' as const, createdAt: 1_000,
-      claimedBy: null, reportsAgainstRider: 1, details: 'Confidential conversation' },
+      claimedBy: null, assignedTo: null, reportsAgainstRider: 1, details: 'Confidential conversation' },
   ];
   const social = [
     { post: { id: 'post1', authorId: 'rider_c', kind: 'reel' as const, caption: 'Private text' },
@@ -22,7 +22,10 @@ describe('action inbox view model', () => {
     assert.equal(result.mayHaveMore, false);
     const report = result.items[2];
     assert.equal(report?.type, 'rider_report');
-    if (report?.type === 'rider_report') assert.equal(report.claimedBy, 'rider_staff');
+    if (report?.type === 'rider_report') {
+      assert.equal(report.claimedBy, 'rider_staff');
+      assert.equal(report.assignedTo, 'rider_owner');
+    }
     const post = result.items[1];
     assert.equal(post?.type, 'social_post');
     if (post?.type === 'social_post') assert.equal(post.reportCount, 3);
