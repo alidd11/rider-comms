@@ -1427,7 +1427,9 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('[data-rider-id="rider_maya"]:visible')).toHaveCount(0);
     expect(state.posts.at(-1)).toEqual({ path: '/admin/staff/rider_maya/remove', body: { note: 'Left the team' } });
 
-    await expect(page.locator('.matrix tbody tr')).toHaveCount(8);
+    // The Case Desk permission adds an actual row to the staff rights matrix.
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(9);
+    await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
     await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
   });
 
@@ -1479,7 +1481,12 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page, { role: 'support' });
     await page.goto('/admin.html#riders');
     await openMenuIfPhone(page);
-    await expect(page.locator('#nav [data-view]:visible')).toHaveText(['Overview', 'Riders', 'Audit log', 'System']);
+    // The new case workstream is intentionally visible to support, without
+    // exposing moderation or the restricted privacy and incident queues.
+    const visibleSections = await page.locator('#nav [data-view]:visible').evaluateAll((buttons) =>
+      buttons.map((button) => button.textContent.replace(/\\s+/g, ' ').trim()));
+    expect(visibleSections).toEqual(['Overview', 'Riders', 'Audit log', 'Case desk', 'System']);
+    await expect(page.locator('#nav [data-view="moderation"]')).toBeHidden();
     await expect(page.locator('[data-rider-id="rider_rex"]:visible').getByRole('button', { name: /email verified/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Export .* data/ })).toHaveCount(0);
   });
