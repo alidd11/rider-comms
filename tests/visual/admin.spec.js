@@ -171,6 +171,39 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.staff = state.staff.filter((member) => member.riderId !== decodeURIComponent(removeStaff[1]));
       return json(200, { ok: true });
     }
+    if (url.pathname === '/admin/cases/activity') {
+      if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required' });
+      const days = Number(url.searchParams.get('days') ?? 7);
+      if (![7, 30].includes(days)) return json(400, { error: 'invalid_report_window' });
+      const kinds = role === 'admin' ? ['support', 'appeal', 'privacy', 'incident']
+        : role === 'support' ? ['support'] : ['appeal'];
+      const items = state.companyCases.filter((item) => kinds.includes(item.kind));
+      const start = Date.now() - days * 86_400_000;
+      return json(200, { days, scope: 'permitted_internal_cases', completeForRetainedData: true,
+        totals: {
+          created: items.filter((item) => item.createdAt >= start).length,
+          active: items.filter((item) => !['resolved', 'closed'].includes(item.status)).length,
+          resolvedTransitions: state.companyCaseEvents.filter((event) => event.event === 'status'
+            && ['resolved', 'closed'].includes(event.toValue) && event.createdAt >= start
+            && items.some((item) => item.id === event.caseId)).length,
+          internalNotes: state.companyCaseEvents.filter((event) => event.event === 'note' && event.createdAt >= start
+            && items.some((item) => item.id === event.caseId)).length,
+          assignmentChanges: state.companyCaseEvents.filter((event) => ['assigned', 'released', 'assign'].includes(event.event)
+            && event.createdAt >= start && items.some((item) => item.id === event.caseId)).length,
+          configuredTargets: 0, overdueTargets: 0, dueSoonTargets: 0,
+        },
+      });
+    }
+    if (url.pathname === '/admin/social/activity') {
+      if (!ROLE_PERMISSIONS[role].includes('moderate')) return json(403, { error: 'permission_required' });
+      const days = Number(url.searchParams.get('days') ?? 7);
+      if (![7, 30].includes(days)) return json(400, { error: 'invalid_report_window' });
+      return json(200, { days, scope: 'social_content_safety', completeForRetainedData: true,
+        metrics: { posts: 12, photos: 9, reels: 3, reports: 4, reportedPosts: 2,
+          hiddenNow: state.socialPosts.length, moderationDecisions: 1 },
+        unavailable: ['social_audience_retention', 'customer_reply_sla', 'financial_reconciliation'],
+      });
+    }
     if (url.pathname === '/admin/cases/summary') {
       if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required', permission: 'view_cases' });
       const kinds = role === 'admin' ? ['support', 'appeal', 'privacy', 'incident'] : role === 'support' ? ['support'] : ['appeal'];
