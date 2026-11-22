@@ -714,6 +714,26 @@ export class ModerationStore {
     }));
   }
 
+
+  /** Revoking or downgrading staff access cannot leave open cases owned by
+   * an ineligible rider. The caller has locked the affected users row first.
+   */
+  private async releaseOpenAssignmentsForStaff(
+    client: PoolClient, riderId: string, actorId: string, note: string, now: number,
+  ): Promise<void> {
+    await client.query(
+      `WITH released AS (
+         UPDATE safety_reports SET assigned_to = NULL, assigned_at = NULL
+          WHERE assigned_to = $1 AND status = 'open'
+          RETURNING id
+       )
+       INSERT INTO safety_report_assignment_events
+         (id, report_id, actor_id, previous_assignee, assignee_id, event, note, created_at)
+       SELECT gen_random_uuid(), id, $2, $1, NULL, 'released', $3, $4 FROM released`,
+      [riderId, actorId, `Staff access changed: ${note}`.slice(0, MAX_MODERATION_NOTE_LENGTH), now],
+    );
+  }
+
   /** Gives a rider a staff role, or changes it, and records why. */
   async setStaffRole(riderId: string, role: GrantableStaffRole, adminId: string, note: string, now = Date.now()): Promise<StaffChangeResult> {
     await ensureMigrated();
@@ -733,6 +753,9 @@ export class ModerationStore {
          ON CONFLICT (rider_id) DO UPDATE SET role = EXCLUDED.role, granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at`,
         [riderId, role, adminId, now],
       );
+      if (row.role === 'moderator' && role !== 'moderator') {
+        await this.releaseOpenAssignmentsForStaff(client, riderId, adminId, note, now);
+      }
       const change = row.role ? `${row.role} → ${role}` : role;
       const action = await this.recordAction(client, adminId, riderId, null, 'staff_grant', `${change}: ${note}`, now);
       return { ok: true, action };
@@ -748,6 +771,7 @@ export class ModerationStore {
       if (rows[0].is_admin) return { ok: false, error: 'is_admin' };
       const removed = await client.query<{ role: string }>('DELETE FROM staff_roles WHERE rider_id = $1 RETURNING role', [riderId]);
       if (!removed.rows[0]) return { ok: false, error: 'not_staff' };
+      await this.releaseOpenAssignmentsForStaff(client, riderId, adminId, note, now);
       const action = await this.recordAction(client, adminId, riderId, null, 'staff_revoke', `${removed.rows[0].role}: ${note}`, now);
       return { ok: true, action };
     });
