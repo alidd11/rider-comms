@@ -350,7 +350,7 @@ test.describe('staff dashboard', () => {
     await report.locator('textarea').fill('Taking long-term responsibility');
     await report.getByRole('button', { name: 'Assign permanently to me' }).click();
     await expect(report).toContainText('Case owner:');
-    await expect(report).toContainText('Take this report', 'quick claim remains a distinct action');
+    await expect(report).toContainText('Take this report');
     await expect.poll(() => state.posts.at(-1)).toEqual({
       path: '/moderation/reports/report-1/assign',
       body: { assigneeId: ADMIN_ID, note: 'Taking long-term responsibility' },

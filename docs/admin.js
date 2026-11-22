@@ -1063,7 +1063,8 @@
     }
 
     // History belongs to a specific report, not the bounded queue sample.
-    const historyButton = el('button', { type: 'button', class: 'button button-small', text: 'View ownership history' });
+    const historyButton = el('button', { type: 'button', class: 'button button-small case-history-toggle',
+      'aria-expanded': 'false', text: 'View ownership history' });
     historyButton.addEventListener('click', async () => {
       historyButton.disabled = true;
       let region = card.querySelector('[data-assignment-history]');
@@ -1071,23 +1072,29 @@
         region.remove();
         historyButton.disabled = false;
         historyButton.textContent = 'View ownership history';
+        historyButton.setAttribute('aria-expanded', 'false');
         return;
       }
       try {
         const { events } = await api('GET',
           `/moderation/reports/${encodeURIComponent(report.id)}/assignment-history?limit=50`);
         await loadNames(events.flatMap((event) => [event.actorId, event.previousAssignee, event.assigneeId]));
-        region = el('div', { class: 'report-meta', role: 'region',
+        region = el('div', { class: 'case-history-panel', role: 'region',
           'aria-label': `Ownership history for report ${report.id}`, dataset: { assignmentHistory: '' } },
         events.length ? [
-          el('strong', { text: 'Latest ownership changes (up to 50)' }),
-          el('ul', { class: 'list' }, events.map((event) => el('li', { class: 'list-row' }, [
-            el('span', { text: `${riderLabel(event.actorId).name}: ${event.event} · ${event.assigneeId ? riderLabel(event.assigneeId).name : 'unassigned'} · ${event.note}` }),
-            timeEl(event.createdAt),
+          el('strong', { class: 'case-history-heading', text: 'Ownership activity · latest 50 changes' }),
+          el('ol', { class: 'case-history-list' }, events.map((event) => el('li', { class: 'case-history-row' }, [
+            el('div', { class: 'case-history-body' }, [
+              el('span', { class: 'case-history-line',
+                text: `${riderLabel(event.actorId).name} · ${event.event}: ${event.previousAssignee ? riderLabel(event.previousAssignee).name : 'unassigned'} → ${event.assigneeId ? riderLabel(event.assigneeId).name : 'unassigned'}` }),
+              el('span', { class: 'case-history-note', text: event.note }),
+            ]),
+            el('span', { class: 'case-history-time' }, [timeEl(event.createdAt)]),
           ]))),
-        ] : [el('p', { text: 'No ownership changes recorded for this report.' })]);
+        ] : [el('p', { class: 'case-history-empty', text: 'No ownership changes recorded for this report.' })]);
         card.append(region);
         historyButton.textContent = 'Hide ownership history';
+        historyButton.setAttribute('aria-expanded', 'true');
       } catch (error) {
         flash(actionErrorMessage(error), 'warning');
       } finally {
