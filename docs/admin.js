@@ -697,6 +697,77 @@
     ]);
   }
 
+  // Portfolio figures come only from the authorised backend snapshot. A
+  // disconnected domain explicitly says so instead of displaying fake KPIs.
+  function companyCommandCentre(data) {
+    const { riders, activity, social, content, safety } = data;
+    const metric = (label, value) => el('div', { class: 'company-hero-metric' }, [
+      el('span', { class: 'company-hero-metric-label', text: label }),
+      el('strong', { class: 'company-hero-metric-value', text: formatNumber(value) }),
+    ]);
+    const unit = ({ title, status, description, fact, destination, action, unavailable = false }) => {
+      const canOpen = destination && allowed(VIEW_PERMISSIONS[destination]);
+      const button = canOpen ? el('button', { type: 'button', class: 'button button-small', text: action }) : null;
+      if (button) button.addEventListener('click', () => selectView(destination));
+      return el('article', { class: 'company-unit', dataset: { unavailable: String(unavailable) } }, [
+        el('div', { class: 'company-unit-header' }, [
+          el('h3', { class: 'company-unit-title', text: title }),
+          el('span', { class: 'company-unit-status', dataset: { status: unavailable ? 'unavailable' : 'available' }, text: status }),
+        ]),
+        el('p', { class: 'company-unit-description', text: description }),
+        el('div', { class: 'company-unit-fact', text: fact }),
+        button,
+      ]);
+    };
+    return [
+      el('section', { class: 'company-hero', 'aria-label': 'Company pulse' }, [
+        el('div', {}, [
+          el('span', { class: 'company-hero-kicker', text: 'Rider Comms · Company operations' }),
+          el('h2', { class: 'company-hero-title', text: 'The business at a glance' }),
+          el('p', { class: 'company-hero-description', text: 'One source of truth for mobility, community and platform operations. These figures are a time-stamped backend snapshot, not simulated live analytics.' }),
+        ]),
+        el('div', { class: 'company-hero-metrics' }, [
+          metric('Riders active · 24h', activity.active24h),
+          metric('Open rider reports', safety.openReports),
+          metric('Group rides now', activity.activeRides),
+        ]),
+      ]),
+      el('section', { class: 'company-portfolio', 'aria-label': 'Company operations' }, [
+        el('div', { class: 'company-section-heading' }, [
+          el('h2', { class: 'section-title', text: 'Company operations' }),
+          el('p', { class: 'company-section-description', text: 'Connected areas open existing staff workflows. Reporting gaps are explicitly identified.' }),
+        ]),
+        el('div', { class: 'company-grid' }, [
+          unit({ title: 'Rider Comms', status: 'Connected',
+            description: 'Rider accounts, group journeys, community activity and live road reporting.',
+            fact: formatNumber(riders.total) + ' riders · ' + formatNumber(content.activeHazards) + ' active hazards',
+            destination: 'riders', action: 'Explore riders' }),
+          unit({ title: 'Rider Social', status: 'Moderation',
+            description: 'Photo posts and Reels are reviewed through the shared trust and safety workflow. No fabricated Social audience figures.',
+            fact: formatNumber(social.friendships) + ' friendships across the shared rider network',
+            destination: 'inbox', action: 'Review Social queue' }),
+          unit({ title: 'Trust & safety', status: 'Connected',
+            description: 'Triage rider reports, act on reported content and preserve case history and audit evidence.',
+            fact: formatNumber(safety.openReports) + ' rider reports open',
+            destination: 'inbox', action: 'Open action inbox' }),
+          unit({ title: 'People & access', status: 'Role-gated',
+            description: 'Manage operational staff roles, recent authentication events and privileged access.',
+            fact: 'Roles: Admin · Moderator · Support · Analyst',
+            destination: 'staff', action: 'Manage staff roles' }),
+          unit({ title: 'Platform reliability', status: 'Connected',
+            description: 'Backend readiness, provider configuration, request performance and recovery runbooks.',
+            fact: 'Health, traffic and database diagnostics',
+            destination: 'system', action: 'Inspect platform' }),
+          unit({ title: 'Commercial & billing', status: 'Not connected', unavailable: true,
+            description: 'Company revenue, subscriptions, refunds and payment reconciliation need an authorised reporting integration.',
+            fact: 'No financial totals shown until validated against the billing provider' }),
+        ]),
+        el('p', { class: 'company-methodology', text:
+          'Scope: Rider Comms accounts and activity share a backend with Rider Social. Social audience, customer support tickets, finance and company-wide revenue require dedicated, permission-scoped datasets before they can be reported here.' }),
+      ]),
+    ];
+  }
+
   function renderOverview(data) {
     const days = period;
     const { riders, activity, social, content, safety, series, previous } = data;
@@ -748,10 +819,13 @@
       renderOverview(overviewCache);
       pageEl.querySelector('[aria-label="Period"] [aria-pressed="true"]')?.focus({ preventScroll: true });
     }, 'Period');
+    const companySections = companyCommandCentre(data);
     pageEl.replaceChildren(
       pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · days in UTC`, [periodControl]),
+      companySections[0],
       operationsSummary({ riders, activity, safety }),
       kpis,
+      companySections[1],
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
       el('h2', { class: 'section-title', text: 'Growth' }),
@@ -2143,6 +2217,7 @@
   const appEl = document.querySelector('.app');
   const menuToggle = document.getElementById('menuToggle');
   const menuBackdrop = document.getElementById('menuBackdrop');
+  const drawerClose = document.getElementById('drawerClose');
   function setMenu(open) {
     appEl.classList.toggle('menu-open', open);
     document.body.classList.toggle('menu-visible', open);
@@ -2157,6 +2232,7 @@
     if (!open) menuToggle.focus();
   });
   menuBackdrop.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
+  drawerClose.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
   document.addEventListener('keydown', (event) => {
     if (!appEl.classList.contains('menu-open')) return;
     if (event.key === 'Escape') { setMenu(false); menuToggle.focus(); return; }
@@ -2164,7 +2240,7 @@
     // Include footer links as well as buttons in the mobile focus loop.
     // Installed-app entry links and Staff sign-out are keyboard-reachable.
     const focusables = [...document.querySelectorAll(
-      '.sidebar button:not([disabled]), .sidebar a[href], .sidebar input:not([disabled])',
+      '.sidebar-panel button:not([disabled]), .sidebar-panel a[href], .sidebar-panel input:not([disabled])',
     )].filter((element) => !element.closest('[hidden]') && element.getClientRects().length > 0);
     if (!focusables.length) return;
     const first = focusables[0];
@@ -2451,6 +2527,14 @@
           text: 'One secure workspace for rider support, trust and safety, and live operations. Access is based on your existing Rider Comms staff role.' }),
         IS_STAFF_PWA ? guide : el('a', { class: 'staff-install-link', href: './staff/',
           text: 'Open the installable Staff app' }),
+        el('div', { class: 'staff-login-capabilities' }, [
+          el('span', { class: 'staff-login-capabilities-title', text: 'Your workspace includes' }),
+          el('ul', { class: 'staff-login-capabilities-list' }, [
+            el('li', { text: 'Rider accounts and ride operations' }),
+            el('li', { text: 'Rider Social trust and safety reviews' }),
+            el('li', { text: 'Role-based staff access and platform diagnostics' }),
+          ]),
+        ]),
       ]),
       el('div', { class: 'card staff-login-card' }, [
         el('h2', { class: 'card-title', text: 'Staff sign in' }),
