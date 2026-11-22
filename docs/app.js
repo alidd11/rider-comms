@@ -3473,7 +3473,7 @@
         title: 'Navigation',
         body: `<div class="choice-list" role="radiogroup" aria-label="Navigation preference">${Object.entries(NAVIGATION_PROVIDERS).map(([id, option]) => `<button data-navigation-option="${id}" role="radio" aria-checked="${navigationProvider(state.navigationProvider) === id}"><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.description)}</small></span><i></i></button>`).join('')}</div><p class="caption">Rider Comms navigation stays in the app. Google Maps, Waze and Apple Maps hand the destination to that app.</p>`,
         ready: () => {
-          $('[data-navigation-option]', $('#sheetBody')).forEach((button) => {
+          $$('[data-navigation-option]', $('#sheetBody')).forEach((button) => {
             button.addEventListener('click', () => {
               state.navigationProvider = navigationProvider(button.dataset.navigationOption);
               persist();
@@ -3484,13 +3484,13 @@
           });
         },
       }),
-      units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
+      units: () => ({ title: 'Distance units', body: `<div class="choice-list" role="radiogroup" aria-label="Distance units"><button data-unit-option="mi" role="radio"><span><strong>Miles</strong><small>Use miles and mph</small></span><i></i></button><button data-unit-option="km" role="radio"><span><strong>Kilometres</strong><small>Use kilometres and km/h</small></span><i></i></button></div>`, ready: () => { $$('[data-unit-option]', $('#sheetBody')).forEach((button) => { const active = button.dataset.unitOption === state.profile.unitSystem; button.setAttribute('aria-checked', String(active)); button.addEventListener('click', async () => { button.disabled = true; const next = button.dataset.unitOption; const ok = await patchProfile({ unitSystem: next }); if (ok) { openSheet('units'); showToast('Distance unit updated.'); } else button.disabled = false; }); }); } }),
       generalSettings: () => ({
         title: 'General',
         body: settingsRowsMarkup([
           `<div class="settings-row settings-row-stack"><span class="settings-row-label">${escapeHtml('Distance units')}</span><div class="segmented" role="radiogroup" aria-label="Distance units">${[['mi', 'Miles'], ['km', 'km']].map(([unit, label]) => `<button type="button" role="radio" data-unit-segment="${unit}" aria-checked="${state.profile.unitSystem === unit}">${label}</button>`).join('')}</div></div>`,
         ]),
-        ready: () => $('[data-unit-segment]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
+        ready: () => $$('[data-unit-segment]', $('#sheetBody')).forEach((button) => button.addEventListener('click', async () => {
           const next = button.dataset.unitSegment;
           if (next === state.profile.unitSystem) return;
           const ok = await patchProfile({ unitSystem: next });
@@ -3513,7 +3513,7 @@
         return {
           title: 'Saved places',
           body: settingsRowsMarkup(Object.entries(SAVED_PLACE_LABELS).map(([slot, label]) => `<button type="button" class="settings-row" data-saved-place-setting="${slot}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-value">${escapeHtml(saved[slot]?.name || 'Not set')}</span><span class="settings-row-chevron">${icon('chevron')}</span></button>`), 'Tap Home or Work in Where to on the map and the route starts straight away.'),
-          ready: () => $('[data-saved-place-setting]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => editSavedPlaceFromSettings(button.dataset.savedPlaceSetting))),
+          ready: () => $$('[data-saved-place-setting]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => editSavedPlaceFromSettings(button.dataset.savedPlaceSetting))),
         };
       },
       voiceSoundSettings: () => ({
@@ -3530,11 +3530,11 @@
           RIDER_VEHICLE_OPTIONS.filter(([, , optionGroup]) => optionGroup === group).map(([vehicle, label]) => `<button type="button" class="settings-row" role="radio" data-vehicle-option="${vehicle}" aria-checked="${state.vehicleCategory === vehicle}"><span class="settings-row-label">${escapeHtml(label)}</span><span class="settings-row-check">${icon('check')}</span></button>`),
           index === groups.length - 1 ? 'Routes only shows roads we’ve checked suit what you drive or ride.' : '',
         )}`).join(''),
-        ready: () => $('[data-vehicle-option]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => {
+        ready: () => $$('[data-vehicle-option]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => {
           state.vehicleCategory = button.dataset.vehicleOption;
           persist();
           window.RiderCuratedRoutes?.setVehicle?.(state.vehicleCategory);
-          $('[data-vehicle-option]', $('#sheetBody')).forEach((row) => row.setAttribute('aria-checked', String(row === button)));
+          $$('[data-vehicle-option]', $('#sheetBody')).forEach((row) => row.setAttribute('aria-checked', String(row === button)));
         })),
       }),
       notificationDevice: () => ({
@@ -3592,8 +3592,8 @@
         title: 'On the way',
         body: `<div class="stop-kinds" role="radiogroup" aria-label="What to find">${STOP_KINDS.map((kind, index) => `<button type="button" role="radio" aria-checked="${index === 0}" data-stop-kind="${kind.key}">${escapeHtml(kind.label)}</button>`).join('')}</div><div id="stopList" class="stop-list" aria-live="polite"></div>`,
         ready: () => {
-          $('[data-stop-kind]').forEach((button) => button.addEventListener('click', () => {
-            $('[data-stop-kind]').forEach((other) => other.setAttribute('aria-checked', String(other === button)));
+          $$('[data-stop-kind]').forEach((button) => button.addEventListener('click', () => {
+            $$('[data-stop-kind]').forEach((other) => other.setAttribute('aria-checked', String(other === button)));
             void renderStopsOnTheWay(button.dataset.stopKind);
           }));
           void renderStopsOnTheWay(STOP_KINDS[0].key);
@@ -3603,7 +3603,7 @@
         title: 'Report on the road',
         body: `<p class="caption">Let nearby riders know what’s ahead. Reports fade out over time.</p><div class="hazard-type-grid" id="hazardTypeChips">${HAZARD_TYPE_ORDER.map((t) => `<button type="button" class="hazard-type-tile" data-hazard-type="${t}" style="--hazard:${HAZARD_TYPES[t].color}">${hazardIconMarkup(t)}<span>${escapeHtml(HAZARD_TYPES[t].label)}</span></button>`).join('')}</div><p id="hazardFormError" class="inline-error" hidden></p><p id="hazardAutoClose" class="hazard-autoclose" aria-live="off">Closes in ${HAZARD_AUTO_CLOSE_SECONDS} seconds if you don’t pick one.</p>`,
         ready: () => {
-          const chips = $('[data-hazard-type]', $('#hazardTypeChips'));
+          const chips = $$('[data-hazard-type]', $('#hazardTypeChips'));
           // One tap to report; if nothing is picked the picker closes itself
           // so it never sits over the map on a ride.
           clearInterval(hazardAutoCloseTimer);
@@ -3724,7 +3724,7 @@
         const current = accountSession.current === true;
         return `<article class="session-row"><span class="setting-icon">${icon('phone')}</span><span class="session-copy"><strong>${escapeHtml(accountSession.deviceName || 'Rider Comms device')}</strong><small>${current ? 'This device' : `Active ${escapeHtml(sessionDateLabel(accountSession.lastSeenAt))}`}</small></span>${current ? '<span class="plan-pill">Current</span>' : `<button class="button tertiary session-revoke" data-revoke-session="${escapeHtml(accountSession.id)}">Sign out</button>`}</article>`;
       }).join('');
-      $('[data-revoke-session]', list).forEach((button) => button.addEventListener('click', async () => {
+      $$('[data-revoke-session]', list).forEach((button) => button.addEventListener('click', async () => {
         button.disabled = true;
         try {
           await apiFetch('DELETE', `/auth/sessions/${encodeURIComponent(button.dataset.revokeSession)}`);
@@ -4003,7 +4003,7 @@
     }
   }
   function wireSettingsLinks(root) {
-    $('[data-settings-open]', root).forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.settingsOpen)));
+    $$('[data-settings-open]', root).forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.settingsOpen)));
   }
 
   // The Settings root: categories, each opening its own page, with the
@@ -4077,7 +4077,7 @@
   function wireToggles(root = $('#sheetBody')) {
     // A settings page can hold several sections that each wire toggles;
     // wire each button once so a tap doesn't flip it twice.
-    const unwired = $('[data-toggle]:not([data-toggle-wired])', root);
+    const unwired = $$('[data-toggle]:not([data-toggle-wired])', root);
     unwired.forEach((button) => button.setAttribute('data-toggle-wired', ''));
     unwired.forEach((button) => button.addEventListener('click', async () => {
       const key = button.dataset.toggle;
@@ -4198,7 +4198,7 @@
       return;
     }
     list.innerHTML = blocked.map((rider) => `<article class="blocked-row"><span class="identity"><strong>${escapeHtml(rider.displayName)}</strong><small>${escapeHtml(rider.handle || '')}</small></span><button type="button" class="button secondary" data-unblock="${escapeHtml(rider.riderId)}">Unblock</button></article>`).join('');
-    $('[data-unblock]', list).forEach((button) => button.addEventListener('click', async () => {
+    $$('[data-unblock]', list).forEach((button) => button.addEventListener('click', async () => {
       const rider = blocked.find((entry) => entry.riderId === button.dataset.unblock);
       if (!rider || !window.confirm(`Unblock ${rider.displayName}? They’ll be able to find you in Nearby and send you a friend request again. Your previous friendship isn’t restored.`)) return;
       button.disabled = true;
@@ -9621,7 +9621,7 @@
     $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
     $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
     $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('myProfile'); });
-    $('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
+    $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       navigate(button.dataset.menuNav);
     }));
@@ -9629,11 +9629,11 @@
       closeAppMenu({ restoreFocus: false });
       window.open(RIDER_SOCIAL_URL, '_blank', 'noopener');
     });
-    $('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
+    $$('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       openSheet(button.dataset.menuSheet);
     }));
-    $('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
+    $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
     initMapDrawer();
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
@@ -9678,7 +9678,7 @@
     });
     const syncRideCodeSlots = () => {
       const code = $('#rideCode').value;
-      $('#rideCodeSlots span').forEach((slot, index) => {
+      $$('#rideCodeSlots span').forEach((slot, index) => {
         slot.textContent = code[index] || '·';
         slot.classList.toggle('filled', Boolean(code[index]));
         slot.classList.toggle('active', index === code.length && code.length < 6);
@@ -9818,7 +9818,7 @@
       sendFriendRequest(input);
       $('#friendId').value = '';
     });
-    $('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
+    $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
     const openHazardReport = () => {
       pendingHazardReportPosition = null;
@@ -9844,7 +9844,7 @@
         return;
       }
       if (event.key !== 'Tab') return;
-      const focusable = $('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]', $('.sheet'));
+      const focusable = $$('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]', $('.sheet'));
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
