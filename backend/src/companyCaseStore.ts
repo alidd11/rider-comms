@@ -75,7 +75,7 @@ const appendEvent = (client: PoolClient, id: string, actorId: string, event: str
 export type CaseMutation = { ok: true; item: CompanyCase } |
   { ok: false; error: 'not_found' | 'stale_case' | 'unchanged' |
     'assigned_to_other' | 'invalid_assignee' | 'invalid_transition' };
-const cursorRe = /^(\\d{1,16}):([0-9a-f-]{36})$/i;
+const cursorRe = /^(\d{1,16}):([0-9a-f-]{36})$/i;
 export function parseCaseCursor(raw: string | null): { at: number; id: string } | null | undefined {
   if (raw === null) return null;
   const match = cursorRe.exec(raw);
