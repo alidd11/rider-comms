@@ -443,6 +443,52 @@ test.describe('staff dashboard', () => {
     await expect(report.locator('.inbox-quick-claim')).toContainText('Quick claim:');
   });
 
+  test('action inbox owner filters show only matching returned reports', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports[0].assignedTo = ADMIN_ID;
+    state.reports[0].assignedAt = Date.now();
+    await page.goto('/admin.html#inbox');
+
+    const ownership = page.getByRole('group', { name: 'Action inbox ownership' });
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    await expect(page.locator('.inbox-sample-count')).toHaveText('Showing 2 of 2 returned items');
+
+    await ownership.getByRole('button', { name: 'Assigned to me' }).click();
+    await expect(ownership.getByRole('button', { name: 'Assigned to me' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(ownership.getByRole('button', { name: 'Assigned to me' })).toBeFocused();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item').first()).toContainText('Case owner: you');
+    await expect(page.locator('.inbox-sample-count')).toHaveText('Showing 1 of 2 returned items');
+
+    await ownership.getByRole('button', { name: 'Unassigned' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(0);
+    await expect(page.getByText('No matching work in this sample')).toBeVisible();
+    await expect(page.locator('.inbox-sample-count')).toHaveText('Showing 0 of 2 returned items');
+    await ownership.getByRole('button', { name: 'All owners' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+  });
+
+  test('Social posts source clears owner filter because Social ownership is unavailable', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports[0].assignedTo = ADMIN_ID;
+    await page.goto('/admin.html#inbox');
+
+    await page.getByRole('group', { name: 'Action inbox ownership' })
+      .getByRole('button', { name: 'Assigned to me' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    const sources = page.getByRole('group', { name: 'Action inbox sources' });
+    await sources.getByRole('button', { name: 'Social posts' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(1);
+    await expect(page.locator('.inbox-item').first()).toContainText('Rider Social');
+    await expect(page.getByRole('group', { name: 'Action inbox ownership' })).toHaveCount(0);
+    await sources.getByRole('button', { name: 'All work' }).click();
+    await expect(page.locator('.inbox-item')).toHaveCount(2);
+    await expect(page.getByRole('group', { name: 'Action inbox ownership' })
+      .getByRole('button', { name: 'All owners' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   test('action inbox shows true moderation sources and opens the selected rider report', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
