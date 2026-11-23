@@ -17,6 +17,12 @@ for (const { path, source } of workflows) {
   }
 }
 
+const native = workflows.find(({ path }) => path.endsWith('native-builds.yml'))?.source ?? '';
+assert.ok(native.includes('maestro.DeviceUnreachableException'), 'XCUITest recovery must be transport-specific');
+assert.ok(native.includes('maestro-ios-first-attempt.xml'), 'XCUITest recovery must preserve failed JUnit evidence');
+assert.ok(native.includes('xcrun simctl bootstatus'), 'XCUITest recovery must reboot the simulator');
+assert.ok(native.includes('exit "$test_status"'), 'XCUITest recovery may not bypass a failing UI test');
+
 const pages = workflows.find(({ path }) => path.endsWith('pages.yml'))?.source ?? '';
 assert.match(pages, /- run: npm ci(?:\n|$)/, 'Pages deployment must install the exact lockfile with npm ci');
 assert.doesNotMatch(pages, /- run: npm install(?:\n|$)/, 'Pages deployment must not mutate dependency resolution');
