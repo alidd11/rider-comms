@@ -186,15 +186,28 @@ appId: com.ridercomms.app
           visible:
             id: open-menu
           timeout: 8000
+# The premium menu scrolls on small phones. "Settings" can be below the
+# fold even while the Menu is fully open. Check the stable close control as
+# proof of arrival, then scroll to Settings before interacting with it.
+# A retry must not tap open-menu again if the Menu is already open.
 - retry:
     maxRetries: 3
     commands:
-      - tapOn:
-          id: open-menu
+      - runFlow:
+          when:
+            visible:
+              id: open-menu
+          commands:
+            - tapOn:
+                id: open-menu
       - extendedWaitUntil:
-          visible: "Settings(,.*)?"
+          visible:
+            id: close-menu
           timeout: 8000
 - takeScreenshot: authenticated-menu
+- scrollUntilVisible:
+    element: "Settings(,.*)?"
+    direction: DOWN
 - retry:
     maxRetries: 3
     commands:
@@ -259,17 +272,30 @@ appId: com.ridercomms.app
           visible:
             id: open-menu
           timeout: 10000
-# The menu slides in; a tap during that has been dropped on iOS. Wait for
-# the plan screen's own intro line, as "Your plan" is also the menu row's
-# label.
+# "Your plan" is in the second group of the premium menu. On short
+# Android/iOS viewports it is below the fold, so opening the menu is not
+# sufficient: scroll the visible ScrollView before selecting the destination.
+# A retry must not tap open-menu after the menu has already been opened.
 - retry:
     maxRetries: 3
     commands:
-      - tapOn:
-          id: open-menu
-          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: open-menu
+          commands:
+            - tapOn:
+                id: open-menu
+      - extendedWaitUntil:
+          visible:
+            id: close-menu
+          timeout: 8000
       - waitForAnimationToEnd
+      - scrollUntilVisible:
+          element: "Your plan(,.*)?"
+          direction: DOWN
       - tapOn: "Your plan(,.*)?"
+      # The screen's own introduction distinguishes Billing from the menu row.
       - extendedWaitUntil:
           visible: "Plans change how far Nearby reaches.*"
           timeout: 10000

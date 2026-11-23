@@ -3123,3 +3123,45 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .account-stepup-actions button{min-height:44px;border-radius:9px;padding:10px 15px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font:inherit;font-weight:650}
 .account-stepup-actions button[type=submit]{background:var(--accent);color:var(--accent-text)}
 .account-stepup-actions button:disabled{opacity:.6}
+
+/* Premium Rider Cockpit: menu hub v1 (mirrors mobile/src/screens/MenuScreen.tsx).
+   Keep shell navigation and Ride Safe in JS; this is presentation only. */
+.app-menu{padding:calc(var(--safe-top) + 10px) max(18px,var(--safe-right)) max(20px,var(--safe-bottom)) max(18px,var(--safe-left));scroll-padding-bottom:calc(var(--safe-bottom) + 20px)}
+.app-menu>*{width:min(100%,580px);margin-left:auto;margin-right:auto;flex-shrink:0}
+.app-menu-top{min-height:50px;align-items:center;justify-content:space-between}
+.app-menu-top h1{margin:0;font-size:1.65rem;line-height:1.18;font-weight:800;letter-spacing:-.035em}
+.app-menu-close{flex:none;width:48px;min-width:48px;height:48px}
+.app-menu-profile{gap:16px;padding:18px 4px 22px;border-bottom:1px solid var(--border-soft)}
+.app-menu-profile .avatar{flex:none;width:74px!important;height:74px!important}
+.app-menu-profile-copy{flex:1;min-width:0;justify-items:start;gap:3px}
+.app-menu-profile-copy strong{font-size:1.45rem;line-height:1.16;letter-spacing:-.025em}
+.app-menu-profile-copy>span{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:.9rem}
+.app-menu-profile-button{display:inline-flex;align-items:center;gap:6px;margin-top:6px;min-height:44px;padding:0 2px;background:transparent;color:var(--accent-ink,var(--accent));font-size:.91rem;font-weight:750}
+.app-menu-profile-button svg{width:16px;height:16px;padding:0;background:transparent;flex:none}
+.app-menu-ride-summary{margin-top:20px}
+.app-menu-section-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px;padding:0 2px}
+.app-menu-section-heading h2,.app-menu-group-title{margin:0;color:var(--text-secondary);font-size:.76rem;line-height:1.4;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
+.app-menu-section-heading>span{color:var(--text-muted);font-size:.76rem;font-weight:600;white-space:nowrap}
+.app-menu-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:0;border:1px solid var(--border-soft);border-radius:var(--radius-lg);background:var(--surface);box-shadow:none;overflow:hidden}
+.app-menu-stats>div{display:grid;align-content:center;gap:4px;min-width:0;padding:12px 10px 13px;border-radius:0;background:transparent;box-shadow:none}
+.app-menu-stats>div+div{border-left:1px solid var(--border-soft)}
+.app-menu-stats strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1.35rem;line-height:1.15;font-weight:800;letter-spacing:-.025em}
+.app-menu-stats span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:.76rem;font-weight:650}
+.app-menu-navigation{display:grid;gap:17px;margin-top:25px}
+.app-menu-group{min-width:0}
+.app-menu-group+.app-menu-group{border-top:1px solid var(--border-soft);padding-top:17px}
+.app-menu-group-title{padding:0 5px;margin-bottom:6px}
+.app-menu-list{display:grid;gap:2px;padding-top:0}
+.app-menu-list button{min-height:56px;display:flex;align-items:center;gap:12px;padding:5px 8px;border-radius:var(--radius-md);font-size:1rem;font-weight:650}
+.app-menu-list button:hover,.app-menu-list button:active{background:var(--surface)}
+.app-menu-list button>.app-menu-row-icon{flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:var(--surface-raised);color:var(--accent-ink,var(--accent))}
+.app-menu-list button>.app-menu-row-icon svg{width:21px;height:21px;padding:0;box-sizing:border-box;border-radius:0;background:transparent;color:inherit}
+.app-menu-list button>.app-menu-row-label{min-width:0;flex:1;font-size:1rem;font-weight:650}
+.app-menu-list button>.app-menu-chevron{flex:none;width:18px;height:18px;padding:0;box-sizing:border-box;border-radius:0;background:transparent;color:var(--text-muted)}
+.app-menu-list button>small{flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:.8rem;font-weight:650}
+.app-menu-list button>.app-menu-live{color:var(--success)}
+.app-menu-list button>.app-menu-badge{flex:none}
+.app-menu-version{margin-top:auto;padding-top:24px;padding-bottom:2px;text-align:center;font-size:.78rem}
+@media (max-width:360px){.app-menu-profile{gap:12px}.app-menu-stats>div{padding-inline:8px}.app-menu-stats strong{font-size:1.2rem}.app-menu-list button{gap:10px}}
+@media (max-height:690px){.app-menu-profile{padding-block:12px 16px}.app-menu-ride-summary{margin-top:12px}.app-menu-navigation{margin-top:16px;gap:12px}.app-menu-group+.app-menu-group{padding-top:12px}}
+@media (prefers-reduced-motion:reduce){.app-menu{animation:none}.app-menu-list button{animation:none}}
