@@ -452,26 +452,53 @@
     </main>
   </div>
 
-  <section id="appMenu" class="app-menu" role="dialog" aria-modal="true" aria-label="Menu" hidden>
-    <div class="app-menu-top"><button id="closeAppMenu" class="icon-button app-menu-close" type="button" aria-label="Close menu"><svg><use href="#i-close"/></svg></button></div>
+  <section id="appMenu" class="app-menu" role="dialog" aria-modal="true" aria-labelledby="appMenuTitle" hidden>
+    <div class="app-menu-top">
+      <h1 id="appMenuTitle">Menu</h1>
+      <button id="closeAppMenu" class="icon-button app-menu-close" type="button" aria-label="Close menu"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+
     <div class="app-menu-profile">
       <div id="appMenuAvatar" class="avatar avatar-lg" data-avatar aria-hidden="true"></div>
-      <div class="app-menu-profile-copy"><strong id="appMenuName"></strong><span id="appMenuHandle"></span><button id="appMenuViewProfile" class="app-menu-profile-button" type="button">View profile</button></div>
+      <div class="app-menu-profile-copy">
+        <strong id="appMenuName"></strong>
+        <span id="appMenuHandle"></span>
+        <button id="appMenuViewProfile" class="app-menu-profile-button" type="button">View profile <svg aria-hidden="true"><use href="#i-chevron"/></svg></button>
+      </div>
     </div>
-    <div id="appMenuStats" class="app-menu-stats" aria-label="Your recent rides">
-      <div><strong id="appMenuStatRides">0</strong><span>Rides</span></div>
-      <div><strong id="appMenuStatTime">0 min</strong><span>Ride time</span></div>
-      <div><strong id="appMenuStatDistance">0</strong><span id="appMenuStatDistanceUnit">mi</span></div>
-    </div>
-    <div class="app-menu-list">
-      <button type="button" data-menu-nav="ride"><svg><use href="#i-bike"/></svg><span>Ride</span><small id="appMenuRide" class="app-menu-live" hidden><span class="live-dot"></span>Live</small></button>
-      <button type="button" data-menu-nav="friends"><svg><use href="#i-users"/></svg><span>Friends</span><i id="friendsNavBadge" class="app-menu-badge" hidden>0</i></button>
-      <button type="button" data-menu-nav="routes"><svg><use href="#i-route"/></svg><span>Routes</span></button>
-      <button type="button" id="appMenuSocial" hidden><svg><use href="#i-camera"/></svg><span>Rider Social</span><small>Beta</small></button>
-      <button type="button" data-menu-sheet="plans"><svg><use href="#i-card"/></svg><span>Your plan</span><small id="appMenuPlan"></small></button>
-      <button type="button" data-menu-nav="settings"><svg><use href="#i-settings"/></svg><span>Settings</span></button>
-      <button type="button" data-menu-sheet="help"><svg><use href="#i-help"/></svg><span>Help &amp; Support</span></button>
-    </div>
+
+    <section class="app-menu-ride-summary" aria-labelledby="appMenuStatsHeading">
+      <div class="app-menu-section-heading">
+        <h2 id="appMenuStatsHeading">Your rides</h2>
+        <span>On this device</span>
+      </div>
+      <div id="appMenuStats" class="app-menu-stats" aria-label="Ride totals on this device">
+        <div><strong id="appMenuStatRides">0</strong><span>Rides</span></div>
+        <div><strong id="appMenuStatTime">0m</strong><span>Ride time</span></div>
+        <div><strong id="appMenuStatDistance">0</strong><span id="appMenuStatDistanceUnit">Miles</span></div>
+      </div>
+    </section>
+
+    <nav class="app-menu-navigation" aria-label="Rider destinations">
+      <section class="app-menu-group" aria-labelledby="appMenuRideHeading">
+        <h2 id="appMenuRideHeading" class="app-menu-group-title">Ride &amp; explore</h2>
+        <div class="app-menu-list">
+          <button type="button" data-menu-nav="ride"><span class="app-menu-row-icon"><svg aria-hidden="true"><use href="#i-bike"/></svg></span><span class="app-menu-row-label">Ride</span><small id="appMenuRide" class="app-menu-live" hidden><span class="live-dot"></span>Live</small><svg class="app-menu-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <button type="button" data-menu-nav="friends"><span class="app-menu-row-icon"><svg aria-hidden="true"><use href="#i-users"/></svg></span><span class="app-menu-row-label">Friends</span><i id="friendsNavBadge" class="app-menu-badge" hidden>0</i><svg class="app-menu-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <button type="button" data-menu-nav="routes"><span class="app-menu-row-icon"><svg aria-hidden="true"><use href="#i-route"/></svg></span><span class="app-menu-row-label">Routes</span><svg class="app-menu-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <button type="button" id="appMenuSocial" hidden><span class="app-menu-row-icon"><svg aria-hidden="true"><use href="#i-camera"/></svg></span><span class="app-menu-row-label">Rider Social</span><small>Beta</small><svg class="app-menu-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+        </div>
+      </section>
+      <section class="app-menu-group" aria-labelledby="appMenuAccountHeading">
+        <h2 id="appMenuAccountHeading" class="app-menu-group-title">Account &amp; support</h2>
+        <div class="app-menu-list">
+          <button type="button" data-menu-sheet="plans"><span class="app-menu-row-icon"><svg aria-hidden="true"><use href="#i-card"/></svg></span><span class="app-menu-row-label">Your plan</span><small id="appMenuPlan"></small><svg class="app-menu-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <button type="button" data-menu-nav="settings"><span class="app-menu-row-icon"><svg aria-hidden="true"><use href="#i-settings"/></svg></span><span class="app-menu-row-label">Settings</span><svg class="app-menu-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <button type="button" data-menu-sheet="help"><span class="app-menu-row-icon"><svg aria-hidden="true"><use href="#i-help"/></svg></span><span class="app-menu-row-label">Help &amp; Support</span><svg class="app-menu-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+        </div>
+      </section>
+    </nav>
+
     <p class="app-menu-version">Rider Comms · Version 0.3.0</p>
   </section>
 
