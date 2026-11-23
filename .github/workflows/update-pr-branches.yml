@@ -7,8 +7,11 @@ name: Keep PR branches current
 # and local checkout stay valid: they only need to pull before their next push.
 #
 # Commits made with GITHUB_TOKEN don't start other workflows, so after each
-# update this starts CI (and the native build when the PR touches native
-# paths) on the new head itself; the results show on the PR as usual.
+# update this starts CI on the new head itself; the results show on the PR as
+# usual. The 35-minute native build is started too, but only for PRs that are
+# ready for review and touch native paths: a parked draft isn't rebuilt each
+# time something unrelated lands on main. Its author's own pushes still run
+# the native build, and so does marking the draft ready (the job below).
 #
 # Skipped: drafts are included, forks are not (no write access), and any PR
 # labelled `no-auto-update`. When main can't be merged cleanly, the PR gets
@@ -19,18 +22,20 @@ on:
     branches:
       - main
   workflow_dispatch:
+  pull_request:
+    types: [ready_for_review]
 
 permissions:
   contents: write
   pull-requests: write
   actions: write
 
-concurrency:
-  group: update-pr-branches
-  cancel-in-progress: true
-
 jobs:
   update:
+    if: github.event_name != 'pull_request'
+    concurrency:
+      group: update-pr-branches
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -43,10 +48,10 @@ jobs:
           native_paths='^(mobile/|shared/|package-lock\.json$|\.github/workflows/native-builds\.yml$|scripts/(android-launch-check|check-android-release|check-ios-purpose-strings)\.sh$)'
           conflict_marker='<!-- auto-update-branch: conflict -->'
           gh pr list --repo "$REPO" --base main --state open --limit 100 \
-            --json number,headRefName,headRefOid,isCrossRepository,labels \
-            --jq '.[] | select(.isCrossRepository | not) | select([.labels[].name] | index("no-auto-update") | not) | "\(.number) \(.headRefName) \(.headRefOid)"' > prs.txt
+            --json number,headRefName,headRefOid,isCrossRepository,isDraft,labels \
+            --jq '.[] | select(.isCrossRepository | not) | select([.labels[].name] | index("no-auto-update") | not) | "\(.number) \(.headRefName) \(.headRefOid) \(.isDraft)"' > prs.txt
           # Read the list on its own descriptor so no gh call below can consume it.
-          while read -r number branch sha <&3; do
+          while read -r number branch sha draft <&3; do
             behind=$(gh api "repos/$REPO/compare/main...$sha" --jq .behind_by)
             if [ "$behind" = "0" ]; then
               echo "#$number is up to date"
@@ -58,7 +63,7 @@ jobs:
               sleep 5
               gh workflow run ci.yml --repo "$REPO" --ref "$branch"
               gh workflow run security-isolated.yml --repo "$REPO" --ref "$branch"
-              if gh pr diff "$number" --repo "$REPO" --name-only | grep -Eq "$native_paths"; then
+              if [ "$draft" = "false" ] && gh pr diff "$number" --repo "$REPO" --name-only | grep -Eq "$native_paths"; then
                 gh workflow run native-builds.yml --repo "$REPO" --ref "$branch"
               fi
             else
@@ -69,3 +74,25 @@ jobs:
               fi
             fi
           done 3< prs.txt
+
+  # A draft skipped the native build on its automatic updates, so run it once
+  # when the PR is marked ready, if it touches native paths.
+  native-on-ready:
+    if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start the native build for a PR that is now ready
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          native_paths='^(mobile/|shared/|package-lock\.json$|\.github/workflows/native-builds\.yml$|scripts/(android-launch-check|check-android-release|check-ios-purpose-strings)\.sh$)'
+          if gh pr diff "$NUMBER" --repo "$REPO" --name-only | grep -Eq "$native_paths"; then
+            gh workflow run native-builds.yml --repo "$REPO" --ref "$BRANCH"
+          else
+            echo "#$NUMBER doesn't touch native paths"
+          fi
