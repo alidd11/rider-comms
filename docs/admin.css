@@ -2442,3 +2442,36 @@ select.input, .case-field .input { padding-left: 12px; }
 /* Short laptop screens: the section list scrolls so the footer's sign-out
    stays reachable instead of being cut off below the viewport. */
 @media (min-width: 900px) { .sidebar .nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; } }
+
+/* Sidebar top: the brand row lines up with the 60px workspace toolbar and
+   shares its divider, so the rail and page read as one frame. */
+@media (min-width: 900px) {
+  .sidebar { padding-top: 0; }
+  .sidebar .brand { height: 60px; min-height: 60px; flex: none; padding: 0 18px; border-bottom: 1px solid #263f4b; margin-bottom: 8px; }
+  .sidebar .brand-tag { margin-left: auto; }
+}
+/* Sidebar bottom: one account row (avatar, name, handle and role) with
+   compact icon actions, instead of a sentence, a link and a full button. */
+.staff-footer-account { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; flex-wrap: nowrap; }
+.staff-footer-avatar {
+  flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; font-size: 11px; font-weight: 720;
+}
+.staff-footer-who { display: grid; gap: 2px; min-width: 0; }
+.staff-footer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; }
+.staff-footer-meta { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11.5px; white-space: nowrap; }
+.staff-footer-meta .footer-role { margin-left: 0; }
+.staff-footer-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.sidebar-footer:has(.staff-footer-actions) { display: flex; align-items: center; gap: 8px; }
+.staff-footer-icon-action {
+  display: inline-grid; place-items: center; width: 34px; height: 34px; min-height: 34px; margin: 0; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; text-decoration: none;
+}
+.staff-footer-icon-action svg { width: 16px; height: 16px; }
+.sidebar .staff-footer-icon-action { background: transparent; border: 0; color: #bed1db; }
+.sidebar .staff-footer-icon-action:hover { background: #24404e; color: #fff; text-decoration: none; }
+.sidebar .staff-footer-avatar { background: #24404e; color: #e1edf2; }
+.sidebar .staff-footer-name { color: #f1f7fa; }
+.staff-footer-actions .staff-install-button { min-height: 34px; padding: 0 10px; font-size: 12px; }
+/* Phones: the drawer footer keeps 44px touch targets. */
+@media (max-width: 899px) { .staff-footer-icon-action { width: 44px; height: 44px; } }

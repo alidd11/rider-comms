@@ -252,6 +252,8 @@
     lock: ['M4 7.5h8v6H4z', 'M5.5 7.5V5a2.5 2.5 0 0 1 5 0v2.5'],
     users: ['M6 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z', 'M1.5 13.5c.6-2.3 2.4-3.5 4.5-3.5s3.9 1.2 4.5 3.5'],
     wifiOff: ['M2 2l12 12', 'M8 12.5v.01', 'M5.5 10a3.5 3.5 0 0 1 5 0'],
+    signOut: ['M6.5 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3', 'M10.5 11 13.5 8l-3-3', 'M13.5 8H6.5'],
+    device: ['M5 1.5h6a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z', 'M7 12.5h2'],
   };
   function icon(name) {
     const node = svg('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
@@ -3288,12 +3290,25 @@
   }
   const footerRole = el('span', { class: 'footer-role' });
   const footerInstall = installButton();
-  const legacyInstallLink = el('a', { class: 'staff-footer-install-link', href: './staff/',
-    text: 'Open installable Staff app' });
-  const signOutButton = el('button', { type: 'button', class: 'staff-signout', text: 'Sign out of Staff' });
-  const footerIdentity = (label) => footerEl.replaceChildren(
-    el('div', { class: 'staff-footer-account' }, [label, footerRole]),
-    IS_STAFF_PWA ? footerInstall : legacyInstallLink, signOutButton,
+  // Account row: who is signed in and their role, then compact icon actions
+  // in DOM (and tab) order: open the installable app, then sign out.
+  const legacyInstallLink = el('a', { class: 'staff-footer-icon-action staff-footer-install-link', href: './staff/',
+    'aria-label': 'Open installable Staff app', title: 'Open installable Staff app' }, [icon('device')]);
+  const signOutButton = el('button', { type: 'button', class: 'staff-footer-icon-action staff-signout',
+    'aria-label': 'Sign out of Staff', title: 'Sign out of Staff' }, [icon('signOut')]);
+  const footerIdentity = (name, handle = '') => footerEl.replaceChildren(
+    el('div', { class: 'staff-footer-account' }, [
+      el('span', { class: 'staff-footer-avatar', 'aria-hidden': 'true', text: initials(name) }),
+      el('div', { class: 'staff-footer-who' }, [
+        el('span', { class: 'staff-footer-name' }, [
+          el('span', { class: 'visually-hidden', text: 'Signed in as ' }),
+          name,
+          handle ? el('span', { class: 'visually-hidden', text: ' · ' + handle }) : null,
+        ]),
+        el('span', { class: 'staff-footer-meta' }, [handle ? el('span', { 'aria-hidden': 'true', text: handle }) : null, footerRole]),
+      ]),
+    ]),
+    el('div', { class: 'staff-footer-actions' }, [IS_STAFF_PWA ? footerInstall : legacyInstallLink, signOutButton]),
   );
   signOutButton.addEventListener('click', async () => {
     signOutButton.disabled = true;
@@ -3327,10 +3342,10 @@
     renderStaffSignIn();
     return;
   }
-  footerIdentity(`Signed in as ${session.riderId}`);
+  footerIdentity(session.riderId);
   api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
     const name = profile?.displayName || profile?.handle;
-    if (name && session) footerIdentity(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`);
+    if (name && session) footerIdentity(name, profile.handle && profile.displayName ? profile.handle : '');
   }).catch(() => {});
 
   // The role decides which pages appear; the backend enforces it either way.
@@ -3367,7 +3382,7 @@
     document.getElementById('globalSearchMobile').hidden = false;
     workspaceSearchTrigger.hidden = false;
     footerRole.replaceChildren(roleBadge(me.role));
-    if (!footerEl.contains(footerRole)) footerIdentity(`Signed in as ${session.riderId}`);
+    if (!footerEl.contains(footerRole)) footerIdentity(session.riderId);
     if (!allowed(VIEW_PERMISSIONS[view])) {
       view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
       detailRiderId = null;
