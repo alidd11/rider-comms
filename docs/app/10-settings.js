@@ -104,7 +104,7 @@
                 </div>
               </div>
               ${state.profile.bio ? `<p class="my-profile-bio">${escapeHtml(state.profile.bio)}</p>` : `<p class="my-profile-bio my-profile-bio-empty">Add a bio to introduce yourself to other riders.</p>`}
-              <button type="button" class="my-profile-edit-action" data-settings-open="editProfile">${icon('edit')}<span>Edit profile</span>${icon('chevron')}</button>
+              <button type="button" class="my-profile-edit-action" data-settings-open="editProfile">${icon('user')}<span>Edit profile</span>${icon('chevron')}</button>
             </section>
             <section class="my-profile-section" aria-label="Connected profiles">
               <h3 class="settings-page-heading">Connected profiles</h3>
