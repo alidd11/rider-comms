@@ -124,6 +124,14 @@ test('standalone map sandbox reports blocked MapLibre CDN instead of infinite lo
     await expect(map.locator(id)).toBeDisabled();
   }
   await expect(page.locator('#map')).toHaveCount(0);
+  // The explicit retry reconstructs the same opaque document. No new
+  // permission, third-party top-level script or PWA session is introduced.
+  await map.locator('body').evaluate(() => { window.__retrySentinel = true; });
+  await page.locator('#retryMapBeta').click();
+  await expect.poll(async () => map.locator('body').evaluate(() => Boolean(window.__retrySentinel)))
+    .toBe(false);
+  await expect(page.locator('#mapBetaSandbox')).toHaveAttribute('sandbox', 'allow-scripts');
+  await expect(map.locator('#status')).toHaveAttribute('data-load-state', 'error', { timeout: 15000 });
 });
 
 test('PWA admin beta traps Tab and Shift+Tab above Settings, with reusable close button', async ({ page }) => {

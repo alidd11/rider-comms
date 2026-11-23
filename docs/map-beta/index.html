@@ -16,7 +16,10 @@
     header{display:flex;gap:14px;justify-content:space-between;align-items:center;padding:12px max(14px,env(safe-area-inset-right)) 12px max(14px,env(safe-area-inset-left));background:#102633}
     header div{min-width:0}strong,small{display:block}strong{font-size:14px}small{color:#b7d5de;font-size:11px}
     .return-classic{flex:none;min-height:44px;padding:11px 13px;border:1px solid #65c5df;border-radius:10px;color:#fff;text-decoration:none;font-weight:700}
-    .return-classic:focus-visible{outline:3px solid #58ccf3;outline-offset:3px}
+    .return-classic:focus-visible,.reload-beta:focus-visible{outline:3px solid #58ccf3;outline-offset:3px}
+    .launcher-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .reload-beta{font:inherit;flex:none;min-height:44px;padding:11px 13px;border:1px solid #4c8196;border-radius:10px;background:#193b4b;color:#e7f6ff;cursor:pointer}
+    .reload-beta:hover{border-color:#65c5df}
     #mapBetaSandbox{border:0;width:100%;flex:1;min-height:0;background:#102634}
     footer{padding:7px 12px max(7px,env(safe-area-inset-bottom));background:#102633;color:#c6dae1;font-size:10px;text-align:center}
   </style>
@@ -25,7 +28,10 @@
   <main class="launcher">
     <header>
       <div><strong>Rider Comms Maps</strong><small>Sandboxed admin research preview · not navigation</small></div>
-      <a class="return-classic" href="../index.html" aria-label="Return to the classic Rider Comms map">Use classic map</a>
+      <div class="launcher-actions">
+        <button type="button" class="reload-beta" id="retryMapBeta" aria-label="Reload experimental map">Reload map</button>
+        <a class="return-classic" href="../index.html" aria-label="Return to the classic Rider Comms map">Use classic map</a>
+      </div>
     </header>
     <!-- The live map exists ONLY in the opaque-origin srcdoc child injected by the build. -->
     <iframe id="mapBetaSandbox" title="OpenStreetMap experimental basemap"
@@ -37,6 +43,13 @@
   <script>(() => {
   const back = document.querySelector('.return-classic');
   const mapFrame = document.querySelector('#mapBetaSandbox');
+  // Manual recovery only: reconstruct the same fixed, opaque sandboxed
+  // srcdoc after a CDN or network error. Never use a new URL or any user data.
+  document.querySelector('#retryMapBeta')?.addEventListener('click', () => {
+    if (mapFrame && mapFrame.getAttribute('sandbox') === 'allow-scripts') {
+      mapFrame.srcdoc = mapFrame.srcdoc;
+    }
+  });
   const requestParentClose = () => {
     if (window.parent !== window) {
       // The only permitted command to the outer Rider Comms PWA frame.
