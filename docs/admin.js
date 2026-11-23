@@ -14,9 +14,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'inbox', 'riders', 'moderation', 'cases', 'case', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -584,11 +584,11 @@
   // One consistent, keyboard-operable period control for reports that own
   // a meaningful time axis. Operational queues and record details remain
   // unfiltered, so urgent work cannot vanish behind an analytics preference.
-  function reportingWindow() {
+  function reportingWindow(accessibleName = 'Reporting period') {
     const label = el('label', { class: 'reporting-range' }, [
-      el('span', { class: 'reporting-range-caption', text: 'Date range' }),
+      el('span', { class: 'reporting-range-caption', text: 'Period' }),
     ]);
-    const select = el('select', { class: 'reporting-range-select', 'aria-label': 'Reporting period' }, [
+    const select = el('select', { class: 'reporting-range-select', 'aria-label': accessibleName }, [
       el('option', { value: '7', text: 'Last 7 days' }),
       el('option', { value: '30', text: 'Last 30 days' }),
     ]);
@@ -611,8 +611,8 @@
       }
       period = next;
       savePeriod(next);
-      if (view === 'overview' && overviewCache) {
-        renderOverview(overviewCache);
+      if (view === 'insights' && overviewCache) {
+        renderInsights(overviewCache);
         pageEl.querySelector('.reporting-range-select')?.focus({ preventScroll: true });
       } else {
         focusReportingWindowAfterNextRender = true;
@@ -623,10 +623,10 @@
     return label;
   }
 
-  function periodCutoff() { return Date.now() - period * 86_400_000; }
-  function inReportingWindow(timestamp) {
+  function periodCutoff(days = period) { return Date.now() - days * 86_400_000; }
+  function inReportingWindow(timestamp, days = period) {
     const milliseconds = typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);
-    return Number.isFinite(milliseconds) && milliseconds >= periodCutoff();
+    return Number.isFinite(milliseconds) && milliseconds >= periodCutoff(days);
   }
 
   function pageHeader(title, subtitle, actions = []) {
@@ -645,14 +645,21 @@
         context,
       ]),
       el('div', { class: 'actions page-header-actions' }, [
-        ['overview', 'riders', 'inbox', 'cases', 'audit', 'staff'].includes(view)
+        ['insights', 'cases', 'audit'].includes(view)
           ? reportingWindow()
-          : el('span', { class: 'reporting-scope', text: ({
+          : (({
             moderation: 'Live moderation queue',
+            audit: 'Recent audit sample',
             system: 'Live service status',
             rider: 'Account record',
-            case: 'Full case history',
-          })[view] || 'Live data' }),
+            case: 'Recent case events',
+          })[view] ? el('span', { class: 'reporting-scope', text: ({
+            moderation: 'Live moderation queue',
+            audit: 'Recent audit sample',
+            system: 'Live service status',
+            rider: 'Account record',
+            case: 'Recent case events',
+          })[view] }) : null),
         ...actions, refresh,
       ]),
     ]);
@@ -675,7 +682,7 @@
   function skeletonOverview() {
     const kpi = () => el('div', { class: 'card kpi' }, [el('div', { class: 'skeleton sk-label' }), el('div', { class: 'skeleton sk-value' }), el('div', { class: 'skeleton sk-foot' })]);
     return [
-      pageHeader('Overview', 'Loading…'),
+      pageHeader('Insights', 'Loading…'),
       el('div', { class: 'kpis' }, Array.from({ length: 8 }, kpi)),
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, Array.from({ length: 2 }, () => el('div', { class: 'card' }, [el('div', { class: 'skeleton sk-chart' })]))),
@@ -848,7 +855,61 @@
     ];
   }
 
+  // Use the source timestamp, not the viewer's current clock, when describing
+  // freshness. Explicit UTC avoids ambiguous date cutoffs across staff devices.
+  function snapshotTimestamp(value) {
+    const instant = new Date(value);
+    if (Number.isNaN(instant.getTime())) return 'Snapshot time unavailable';
+    return 'Snapshot as of ' + instant.toLocaleString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short',
+    });
+  }
+
+  // The landing workspace is a short operational briefing, not every report.
   function renderOverview(data) {
+    const { riders, activity, social, safety } = data;
+    const insights = el('button', { type: 'button', class: 'button button-primary', text: 'Explore insights' });
+    insights.addEventListener('click', () => selectView('insights'));
+    const highlight = (label, value, description) => el('div', { class: 'overview-highlight' }, [
+      el('span', { class: 'overview-highlight-label', text: label }),
+      el('strong', { class: 'overview-highlight-value', text: value }),
+      el('span', { class: 'overview-highlight-description', text: description }),
+    ]);
+    const snapshot = snapshotTimestamp(data.generatedAt);
+    pageEl.replaceChildren(
+      pageHeader('Overview', 'Your immediate operational priorities and a short platform snapshot.', [insights]),
+      el('p', { class: 'overview-snapshot', text:
+        snapshot + '. Operational work remains visible regardless of the reporting preference.' }),
+      operationsSummary({ riders, activity, safety }),
+      el('section', { class: 'overview-highlights', 'aria-label': 'Platform highlights' }, [
+        el('div', { class: 'overview-highlights-heading' }, [
+          el('h2', { class: 'section-title', text: 'Platform highlights' }),
+          el('span', { class: 'overview-highlight-note', text: 'Totals and 7-day activity · full breakdown in Insights' }),
+        ]),
+        el('div', { class: 'overview-highlight-grid' }, [
+          highlight('Total riders', formatNumber(riders.total), 'All registered riders'),
+          highlight('Active riders · 7 days', formatNumber(activity.active7d), 'Distinct active accounts'),
+          highlight('Messages · 7 days', formatNumber(social.messages7d), 'Recorded direct messages'),
+        ]),
+      ]),
+    );
+  }
+
+  function renderCompany(data) {
+    const sections = companyCommandCentre(data);
+    pageEl.replaceChildren(
+      pageHeader('Company areas', 'Connected teams and services, with unavailable integrations identified.'),
+      el('p', { class: 'overview-snapshot', text: snapshotTimestamp(data.generatedAt) + '. Connected services and unavailable reporting sources are identified below.' }),
+      sections[1],
+      el('details', { class: 'overview-more company-pulse-details' }, [
+        el('summary', { text: 'Platform pulse and reporting scope' }),
+        sections[0],
+      ]),
+    );
+  }
+
+  function renderInsights(data) {
     const days = period;
     const { riders, activity, social, content, safety, series, previous } = data;
     const slice = (values) => values.slice(-days);
@@ -893,19 +954,12 @@
       el('ul', { class: 'stat-list' }, rows.map(([name, value]) => el('li', {}, [el('span', { class: 'stat-name', text: name }), el('span', { class: 'stat-value', text: value })]))),
     ]);
 
-    const companySections = companyCommandCentre(data);
-    const companyDetails = el('details', { class: 'overview-more', 'aria-label': 'Company operations and services' }, [
-      el('summary', { text: 'Company areas and connected services' }),
-      companySections[0],
-      companySections[1],
-    ]);
     pageEl.replaceChildren(
-      pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · reporting in UTC`),
-      operationsSummary({ riders, activity, safety }),
+      pageHeader('Insights', 'Period-based activity from the backend snapshot; chart labels explain coverage.'),
+      el('p', { class: 'overview-snapshot', text: snapshotTimestamp(data.generatedAt) + '. Reporting dates use UTC; each metric specifies its coverage.' }),
       kpis,
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
-      companyDetails,
       el('h2', { class: 'section-title', text: 'Growth' }),
       funnelCard(data.funnel),
       el('h2', { class: 'section-title', text: 'Community and safety' }),
@@ -1037,12 +1091,12 @@
           ]))),
         ])])]),
       ];
-    const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt)).length;
+    const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt, 7)).length;
     pageEl.replaceChildren(
       pageHeader('Riders', riderQuery ? `${riders.length} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”` : `Newest ${riders.length} riders`),
       form,
       ...[].concat(content),
-      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last ${period} days. Search results and existing accounts are never hidden by this range.` }),
+      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last 7 days. Search results and existing accounts are never hidden by this range.` }),
     );
   }
 
@@ -1468,8 +1522,8 @@
           ? 'Try All owners or another source. Ownership filters only apply to the items returned in this snapshot.'
           : 'No open reports or reported Social posts were returned for this source. Refresh to check again.')]);
 
-    const recentItems = validItems.filter((item) => inReportingWindow(item.eventAt)).length;
-    const sampleText = `${recentItems} of ${validItems.length} returned items arrived in the last ${period} days. All open work remains visible regardless of age.`;
+    const recentItems = validItems.filter((item) => inReportingWindow(item.eventAt, 7)).length;
+    const sampleText = `${recentItems} of ${validItems.length} returned items arrived in the last 7 days. All open work remains visible regardless of age.`;
     const note = response.mayHaveMore
       ? el('p', { class: 'inbox-limit-note', role: 'status',
         text: sampleText + ' This is a bounded sample of up to 50 items; additional work may be waiting in Moderation.' })
@@ -1946,16 +2000,24 @@
     if (!isCurrentRender(generation)) return;
     const create = el('button', { type: 'button', class: 'button button-primary', text: 'New case' });
     create.addEventListener('click', () => openNewCaseDialog(available));
-    const kindTabs = segmented([['all', 'All permitted'], ...available.map((k) => [k, CASE_KIND_LABELS[k]])],
-      caseKind, (next) => { caseKind = next; renderAndFocus('[aria-label="Case categories"] [aria-pressed="true"]'); }, 'Case categories');
-    const statusTabs = segmented([['all', 'All statuses'], ...CASE_STATUSES.map((k) => [k, CASE_STATUS_LABELS[k]])],
-      caseStatus, (next) => { caseStatus = next; renderAndFocus('[aria-label="Case statuses"] [aria-pressed="true"]'); }, 'Case statuses');
-    const ownerTabs = segmented([
-      ['all', 'All owners'], ['mine', 'Assigned to me'], ['unassigned', 'Unassigned'],
-    ], caseOwner, (next) => {
-      caseOwner = next;
-      renderAndFocus('[aria-label="Case owners"] [aria-pressed="true"]');
-    }, 'Case owners');
+    const caseFilter = (label, options, selected, onChange) => {
+      const select = el('select', { class: 'input case-filter-select', 'aria-label': label },
+        options.map(([value, text]) => el('option', { value, text })));
+      select.value = selected;
+      select.addEventListener('change', () => onChange(select.value));
+      return el('label', { class: 'case-filter-field' }, [
+        el('span', { class: 'case-filter-caption', text: label }),
+        select,
+      ]);
+    };
+    const filters = el('div', { class: 'case-filter-toolbar', role: 'group', 'aria-label': 'Filter cases' }, [
+      caseFilter('Workstream', [['all', 'All permitted'], ...available.map((kind) => [kind, CASE_KIND_LABELS[kind]])],
+        caseKind, (next) => { caseKind = next; renderAndFocus('select[aria-label="Workstream"]'); }),
+      caseFilter('Status', [['all', 'All statuses'], ...CASE_STATUSES.map((status) => [status, CASE_STATUS_LABELS[status]])],
+        caseStatus, (next) => { caseStatus = next; renderAndFocus('select[aria-label="Status"]'); }),
+      caseFilter('Ownership', [['all', 'All owners'], ['mine', 'Assigned to me'], ['unassigned', 'Unassigned']],
+        caseOwner, (next) => { caseOwner = next; renderAndFocus('select[aria-label="Ownership"]'); }),
+    ]);
     const metric = (label, value, description) => el('div', { class: 'case-workload-metric' }, [
       el('div', { class: 'case-workload-label', text: label }),
       el('div', { class: 'case-workload-value', text: formatNumber(value) }),
@@ -2012,12 +2074,7 @@
       el('section', { class: 'case-workspace' }, [
         workloadPanel,
         caseActivity,
-        el('div', { class: 'case-filter-label', text: 'Workstream' }),
-        el('div', { class: 'scroll-row case-filters' }, [kindTabs]),
-        el('div', { class: 'case-filter-label', text: 'Status' }),
-        el('div', { class: 'scroll-row case-filters' }, [statusTabs]),
-        el('div', { class: 'case-filter-label', text: 'Ownership' }),
-        el('div', { class: 'scroll-row case-filters' }, [ownerTabs]),
+        filters,
         result.items.length ? list : el('div', { class: 'card case-empty' }, [
           emptyState('inbox', 'No cases in this view', 'Create an internal case to start tracking this workstream.'),
         ]),
@@ -2207,14 +2264,15 @@
     const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
     exportButton.addEventListener('click', () => downloadAuditCsv(shown));
 
-    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'} in the last ${period} days${auditRider ? ` for ${auditRider}` : ''}. Filtered from the latest 200 returned records; older decisions remain in the audit log.`;
+    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'} in the last ${period} days${auditRider ? ` for ${auditRider}` : ''}. Based on at most 200 returned records, not all historical decisions.`;
     pageEl.replaceChildren(
       pageHeader('Audit log', subtitle, [exportButton]),
+      el('p', { class: 'period-context', text: 'Showing matching decisions from the latest 200 returned actions. Older actions may be excluded; CSV exports contain only the displayed sample.' }),
       el('div', { class: 'audit-filters' }, [filters]),
       form,
       el('div', { class: 'card reports' }, shown.length
         ? [el('ul', { class: 'list' }, shown.map(actionCard))]
-        : [emptyState('inbox', 'Nothing recorded', auditRider || group[2] ? 'No decisions match these filters.' : 'Every staff decision will be listed here with its note.')]),
+        : [emptyState('inbox', 'Nothing recorded', auditRider || group[2] ? 'No decisions match these filters and period in the loaded sample.' : 'No matching decisions were returned in this period and bounded sample.')]),
     );
   }
 
@@ -2352,14 +2410,17 @@
     if (!events) return [];
     const recent = events.filter((event) => inReportingWindow(event.createdAt));
     return [
-      el('h2', { class: 'section-title', text: `Staff sign-ins · last ${period} days` }),
-      el('p', { class: 'period-context', text: 'This view filters the latest 20 returned sign-in events, not a complete security-event export.' }),
+      el('div', { class: 'staff-signin-heading' }, [
+        el('h2', { class: 'section-title', text: 'Staff sign-ins' }),
+        reportingWindow('Staff sign-in period'),
+      ]),
+      el('p', { class: 'period-context', text: `${recent.length} of ${events.length} latest returned sign-in events occurred in the last ${period} days. The source returns at most 20 events; this is not a complete security-event export and the staff roster is not date-filtered.` }),
       el('div', { class: 'card reports' }, recent.length
         ? [el('ul', { class: 'list' }, recent.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
           person(riderLabel(event.riderId).name, [SECURITY_EVENT_LABELS[event.event] || event.event, event.device].filter(Boolean).join(' · '), event.riderId),
           el('span', { class: 'trail' }, [SECURITY_EVENT_TONES[event.event] ? badge(event.event === 'password_reset' ? 'Reset' : 'Failed', SECURITY_EVENT_TONES[event.event]) : null, el('div', {}, [timeEl(event.createdAt)])]),
         ])))]
-        : [emptyState('lock', 'No sign-ins yet', 'Staff sign-ins, wrong passwords and resets will be listed here.')]),
+        : [emptyState('lock', 'No events in this period', 'No matching events were found in the latest 20 returned security events; older activity may exist.')]),
     ];
   }
 
@@ -2581,17 +2642,19 @@
     const refreshing = key === displayedKey ||
       (view === 'inbox' && displayedKey?.startsWith('["inbox",'));
     if (!refreshing) {
-      if (view === 'overview') pageEl.replaceChildren(...skeletonOverview());
+      if (view === 'insights') pageEl.replaceChildren(...skeletonOverview());
       else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
     }
     setBusy(true);
     try {
-      if (view === 'overview') {
+      if (['overview', 'insights', 'company'].includes(view)) {
         const overview = await api('GET', '/admin/overview');
         if (!isCurrentRender(generation)) return;
         overviewCache = overview;
         updateReportCount(overviewCache.safety.openReports);
-        renderOverview(overviewCache);
+        if (view === 'insights') renderInsights(overviewCache);
+        else if (view === 'company') renderCompany(overviewCache);
+        else renderOverview(overviewCache);
       } else if (view === 'inbox') {
         await renderInbox(generation);
       } else if (view === 'riders') {
@@ -2886,7 +2949,7 @@
     if (innerWidth >= 900 && appEl.classList.contains('menu-open')) setMenu(false);
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      if (view === 'overview') for (const chart of pageEl.querySelectorAll('.chart-card')) chart.redraw?.();
+      if (view === 'insights') for (const chart of pageEl.querySelectorAll('.chart-card')) chart.redraw?.();
     }, 150);
   });
 
