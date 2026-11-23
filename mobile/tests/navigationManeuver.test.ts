@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { navigationManeuverKind } from '../src/navigationManeuver.ts';
+import { MATERIAL_NAVIGATION_PATHS } from '../src/components/materialNavigationPaths.ts';
 
 const pwaApp = readFileSync(new URL('../../docs/app.js', import.meta.url), 'utf8');
 const pwaShell = readFileSync(new URL('../../docs/index.html', import.meta.url), 'utf8');
@@ -37,5 +38,46 @@ describe('navigation maneuver visual categories', () => {
     assert.match(pwaApp, /ferry: 'i-nav-ferry'/);
     assert.match(pwaApp, /'ferry-train': 'i-nav-ferry'/);
     assert.match(pwaShell, /id="i-nav-ferry"/);
+  });
+});
+
+
+describe('Google Material Symbols Rounded PWA/native asset parity', () => {
+  const classes = [
+    ['straight', 'straight'],
+    ['turn-slight-left', 'slight-left'],
+    ['turn-left', 'left'],
+    ['turn-sharp-left', 'sharp-left'],
+    ['uturn-left', 'uturn-left'],
+    ['turn-slight-right', 'slight-right'],
+    ['turn-right', 'right'],
+    ['turn-sharp-right', 'sharp-right'],
+    ['uturn-right', 'uturn-right'],
+    ['merge', 'merge'],
+    ['fork-left', 'fork-left'],
+    ['fork-right', 'fork-right'],
+    ['ramp-left', 'ramp-left'],
+    ['ramp-right', 'ramp-right'],
+    ['roundabout-left', 'roundabout-left'],
+    ['roundabout-right', 'roundabout-right'],
+    ['ferry', 'ferry'],
+    ['arrive', 'arrive'],
+  ] as const;
+
+  it('uses the same offline SVG paths for every supported manoeuvre in both clients', () => {
+    for (const [maneuver, kind] of classes) {
+      assert.equal(navigationManeuverKind(maneuver), kind);
+      const match = pwaShell.match(new RegExp(`<symbol id="i-nav-${kind}" viewBox="0 -960 960 960"><path style="fill:currentColor;stroke:none" d="([^"]+)"\\/><\\/symbol>`));
+      assert.ok(match, `Missing Google Material Symbols Rounded PWA sprite for ${kind}`);
+      assert.equal(match[1], MATERIAL_NAVIGATION_PATHS[kind]);
+    }
+    assert.equal(navigationManeuverKind('ferry-train'), 'ferry');
+  });
+
+  it('keeps slight, ordinary and sharp turns visually distinct', () => {
+    for (const side of ['left', 'right'] as const) {
+      const paths = [MATERIAL_NAVIGATION_PATHS[`slight-${side}`], MATERIAL_NAVIGATION_PATHS[side], MATERIAL_NAVIGATION_PATHS[`sharp-${side}`]];
+      assert.equal(new Set(paths).size, paths.length);
+    }
   });
 });
