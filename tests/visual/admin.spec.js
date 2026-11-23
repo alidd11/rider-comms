@@ -932,14 +932,13 @@ test.describe('staff dashboard', () => {
   });
 
 
-  test('company command centre is backed by the existing overview and labels finance as disconnected', async ({ page }) => {
+  test('company areas is a directory: no figures duplicated from Insights, finance marked disconnected', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
     await page.goto('/admin.html#company');
-    await page.locator('.company-pulse-details > summary').click();
-    const pulse = page.getByRole('region', { name: 'Company pulse' });
-    await expect(pulse).toContainText('240');
-    await expect(pulse).toContainText('Group rides now');
+    // Counts live in Overview (queues) and Insights (trends), not here.
+    await expect(page.getByRole('region', { name: 'Company pulse' })).toHaveCount(0);
+    await expect(page.locator('#page')).not.toContainText('1,284');
     const company = page.getByRole('region', { name: 'Company operations' });
     await expect(company).toContainText('Rider Comms');
     await expect(company).toContainText('Rider Social');
@@ -1155,8 +1154,8 @@ test.describe('staff dashboard', () => {
     await operations.getByRole('button', { name: 'Review reports' }).click();
     await expect(page.locator('.page-title')).toHaveText('Moderation');
     await openSection(page, 'Overview');
-    await operations.getByRole('button', { name: 'Find riders' }).click();
-    await expect(page.locator('.page-title')).toHaveText('Riders');
+    await operations.getByRole('button', { name: 'Open case desk' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Case desk');
   });
 
   test('workspace toolbar tracks navigation and opens command search with restored focus', async ({ page }) => {
@@ -1207,26 +1206,31 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.inbox-item')).toHaveCount(2);
   });
 
-  test('overview is concise and routes to full Insights and Company Areas without hiding information', async ({ page }) => {
+  test('each page has its own job: Overview queues, Insights trends, Company areas directory', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
     await page.goto('/admin.html#overview');
-    await expect(page.locator('.operations-grid .operation-card')).toHaveCount(4);
-    await expect(page.locator('.overview-highlight')).toHaveCount(3);
-    await expect(page.locator('.overview-snapshot')).toContainText('UTC');
+    const work = page.getByRole('region', { name: 'Operations at a glance' });
+    // Reports, three case queues (from the case summary) and rides on the road.
+    await expect(work.locator('.operation-card')).toHaveCount(5);
+    await expect(work.locator('.operation-card', { hasText: 'Cases without an owner' }).locator('.operation-value')).toHaveText('4');
+    await expect(work.locator('.operation-card', { hasText: 'Urgent cases' }).locator('.operation-value')).toHaveText('1');
+    await expect(page.locator('.page-subtitle')).toContainText('UTC');
+    await expect(page.locator('.overview-highlight')).toHaveCount(0);
     await expect(page.locator('.kpi')).toHaveCount(0);
     await expect(page.locator('.chart-card')).toHaveCount(0);
-    await expect(page.locator('.funnel')).toHaveCount(0);
     await expect(page.locator('.reporting-range-select')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Explore insights' }).click();
-    await expect(page).toHaveURL(/#insights$/);
+    await work.getByRole('button', { name: 'Assign cases' }).click();
+    await expect(page).toHaveURL(/#cases$/);
+    await expect(page.getByRole('combobox', { name: 'Ownership' })).toHaveValue('unassigned');
+    await openSection(page, 'Insights');
     await expect(page.locator('.kpi')).toHaveCount(8);
     await expect(page.locator('.chart-card')).toHaveCount(4);
+    // Live and queue figures stay on the Overview.
+    await expect(page.locator('.kpi-label', { hasText: /^Live now$/ })).toHaveCount(0);
+    await expect(page.locator('.kpi-label', { hasText: /^Open reports$/ })).toHaveCount(0);
     await openSection(page, 'Company areas');
     await expect(page.getByRole('region', { name: 'Company operations' })).toBeVisible();
-    await expect(page.locator('.company-pulse-details')).not.toHaveAttribute('open', '');
-    await page.locator('.company-pulse-details > summary').click();
-    await expect(page.getByRole('region', { name: 'Company pulse' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Review Social queue' })).toBeVisible();
   });
 
@@ -1474,13 +1478,14 @@ test.describe('staff dashboard', () => {
     await expect(kpi('Messages sent').locator('.delta')).toHaveText('-8.8%');
     await expect(kpi('Messages sent').locator('.delta')).toHaveAttribute('data-tone', 'bad');
     // Fewer reports is good news.
-    await expect(kpi('Open reports').locator('.delta')).toHaveText('-50%');
-    await expect(kpi('Open reports').locator('.delta')).toHaveAttribute('data-tone', 'good');
+    await expect(kpi('Reports filed').locator('.kpi-value')).toHaveText('5');
+    await expect(kpi('Reports filed').locator('.delta')).toHaveText('-50%');
+    await expect(kpi('Reports filed').locator('.delta')).toHaveAttribute('data-tone', 'good');
     await expect(kpi('Total riders').locator('.kpi-value')).toHaveText('1,284');
     await expect(kpi('Total riders').locator('.kpi-foot')).toHaveText('86% verified · 3 suspended');
     await expect(kpi('Stickiness').locator('.kpi-value')).toHaveText('27%');
-    await expect(kpi('Live now').locator('.kpi-value')).toHaveText('17');
-    await expect(kpi('Open reports').getByRole('link', { name: 'Review queue' })).toHaveAttribute('href', '#moderation');
+    await expect(kpi('Moderation decisions').locator('.kpi-value')).toHaveText('3');
+    await expect(kpi('Reports filed').getByRole('link', { name: 'Review queue' })).toHaveAttribute('href', '#moderation');
     await expect(page.locator('body')).toContainText('Blocked by the content filter this week');
 
     await page.getByRole('combobox', { name: 'Reporting period' }).selectOption('30');
@@ -2147,8 +2152,7 @@ test('Staff Hub premium console preserves responsive shell and navigation focus'
   }
   await page.goto('/admin.html#overview');
   await expect(page.locator('.page-context > summary')).toContainText('Scope and definitions');
-  await expect(page.locator('.operation-card')).toHaveCount(4);
-  await expect(page.locator('.overview-highlight')).toHaveCount(3);
+  await expect(page.locator('.operation-card')).toHaveCount(5);
   if (testInfo.project.name !== 'viewport-desktop-chromium') {
     // Capture the actual navigation drawer, not just the fixed mobile header.
     const toggle = page.locator('#menuToggle');
@@ -2257,7 +2261,7 @@ test('date controls appear only where reporting changes, not on operational queu
   await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Staff sign-in period' })).toHaveValue('30');
   await openSection(page, 'Overview');
-  await expect(page.locator('.overview-highlight')).toHaveCount(3);
+  await expect(page.locator('.operation-card').first()).toBeVisible();
   await expect(page.locator('.chart-card')).toHaveCount(0);
   await openSection(page, 'Insights');
   await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');

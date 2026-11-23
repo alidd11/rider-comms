@@ -746,45 +746,52 @@
   }
 
 
-  /** Operational shortcuts are grounded in /admin/overview, not mock inbox data. */
-  function operationsSummary({ riders, activity, safety }) {
-    const card = ({ label, value, description, destination, action, attention = false }) => {
-      const children = [
-        el('div', { class: 'operation-label', text: label }),
-        el('strong', { class: 'operation-value', text: String(value) }),
-        el('p', { class: 'operation-description', text: description }),
-      ];
-      if (destination && allowed(VIEW_PERMISSIONS[destination])) {
-        const button = el('button', { type: 'button', class: 'button', text: action });
-        button.addEventListener('click', () => selectView(destination));
-        children.push(button);
-      }
-      return el('div', { class: 'operation-card', dataset: { attention: String(attention) } }, children);
-    };
+  /** One work card: a live count, what it means and where to act on it.
+   *  Every figure comes from the backend; nothing here is analytics. */
+  function workCard({ label, value, description, destination, action, attention = false, onOpen }) {
+    const children = [
+      el('div', { class: 'operation-label', text: label }),
+      el('strong', { class: 'operation-value', text: String(value) }),
+      el('p', { class: 'operation-description', text: description }),
+    ];
+    if (destination && allowed(VIEW_PERMISSIONS[destination])) {
+      const button = el('button', { type: 'button', class: 'button', text: action });
+      button.addEventListener('click', () => { onOpen?.(); selectView(destination); });
+      children.push(button);
+    }
+    return el('div', { class: 'operation-card', dataset: { attention: String(attention) } }, children);
+  }
+
+  /** The Overview's queue: reports and cases waiting on staff, then what is
+   *  happening on the road right now. Trends live in Insights only. */
+  function operationsSummary({ activity, safety }, workload) {
+    const totals = workload?.totals;
+    const cards = [
+      workCard({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
+        description: 'Open rider reports that need a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }),
+    ];
+    if (totals) {
+      cards.push(
+        workCard({ label: 'Cases without an owner', value: formatNumber(totals.unassigned),
+          description: 'Active internal cases nobody has taken yet.', destination: 'cases', action: 'Assign cases',
+          attention: totals.unassigned > 0, onOpen: () => { caseOwner = 'unassigned'; } }),
+        workCard({ label: 'Urgent cases', value: formatNumber(totals.urgent),
+          description: 'Active cases marked urgent.', destination: 'cases', action: 'Open case desk', attention: totals.urgent > 0 }),
+        workCard({ label: 'Assigned to you', value: formatNumber(totals.mine),
+          description: 'Your active cases.', destination: 'cases', action: 'My cases', onOpen: () => { caseOwner = 'mine'; } }),
+      );
+    }
+    cards.push(workCard({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
+      description: `Group rides on the road now · ${formatNumber(activity.liveNearbyNow)} riders live on Nearby. No locations are shown.` }));
     return el('section', { class: 'operations-summary', 'aria-label': 'Operations at a glance' }, [
-      el('h2', { class: 'section-title', text: 'Operations at a glance' }),
-      el('p', { class: 'operations-lead', text: 'Live work and the latest operational snapshot.' }),
-      el('div', { class: 'operations-grid' }, [
-        card({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
-          description: 'Open rider reports requiring a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }),
-        card({ label: 'New riders today', value: formatNumber(riders.newToday),
-          description: 'New sign-ups recorded today.', destination: 'riders', action: 'Find riders' }),
-        card({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
-          description: 'Active group rides. No private locations are displayed.' }),
-        card({ label: 'Decisions this week', value: formatNumber(safety.moderationActions7d),
-          description: 'Moderation decisions recorded in the audit log over the last 7 days.', destination: 'audit', action: 'Open audit log' }),
-      ]),
+      el('h2', { class: 'section-title', text: 'Needs attention' }),
+      el('div', { class: 'operations-grid', dataset: { count: String(cards.length) } }, cards),
     ]);
   }
 
   // Portfolio figures come only from the authorised backend snapshot. A
   // disconnected domain explicitly says so instead of displaying fake KPIs.
-  function companyCommandCentre(data) {
-    const { riders, activity, social, content, safety } = data;
-    const metric = (label, value) => el('div', { class: 'company-hero-metric' }, [
-      el('span', { class: 'company-hero-metric-label', text: label }),
-      el('strong', { class: 'company-hero-metric-value', text: formatNumber(value) }),
-    ]);
+  function companyCommandCentre() {
     const unit = ({ title, status, description, fact, destination, action, permittedRoles, startKind, unavailable = false }) => {
       const canOpen = destination && allowed(VIEW_PERMISSIONS[destination])
         && (!permittedRoles || permittedRoles.includes(me?.role));
@@ -800,19 +807,7 @@
         button,
       ]);
     };
-    return [
-      el('section', { class: 'company-hero', 'aria-label': 'Company pulse' }, [
-        el('div', {}, [
-          el('span', { class: 'company-hero-kicker', text: 'Rider Comms · Company operations' }),
-          el('h2', { class: 'company-hero-title', text: 'The business at a glance' }),
-          el('p', { class: 'company-hero-description', text: 'One source of truth for mobility, community and platform operations. These figures are a time-stamped backend snapshot, not simulated live analytics.' }),
-        ]),
-        el('div', { class: 'company-hero-metrics' }, [
-          metric('Riders active · 24h', activity.active24h),
-          metric('Open rider reports', safety.openReports),
-          metric('Group rides now', activity.activeRides),
-        ]),
-      ]),
+    return (
       el('section', { class: 'company-portfolio', 'aria-label': 'Company operations' }, [
         el('div', { class: 'company-section-heading' }, [
           el('h2', { class: 'section-title', text: 'Company operations' }),
@@ -821,15 +816,15 @@
         el('div', { class: 'company-grid' }, [
           unit({ title: 'Rider Comms', status: 'Connected',
             description: 'Rider accounts, group journeys, community activity and live road reporting.',
-            fact: formatNumber(riders.total) + ' riders · ' + formatNumber(content.activeHazards) + ' active hazards',
+            fact: 'Rider search, account help and live road reports',
             destination: 'riders', action: 'Explore riders' }),
           unit({ title: 'Rider Social', status: 'Moderation',
             description: 'Photo posts and Reels are reviewed through the shared trust and safety workflow. No fabricated Social audience figures.',
-            fact: formatNumber(social.friendships) + ' friendships across the shared rider network',
+            fact: 'Post and Reel reports share the moderation queue',
             destination: 'inbox', action: 'Review Social queue' }),
           unit({ title: 'Trust & safety', status: 'Connected',
             description: 'Triage rider reports, act on reported content and preserve case history and audit evidence.',
-            fact: formatNumber(safety.openReports) + ' rider reports open',
+            fact: 'Reports, decisions and the audit log',
             destination: 'inbox', action: 'Open action inbox' }),
           unit({ title: 'Customer support', status: 'Account tools',
             description: 'Create and track internal rider support cases, investigate accounts and record handovers. Customer messages and SLA automation are not yet connected.',
@@ -853,8 +848,8 @@
         ]),
         el('p', { class: 'company-methodology', text:
           'Scope: Rider Comms accounts and activity share a backend with Rider Social. Social audience, customer messaging and response SLAs, finance reconciliation, privacy request deadline automation and company-wide revenue require dedicated, permission-scoped datasets before they can be reported here.' }),
-      ]),
-    ];
+      ])
+    );
   }
 
   // Use the source timestamp, not the viewer's current clock, when describing
@@ -868,46 +863,19 @@
     });
   }
 
-  // The landing workspace is a short operational briefing, not every report.
-  function renderOverview(data) {
-    const { riders, activity, social, safety } = data;
-    const insights = el('button', { type: 'button', class: 'button button-primary', text: 'Explore insights' });
-    insights.addEventListener('click', () => selectView('insights'));
-    const highlight = (label, value, description) => el('div', { class: 'overview-highlight' }, [
-      el('span', { class: 'overview-highlight-label', text: label }),
-      el('strong', { class: 'overview-highlight-value', text: value }),
-      el('span', { class: 'overview-highlight-description', text: description }),
-    ]);
-    const snapshot = snapshotTimestamp(data.generatedAt);
+  // The landing workspace is today's work only; figures and trends are in
+  // Insights, and service health is in System.
+  function renderOverview(data, workload = null) {
     pageEl.replaceChildren(
-      pageHeader('Overview', 'Your immediate operational priorities and a short platform snapshot.', [insights]),
-      el('p', { class: 'overview-snapshot', text:
-        snapshot + ' · Work queues are independent of reporting filters.' }),
-      operationsSummary({ riders, activity, safety }),
-      el('section', { class: 'overview-highlights', 'aria-label': 'Platform highlights' }, [
-        el('div', { class: 'overview-highlights-heading' }, [
-          el('h2', { class: 'section-title', text: 'Platform highlights' }),
-          el('span', { class: 'overview-highlight-note', text: 'Totals and 7-day activity · full breakdown in Insights' }),
-        ]),
-        el('div', { class: 'overview-highlight-grid' }, [
-          highlight('Total riders', formatNumber(riders.total), 'All registered riders'),
-          highlight('Active riders · 7 days', formatNumber(activity.active7d), 'Distinct active accounts'),
-          highlight('Messages · 7 days', formatNumber(social.messages7d), 'Recorded direct messages'),
-        ]),
-      ]),
+      pageHeader('Overview', snapshotTimestamp(data.generatedAt) + '. Queues are live and never filtered by a reporting period.'),
+      operationsSummary(data, workload),
     );
   }
 
   function renderCompany(data) {
-    const sections = companyCommandCentre(data);
     pageEl.replaceChildren(
-      pageHeader('Company areas', 'Connected teams and services, with unavailable integrations identified.'),
-      el('p', { class: 'overview-snapshot', text: snapshotTimestamp(data.generatedAt) + '. Connected services and unavailable reporting sources are identified below.' }),
-      sections[1],
-      el('details', { class: 'overview-more company-pulse-details' }, [
-        el('summary', { text: 'Platform pulse and reporting scope' }),
-        sections[0],
-      ]),
+      pageHeader('Company areas', 'Each team or service, what it is connected to, and where its staff tools are.'),
+      companyCommandCentre(data),
     );
   }
 
@@ -934,13 +902,13 @@
       kpiCard({ label: 'Messages sent', value: formatNumber(messages), delta: deltaBadge(messages, messagesPrev), foot: periodText, spark: sparkline(slice(series.messages)) }),
       kpiCard({ label: 'Rides started', value: ridesTracked ? formatNumber(sum(ridesSeries)) : '—', foot: ridesTracked ? `Last ${days} days` : 'Tracking starts with the next ride', spark: sparkline(ridesSeries) }),
       kpiCard({ label: 'Total riders', value: formatNumber(riders.total), foot: `${verifiedPct ?? 0}% verified · ${formatNumber(riders.suspended)} suspended` }),
-      kpiCard({ label: 'Live now', value: formatNumber(activity.liveNearbyNow), foot: `On Nearby · ${formatNumber(activity.activeRides)} rides in progress` }),
       kpiCard({ label: 'Stickiness', value: stickiness === null ? '—' : `${stickiness}%`, foot: 'Daily ÷ monthly active riders' }),
+      kpiCard({ label: 'Moderation decisions', value: formatNumber(safety.moderationActions7d), foot: 'Last 7 days · see the audit log' }),
       kpiCard({
-        label: 'Open reports',
-        value: formatNumber(safety.openReports),
-        delta: days === 7 ? deltaBadge(safety.reports7d, previous.reports7d, { lowerIsBetter: true }) : null,
-        foot: reportsLink ? [reportsLink, ` · ${formatNumber(safety.reports7d)} filed this week`] : `${formatNumber(safety.reports7d)} filed this week`,
+        label: 'Reports filed',
+        value: formatNumber(safety.reports7d),
+        delta: deltaBadge(safety.reports7d, previous.reports7d, { lowerIsBetter: true }),
+        foot: reportsLink ? [reportsLink, ' · last 7 days'] : 'Last 7 days',
       }),
     ]);
 
@@ -971,11 +939,8 @@
           ['Pending friend requests', formatNumber(social.pendingFriendRequests)],
           ['Messages today', formatNumber(social.messages24h)],
           ['Location sharing on', formatNumber(activity.sharingLocation)],
-          ['Riders in a ride now', formatNumber(activity.ridersInRides)],
         ]),
         statList('Safety and content', 'Moderation workload and shared places', [
-          ['Open reports', formatNumber(safety.openReports)],
-          ['Moderation decisions this week', formatNumber(safety.moderationActions7d)],
           ['Blocked by the content filter this week', formatNumber(safety.filterRejections7d ?? 0)],
           ['Active hazard reports', formatNumber(content.activeHazards)],
           ['Scenic routes', formatNumber(content.scenicRoutes)],
@@ -2686,13 +2651,22 @@
     setBusy(true);
     try {
       if (['overview', 'insights', 'company'].includes(view)) {
-        const overview = await api('GET', '/admin/overview');
+        const [overview, caseWorkload] = await Promise.all([
+          api('GET', '/admin/overview'),
+          // The Overview is a work queue: it also needs the case workload.
+          view === 'overview' && allowed('view_cases')
+            ? api('GET', '/admin/cases/summary').catch((error) => {
+              if (error instanceof ApiError && error.status === 401) throw error;
+              return null;
+            })
+            : null,
+        ]);
         if (!isCurrentRender(generation)) return;
         overviewCache = overview;
         updateReportCount(overviewCache.safety.openReports);
         if (view === 'insights') renderInsights(overviewCache);
         else if (view === 'company') renderCompany(overviewCache);
-        else renderOverview(overviewCache);
+        else renderOverview(overviewCache, caseWorkload);
       } else if (view === 'inbox') {
         await renderInbox(generation);
       } else if (view === 'riders') {

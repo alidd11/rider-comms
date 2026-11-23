@@ -2475,3 +2475,26 @@ select.input, .case-field .input { padding-left: 12px; }
 .staff-footer-actions .staff-install-button { min-height: 34px; padding: 0 10px; font-size: 12px; }
 /* Phones: the drawer footer keeps 44px touch targets. */
 @media (max-width: 899px) { .staff-footer-icon-action { width: 44px; height: 44px; } }
+/* Density: a compact page frame so more of each queue fits above the fold.
+   Section rhythm is 24px; headers no longer spend a full screen line on
+   the scope disclosure, which now sits beside the title. */
+.page { padding-top: 24px; }
+.page-header { padding-bottom: 14px; margin-bottom: 18px; }
+.page-header .page-title { font-size: clamp(26px, 2.2vw, 28px); }
+@media (min-width: 900px) {
+  .page-heading { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; row-gap: 4px; }
+  .page-heading .page-context[open] { flex-basis: 100%; }
+}
+.section-title { margin-top: 24px; margin-bottom: 10px; }
+.operations-summary > .section-title:first-child { margin-top: 0; }
+.operation-card { padding: 14px 16px; }
+.operation-value { margin: 8px 0 4px; font-size: 26px; }
+.operation-description { margin-bottom: 10px; }
+.kpi { min-height: 118px; padding-top: 14px; }
+.chart-card, .panels > .card { padding-top: 14px; }
+.case-workload, .case-list-item, .list-row { scroll-margin-top: 76px; }
+/* Five work cards on wide screens; they wrap cleanly to fewer columns. */
+@media (min-width: 1100px) {
+  .operations-grid[data-count="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .operations-grid[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
