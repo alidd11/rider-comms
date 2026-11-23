@@ -632,14 +632,17 @@
   function pageHeader(title, subtitle, actions = []) {
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
+    // The shell already identifies the Operations Hub and current section.
+    // Keep that context available, but avoid repeating an eyebrow and several
+    // paragraphs above the working area on every screen.
+    const context = subtitle ? el('details', { class: 'page-context' }, [
+      el('summary', { text: 'About this view', 'aria-label': 'About ' + title }),
+      el('p', { class: 'page-subtitle', text: subtitle }),
+    ]) : null;
     return el('div', { class: 'page-header' }, [
       el('div', { class: 'page-heading' }, [
-        el('span', { class: 'page-eyebrow' }, [
-          el('span', { class: 'page-eyebrow-dot', 'aria-hidden': 'true' }),
-          el('span', { text: 'Operations hub' }),
-        ]),
         el('h1', { class: 'page-title', tabindex: '-1', text: title }),
-        subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null,
+        context,
       ]),
       el('div', { class: 'actions page-header-actions' }, [
         ['overview', 'riders', 'inbox', 'cases', 'audit', 'staff'].includes(view)
@@ -891,14 +894,18 @@
     ]);
 
     const companySections = companyCommandCentre(data);
+    const companyDetails = el('details', { class: 'overview-more', 'aria-label': 'Company operations and services' }, [
+      el('summary', { text: 'Company areas and connected services' }),
+      companySections[0],
+      companySections[1],
+    ]);
     pageEl.replaceChildren(
       pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · reporting in UTC`),
-      companySections[0],
       operationsSummary({ riders, activity, safety }),
       kpis,
-      companySections[1],
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
+      companyDetails,
       el('h2', { class: 'section-title', text: 'Growth' }),
       funnelCard(data.funnel),
       el('h2', { class: 'section-title', text: 'Community and safety' }),
@@ -1033,9 +1040,9 @@
     const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt)).length;
     pageEl.replaceChildren(
       pageHeader('Riders', riderQuery ? `${riders.length} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”` : `Newest ${riders.length} riders`),
-      el('p', { class: 'period-context', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last ${period} days. Search results and existing accounts are never hidden by this range.` }),
       form,
       ...[].concat(content),
+      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last ${period} days. Search results and existing accounts are never hidden by this range.` }),
     );
   }
 
@@ -1470,10 +1477,11 @@
         text: sampleText + ' This is not a company-wide count or priority order.' });
 
     pageEl.replaceChildren(
-      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.', [tabs]),
-      el('div', { class: 'inbox-intro', role: 'note' }, [
-        el('strong', { text: 'Review and assign work in Moderation' }),
-        el('span', { text: 'This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
+      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.'),
+      tabs,
+      el('details', { class: 'inbox-intro' }, [
+        el('summary', { text: 'How this queue works' }),
+        el('span', { text: 'Review and assign work in Moderation. This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
       ]),
       el('div', { class: 'inbox-triage-toolbar' }, [
         ownershipTabs,
@@ -1491,7 +1499,7 @@
       inboxFocusTarget = null;
       renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
     }, 'Moderation queues');
-    const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
+    const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.');
     // Exact-ID lookups bypass list sampling and sorting. A case could have
     // been claimed, resolved or removed since the Action Inbox snapshot.
     const selected = inboxFocusTarget &&
@@ -1519,7 +1527,7 @@
             'It may have been removed or changed since your inbox snapshot. No resolution is assumed.'),
           back,
         ]);
-        pageEl.replaceChildren(header, unavailable);
+        pageEl.replaceChildren(header, tabs, unavailable);
         return;
       }
       if (!isCurrentRender(generation)) return;
@@ -1531,6 +1539,7 @@
       const changed = selected.type === 'rider_report' && item.status !== 'open';
       pageEl.replaceChildren(
         header,
+        tabs,
         el('div', { class: 'inbox-intro', role: 'note' }, [
           el('strong', { text: changed ? `Report currently ${item.status}` : 'Showing the selected case' }),
           el('span', { text: changed
@@ -1551,10 +1560,35 @@
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 404) throw error;
       }
+      // Read-only safety reporting cannot stop the moderation queue if
+      // analytics is unavailable. A revoked role/session still fails closed.
+      const socialReport = await api('GET', '/admin/social/activity?days=7').catch((error) => {
+        if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
+        return null;
+      });
       if (!isCurrentRender(generation)) return;
       await loadNames(posts.map((entry) => entry.post.authorId));
       if (!isCurrentRender(generation)) return;
-      pageEl.replaceChildren(header, el('div', { class: 'reports' }, posts.length
+      const summary = el('details', { class: 'workspace-disclosure social-activity-report' }, [
+        el('summary', { text: socialReport
+          ? `Social safety · last 7 days · ${formatNumber(socialReport.metrics.reports)} reports`
+          : 'Social safety activity unavailable' }),
+        socialReport ? el('div', { class: 'case-activity-body' }, [
+          el('p', { class: 'case-help', text:
+            'Counts across retained Social records. Hidden posts is a live total, not a 7-day metric. ' +
+            'This is moderation activity, not a Social audience or engagement report.' }),
+          el('div', { class: 'case-activity-stats' }, [
+            el('span', { text: 'Posts ' + formatNumber(socialReport.metrics.posts) }),
+            el('span', { text: 'Photos ' + formatNumber(socialReport.metrics.photos) }),
+            el('span', { text: 'Reels ' + formatNumber(socialReport.metrics.reels) }),
+            el('span', { text: 'Reported posts ' + formatNumber(socialReport.metrics.reportedPosts) }),
+            el('span', { text: 'Staff content decisions ' + formatNumber(socialReport.metrics.moderationDecisions) }),
+            el('span', { text: 'Hidden now ' + formatNumber(socialReport.metrics.hiddenNow) }),
+          ]),
+        ]) : el('p', { class: 'case-help', text:
+          'Historical Social reporting could not be loaded. You can still review hidden content.' }),
+      ]);
+      pageEl.replaceChildren(header, tabs, summary, el('div', { class: 'reports' }, posts.length
         ? posts.map(socialPostCard)
         : [el('div', { class: 'card' }, [emptyState('inbox', 'No hidden posts', 'Posts reported by three riders are hidden here until you restore or remove them.')])]));
       return;
@@ -1564,7 +1598,7 @@
     await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy, report.assignedTo]));
     if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
-    pageEl.replaceChildren(header, el('div', { class: 'reports' }, reports.length
+    pageEl.replaceChildren(header, tabs, el('div', { class: 'reports' }, reports.length
       ? reports.map(reportCard)
       : [el('div', { class: 'card' }, [emptyState('inbox', moderationView === 'open' ? 'No open reports' : 'Nothing here yet', moderationView === 'open' ? 'You’re all caught up.' : null)])]));
   }
@@ -1830,6 +1864,8 @@
           el('span', { text: item.assignedTo ? 'Owner: ' + item.assignedTo : 'Unassigned' }),
           el('span', { text: 'Updated ' }),
           timeEl(item.updatedAt),
+          item.dueAt ? el('span', { class: 'case-follow-up-target', text:
+            'Internal follow-up ' + new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }) : null,
         ]),
       ]),
       el('div', { class: 'case-item-badges' }, [
@@ -1899,9 +1935,13 @@
     const available = permittedCaseKinds();
     if (caseKind !== 'all' && !available.includes(caseKind)) caseKind = 'all';
     const params = new URLSearchParams({ kind: caseKind, status: caseStatus, owner: caseOwner, limit: '25' });
-    const [result, workload] = await Promise.all([
+    const [result, workload, history] = await Promise.all([
       api('GET', '/admin/cases?' + params.toString()),
       api('GET', '/admin/cases/summary'),
+      api('GET', '/admin/cases/activity?days=' + period).catch((error) => {
+        if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
+        return null;
+      }),
     ]);
     if (!isCurrentRender(generation)) return;
     const create = el('button', { type: 'button', class: 'button button-primary', text: 'New case' });
@@ -1928,6 +1968,24 @@
       metric('Unassigned', counts.unassigned, 'Active cases without an owner'),
       metric('Urgent', counts.urgent, 'Active high-priority escalation'),
     ]);
+    const caseActivity = el('details', { class: 'workspace-disclosure case-activity-report' }, [
+      el('summary', { text: history
+        ? `Case activity · last ${period} days · ${formatNumber(history.totals.created)} opened`
+        : 'Case activity report unavailable' }),
+      history ? el('div', { class: 'case-activity-body' }, [
+        el('p', { class: 'case-help', text:
+          'Complete counts from retained internal cases and events, across the workstreams your role may access. ' +
+          'This is not a response-time SLA or a legal deadline report.' }),
+        el('div', { class: 'case-activity-stats' }, [
+          el('span', { text: 'Opened ' + formatNumber(history.totals.created) }),
+          el('span', { text: 'Resolved/closed changes ' + formatNumber(history.totals.resolvedTransitions) }),
+          el('span', { text: 'Internal notes ' + formatNumber(history.totals.internalNotes) }),
+          el('span', { text: 'Owner changes ' + formatNumber(history.totals.assignmentChanges) }),
+          el('span', { text: 'Overdue internal targets ' + formatNumber(history.totals.overdueTargets) }),
+        ]),
+      ]) : el('p', { class: 'case-help', text:
+        'Historical case reporting could not be loaded. The case queue and its real-time workload remain available.' }),
+    ]);
     const list = el('ul', { class: 'case-list', 'aria-label': 'Internal work cases' },
       result.items.map(caseRecord));
     const recentCases = result.items.filter((item) => inReportingWindow(item.updatedAt)).length;
@@ -1953,6 +2011,7 @@
       pageHeader('Case desk', 'Manage the company’s internal support, appeal, privacy and incident work with a recorded audit trail.', [create]),
       el('section', { class: 'case-workspace' }, [
         workloadPanel,
+        caseActivity,
         el('div', { class: 'case-filter-label', text: 'Workstream' }),
         el('div', { class: 'scroll-row case-filters' }, [kindTabs]),
         el('div', { class: 'case-filter-label', text: 'Status' }),
@@ -1999,7 +2058,20 @@
     const assign = el('button', { type: 'button', class: 'button', text: isMine ? 'Release ownership' : 'Take ownership',
       disabled: !canClaim });
     const addNote = el('button', { type: 'button', class: 'button button-primary', text: 'Add internal note' });
-    const actionButtons = [updateStatus, updatePriority, assign, addNote];
+    const canTarget = (me?.role === 'admin' || item.assignedTo === null || isMine)
+      && !['resolved', 'closed'].includes(item.status);
+    const targetInput = el('input', { class: 'input', type: 'datetime-local',
+      'aria-label': 'Internal follow-up target' });
+    if (item.dueAt) {
+      const timezoneOffset = new Date(item.dueAt).getTimezoneOffset() * 60_000;
+      targetInput.value = new Date(item.dueAt - timezoneOffset).toISOString().slice(0, 16);
+    }
+    targetInput.disabled = !canTarget;
+    const setTarget = el('button', { type: 'button', class: 'button',
+      text: 'Set follow-up target', disabled: !canTarget });
+    const clearTarget = el('button', { type: 'button', class: 'button',
+      text: 'Clear follow-up target', disabled: !canTarget || item.dueAt === null });
+    const actionButtons = [updateStatus, updatePriority, assign, addNote, setTarget, clearTarget];
     const commit = async (path, data) => {
       if (!note.value.trim()) { message.textContent = 'Enter a reason or internal note before making a change.'; note.focus(); return; }
       for (const button of actionButtons) button.disabled = true;
@@ -2015,8 +2087,21 @@
           : actionErrorMessage(error);
         for (const button of actionButtons) button.disabled = false;
         assign.disabled = !canClaim;
+        setTarget.disabled = !canTarget;
+        clearTarget.disabled = !canTarget || item.dueAt === null;
       }
     };
+    setTarget.addEventListener('click', () => {
+      const timestamp = Date.parse(targetInput.value);
+      if (!Number.isSafeInteger(timestamp) || timestamp < Date.now() + 60_000 ||
+        timestamp > Date.now() + 90 * 86_400_000) {
+        message.textContent = 'Choose a follow-up within the next 90 days, at least one minute from now.';
+        targetInput.focus();
+        return;
+      }
+      void commit('target', { dueAt: timestamp });
+    });
+    clearTarget.addEventListener('click', () => void commit('target', { dueAt: null }));
     updateStatus.addEventListener('click', () => void commit('status', { status: status.value }));
     updatePriority.addEventListener('click', () => void commit('priority', { priority: priority.value }));
     assign.addEventListener('click', () => void commit('assign', { assigneeId: isMine ? null : session.riderId }));
@@ -2030,7 +2115,17 @@
       ]),
       el('div', { class: 'case-owner-action' }, [assign]),
       el('label', { class: 'case-field' }, [el('span', { text: 'Update note' }), note]),
-      addNote, message,
+      addNote,
+      el('details', { class: 'case-follow-up workspace-disclosure' }, [
+        el('summary', { text: item.dueAt
+          ? 'Internal follow-up · ' + new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+          : 'Internal follow-up · not set' }),
+        el('p', { class: 'case-help', text:
+          'Optional internal work target only. Not a legal deadline, promised response SLA or automated escalation. An update requires the note above.' }),
+        el('label', { class: 'case-field' }, [el('span', { text: 'Follow-up date and time' }), targetInput]),
+        el('div', { class: 'actions' }, [setTarget, clearTarget]),
+      ]),
+      message,
     ]);
     if (me?.role === 'admin') {
       const assignee = el('input', { class: 'input', 'aria-label': 'Assign to staff rider ID', maxlength: 90,
@@ -2049,6 +2144,8 @@
       caseBadge(item.priority, CASE_PRIORITY_LABELS),
       el('span', { text: item.assignedTo ? 'Assigned to ' + item.assignedTo : 'Unassigned' }),
       el('span', { text: 'Version ' + item.version }),
+      item.dueAt ? el('span', { text: 'Internal target ' +
+        new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }) : null,
     ]);
     const trail = el('ol', { class: 'case-timeline', 'aria-label': 'Case activity history' },
       events.map((event) => el('li', { class: 'case-event' }, [
@@ -2282,7 +2379,10 @@
     if (!isCurrentRender(generation)) return;
     pageEl.replaceChildren(
       pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
-      addStaffForm(),
+      el('details', { class: 'workspace-disclosure staff-add-details' }, [
+        el('summary', { text: 'Add a staff member' }),
+        addStaffForm(),
+      ]),
       el('h2', { class: 'section-title', text: 'Team' }),
       el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, staff.map((member) => el('li', { class: 'list-row staff-row', dataset: { riderId: member.riderId } }, [
         person(name(member), sub(member), member.riderId),
@@ -2299,8 +2399,10 @@
         ]))),
       ])])]),
       ...signInHistory(events),
-      el('h2', { class: 'section-title', text: 'Roles' }),
-      roleMatrix(),
+      el('details', { class: 'workspace-disclosure staff-roles-details' }, [
+        el('summary', { text: 'Role permissions' }),
+        roleMatrix(),
+      ]),
     );
   }
 
@@ -2725,14 +2827,33 @@
   workspaceSearchTrigger.addEventListener('click', () => openCommandSearch(workspaceSearchTrigger));
   document.getElementById('globalSearchClose').addEventListener('click', () => searchDialog.close());
   searchInput.addEventListener('input', updateCommandSearch);
+  // One predictable keyboard path through both authorised page and rider
+  // results. Native buttons retain Tab/Shift+Tab and Enter/Space semantics.
+  // Home/End in the search field keep their normal text-editing behaviour.
+  searchDialog.addEventListener('keydown', (event) => {
+    const key = event.key;
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(key)) return;
+    const options = [...searchDialog.querySelectorAll('.search-result')]
+      .filter((option) => !option.disabled && option.getClientRects().length > 0);
+    if (!options.length) return;
+    const inSearchField = document.activeElement === searchInput;
+    const index = options.indexOf(document.activeElement);
+    if (!inSearchField && index === -1) return;
+    if (inSearchField && (key === 'Home' || key === 'End')) return;
+
+    const next = key === 'Home' ? options[0]
+      : key === 'End' ? options[options.length - 1]
+      : key === 'ArrowDown' ? options[index < 0 ? 0 : (index + 1) % options.length]
+      : index < 0 ? options[options.length - 1]
+      : index === 0 ? searchInput : options[index - 1];
+    event.preventDefault();
+    next.focus();
+    if (next !== searchInput) next.scrollIntoView({ block: 'nearest' });
+  });
   searchInput.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowDown') {
-      const first = searchDialog.querySelector('.search-result');
-      if (first) { event.preventDefault(); first.focus(); }
-    } else if (event.key === 'Enter') {
-      const first = searchDialog.querySelector('.search-result');
-      if (first) { event.preventDefault(); first.click(); }
-    }
+    if (event.key !== 'Enter') return;
+    const first = searchDialog.querySelector('.search-result');
+    if (first) { event.preventDefault(); first.click(); }
   });
   searchDialog.addEventListener('close', () => {
     ++searchGeneration;

@@ -1171,5 +1171,18 @@ export const MIGRATIONS: Migration[] = [
         ON company_case_events (case_id, seq DESC);
     `,
   },
+  {
+    name: '0065_internal_company_case_targets',
+    sql: `
+      -- Targets are internal follow-up reminders, not rider-visible SLAs
+      -- and never statutory deadlines. A row-level reason is always recorded.
+      ALTER TABLE company_case_events DROP CONSTRAINT IF EXISTS company_case_events_event_check;
+      ALTER TABLE company_case_events ADD CONSTRAINT company_case_events_event_check
+        CHECK (event IN ('created', 'note', 'assigned', 'released', 'status', 'priority', 'target'));
+      CREATE INDEX IF NOT EXISTS company_cases_internal_targets_idx
+        ON company_cases (due_at, id)
+        WHERE due_at IS NOT NULL AND status NOT IN ('resolved', 'closed');
+    `,
+  },
 
 ];
