@@ -23,3 +23,11 @@ No backend routes, migrations, authorisation scopes, sensitive rider content, Ma
 - Real Playwright-rendered Staff PWA screenshots across desktop Chromium, mobile Chromium and emulated iPhone WebKit dark. In addition to the normal full-page navigation capture, capture the **actual overdue case state** for all three targets.
 - Verify /admin.html and /staff/ parity; physical installed PWA and authenticated live staff sessions remain unverified without actual testing.
 - Keep PR draft; no merge or deployment without owner approval.
+
+## CI failure diagnosis and correction — 23 November 2026
+
+The first exact-head CI run #45091999540 failed during Playwright visual audit with 8 failures, 986 passes. All failures were confined to new overdue-target checks and screenshot fixtures:
+- A non-null `dueAt` returned as an ISO string caused `new Date(item.dueAt - timezoneOffset).toISOString()` to throw a `RangeError` in Case Details, because subtracting an offset directly from a string produces `NaN`. We now parse the timestamp first and guard invalid timestamps, retaining support for numeric epoch dates.
+- Dedicated `/staff/` overdue screenshots seeded the ordinary Rider Comms session, not `rider-comms-staff-session-v1`, leaving the standalone PWA on the sign-in form. The fixture now uses the same staff-session setup as the 36 existing visual captures.
+
+The existing tests were strengthened, not skipped or relaxed. Re-run exact-head CI/security and inspect the actual overdue screenshots before requesting merge approval.

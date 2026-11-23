@@ -2136,9 +2136,16 @@
       && !['resolved', 'closed'].includes(item.status);
     const targetInput = el('input', { class: 'input', type: 'datetime-local',
       'aria-label': 'Internal follow-up target' });
-    if (item.dueAt) {
-      const timezoneOffset = new Date(item.dueAt).getTimezoneOffset() * 60_000;
-      targetInput.value = new Date(item.dueAt - timezoneOffset).toISOString().slice(0, 16);
+    if (item.dueAt != null) {
+      // The API may return an epoch timestamp or ISO 8601 string.
+      // Subtract from the parsed epoch, never directly from the raw value:
+      // ISO strings coerced to numbers are NaN and would crash Case Details.
+      const instant = new Date(item.dueAt);
+      const timestamp = instant.getTime();
+      if (Number.isFinite(timestamp)) {
+        const timezoneOffset = instant.getTimezoneOffset() * 60_000;
+        targetInput.value = new Date(timestamp - timezoneOffset).toISOString().slice(0, 16);
+      }
     }
     targetInput.disabled = !canTarget;
     const setTarget = el('button', { type: 'button', class: 'button',
