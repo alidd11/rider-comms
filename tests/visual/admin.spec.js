@@ -1161,6 +1161,7 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#overview');
     await expect(page.locator('.operations-grid .operation-card')).toHaveCount(4);
     await expect(page.locator('.overview-highlight')).toHaveCount(3);
+    await expect(page.locator('.overview-snapshot')).toContainText('UTC');
     await expect(page.locator('.kpi')).toHaveCount(0);
     await expect(page.locator('.chart-card')).toHaveCount(0);
     await expect(page.locator('.funnel')).toHaveCount(0);
@@ -2112,10 +2113,19 @@ test('date controls appear only where reporting changes, not on operational queu
   await range.selectOption('30');
   await expect(page.getByText(/loaded cases updated in the last 30 days/)).toBeVisible();
   await expect(page.locator('.case-item')).toHaveCount(4);
-  for (const name of ['Action inbox', 'Riders', 'Audit log', 'Staff', 'Moderation', 'Overview']) {
+  for (const name of ['Action inbox', 'Riders', 'Moderation', 'Overview']) {
     await openSection(page, name);
     await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveCount(0);
   }
+  await openSection(page, 'Riders');
+  await expect(page.getByText(/loaded rider accounts joined in the last 7 days/)).toBeVisible();
+  await openSection(page, 'Audit log');
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+  await expect(page.getByText(/latest 200 returned actions/)).toBeVisible();
+  await openSection(page, 'Staff');
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Staff sign-in period' })).toHaveValue('30');
+  await openSection(page, 'Overview');
   await expect(page.locator('.overview-highlight')).toHaveCount(3);
   await expect(page.locator('.chart-card')).toHaveCount(0);
   await openSection(page, 'Insights');

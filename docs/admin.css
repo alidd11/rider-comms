@@ -1967,3 +1967,11 @@ html { scroll-padding-top: 78px; }
      only control; mobile already has an equivalent refresh action in the shell. */
   .page-header-actions:has(> .desktop-refresh:only-child) { display: none; }
 }
+
+/* Scoped time controls apply to staff security events, not the staff roster. */
+.staff-signin-heading {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px 16px; margin: 28px 0 9px;
+}
+.staff-signin-heading .section-title { margin: 0; }
+.staff-signin-heading .reporting-range { border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); }

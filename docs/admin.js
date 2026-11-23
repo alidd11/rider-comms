@@ -584,11 +584,11 @@
   // One consistent, keyboard-operable period control for reports that own
   // a meaningful time axis. Operational queues and record details remain
   // unfiltered, so urgent work cannot vanish behind an analytics preference.
-  function reportingWindow() {
+  function reportingWindow(accessibleName = 'Reporting period') {
     const label = el('label', { class: 'reporting-range' }, [
       el('span', { class: 'reporting-range-caption', text: 'Period' }),
     ]);
-    const select = el('select', { class: 'reporting-range-select', 'aria-label': 'Reporting period' }, [
+    const select = el('select', { class: 'reporting-range-select', 'aria-label': accessibleName }, [
       el('option', { value: '7', text: 'Last 7 days' }),
       el('option', { value: '30', text: 'Last 30 days' }),
     ]);
@@ -623,10 +623,10 @@
     return label;
   }
 
-  function periodCutoff() { return Date.now() - period * 86_400_000; }
-  function inReportingWindow(timestamp) {
+  function periodCutoff(days = period) { return Date.now() - days * 86_400_000; }
+  function inReportingWindow(timestamp, days = period) {
     const milliseconds = typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);
-    return Number.isFinite(milliseconds) && milliseconds >= periodCutoff();
+    return Number.isFinite(milliseconds) && milliseconds >= periodCutoff(days);
   }
 
   function pageHeader(title, subtitle, actions = []) {
@@ -645,20 +645,20 @@
         context,
       ]),
       el('div', { class: 'actions page-header-actions' }, [
-        ['insights', 'cases'].includes(view)
+        ['insights', 'cases', 'audit'].includes(view)
           ? reportingWindow()
           : (({
             moderation: 'Live moderation queue',
             audit: 'Recent audit sample',
             system: 'Live service status',
             rider: 'Account record',
-            case: 'Full case history',
+            case: 'Recent case events',
           })[view] ? el('span', { class: 'reporting-scope', text: ({
             moderation: 'Live moderation queue',
             audit: 'Recent audit sample',
             system: 'Live service status',
             rider: 'Account record',
-            case: 'Full case history',
+            case: 'Recent case events',
           })[view] }) : null),
         ...actions, refresh,
       ]),
@@ -855,6 +855,17 @@
     ];
   }
 
+  // Use the source timestamp, not the viewer's current clock, when describing
+  // freshness. Explicit UTC avoids ambiguous date cutoffs across staff devices.
+  function snapshotTimestamp(value) {
+    const instant = new Date(value);
+    if (Number.isNaN(instant.getTime())) return 'Snapshot time unavailable';
+    return 'Snapshot as of ' + instant.toLocaleString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short',
+    });
+  }
+
   // The landing workspace is a short operational briefing, not every report.
   function renderOverview(data) {
     const { riders, activity, social, safety } = data;
@@ -865,13 +876,11 @@
       el('strong', { class: 'overview-highlight-value', text: value }),
       el('span', { class: 'overview-highlight-description', text: description }),
     ]);
-    const generated = new Date(data.generatedAt);
-    const snapshot = Number.isNaN(generated.getTime()) ? 'recently' :
-      generated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const snapshot = snapshotTimestamp(data.generatedAt);
     pageEl.replaceChildren(
       pageHeader('Overview', 'Your immediate operational priorities and a short platform snapshot.', [insights]),
       el('p', { class: 'overview-snapshot', text:
-        'Snapshot updated ' + snapshot + '. Operational work remains visible regardless of the reporting preference.' }),
+        snapshot + '. Operational work remains visible regardless of the reporting preference.' }),
       operationsSummary({ riders, activity, safety }),
       el('section', { class: 'overview-highlights', 'aria-label': 'Platform highlights' }, [
         el('div', { class: 'overview-highlights-heading' }, [
@@ -891,6 +900,7 @@
     const sections = companyCommandCentre(data);
     pageEl.replaceChildren(
       pageHeader('Company areas', 'Connected teams and services, with unavailable integrations identified.'),
+      el('p', { class: 'overview-snapshot', text: snapshotTimestamp(data.generatedAt) + '. Connected services and unavailable reporting sources are identified below.' }),
       sections[1],
       el('details', { class: 'overview-more company-pulse-details' }, [
         el('summary', { text: 'Platform pulse and reporting scope' }),
@@ -946,6 +956,7 @@
 
     pageEl.replaceChildren(
       pageHeader('Insights', 'Period-based activity from the backend snapshot; chart labels explain coverage.'),
+      el('p', { class: 'overview-snapshot', text: snapshotTimestamp(data.generatedAt) + '. Reporting dates use UTC; each metric specifies its coverage.' }),
       kpis,
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
@@ -1080,12 +1091,12 @@
           ]))),
         ])])]),
       ];
-    const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt)).length;
+    const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt, 7)).length;
     pageEl.replaceChildren(
       pageHeader('Riders', riderQuery ? `${riders.length} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”` : `Newest ${riders.length} riders`),
       form,
       ...[].concat(content),
-      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last ${period} days. Search results and existing accounts are never hidden by this range.` }),
+      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last 7 days. Search results and existing accounts are never hidden by this range.` }),
     );
   }
 
@@ -1511,8 +1522,8 @@
           ? 'Try All owners or another source. Ownership filters only apply to the items returned in this snapshot.'
           : 'No open reports or reported Social posts were returned for this source. Refresh to check again.')]);
 
-    const recentItems = validItems.filter((item) => inReportingWindow(item.eventAt)).length;
-    const sampleText = `${recentItems} of ${validItems.length} returned items arrived in the last ${period} days. All open work remains visible regardless of age.`;
+    const recentItems = validItems.filter((item) => inReportingWindow(item.eventAt, 7)).length;
+    const sampleText = `${recentItems} of ${validItems.length} returned items arrived in the last 7 days. All open work remains visible regardless of age.`;
     const note = response.mayHaveMore
       ? el('p', { class: 'inbox-limit-note', role: 'status',
         text: sampleText + ' This is a bounded sample of up to 50 items; additional work may be waiting in Moderation.' })
@@ -2253,14 +2264,15 @@
     const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
     exportButton.addEventListener('click', () => downloadAuditCsv(shown));
 
-    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'} in the last ${period} days${auditRider ? ` for ${auditRider}` : ''}. Filtered from the latest 200 returned records; older decisions remain in the audit log.`;
+    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'} in the last ${period} days${auditRider ? ` for ${auditRider}` : ''}. Based on at most 200 returned records, not all historical decisions.`;
     pageEl.replaceChildren(
       pageHeader('Audit log', subtitle, [exportButton]),
+      el('p', { class: 'period-context', text: 'Showing matching decisions from the latest 200 returned actions. Older actions may be excluded; CSV exports contain only the displayed sample.' }),
       el('div', { class: 'audit-filters' }, [filters]),
       form,
       el('div', { class: 'card reports' }, shown.length
         ? [el('ul', { class: 'list' }, shown.map(actionCard))]
-        : [emptyState('inbox', 'Nothing recorded', auditRider || group[2] ? 'No decisions match these filters.' : 'Every staff decision will be listed here with its note.')]),
+        : [emptyState('inbox', 'Nothing recorded', auditRider || group[2] ? 'No decisions match these filters and period in the loaded sample.' : 'No matching decisions were returned in this period and bounded sample.')]),
     );
   }
 
@@ -2398,14 +2410,17 @@
     if (!events) return [];
     const recent = events.filter((event) => inReportingWindow(event.createdAt));
     return [
-      el('h2', { class: 'section-title', text: `Staff sign-ins · last ${period} days` }),
-      el('p', { class: 'period-context', text: 'This view filters the latest 20 returned sign-in events, not a complete security-event export.' }),
+      el('div', { class: 'staff-signin-heading' }, [
+        el('h2', { class: 'section-title', text: 'Staff sign-ins' }),
+        reportingWindow('Staff sign-in period'),
+      ]),
+      el('p', { class: 'period-context', text: `${recent.length} of ${events.length} latest returned sign-in events occurred in the last ${period} days. The source returns at most 20 events; this is not a complete security-event export and the staff roster is not date-filtered.` }),
       el('div', { class: 'card reports' }, recent.length
         ? [el('ul', { class: 'list' }, recent.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
           person(riderLabel(event.riderId).name, [SECURITY_EVENT_LABELS[event.event] || event.event, event.device].filter(Boolean).join(' · '), event.riderId),
           el('span', { class: 'trail' }, [SECURITY_EVENT_TONES[event.event] ? badge(event.event === 'password_reset' ? 'Reset' : 'Failed', SECURITY_EVENT_TONES[event.event]) : null, el('div', {}, [timeEl(event.createdAt)])]),
         ])))]
-        : [emptyState('lock', 'No sign-ins yet', 'Staff sign-ins, wrong passwords and resets will be listed here.')]),
+        : [emptyState('lock', 'No events in this period', 'No matching events were found in the latest 20 returned security events; older activity may exist.')]),
     ];
   }
 

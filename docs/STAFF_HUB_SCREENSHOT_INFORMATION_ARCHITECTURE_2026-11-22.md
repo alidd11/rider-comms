@@ -31,3 +31,13 @@ These are real browsers running the Staff PWA with deterministic, synthetic staf
 - Assert Overview has no charts, funnels or time selector; Insights still has all eight KPI values, four chart readouts, period persistence and funnel conversion; Company keeps authorisation-gated actions and 'Not connected' finance caveat.
 - Capture **12 views × 3 browser/device targets = 36 new screenshots** and compare first fold, mobile overflow, focus and dark-mode legibility before marking ready to merge.
 - Never claim a physical installed-PWA test or live authenticated service smoke test was performed without actual evidence.
+
+## Reviewed rendering evidence — PR head `64d7ef19`
+
+The complete generated `pwa-visual-audit` artifact [#14779943455](https://github.com/alidd11/rider-comms/actions/runs/45086669212/artifacts/14779943455) was downloaded and inspected across all 36 full-page images. The original exact-head CI and isolated security staging both passed. This is browser-emulated fixture evidence, not live authenticated or physical iPhone validation.
+
+- Overview full-page **desktop: 2626 → 800 px**, **mobile Chromium: 13347 → 3858 device px**, **WebKit dark: 13326 → 3834 device px**. All four operational cards and three snapshot highlights are readable, and analytics have moved into Insights.
+- Case Desk full-page **desktop: 1125 → 976 px**, **mobile: 4455 → 4107 px**, **WebKit dark: 4359 → 4011 px**. Three rows of segmented filters are replaced by Workstream/Status/Ownership fields with correct mobile wrapping.
+- New Insights holds the existing historical reporting; new Company areas contains the eight service categories and visibly unconnected finance. Long reporting and catalogue views are deliberately separate from Overview.
+- No obvious visual overlap or horizontal document overflow was observed in the 36 screenshots. This is not a substitute for live permissions, installed PWA, interaction or accessibility testing.
+- Follow-up refinement: make snapshot timestamps explicitly UTC, make Audit and Staff sign-in time controls accurately scoped, and remove misleading complete-history claims. Re-test and re-capture screenshots at the new exact head before declaring release readiness.
