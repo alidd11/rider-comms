@@ -62,7 +62,11 @@ describe('Settings mockup contract', () => {
     assert.match(settingsSource, /paddingBottom: insets\.bottom \+ spacing\.md/);
     assert.match(settingsSource, /scroll: \{[^\n]*paddingHorizontal: spacing\.md/);
     assert.match(settingsSource, /settingsGroup: \{[^\n]*backgroundColor: colors\.surfaceRaised/);
-    assert.match(settingsSource, /<RiderAvatar avatarId=\{avatarId\} size=\{112\} \/>/);
+    // The compact Profile identity keeps a visible avatar and a direct edit
+    // action; its 88dp avatar size matches the new premium profile layout.
+    assert.match(settingsSource, /<RiderAvatar avatarId=\{avatarId\} size=\{88\} \/>/);
+    assert.match(settingsSource, /function MyProfilePage\(\)[\s\S]*testID="edit-profile-action"/);
+    assert.match(settingsSource, /accessibilityLabel="Edit profile"/);
     assert.match(settingsSource, /<Ionicons name="chevron-forward" size=\{14\} color=\{colors\.textMuted\} \/>/);
     assert.match(settingsSource, /settingsGroup:\s*\{[^\n]*borderRadius:\s*8/);
     assert.match(settingsSource, /settingRow:\s*\{[^\n]*minHeight:\s*48/);

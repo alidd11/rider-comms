@@ -96,18 +96,27 @@
         const socialValue = (username, visibility) => username ? `@${username} · ${visibilityLabel[visibility] || 'Friends only'}` : 'Add';
         return {
           title: 'Profile',
-          body: `<div class="my-profile-hero">
-              <span class="my-profile-avatar">${avatar(state.profile, 'avatar-xl')}</span>
-              <strong class="my-profile-name">${escapeHtml(state.profile.displayName)}</strong>
-              <span class="my-profile-handle">${escapeHtml(state.profile.handle)}</span>
-              <span class="my-profile-plan">${escapeHtml(plan.name)} plan</span>
-              ${state.profile.bio ? `<p class="my-profile-bio">${escapeHtml(state.profile.bio)}</p>` : ''}
-            </div>
-            ${settingsRowsMarkup([settingsLink('editProfile', 'Edit profile')])}
-            <section class="my-profile-section" aria-label="Connected profiles"><h3 class="settings-page-heading">Connected profiles</h3>${settingsRowsMarkup([
-              settingsLink('editProfile', 'Instagram', socialValue(state.profile.instagram, state.profile.instagramVisibility)),
-              settingsLink('editProfile', 'TikTok', socialValue(state.profile.tiktok, state.profile.tiktokVisibility)),
-            ], 'This is how riders see you. Each connected profile shows only to the people you choose.')}</section>`,
+          body: `<div class="my-profile-page">
+            <section class="my-profile-hero" aria-label="Your rider profile">
+              <div class="my-profile-identity">
+                <span class="my-profile-avatar">${avatar(state.profile, 'avatar-xl')}</span>
+                <div class="my-profile-identity-copy">
+                  <strong class="my-profile-name">${escapeHtml(state.profile.displayName)}</strong>
+                  <span class="my-profile-handle">${escapeHtml(state.profile.handle)}</span>
+                  <span class="my-profile-plan">${escapeHtml(plan.name)} plan</span>
+                </div>
+              </div>
+              ${state.profile.bio ? `<p class="my-profile-bio">${escapeHtml(state.profile.bio)}</p>` : `<p class="my-profile-bio my-profile-bio-empty">Add a bio to introduce yourself to other riders.</p>`}
+              <button type="button" class="my-profile-edit-action" data-settings-open="editProfile">${icon('user')}<span>Edit profile</span>${icon('chevron')}</button>
+            </section>
+            <section class="my-profile-section" aria-label="Connected profiles">
+              <h3 class="settings-page-heading">Connected profiles</h3>
+              ${settingsRowsMarkup([
+                settingsLink('editProfile', 'Instagram', socialValue(state.profile.instagram, state.profile.instagramVisibility)),
+                settingsLink('editProfile', 'TikTok', socialValue(state.profile.tiktok, state.profile.tiktokVisibility)),
+              ], 'Your connected profiles are shown only to the people you choose.')}
+            </section>
+          </div>`,
           ready: () => wireSettingsLinks($('#sheetBody')),
         };
       },
