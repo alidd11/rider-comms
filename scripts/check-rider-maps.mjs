@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import './check-map-lanes.mjs';
 import './check-multi-vehicle-routing.mjs';
 import './check-local-map-graph.mjs';
+import './check-local-valhalla-routes.mjs';
 import {
   VALHALLA_MOTORCYCLE_ROUTING_ENABLED, MAX_RESEARCH_ROUTE_LOCATIONS,
   draftValhallaMotorcycleRequest,
