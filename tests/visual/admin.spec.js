@@ -1288,11 +1288,8 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#inbox');
     await expect(page.locator('.page-title')).toHaveText('Action inbox');
     await expect(page.locator('.page-eyebrow')).toHaveCount(0);
-    const context = page.locator('.page-context');
-    await expect(context).toHaveCount(1);
-    await expect(context).not.toHaveAttribute('open', '');
-    await context.locator('summary').click();
-    await expect(context.locator('.page-subtitle')).toBeVisible();
+    // No disclosure of definitions above the work; a page shows live context only.
+    await expect(page.locator('.page-context')).toHaveCount(0);
     await expect(page.getByRole('group', { name: 'Action inbox sources' })).toBeVisible();
     const intro = page.locator('details.inbox-intro');
     await expect(intro).not.toHaveAttribute('open', '');
@@ -2097,7 +2094,7 @@ test.describe('staff dashboard', () => {
     await expect.poll(() => state.posts.at(-1)).toEqual({ path: '/moderation/reports/report-1/claim', body: {} });
     await expect(card.getByRole('button', { name: /You’re handling this/ })).toBeVisible();
 
-    await card.getByRole('button', { name: 'Harassment of other riders.' }).click();
+    await card.getByRole('combobox', { name: /Start the note from a reason/ }).selectOption('Harassment of other riders.');
     await expect(card.locator('textarea')).toHaveValue('Harassment of other riders.');
     await card.getByLabel('Suspension length for report report-1').selectOption('');
     await card.getByRole('button', { name: 'Suspend rider' }).click();
