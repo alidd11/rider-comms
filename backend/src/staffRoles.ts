@@ -23,6 +23,8 @@ export const STAFF_PERMISSIONS = [
   'view_audit',
   'manage_staff',
   'review_partners',
+  // Push notifications to every rider: admins only.
+  'send_notifications',
 ] as const;
 export type StaffPermission = (typeof STAFF_PERMISSIONS)[number];
 

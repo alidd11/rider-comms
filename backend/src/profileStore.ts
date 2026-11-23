@@ -26,7 +26,7 @@ function isNonEmptyString(value: unknown): value is string {
 
 const ALLOWED_UPDATE_FIELDS = new Set([
   'displayName', 'handle', 'avatarId', 'unitSystem',
-  'notifyNearby', 'notifyInvites', 'notifyChat', 'shareLocation',
+  'notifyNearby', 'notifyInvites', 'notifyChat', 'notifyUpdates', 'shareLocation',
   'instagramUsername', 'instagramVisibility', 'tiktokUsername', 'tiktokVisibility', 'bio',
 ]);
 
@@ -82,7 +82,7 @@ export function validateProfileUpdate(body: Record<string, unknown>): string | n
   if ('unitSystem' in body && !UNIT_SYSTEMS.includes(body.unitSystem as UnitSystem)) {
     return `unitSystem must be one of: ${UNIT_SYSTEMS.join(', ')}`;
   }
-  for (const key of ['notifyNearby', 'notifyInvites', 'notifyChat', 'shareLocation'] as const) {
+  for (const key of ['notifyNearby', 'notifyInvites', 'notifyChat', 'notifyUpdates', 'shareLocation'] as const) {
     if (key in body && typeof body[key] !== 'boolean') {
       return `${key} must be a boolean`;
     }
@@ -101,6 +101,7 @@ interface RiderProfileRow {
   notify_nearby: boolean;
   notify_invites: boolean;
   notify_chat: boolean;
+  notify_updates?: boolean | null;
   share_location: boolean;
   instagram_username: string;
   instagram_visibility: string;
@@ -129,6 +130,7 @@ function rowToProfile(row: RiderProfileRow): RiderProfile {
     notifyNearby: row.notify_nearby,
     notifyInvites: row.notify_invites,
     notifyChat: row.notify_chat,
+    notifyUpdates: row.notify_updates !== false,
     shareLocation: row.share_location,
     instagramUsername: row.instagram_username,
     instagramVisibility: row.instagram_visibility as RiderProfile['instagramVisibility'],
@@ -157,6 +159,7 @@ export class ProfileStore {
       notifyNearby: false,
       notifyInvites: true,
       notifyChat: true,
+      notifyUpdates: true,
       shareLocation: false,
       instagramUsername: '',
       instagramVisibility: 'friends',
@@ -172,8 +175,8 @@ export class ProfileStore {
       `INSERT INTO rider_profiles (
          rider_id, display_name, handle, avatar_id, zone_tier, unit_system,
          notify_nearby, notify_invites, notify_chat, share_location,
-         instagram_username, instagram_visibility, tiktok_username, tiktok_visibility, updated_at, bio
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         instagram_username, instagram_visibility, tiktok_username, tiktok_visibility, updated_at, bio, notify_updates
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        -- zone_tier is written only by BillingStore, from verified purchases.
        ON CONFLICT (rider_id) DO UPDATE SET
          display_name = EXCLUDED.display_name,
@@ -183,6 +186,7 @@ export class ProfileStore {
          notify_nearby = EXCLUDED.notify_nearby,
          notify_invites = EXCLUDED.notify_invites,
          notify_chat = EXCLUDED.notify_chat,
+         notify_updates = EXCLUDED.notify_updates,
          share_location = EXCLUDED.share_location,
          instagram_username = EXCLUDED.instagram_username,
          instagram_visibility = EXCLUDED.instagram_visibility,
@@ -207,6 +211,7 @@ export class ProfileStore {
         profile.tiktokVisibility,
         profile.updatedAt,
         profile.bio,
+        profile.notifyUpdates,
       ]
     );
   }

@@ -162,6 +162,7 @@
       notifyNearby: false,
       notifyInvites: true,
       notifyChat: true,
+      notifyUpdates: true,
       instagram: '',
       tiktok: '',
       bio: '',

@@ -13,7 +13,7 @@ test('PWA Notifications page: this device, then which kinds', async ({ page }) =
   await openFromMenu(page, 'settings');
   await page.locator('[data-settings-open="notifications"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Notifications');
-  await expect(page.locator('#sheetBody .settings-row-label')).toHaveText(['Notifications on this device', 'Friend requests', 'Messages']);
+  await expect(page.locator('#sheetBody .settings-row-label')).toHaveText(['Notifications on this device', 'Friend requests', 'Messages', 'Rider Comms updates']);
   await expect(page.locator('#pushDeviceToggle')).toHaveAttribute('aria-pressed', 'false');
   // Both kinds start on; switching one off saves it to the profile.
   const messages = page.locator('#sheetBody [data-toggle="notifyChat"]');

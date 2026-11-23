@@ -14,9 +14,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'audit', 'notifications', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', audit: 'Audit log', notifications: 'Notifications', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', audit: 'view_audit', notifications: 'send_notifications', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -41,10 +41,10 @@
   ];
   const PERMISSION_LABELS = [
     ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
-    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['view_system', 'System'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['send_notifications', 'Push notifications to riders'], ['view_system', 'System'],
   ];
   const ROLE_MATRIX = {
-    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'view_system'],
+    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications', 'view_system'],
     moderator: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'view_audit', 'view_system'],
     support: ['view_overview', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit', 'view_system'],
     analyst: ['view_overview', 'view_system'],
@@ -57,7 +57,7 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
@@ -1959,6 +1959,122 @@
     reportCountEl.textContent = count > 99 ? '99+' : String(count);
   }
 
+  // ------------------------------------------------------------ Notifications
+
+  const BROADCAST_ROUTES = [['#map', 'Map'], ['#friends', 'Friends'], ['#settings', 'Settings']];
+  const BROADCAST_TITLE_MAX = 60;
+  const BROADCAST_BODY_MAX = 180;
+  // The draft survives a refresh of the page (a test send reloads the list).
+  const broadcastDraft = { title: '', body: '', route: '#map' };
+
+  /** Push notifications to riders who allow Rider Comms updates (admins only).
+   *  Write it, see how it looks, send a test to your own devices, then send. */
+  async function renderNotifications(generation) {
+    const data = await api('GET', '/admin/broadcasts');
+    if (!isCurrentRender(generation)) return;
+    await loadNames(data.items.map((item) => item.sentBy));
+    if (!isCurrentRender(generation)) return;
+    const { riders, devices } = data.audience;
+    const title = el('input', { class: 'input', id: 'broadcastTitle', maxlength: BROADCAST_TITLE_MAX, autocomplete: 'off', placeholder: 'Winter riding' });
+    const body = el('textarea', { class: 'note', id: 'broadcastBody', maxlength: BROADCAST_BODY_MAX, rows: 3, placeholder: 'Roads are icy this week. Take it steady and check hazards before you set off.' });
+    const route = el('select', { class: 'input select', id: 'broadcastRoute' }, BROADCAST_ROUTES.map(([value, label]) => el('option', { value, text: label })));
+    const counter = (input, max) => {
+      const node = el('span', { class: 'field-count', 'aria-hidden': 'true' });
+      const update = () => { node.textContent = `${input.value.length}/${max}`; };
+      input.addEventListener('input', update);
+      update();
+      return node;
+    };
+    const previewTitle = el('strong', { class: 'push-preview-title' });
+    const previewBody = el('span', { class: 'push-preview-body' });
+    const syncPreview = () => {
+      previewTitle.textContent = title.value.trim() || 'Title';
+      previewBody.textContent = body.value.trim() || 'Your message';
+    };
+    title.value = broadcastDraft.title;
+    body.value = broadcastDraft.body;
+    route.value = broadcastDraft.route;
+    const keepDraft = () => Object.assign(broadcastDraft, { title: title.value, body: body.value, route: route.value });
+    for (const control of [title, body, route]) {
+      control.addEventListener(control === route ? 'change' : 'input', () => { keepDraft(); syncPreview(); });
+    }
+    syncPreview();
+    const error = el('p', { class: 'error-text', role: 'alert' });
+    const testButton = el('button', { type: 'button', class: 'button', text: 'Send test to my devices' });
+    const sendButton = el('button', { type: 'button', class: 'button button-primary', text: `Send to ${formatNumber(riders)} ${riders === 1 ? 'rider' : 'riders'}`, disabled: riders === 0 });
+    const message = () => ({ title: title.value.trim(), body: body.value.trim(), route: route.value });
+    const valid = () => {
+      const { title: t, body: b } = message();
+      error.textContent = !t ? 'Add a title.' : !b ? 'Add a message.' : '';
+      return Boolean(t && b);
+    };
+    const send = async (extra) => {
+      testButton.disabled = sendButton.disabled = true;
+      try {
+        await api('POST', '/admin/broadcasts', { ...message(), ...extra });
+        if (!extra.test) Object.assign(broadcastDraft, { title: '', body: '', route: '#map' });
+        await render();
+        flash(extra.test ? 'Test sent to your devices.' : `Sending to ${formatNumber(riders)} ${riders === 1 ? 'rider' : 'riders'}.`);
+      } catch (failure) {
+        error.textContent = failure instanceof ApiError && failure.code === 'broadcast_cooldown'
+          ? 'A notification went to everyone in the last 10 minutes. Wait a few minutes before sending another.'
+          : failure.message || 'Couldn’t send. Try again.';
+      } finally {
+        testButton.disabled = false;
+        sendButton.disabled = riders === 0;
+      }
+    };
+    testButton.addEventListener('click', () => { if (valid()) void send({ test: true }); });
+    sendButton.addEventListener('click', async () => {
+      if (!valid()) return;
+      const choice = await actionDialog({
+        title: `Send to ${formatNumber(riders)} ${riders === 1 ? 'rider' : 'riders'}?`,
+        description: `“${message().title}” goes to ${formatNumber(devices)} ${devices === 1 ? 'device' : 'devices'} now. Riders who turned off Rider Comms updates, and suspended riders, won’t get it. It can’t be unsent.`,
+        confirmLabel: 'Send now',
+        templates: ['Service update for all riders.', 'Safety notice.'],
+      });
+      if (choice) void send({ note: choice.note });
+    });
+    const field = (label, control, extra = null) => el('label', { class: 'case-field' }, [
+      el('span', { class: 'field-label-row' }, [el('span', { text: label }), extra]), control,
+    ]);
+    const compose = el('section', { class: 'card broadcast-compose', 'aria-label': 'New notification' }, [
+      el('div', { class: 'broadcast-form' }, [
+        field('Title', title, counter(title, BROADCAST_TITLE_MAX)),
+        field('Message', body, counter(body, BROADCAST_BODY_MAX)),
+        field('Opens', route),
+        error,
+        el('div', { class: 'actions' }, [testButton, sendButton]),
+      ]),
+      el('div', { class: 'push-preview', 'aria-label': 'Preview' }, [
+        el('div', { class: 'push-preview-card' }, [
+          el('div', { class: 'push-preview-head' }, [el('span', { class: 'push-preview-app', text: 'Rider Comms' }), el('span', { text: 'now' })]),
+          previewTitle, previewBody,
+        ]),
+      ]),
+    ]);
+    const row = (item) => el('li', { class: 'list-row broadcast-row' }, [
+      el('div', { class: 'broadcast-copy' }, [
+        el('strong', { text: item.title }),
+        el('span', { class: 'muted', text: item.body }),
+        el('span', { class: 'broadcast-meta' }, [timeEl(item.createdAt), ` · ${riderLabel(item.sentBy).name}`, item.test ? '' : ` · ${item.note}`]),
+      ]),
+      el('div', { class: 'trail' }, [
+        item.test ? badge('Test', null, true) : null,
+        item.status === 'sending' ? badge('Sending', 'accent') : item.status === 'failed' ? badge('Failed', 'danger')
+          : el('span', { class: 'broadcast-count', text: `${formatNumber(item.delivered)} of ${formatNumber(item.devices)} devices` }),
+      ]),
+    ]);
+    pageEl.replaceChildren(
+      pageHeader('Notifications', `Reaches ${formatNumber(riders)} ${riders === 1 ? 'rider' : 'riders'} on ${formatNumber(devices)} ${devices === 1 ? 'device' : 'devices'}`),
+      compose,
+      el('h2', { class: 'section-title', text: 'Sent' }),
+      el('div', { class: 'card' }, [data.items.length
+        ? el('ul', { class: 'list' }, data.items.map(row))
+        : emptyState('inbox', 'Nothing sent yet', null)]),
+    );
+  }
+
   // ------------------------------------------------------------ Staff actions
 
   /**
@@ -3229,6 +3345,8 @@
         await renderCases(generation);
       } else if (view === 'case') {
         await renderCaseDetail(generation);
+      } else if (view === 'notifications') {
+        await renderNotifications(generation);
       } else if (view === 'partners') {
         await renderPartners(generation);
       } else if (view === 'partner') {

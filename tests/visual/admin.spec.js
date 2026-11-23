@@ -58,7 +58,7 @@ async function signIn(page) {
 }
 
 const ROLE_PERMISSIONS = {
-  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners'],
+  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications'],
   moderator: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'view_audit'],
   support: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit'],
   analyst: ['view_overview', 'view_system'],
@@ -108,6 +108,7 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     riderQueries: [],
     riderFilters: [],
     alertPrefs: { dailyDigest: false, urgentAlerts: false },
+    broadcasts: [],
     reauthenticated: !reauth,
     // Each test gets its own riders, so verifying one doesn't leak into the next.
     riders: RIDERS.map((rider) => ({ ...rider })),
@@ -152,6 +153,17 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       return json(200, { verified: true });
     }
     if (url.pathname === '/admin/mfa') return json(200, { enabled: mfa, recoveryCodesLeft: mfa ? 10 : 0 });
+    if (url.pathname === '/admin/broadcasts') {
+      if (request.method() === 'POST') {
+        const body = request.postDataJSON();
+        state.posts.push({ path: url.pathname, body });
+        if (!body.test && state.broadcasts.some((item) => !item.test)) return json(429, { error: 'broadcast_cooldown' });
+        const item = { id: 'b' + state.broadcasts.length, ...body, sentBy: ADMIN_ID, note: body.note || 'Test send', test: Boolean(body.test), riders: body.test ? 1 : 12, devices: body.test ? 2 : 15, delivered: body.test ? 2 : 14, status: 'sent', createdAt: Date.now(), finishedAt: Date.now() };
+        state.broadcasts.unshift(item);
+        return json(202, { broadcast: item });
+      }
+      return json(200, { audience: { riders: 12, devices: 15 }, items: state.broadcasts, cooldownMs: 600000 });
+    }
     if (url.pathname === '/admin/alerts') {
       if (request.method() === 'POST') {
         state.alertPrefs = request.postDataJSON();
@@ -1885,7 +1897,7 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.staff-roles-details')).not.toHaveAttribute('open', '');
     await page.locator('.staff-roles-details > summary').click();
     // The Case Desk permission adds an actual row to the staff rights matrix.
-    await expect(page.locator('.matrix tbody tr')).toHaveCount(10);
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(11);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Seller and advertiser applications' })).toHaveCount(1);
     await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
@@ -2615,4 +2627,44 @@ test('a Home Screen icon saved from the dashboard at #inbox opens on Overview', 
   await expect(page.locator('.page-title')).toHaveText('Riders');
   await page.reload();
   await expect(page.locator('.page-title')).toHaveText('Riders');
+});
+
+test('notifications: an admin previews, tests, then sends to riders with a note; moderators don’t see the page', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#notifications');
+  await expect(page.locator('.page-title')).toHaveText('Notifications');
+  await expect(page.locator('.page-subtitle')).toHaveText('Reaches 12 riders on 15 devices');
+  await page.getByRole('button', { name: 'Send test to my devices' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Add a title.');
+  await page.getByLabel('Title').fill('Winter riding');
+  await page.getByLabel('Message').fill('Roads are icy this week.');
+  await page.getByLabel('Opens').selectOption('#friends');
+  const preview = page.getByLabel('Preview');
+  await expect(preview).toContainText('Winter riding');
+  await expect(preview).toContainText('Roads are icy this week.');
+  await page.getByRole('button', { name: 'Send test to my devices' }).click();
+  await expect(page.locator('.flash')).toHaveText('Test sent to your devices.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/broadcasts', body: { title: 'Winter riding', body: 'Roads are icy this week.', route: '#friends', test: true } });
+  // The test send keeps the draft.
+  await expect(page.getByLabel('Title')).toHaveValue('Winter riding');
+  await page.getByRole('button', { name: 'Send to 12 riders' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Send to 12 riders?' });
+  await expect(dialog).toContainText('15 devices');
+  await dialog.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Seasonal safety');
+  await dialog.getByRole('button', { name: 'Send now' }).click();
+  await expect(page.locator('.flash')).toHaveText('Sending to 12 riders.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/broadcasts', body: { title: 'Winter riding', body: 'Roads are icy this week.', route: '#friends', note: 'Seasonal safety' } });
+  const sent = page.locator('.broadcast-row');
+  await expect(sent).toHaveCount(2);
+  await expect(sent.first()).toContainText('14 of 15 devices');
+  await expect(sent.nth(1)).toContainText('Test');
+});
+
+test('notifications: the page and menu item are admin-only', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { role: 'moderator' });
+  await page.goto('/admin.html#notifications');
+  await expect(page.locator('.page-title')).not.toHaveText('Notifications');
+  await expect(page.locator('#nav [data-view="notifications"]')).toBeHidden();
 });
