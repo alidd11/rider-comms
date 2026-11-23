@@ -55,6 +55,137 @@
     ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away.'],
   ];
 
+  // Server-validated admin map beta entry. The standalone map reads no
+  // session token, private position, Google route or Place data.
+  // A map-only experiment for server-confirmed admins, inside the installed
+  // PWA. The live Google map, routing, voice and rider location remain intact
+  // behind this dialog and are never copied into the MapLibre document.
+  function openEmbeddedMapBeta(trigger) {
+    if (document.getElementById('riderMapBetaDialog')) return;
+    const dialog = document.createElement('dialog');
+    dialog.id = 'riderMapBetaDialog';
+    dialog.className = 'rider-map-beta-dialog';
+    dialog.setAttribute('aria-label', 'Rider Comms Maps beta preview');
+    dialog.innerHTML = `<div class="rider-map-beta-frame-shell">
+      <header class="rider-map-beta-header">
+        <div><strong>Rider Comms Maps</strong><small>Admin beta · map only · not for navigation</small></div>
+        <button type="button" class="rider-map-beta-return">Use classic map</button>
+      </header>
+      <iframe id="riderMapBetaFrame" title="Rider Comms Maps beta"
+        sandbox="allow-scripts" referrerpolicy="no-referrer"
+        allow="geolocation 'none'; microphone 'none'; camera 'none'"></iframe>
+    </div>`;
+    const frame = dialog.querySelector('#riderMapBetaFrame');
+    const closeButton = dialog.querySelector('.rider-map-beta-return');
+    const close = () => { if (dialog.open) dialog.close(); };
+    // This is the topmost native modal. Settings must not treat its Escape
+    // as a request to navigate the underlying sheet.
+    dialog.addEventListener('keydown', (event) => {
+      // In Chromium, reverse-tab from the first button can otherwise move
+      // focus to <body> before the frame receives it. Keep it in the dialog.
+      if (event.key === 'Tab' && event.shiftKey && document.activeElement === closeButton) {
+        event.preventDefault();
+        frame.focus();
+        return;
+      }
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    });
+    dialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      close(); // triggers the one-time cleanup + focus restoration
+    });
+    const onMessage = (event) => {
+      if (event.origin === 'null'
+          && event.source === frame.contentWindow
+          && event.data?.type === 'rider-comms-close-map-beta') close();
+    };
+    window.addEventListener('message', onMessage);
+    closeButton.addEventListener('click', close);
+    const tokenAtOpen = session?.token;
+    // Across browser tabs the in-memory session may not update promptly.
+    // A changed persisted session is sufficient reason to close the beta.
+    const onStorage = (event) => {
+      if (event.key === SESSION_KEY || event.key === null) close();
+    };
+    window.addEventListener('storage', onStorage);
+    const safetyTimer = window.setInterval(() => {
+      if (!tokenAtOpen || session?.token !== tokenAtOpen
+          || window.RiderMovementSafety.isLockedForSafety(movementState)) close();
+    }, 1000);
+    // Reconfirm access during longer test sessions; fail closed if revoked.
+    let verifyingRole = false;
+    const roleTimer = window.setInterval(() => {
+      if (!dialog.open || verifyingRole) return;
+      verifyingRole = true;
+      void apiFetch('GET', '/admin/me').then((access) => {
+        if (access?.role !== 'admin' || session?.token !== tokenAtOpen) close();
+      }).catch(close).finally(() => { verifyingRole = false; });
+    }, 30000);
+    dialog.addEventListener('close', () => {
+      window.clearInterval(safetyTimer);
+      window.clearInterval(roleTimer);
+      window.removeEventListener('message', onMessage);
+      window.removeEventListener('storage', onStorage);
+      frame.removeAttribute('src'); // stop tile requests on return to classic
+      dialog.remove();
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    }, { once: true });
+    document.body.append(dialog);
+    dialog.showModal();
+    // Fetch nothing from the map preview until the admin explicitly opts in.
+    frame.src = './map-beta/';
+    closeButton.focus({ preventScroll: true });
+  }
+
+  async function revealAdminMapBeta() {
+    const entry = $('#mapBetaAdminEntry');
+    if (!entry) return;
+    entry.hidden = true;
+    entry.replaceChildren();
+    const tokenAtStart = session?.token;
+    if (!tokenAtStart) return;
+    try {
+      const access = await apiFetch('GET', '/admin/me');
+      if (!entry.isConnected || tokenAtStart !== session?.token || access?.role !== 'admin') return;
+      // Only construct the privileged settings UI after the server says admin.
+      // A hidden section with headings would still enter DOM-based settings
+      // tests and could expose a misleading control to assistive technology.
+      entry.innerHTML = `<h3 class="settings-page-heading">Admin beta</h3>${settingsRowsMarkup([
+        '<button type="button" class="settings-row" id="openMapBetaPreview"><span class="settings-row-label">Rider Comms Maps (beta)</span><span class="settings-row-chevron">' + icon('chevron') + '</span></button>',
+      ], 'Experimental map-only preview. Navigation, search and rider locations remain on the classic map.')}`;
+      entry.hidden = false;
+      entry.querySelector('#openMapBetaPreview')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
+          showToast('Map beta testing is only available while stationary.');
+          return;
+        }
+        button.disabled = true;
+        try {
+          const fresh = await apiFetch('GET', '/admin/me');
+          if (fresh?.role !== 'admin' || tokenAtStart !== session?.token) {
+            entry.hidden = true;
+            entry.replaceChildren();
+            showToast('Admin access is required to open Rider Comms Maps beta.');
+            return;
+          }
+          openEmbeddedMapBeta(button);
+        } catch {
+          entry.hidden = true;
+          entry.replaceChildren();
+          showToast('Couldn’t verify admin access. Try again when connected.');
+        } finally {
+          if (button.isConnected) button.disabled = false;
+        }
+      });
+    } catch {
+      entry.hidden = true;
+    }
+  }
+
   function openSheet(type) {
     const templates = {
       blocked: () => ({
@@ -207,8 +338,8 @@
           settingsToggle('avoidHighways', 'Avoid motorways', state.avoidHighways),
           settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
           settingsToggle('avoidFerries', 'Avoid ferries', state.avoidFerries),
-        ], 'Route options apply to routes Rider Comms plans.')}`,
-        ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
+        ], 'Route options apply to routes Rider Comms plans.')}<section id="mapBetaAdminEntry" hidden></section>`,
+        ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); void revealAdminMapBeta(); },
       }),
       savedPlacesSettings: () => {
         const saved = loadSavedPlaces();
