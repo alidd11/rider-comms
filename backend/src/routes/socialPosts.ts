@@ -15,7 +15,7 @@ import { MediaScanUnavailableError } from '../socialMediaScanner.ts';
 import { log } from '../log.ts';
 import { InvalidSocialCursorError, isSocialId, MAX_POST_CAPTION } from '../socialPostStore.ts';
 import type { SocialFeedPage, SocialPost, SocialPostStore } from '../socialPostStore.ts';
-import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
+import { NOT_HANDLED, refuseWithoutRecentReauth, refuseWithoutStaffCode } from './context.ts';
 import type { PublicRouteContext, RouteContext } from './context.ts';
 
 /** A post as the app gets it: each file with a short-lived link for this session. */
@@ -276,6 +276,7 @@ export async function handleSocialModerationRoutes(ctx: SocialPostContext): Prom
   const role = await authStore.staffRole(actorId);
   if (!role) return sendJson(res, 403, { error: 'admin_required' });
   if (!roleCan(role, 'moderate')) return sendJson(res, 403, { error: 'permission_required', permission: 'moderate' });
+  if (await refuseWithoutStaffCode(ctx)) return;
   if (req.method === 'POST' && (await refuseWithoutRecentReauth(ctx))) return;
   if (req.method === 'GET' && s.length === 2) {
     const limit = Number(url.searchParams.get('limit') ?? 50);

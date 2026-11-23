@@ -13,6 +13,7 @@ import { DEFAULT_PUBLIC_APP_URL, sendOperationalEmail } from './email.ts';
 import { SITE_CHECK_INTERVAL_MS, SiteMonitor } from './siteMonitor.ts';
 import { createShutdown, errorMessage, installCrashHandlers, runMaintenance, scheduleMaintenance } from './processLifecycle.ts';
 import { onceAcrossReplicas } from './jobLease.ts';
+import { runStaffAlerts, STAFF_ALERT_INTERVAL_MS } from './staffAlerts.ts';
 import { fetchGooglePlaceDetails, fetchGooglePlaces, fetchGooglePlacesAlongRoute, fetchGooglePlaceSuggestions } from './placesProvider.ts';
 import type { PlaceAlongRoute, PlaceAlongRouteRequest, PlaceAutocompleteRequest, PlaceSearchRequest, PlaceSuggestion, PlaceSummary } from './placesProvider.ts';
 import { AuthStore } from './authStore.ts';
@@ -491,6 +492,7 @@ async function startProductionServer(): Promise<void> {
     scheduleMaintenance(BILLING_SWEEP_INTERVAL_MS, 'billing_sweep_failed', onceAcrossReplicas('billing_sweep', BILLING_SWEEP_INTERVAL_MS, sweepBilling)),
     scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'active_riders_snapshot_failed', onceAcrossReplicas('active_riders_snapshot', RETENTION_SWEEP_INTERVAL_MS, recordActiveRiders)),
     scheduleMaintenance(SITE_CHECK_INTERVAL_MS, 'site_check_failed', onceAcrossReplicas('site_check', SITE_CHECK_INTERVAL_MS, () => siteMonitor.check())),
+    scheduleMaintenance(STAFF_ALERT_INTERVAL_MS, 'staff_alerts_failed', onceAcrossReplicas('staff_alerts', STAFF_ALERT_INTERVAL_MS, () => runStaffAlerts())),
     scheduleMaintenance(SUSPENSION_EXPIRY_INTERVAL_MS, 'suspension_expiry_failed', onceAcrossReplicas('suspension_expiry', SUSPENSION_EXPIRY_INTERVAL_MS, liftSuspensions)),
     scheduleMaintenance(SOCIAL_MEDIA_SWEEP_INTERVAL_MS, 'social_media_sweep_failed', onceAcrossReplicas('social_media_sweep', SOCIAL_MEDIA_SWEEP_INTERVAL_MS, sweepSocialMedia)),
   ];

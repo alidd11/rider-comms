@@ -58,10 +58,11 @@ async function signIn(page) {
 }
 
 const ROLE_PERMISSIONS = {
-  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff'],
+  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners'],
   moderator: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'view_audit'],
   support: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit'],
   analyst: ['view_overview', 'view_system'],
+  partnerships: ['view_overview', 'view_system', 'review_partners'],
 };
 
 /** Opens a dashboard section, through the side menu on phones. */
@@ -76,7 +77,7 @@ async function openMenuIfPhone(page) {
 }
 
 /** Minimal in-memory moderation backend. */
-async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false } = {}) {
+async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false, mfa = false } = {}) {
   const state = {
     reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended, assignedTo: null, assignedAt: null }],
     assignmentEvents: [],
@@ -91,7 +92,22 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       { id: '44444444-4444-4444-8444-444444444444', kind: 'incident', title: 'Route service degradation', description: 'Manual incident triage', status: 'open', priority: 'urgent', subjectRiderId: null, createdBy: ADMIN_ID, assignedTo: null, version: 1, createdAt: Date.now() - 70_000, updatedAt: Date.now() - 70_000, dueAt: null },
     ],
     posts: [],
+    partnerCalls: [],
+    partners: [
+      { id: '55555555-5555-4555-8555-555555555555', reference: 'RC-7K3QX9', kind: 'seller', businessName: 'Twisties Moto Gear',
+        contactName: 'Sam Rider', contactEmail: 'sam@example.com', website: 'https://twisties.example/', country: 'GB',
+        category: 'Riding gear', description: 'Independent shop selling helmets, gloves and jackets.', status: 'in_review',
+        checklist: { identity: true, business: true, website: true, policies: false }, assignedTo: null,
+        createdAt: Date.now() - 3_600_000, updatedAt: Date.now() - 60_000, version: 3 },
+      { id: '66666666-6666-4666-8666-666666666666', reference: 'RC-9PLM2T', kind: 'advertiser', businessName: 'Coastline Café',
+        contactName: 'Ava Stone', contactEmail: 'ava@example.com', website: null, country: 'GB',
+        category: 'Biker café', description: 'Café on a popular coastal route that wants to reach weekend riders.', status: 'submitted',
+        checklist: { identity: false, business: false, website: false, policies: false }, assignedTo: null,
+        createdAt: Date.now() - 7_200_000, updatedAt: Date.now() - 7_200_000, version: 1 },
+    ],
     riderQueries: [],
+    riderFilters: [],
+    alertPrefs: { dailyDigest: false, urgentAlerts: false },
     reauthenticated: !reauth,
     // Each test gets its own riders, so verifying one doesn't leak into the next.
     riders: RIDERS.map((rider) => ({ ...rider })),
@@ -121,11 +137,35 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.staffLogins.push(body);
       if (body.password !== 'right-password') return json(401, { error: 'invalid_credentials' });
       if (!admin) return json(403, { error: 'staff_only' });
+      if (mfa && !body.code) return json(401, { error: 'mfa_required' });
+      if (mfa && body.code !== '123456') return json(401, { error: 'invalid_code' });
+      if (mfa) state.mfaPassed = true;
       return json(200, { riderId: ADMIN_ID, token: 'staff-token', emailVerified: true });
     }
     if (url.pathname === '/auth/logout' && request.method() === 'POST') {
       state.staffLogouts += 1;
       return route.fulfill({ status: 204, headers, body: '' });
+    }
+    if (url.pathname === '/admin/mfa/verify') {
+      if (request.postDataJSON().code !== '123456') return json(401, { error: 'invalid_code' });
+      state.mfaPassed = true;
+      return json(200, { verified: true });
+    }
+    if (url.pathname === '/admin/mfa') return json(200, { enabled: mfa, recoveryCodesLeft: mfa ? 10 : 0 });
+    if (url.pathname === '/admin/alerts') {
+      if (request.method() === 'POST') {
+        state.alertPrefs = request.postDataJSON();
+        state.posts.push({ path: url.pathname, body: state.alertPrefs });
+      }
+      return json(200, state.alertPrefs);
+    }
+    if (url.pathname === '/admin/mfa/setup') return json(200, { secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', uri: 'otpauth://totp/Rider%20Comms%20Staff%3Arider_admin01?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' });
+    if (url.pathname === '/admin/mfa/confirm') {
+      if (request.postDataJSON().code !== '123456') return json(401, { error: 'invalid_code' });
+      return json(200, { recoveryCodes: Array.from({ length: 10 }, (_, i) => `abcde-${10000 + i}`) });
+    }
+    if (mfa && !state.mfaPassed && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/moderation'))) {
+      return json(403, { error: 'mfa_required' });
     }
     if (url.pathname === '/admin/me') return json(200, { riderId: ADMIN_ID, role, permissions: ROLE_PERMISSIONS[role] });
     if (url.pathname === '/auth/reauthenticate') {
@@ -203,6 +243,41 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
           hiddenNow: state.socialPosts.length, moderationDecisions: 1 },
         unavailable: ['social_audience_retention', 'customer_reply_sla', 'financial_reconciliation'],
       });
+    }
+    if (url.pathname.startsWith('/admin/partners')) {
+      if (!ROLE_PERMISSIONS[role].includes('review_partners')) return json(403, { error: 'permission_required', permission: 'review_partners' });
+      const open = (item) => ['submitted', 'in_review', 'info_requested'].includes(item.status);
+      if (url.pathname === '/admin/partners/summary') {
+        return json(200, {
+          awaitingReview: state.partners.filter((item) => ['submitted', 'in_review'].includes(item.status)).length,
+          infoRequested: state.partners.filter((item) => item.status === 'info_requested').length,
+          approvedSellers: state.partners.filter((item) => item.status === 'approved' && item.kind === 'seller').length,
+          approvedAdvertisers: state.partners.filter((item) => item.status === 'approved' && item.kind === 'advertiser').length,
+        });
+      }
+      if (url.pathname === '/admin/partners') {
+        const status = url.searchParams.get('status') ?? 'all';
+        const kind = url.searchParams.get('kind') ?? 'all';
+        return json(200, { items: state.partners.filter((item) => (status === 'all' || (status === 'open' ? open(item) : item.status === status))
+          && (kind === 'all' || item.kind === kind)) });
+      }
+      const match = /^\/admin\/partners\/([0-9a-f-]{36})(?:\/(status|checklist|notes|assign))?$/.exec(url.pathname);
+      const item = match && state.partners.find((value) => value.id === match[1]);
+      if (!item) return json(404, { error: 'not_found' });
+      if (!match[2]) return json(200, { item, events: [{ id: 'e1', actorId: null, event: 'submitted', note: 'Application submitted through the public form', fromValue: null, toValue: 'submitted', createdAt: item.createdAt }] });
+      if (!state.reauthenticated) return json(403, { error: 'reauth_required' });
+      const body = request.postDataJSON();
+      state.partnerCalls.push({ path: url.pathname, body });
+      if (body.expectedVersion !== item.version) return json(409, { error: 'stale_application' });
+      if (match[2] === 'status') {
+        if (body.status === 'approved' && !Object.values(item.checklist).every(Boolean)) return json(409, { error: 'checklist_incomplete' });
+        item.status = body.status;
+      }
+      if (match[2] === 'checklist') item.checklist[body.check] = body.done;
+      if (match[2] === 'assign') item.assignedTo = body.assigneeId === undefined ? ADMIN_ID : body.assigneeId;
+      item.version += 1;
+      item.updatedAt = Date.now();
+      return json(200, { ok: true, item });
     }
     if (url.pathname === '/admin/cases/summary') {
       if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required', permission: 'view_cases' });
@@ -360,7 +435,14 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       const matches = state.riders.filter((rider) => [
         rider.displayName, rider.username, rider.handle, rider.email, rider.riderId,
       ].some((value) => String(value ?? '').toLowerCase().includes(query)));
-      return json(200, { riders: matches });
+      const filter = url.searchParams.get('filter') || 'all';
+      state.riderFilters.push(filter);
+      const filtered = matches.filter((rider) => filter === 'all' || (filter === 'suspended' && rider.suspended)
+        || (filter === 'unverified' && !rider.emailVerified) || (filter === 'reported' && rider.reportsAgainst > 0));
+      const limit = Number(url.searchParams.get('limit') || 50);
+      const offset = Number(url.searchParams.get('offset') || 0);
+      const riders = filtered.slice(offset, offset + limit);
+      return json(200, { riders, nextOffset: riders.length === limit ? offset + limit : null });
     }
     if (url.pathname === '/admin/system') {
       return json(200, { socialMediaStorage: false, socialMediaScanning: true, socialPosting: true, contentCheck: { allowed: 7, rejected: 1, unavailable: 2 }, providers: { google_places: { lastOkAt: null, lastErrorAt: Date.now(), lastError: '403 · PERMISSION_DENIED' }, google_routes: { lastOkAt: Date.now(), lastErrorAt: null, lastError: null } }, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
@@ -416,6 +498,19 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       if (body.resolution === 'suspend') report.reportedRiderSuspended = true;
       state.actions.unshift({ id: `a${state.actions.length}`, moderatorId: ADMIN_ID, targetRiderId: report.reportedRiderId, reportId: report.id, action: body.resolution, note: body.note, createdAt: Date.now() });
       return json(200, { ok: true });
+    }
+    if (url.pathname === '/moderation/reports/dismiss-many') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      const dismissed = [];
+      const skipped = [];
+      for (const reportId of body.reportIds) {
+        const report = state.reports.find((candidate) => candidate.id === reportId && candidate.status === 'open');
+        if (!report) { skipped.push({ reportId, error: 'already_resolved' }); continue; }
+        Object.assign(report, { status: 'dismissed', resolvedAt: Date.now(), resolvedBy: ADMIN_ID });
+        dismissed.push(reportId);
+      }
+      return json(200, { dismissed, skipped });
     }
     const exportMatch = url.pathname.match(/^\/admin\/riders\/([^/]+)\/export$/);
     if (exportMatch) {
@@ -932,14 +1027,13 @@ test.describe('staff dashboard', () => {
   });
 
 
-  test('company command centre is backed by the existing overview and labels finance as disconnected', async ({ page }) => {
+  test('company areas is a directory: no figures duplicated from Insights, finance marked disconnected', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
     await page.goto('/admin.html#company');
-    await page.locator('.company-pulse-details > summary').click();
-    const pulse = page.getByRole('region', { name: 'Company pulse' });
-    await expect(pulse).toContainText('240');
-    await expect(pulse).toContainText('Group rides now');
+    // Counts live in Overview (queues) and Insights (trends), not here.
+    await expect(page.getByRole('region', { name: 'Company pulse' })).toHaveCount(0);
+    await expect(page.locator('#page')).not.toContainText('1,284');
     const company = page.getByRole('region', { name: 'Company operations' });
     await expect(company).toContainText('Rider Comms');
     await expect(company).toContainText('Rider Social');
@@ -1130,8 +1224,10 @@ test.describe('staff dashboard', () => {
     test.skip(!/phone/.test(testInfo.project.name), 'Phones only');
     await signIn(page);
     await mockModerationApi(page);
-    await page.goto('/admin.html');
+    // Insights is long on every phone; the compact Overview may not scroll.
+    await page.goto('/admin.html#insights');
     await expect(page.locator('.sidebar')).toHaveCSS('position', 'fixed');
+    await expect(page.locator('.chart-card').first()).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, 1100));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
     const top = await page.locator('.sidebar').evaluate((node) => node.getBoundingClientRect().top);
@@ -1153,8 +1249,8 @@ test.describe('staff dashboard', () => {
     await operations.getByRole('button', { name: 'Review reports' }).click();
     await expect(page.locator('.page-title')).toHaveText('Moderation');
     await openSection(page, 'Overview');
-    await operations.getByRole('button', { name: 'Find riders' }).click();
-    await expect(page.locator('.page-title')).toHaveText('Riders');
+    await operations.getByRole('button', { name: 'Open case desk' }).click();
+    await expect(page.locator('.page-title')).toHaveText('Case desk');
   });
 
   test('workspace toolbar tracks navigation and opens command search with restored focus', async ({ page }) => {
@@ -1205,26 +1301,31 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.inbox-item')).toHaveCount(2);
   });
 
-  test('overview is concise and routes to full Insights and Company Areas without hiding information', async ({ page }) => {
+  test('each page has its own job: Overview queues, Insights trends, Company areas directory', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page);
     await page.goto('/admin.html#overview');
-    await expect(page.locator('.operations-grid .operation-card')).toHaveCount(4);
-    await expect(page.locator('.overview-highlight')).toHaveCount(3);
-    await expect(page.locator('.overview-snapshot')).toContainText('UTC');
+    const work = page.getByRole('region', { name: 'Operations at a glance' });
+    // Reports, three case queues (from the case summary), partner applications and rides on the road.
+    await expect(work.locator('.operation-card')).toHaveCount(6);
+    await expect(work.locator('.operation-card', { hasText: 'Cases without an owner' }).locator('.operation-value')).toHaveText('4');
+    await expect(work.locator('.operation-card', { hasText: 'Urgent cases' }).locator('.operation-value')).toHaveText('1');
+    await expect(page.locator('.page-subtitle')).toContainText('UTC');
+    await expect(page.locator('.overview-highlight')).toHaveCount(0);
     await expect(page.locator('.kpi')).toHaveCount(0);
     await expect(page.locator('.chart-card')).toHaveCount(0);
-    await expect(page.locator('.funnel')).toHaveCount(0);
     await expect(page.locator('.reporting-range-select')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Explore insights' }).click();
-    await expect(page).toHaveURL(/#insights$/);
+    await work.getByRole('button', { name: 'Assign cases' }).click();
+    await expect(page).toHaveURL(/#cases$/);
+    await expect(page.getByRole('combobox', { name: 'Ownership' })).toHaveValue('unassigned');
+    await openSection(page, 'Insights');
     await expect(page.locator('.kpi')).toHaveCount(8);
     await expect(page.locator('.chart-card')).toHaveCount(4);
+    // Live and queue figures stay on the Overview.
+    await expect(page.locator('.kpi-label', { hasText: /^Live now$/ })).toHaveCount(0);
+    await expect(page.locator('.kpi-label', { hasText: /^Open reports$/ })).toHaveCount(0);
     await openSection(page, 'Company areas');
     await expect(page.getByRole('region', { name: 'Company operations' })).toBeVisible();
-    await expect(page.locator('.company-pulse-details')).not.toHaveAttribute('open', '');
-    await page.locator('.company-pulse-details > summary').click();
-    await expect(page.getByRole('region', { name: 'Company pulse' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Review Social queue' })).toBeVisible();
   });
 
@@ -1401,6 +1502,28 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.list-row .person-name')).toHaveText('Removed a Social post: Rex');
   });
 
+  test('staff select several open reports and dismiss them with one note', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports.push({ ...state.reports[0], id: 'report-2' }, { ...state.reports[0], id: 'report-3' });
+    await page.goto('/admin.html#moderation');
+    const bar = page.getByRole('group', { name: 'Bulk actions' });
+    await expect(bar.getByRole('button', { name: 'Dismiss selected' })).toBeDisabled();
+    await page.getByRole('checkbox', { name: 'Select report report-1' }).check();
+    await page.getByRole('checkbox', { name: 'Select report report-3' }).check();
+    await expect(bar).toContainText('2 selected');
+    await expect(bar.getByRole('checkbox', { name: 'Select all open reports' })).not.toBeChecked();
+    await bar.getByRole('button', { name: 'Dismiss selected' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Dismiss 2 reports?' });
+    await dialog.getByRole('button', { name: 'Duplicate reports of the same incident.' }).click();
+    await dialog.getByRole('button', { name: 'Dismiss reports' }).click();
+    await expect(page.locator('.flash')).toHaveText('2 dismissed.');
+    await expect(page.locator('.report[data-report-id]')).toHaveCount(1);
+    await expect(page.locator('.report[data-report-id="report-2"]')).toBeVisible();
+    await expect(bar).toHaveCount(0); // a single report has no bulk bar
+    expect(state.posts.at(-1)).toEqual({ path: '/moderation/reports/dismiss-many', body: { reportIds: ['report-1', 'report-3'], note: 'Duplicate reports of the same incident.' } });
+  });
+
   test('shows the open queue safely and dismisses a report with a required note', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
@@ -1472,13 +1595,14 @@ test.describe('staff dashboard', () => {
     await expect(kpi('Messages sent').locator('.delta')).toHaveText('-8.8%');
     await expect(kpi('Messages sent').locator('.delta')).toHaveAttribute('data-tone', 'bad');
     // Fewer reports is good news.
-    await expect(kpi('Open reports').locator('.delta')).toHaveText('-50%');
-    await expect(kpi('Open reports').locator('.delta')).toHaveAttribute('data-tone', 'good');
+    await expect(kpi('Reports filed').locator('.kpi-value')).toHaveText('5');
+    await expect(kpi('Reports filed').locator('.delta')).toHaveText('-50%');
+    await expect(kpi('Reports filed').locator('.delta')).toHaveAttribute('data-tone', 'good');
     await expect(kpi('Total riders').locator('.kpi-value')).toHaveText('1,284');
     await expect(kpi('Total riders').locator('.kpi-foot')).toHaveText('86% verified · 3 suspended');
     await expect(kpi('Stickiness').locator('.kpi-value')).toHaveText('27%');
-    await expect(kpi('Live now').locator('.kpi-value')).toHaveText('17');
-    await expect(kpi('Open reports').getByRole('link', { name: 'Review queue' })).toHaveAttribute('href', '#moderation');
+    await expect(kpi('Moderation decisions').locator('.kpi-value')).toHaveText('3');
+    await expect(kpi('Reports filed').getByRole('link', { name: 'Review queue' })).toHaveAttribute('href', '#moderation');
     await expect(page.locator('body')).toContainText('Blocked by the content filter this week');
 
     await page.getByRole('combobox', { name: 'Reporting period' }).selectOption('30');
@@ -1674,6 +1798,31 @@ test.describe('staff dashboard', () => {
     expect(state.riderQueries).toEqual(['', 'nobody']);
   });
 
+  test('rider filters narrow the list and more riders load past the first page', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    for (let index = 0; index < 55; index += 1) {
+      state.riders.push({ ...RIDERS[0], riderId: `rider_extra_${index}`, username: `extra${index}`, displayName: `Extra ${index}`, handle: `@extra${index}`, email: `extra${index}@example.com` });
+    }
+    await page.goto('/admin.html#riders');
+    const rows = page.locator('[data-rider-id]:visible');
+    await expect(rows).toHaveCount(50);
+    await expect(page.locator('.page-subtitle')).toContainText('Newest 50+ riders');
+    await page.getByRole('button', { name: 'Load more riders' }).click();
+    await expect(rows).toHaveCount(57);
+    await expect(page.getByRole('button', { name: 'Load more riders' })).toHaveCount(0);
+
+    await page.getByRole('combobox', { name: 'Show riders' }).selectOption('suspended');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('<b>Rex</b>');
+    await expect(page.getByRole('combobox', { name: 'Show riders' })).toBeFocused();
+    await page.getByRole('combobox', { name: 'Show riders' }).selectOption('reported');
+    await page.getByRole('searchbox', { name: 'Search riders' }).fill('maya');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No riders found');
+    expect(state.riderFilters).toEqual(['all', 'all', 'suspended', 'reported', 'reported']);
+  });
+
   test('staff verify an unverified rider\'s email with a note', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
@@ -1738,8 +1887,9 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.staff-roles-details')).not.toHaveAttribute('open', '');
     await page.locator('.staff-roles-details > summary').click();
     // The Case Desk permission adds an actual row to the staff rights matrix.
-    await expect(page.locator('.matrix tbody tr')).toHaveCount(9);
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(10);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
+    await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Seller and advertiser applications' })).toHaveCount(1);
     await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
   });
 
@@ -2025,6 +2175,8 @@ test.describe('staff dashboard', () => {
     await expect(installLink).toBeFocused();
     await expect(installLink).toHaveAttribute('href', './staff/');
     await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Account security' })).toBeFocused();
+    await page.keyboard.press('Tab');
     const signOut = page.getByRole('button', { name: 'Sign out of Staff' });
     await expect(signOut).toBeFocused();
     await page.keyboard.press('Tab');
@@ -2145,8 +2297,7 @@ test('Staff Hub premium console preserves responsive shell and navigation focus'
   }
   await page.goto('/admin.html#overview');
   await expect(page.locator('.page-context > summary')).toContainText('Scope and definitions');
-  await expect(page.locator('.operation-card')).toHaveCount(4);
-  await expect(page.locator('.overview-highlight')).toHaveCount(3);
+  await expect(page.locator('.operation-card')).toHaveCount(6);
   if (testInfo.project.name !== 'viewport-desktop-chromium') {
     // Capture the actual navigation drawer, not just the fixed mobile header.
     const toggle = page.locator('#menuToggle');
@@ -2255,11 +2406,183 @@ test('date controls appear only where reporting changes, not on operational queu
   await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Staff sign-in period' })).toHaveValue('30');
   await openSection(page, 'Overview');
-  await expect(page.locator('.overview-highlight')).toHaveCount(3);
+  await expect(page.locator('.operation-card').first()).toBeVisible();
   await expect(page.locator('.chart-card')).toHaveCount(0);
   await openSection(page, 'Insights');
   await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
   await expect(page.locator('.kpi').first().locator('.kpi-value')).toHaveText('310');
   await page.reload();
   await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+});
+
+
+test('partners: an application is reviewed with notes, checklist and a final approval', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#overview');
+  const work = page.getByRole('region', { name: 'Operations at a glance' });
+  await expect(work.locator('.operation-card', { hasText: 'Partner applications' }).locator('.operation-value')).toHaveText('2');
+  await work.getByRole('button', { name: 'Review applications' }).click();
+  await expect(page).toHaveURL(/#partners$/);
+  await expect(page.locator('#nav [aria-current="page"]')).toHaveText('Partners');
+  const list = page.getByRole('list', { name: 'Partner applications' });
+  await expect(list.locator('.case-item')).toHaveCount(2);
+  await page.getByRole('combobox', { name: 'Type' }).selectOption('advertiser');
+  await expect(list.locator('.case-item')).toHaveCount(1);
+  await page.getByRole('combobox', { name: 'Type' }).selectOption('all');
+  await list.getByRole('link', { name: 'Twisties Moto Gear' }).click();
+  await expect(page).toHaveURL(/#partner\/55555555/);
+  await expect(page.locator('.page-title')).toHaveText('Twisties Moto Gear');
+  await expect(page.locator('#nav [aria-current="page"]')).toHaveText('Partners');
+  // The website is a link that cannot reach back into the dashboard.
+  await expect(page.getByRole('link', { name: 'https://twisties.example/' })).toHaveAttribute('rel', /noopener/);
+
+  // A change without a note is refused in the page, before any request.
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Write a note' })).toBeVisible();
+  expect(state.partnerCalls).toHaveLength(0);
+
+  const note = page.getByRole('textbox', { name: 'Decision note' });
+  await note.fill('Approving now');
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Tick every checklist item' })).toBeVisible();
+
+  await note.fill('Policies accepted by email');
+  await page.getByRole('checkbox', { name: 'Agrees to the seller and advertising policies' }).check();
+  await expect.poll(() => state.partnerCalls.at(-1)?.body).toEqual({ check: 'policies', done: true, note: 'Policies accepted by email', expectedVersion: 3 });
+  // The page re-renders with the new version and an empty note.
+  await expect(page.getByRole('textbox', { name: 'Decision note' })).toHaveValue('');
+  await expect(page.getByRole('checkbox', { name: 'Agrees to the seller and advertising policies' })).toBeChecked();
+  await page.getByRole('textbox', { name: 'Decision note' }).fill('All checks passed');
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect.poll(() => state.partners[0].status).toBe('approved');
+  await expect(page.locator('.case-detail-meta')).toContainText('Approved');
+  await expect(page.getByText('Approved. This decision is final.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reject' })).toHaveCount(0);
+});
+
+test('partners: the partnerships role sees applications but not riders or moderation', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { role: 'partnerships' });
+  await page.goto('/admin.html#overview');
+  await openMenuIfPhone(page);
+  const nav = page.locator('#nav');
+  await expect(nav.getByRole('button', { name: 'Partners' })).toBeVisible();
+  await expect(nav.getByRole('button', { name: 'Riders' })).toBeHidden();
+  await expect(nav.getByRole('button', { name: 'Moderation' })).toBeHidden();
+  await expect(nav.getByRole('button', { name: 'Case desk' })).toBeHidden();
+  await page.goto('/admin.html#riders');
+  await expect(page.locator('.page-title')).not.toHaveText('Riders');
+});
+
+test('partners: the public form sends a clean application and shows the reference', async ({ page }) => {
+  const sent = [];
+  await page.route(`${API}/partners/apply`, async (route) => {
+    const body = route.request().postDataJSON();
+    sent.push(body);
+    const headers = { 'Access-Control-Allow-Origin': '*' };
+    if (body.description.length < 20) {
+      return route.fulfill({ status: 400, headers, contentType: 'application/json', body: JSON.stringify({ error: 'invalid_description' }) });
+    }
+    return route.fulfill({ status: 201, headers, contentType: 'application/json', body: JSON.stringify({ ok: true, reference: 'RC-ABCDEF' }) });
+  });
+  await page.goto('/partners/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sell or advertise to riders');
+  await page.getByRole('radio', { name: /Advertise/ }).check();
+  await page.getByRole('textbox', { name: 'Business name' }).fill('Coastline Café');
+  await page.getByRole('textbox', { name: 'Your name' }).fill('Ava Stone');
+  await page.getByRole('textbox', { name: 'Work email' }).fill('ava@example.com');
+  await page.getByRole('textbox', { name: 'What you sell or promote' }).fill('Biker café');
+  await page.getByRole('textbox', { name: 'About your business' }).fill('Too short');
+  await page.getByRole('button', { name: 'Send application' }).click();
+  await expect(page.getByRole('alert')).toContainText('Agree to the Terms');
+  expect(sent).toHaveLength(0);
+  await page.getByRole('checkbox', { name: /I agree to the/ }).check();
+  await page.getByRole('button', { name: 'Send application' }).click();
+  await expect(page.getByRole('alert')).toContainText('at least 20 characters');
+  await page.getByRole('textbox', { name: 'About your business' }).fill('Café on a popular coastal route that wants to reach weekend riders.');
+  await page.getByRole('button', { name: 'Send application' }).click();
+  await expect(page.getByRole('heading', { name: 'Application sent' })).toBeVisible();
+  await expect(page.locator('#partnerReference')).toHaveText('RC-ABCDEF');
+  expect(sent.at(-1)).toMatchObject({ kind: 'advertiser', businessName: 'Coastline Café', country: 'GB', acceptTerms: true, company: '' });
+});
+
+test('overview welcomes the staff member by name with their local time', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-23T09:15:00'));
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html#overview');
+  const welcome = page.getByRole('region', { name: 'Welcome' });
+  await expect(welcome).toContainText('Good morning, ');
+  await expect(welcome.locator('time')).toHaveText(/09:15|9:15/);
+  await expect(welcome).toContainText('Monday');
+  // It sits above the work queue.
+  const order = await page.evaluate(() => {
+    const banner = document.querySelector('.welcome-banner');
+    const work = document.querySelector('.operations-summary');
+    return Boolean(banner.compareDocumentPosition(work) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(order).toBe(true);
+});
+
+test('two-step sign-in: staff sign-in asks for the code after the password', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { mfa: true });
+  await page.goto('/staff/');
+  await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+  await page.getByLabel('Password', { exact: true }).fill('right-password');
+  await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+  const code = page.getByRole('textbox', { name: 'Authenticator or recovery code' });
+  await expect(code).toBeVisible();
+  await code.fill('000000');
+  await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+  await expect(page.getByRole('alert')).toContainText('isn’t right');
+  await code.fill('123456');
+  await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+});
+
+test('two-step sign-in: the dashboard asks for a code when a session has not passed one', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { mfa: true });
+  await page.goto('/admin.html#overview');
+  const dialog = page.getByRole('dialog', { name: 'Two-step sign-in' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('textbox', { name: 'Authenticator or recovery code' }).fill('123456');
+  await dialog.getByRole('button', { name: 'Verify' }).click();
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+  await expect(page.getByRole('dialog', { name: 'Two-step sign-in' })).toHaveCount(0);
+});
+
+test('two-step sign-in: staff set it up from Account security and see recovery codes once', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html#overview');
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+  await openMenuIfPhone(page);
+  await page.getByRole('button', { name: 'Account security' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Account security' });
+  await dialog.getByRole('button', { name: 'Set up two-step sign-in' }).click();
+  await expect(dialog.getByRole('link', { name: 'Open in authenticator app' })).toHaveAttribute('href', /^otpauth:\/\/totp\//);
+  await expect(dialog.locator('.setup-key code')).toHaveText('JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP');
+  await dialog.getByRole('textbox', { name: 'Code from the app' }).fill('123456');
+  await dialog.getByRole('button', { name: 'Turn on' }).click();
+  await expect(dialog.getByRole('list', { name: 'Recovery codes' }).locator('li')).toHaveCount(10);
+});
+
+test('email alerts: staff turn on their own morning summary and urgent-case emails', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#overview');
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+  await openMenuIfPhone(page);
+  await page.getByRole('button', { name: 'Account security' }).click();
+  const alerts = page.getByRole('dialog', { name: 'Account security' }).getByRole('group', { name: 'Email alerts' });
+  const digest = alerts.getByRole('checkbox', { name: /Morning summary/ });
+  await expect(digest).toBeEnabled();
+  await expect(digest).not.toBeChecked();
+  await digest.check();
+  await expect(alerts.getByRole('status')).toHaveText('Saved.');
+  await alerts.getByRole('checkbox', { name: /Urgent cases/ }).check();
+  await expect.poll(() => state.alertPrefs).toEqual({ dailyDigest: true, urgentAlerts: true });
 });

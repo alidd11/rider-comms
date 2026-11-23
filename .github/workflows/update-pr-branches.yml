@@ -1,0 +1,71 @@
+name: Keep PR branches current
+
+# After every merge to main, merge main into each open PR branch that has
+# fallen behind, so long-running feature branches never drift far enough to
+# fail on code main has already fixed. It uses GitHub's "Update branch"
+# (a merge commit, never a rebase or force-push), so the PR author's history
+# and local checkout stay valid: they only need to pull before their next push.
+#
+# Commits made with GITHUB_TOKEN don't start other workflows, so after each
+# update this starts CI (and the native build when the PR touches native
+# paths) on the new head itself; the results show on the PR as usual.
+#
+# Skipped: drafts are included, forks are not (no write access), and any PR
+# labelled `no-auto-update`. When main can't be merged cleanly, the PR gets
+# one comment saying so and is left for its author to resolve.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: update-pr-branches
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Merge main into PR branches that are behind
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          native_paths='^(mobile/|shared/|package-lock\.json$|\.github/workflows/native-builds\.yml$|scripts/(android-launch-check|check-android-release|check-ios-purpose-strings)\.sh$)'
+          conflict_marker='<!-- auto-update-branch: conflict -->'
+          gh pr list --repo "$REPO" --base main --state open --limit 100 \
+            --json number,headRefName,headRefOid,isCrossRepository,labels \
+            --jq '.[] | select(.isCrossRepository | not) | select([.labels[].name] | index("no-auto-update") | not) | "\(.number) \(.headRefName) \(.headRefOid)"' > prs.txt
+          # Read the list on its own descriptor so no gh call below can consume it.
+          while read -r number branch sha <&3; do
+            behind=$(gh api "repos/$REPO/compare/main...$sha" --jq .behind_by)
+            if [ "$behind" = "0" ]; then
+              echo "#$number is up to date"
+              continue
+            fi
+            if gh api -X PUT "repos/$REPO/pulls/$number/update-branch" -f expected_head_sha="$sha" >/dev/null 2>err.txt; then
+              echo "#$number: merged main ($behind commits behind)" | tee -a "$GITHUB_STEP_SUMMARY"
+              # Let GitHub finish writing the merge commit before starting checks on it.
+              sleep 5
+              gh workflow run ci.yml --repo "$REPO" --ref "$branch"
+              gh workflow run security-isolated.yml --repo "$REPO" --ref "$branch"
+              if gh pr diff "$number" --repo "$REPO" --name-only | grep -Eq "$native_paths"; then
+                gh workflow run native-builds.yml --repo "$REPO" --ref "$branch"
+              fi
+            else
+              echo "#$number: could not merge main: $(cat err.txt)" | tee -a "$GITHUB_STEP_SUMMARY"
+              if ! gh api "repos/$REPO/issues/$number/comments" --paginate --jq '.[].body' | grep -qF "$conflict_marker"; then
+                gh pr comment "$number" --repo "$REPO" --body "$conflict_marker
+          This branch is $behind commits behind \`main\` and \`main\` can't be merged into it automatically, most likely because both changed the same lines. Merge \`main\` into this branch and resolve the conflicts by hand; after that it will be kept up to date automatically again. Add the \`no-auto-update\` label to opt this PR out."
+              fi
+            fi
+          done 3< prs.txt

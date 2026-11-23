@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
 
-const workflowPaths = ['.github/workflows/ci.yml', '.github/workflows/pages.yml', '.github/workflows/backup.yml', '.github/workflows/uptime.yml', '.github/workflows/native-builds.yml', '.github/workflows/security-isolated.yml'];
+const workflowPaths = ['.github/workflows/ci.yml', '.github/workflows/pages.yml', '.github/workflows/backup.yml', '.github/workflows/uptime.yml', '.github/workflows/native-builds.yml', '.github/workflows/security-isolated.yml', '.github/workflows/update-pr-branches.yml'];
 // The uptime check only runs curl and gh, so it uses no external actions.
-const actionFreeWorkflows = new Set(['.github/workflows/uptime.yml']);
+// Keeping PR branches current only runs gh.
+const actionFreeWorkflows = new Set(['.github/workflows/uptime.yml', '.github/workflows/update-pr-branches.yml']);
 const workflows = await Promise.all(workflowPaths.map(async (path) => ({
   path,
   source: await readFile(new URL(`../${path}`, import.meta.url), 'utf8'),
@@ -19,18 +19,19 @@ for (const { path, source } of workflows) {
 }
 
 const native = workflows.find(({ path }) => path.endsWith('native-builds.yml'))?.source ?? '';
-assert.ok(native.includes("scripts/maestro_transport.py"), 'iOS recovery must require the transport-only classifier');
-assert.ok(native.includes('for attempt in 1 2; do'), 'iOS recovery must allow only two total attempts');
-assert.ok(native.includes('maestro-ios-attempt-${attempt}.xml'), 'iOS recovery must retain numbered JUnit evidence');
-assert.ok(native.includes('maestro-ios-attempt-${attempt}.log'), 'iOS recovery must retain numbered, redacted console evidence');
-assert.ok(native.includes('redact_test_password'), 'iOS recovery must redact credentials before logging/uploading');
-assert.ok(native.includes('xcrun simctl bootstatus'), 'XCTest recovery must reboot the simulator');
-assert.ok(native.includes('exit "$test_status"'), 'a real UI assertion must remain fatal');
-assert.ok(!native.includes('maestro-ios-first-attempt.xml'), 'Maps must not retain the duplicate pre-579 JUnit path');
-
-const classifierTests = spawnSync('python3', ['-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_maestro_transport.py'], { encoding: 'utf8' });
-assert.equal(classifierTests.status, 0, `iOS Maestro transport classifier must pass synthetic tests: ${classifierTests.stderr || classifierTests.error || ''}`);
-
+assert.ok(native.includes('for attempt in 1 2; do'), 'Only one iOS Maestro infrastructure retry permitted');
+assert.ok(native.includes('maestro-ios-attempt-${attempt}.xml'), 'Retain attempt-numbered JUnit evidence');
+assert.ok(native.includes('maestro-ios-attempt-${attempt}.log'), 'Retain attempt-numbered console evidence');
+assert.ok(native.includes('redact_test_password'), 'Redact credentials before uploading Maestro logs');
+assert.ok(native.includes('xcrun simctl bootstatus'), 'Transport retry must restart simulator');
+assert.ok(native.includes('exit "$test_status"'), 'Real Maestro assertion must remain fatal');
+assert.ok(native.includes('A driver crash can also surface only as JUnit "Unknown error"'), 'Retain main PR #595 recovery');
+assert.ok(native.includes("grep -Fq '<failure>Unknown error</failure>'"), 'Retry unknown error only with exact JUnit signature');
+assert.ok(native.includes('xcTestDriverStatusCheck:'), 'Transport fault must have XCTest log evidence');
+assert.ok(native.includes('transport=true'), 'Explicit transport evidence is required');
+assert.ok(native.includes('if [ "$attempt" -eq 2 ] || [ "$transport" != true ]; then'), 'One recovery maximum');
+assert.ok(!native.includes('scripts/maestro_transport.py'), 'No duplicate Python Maestro classifier');
+assert.ok(!native.includes('maestro-ios-first-attempt.xml'), 'No obsolete duplicate evidence path');
 const pages = workflows.find(({ path }) => path.endsWith('pages.yml'))?.source ?? '';
 assert.match(pages, /- run: npm ci(?:\n|$)/, 'Pages deployment must install the exact lockfile with npm ci');
 assert.doesNotMatch(pages, /- run: npm install(?:\n|$)/, 'Pages deployment must not mutate dependency resolution');

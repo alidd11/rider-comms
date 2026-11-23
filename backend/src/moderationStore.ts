@@ -20,7 +20,7 @@ export const REPORT_STATUSES = ['open', 'dismissed', 'actioned'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export const REPORT_RESOLUTIONS = ['dismiss', 'suspend'] as const;
 export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
-export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke' | 'data_export' | 'sign_out_everywhere' | 'password_reset_sent';
+export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke' | 'data_export' | 'sign_out_everywhere' | 'password_reset_sent' | 'staff_mfa_reset';
 export const MAX_MODERATION_NOTE_LENGTH = 1000;
 
 export interface QueuedSafetyReport extends SafetyReport {
@@ -577,6 +577,11 @@ export class ModerationStore {
   }
 
   /** Records that staff sent a rider a password reset email. */
+  async recordStaffMfaReset(riderId: string, adminId: string, note: string, now = Date.now()): Promise<ModerationAction> {
+    await ensureMigrated();
+    return withTransaction((client) => this.recordAction(client, adminId, riderId, null, 'staff_mfa_reset', note, now));
+  }
+
   async recordPasswordResetSent(riderId: string, staffId: string, note: string, now = Date.now()): Promise<ModerationAction> {
     await ensureMigrated();
     return withTransaction((client) => this.recordAction(client, staffId, riderId, null, 'password_reset_sent', note, now));

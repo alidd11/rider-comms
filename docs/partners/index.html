@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://backend-production-7fa0.up.railway.app; base-uri 'none'; form-action 'none'">
+  <title>Sell or advertise on Rider Comms</title>
+  <meta name="description" content="Apply to sell riding gear or advertise to motorcyclists on Rider Comms.">
+  <link rel="stylesheet" href="partners.css">
+</head>
+<body>
+  <main class="partners">
+    <header class="partners-header">
+      <p class="partners-eyebrow">Rider Comms for business</p>
+      <h1>Sell or advertise to riders</h1>
+      <p class="partners-lead">Tell us about your business. Our partnerships team reviews every application by hand and replies by email. Applying is free and doesn't commit you to anything.</p>
+    </header>
+
+    <form class="partners-form" id="partnerForm" novalidate>
+      <fieldset class="partners-kind">
+        <legend>I want to</legend>
+        <label><input type="radio" name="kind" value="seller" checked> <span><strong>Sell</strong> riding gear, parts or services in Shop</span></label>
+        <label><input type="radio" name="kind" value="advertiser"> <span><strong>Advertise</strong> my business to riders</span></label>
+      </fieldset>
+
+      <label class="field"><span>Business name</span><input name="businessName" autocomplete="organization" maxlength="120" required></label>
+      <div class="field-row">
+        <label class="field"><span>Your name</span><input name="contactName" autocomplete="name" maxlength="80" required></label>
+        <label class="field"><span>Work email</span><input name="contactEmail" type="email" autocomplete="email" maxlength="254" required></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Website or shop link <em>(optional)</em></span><input name="website" type="url" inputmode="url" autocomplete="url" maxlength="200" placeholder="https://"></label>
+        <label class="field"><span>Country</span>
+          <select name="country" required>
+            <option value="GB">United Kingdom</option><option value="IE">Ireland</option><option value="US">United States</option>
+            <option value="CA">Canada</option><option value="AU">Australia</option><option value="NZ">New Zealand</option>
+            <option value="DE">Germany</option><option value="FR">France</option><option value="ES">Spain</option>
+            <option value="IT">Italy</option><option value="NL">Netherlands</option><option value="SE">Sweden</option>
+          </select>
+        </label>
+      </div>
+      <label class="field"><span>What you sell or promote</span><input name="category" maxlength="60" placeholder="For example: helmets and riding gear" required></label>
+      <label class="field"><span>About your business</span><textarea name="description" rows="5" maxlength="2000" required placeholder="What you offer, who your customers are, and how long you've been trading (at least 20 characters)."></textarea></label>
+      <!-- Left empty by people; filled by bots. Hidden from sight and from assistive tech. -->
+      <div class="partners-trap" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></div>
+      <label class="partners-consent"><input type="checkbox" name="acceptTerms" required> <span>I agree to the <a href="../terms.html" target="_blank" rel="noopener">Terms</a> and that Rider Comms may contact me about this application, as described in the <a href="../privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
+      <p class="partners-error" id="partnerError" role="alert" hidden></p>
+      <button type="submit" class="partners-submit" id="partnerSubmit">Send application</button>
+    </form>
+
+    <section class="partners-done" id="partnerDone" hidden tabindex="-1" aria-labelledby="partnerDoneTitle">
+      <h2 id="partnerDoneTitle">Application sent</h2>
+      <p>Thanks. Your reference is <strong id="partnerReference"></strong>. Keep it in case you contact us. We review applications in the order they arrive and reply by email.</p>
+    </section>
+  </main>
+  <script src="partners.js"></script>
+</body>
+</html>

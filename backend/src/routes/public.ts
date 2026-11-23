@@ -4,6 +4,9 @@ import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../s
 import { isGoogleMapsModuleLoadFailure, parseClientErrorReport } from '../clientErrors.ts';
 import { countFilterRejection, NOT_HANDLED } from './context.ts';
 import type { PublicRouteContext } from './context.ts';
+import { parsePartnerApplication } from '../partnerStore.ts';
+import { partnerStore } from './adminPartners.ts';
+import { staffMfa } from '../staffMfa.ts';
 
 export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unknown> {
   const { req, res, url, address, profileStore, authStore, rateLimitStore, socialActivityStore, readinessCheck, adminStatsStore } = ctx;
@@ -25,6 +28,19 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
   }
   if (req.method === 'GET' && url.pathname === '/config') {
     return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
+  }
+  // Sellers and advertisers apply without a Rider Comms account. Staff
+  // review every application; nothing is published automatically.
+  if (req.method === 'POST' && url.pathname === '/partners/apply') {
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'partner_apply'))) return;
+    const body = await readJsonBody(req);
+    // A field real people never see; anything that fills it is a bot.
+    if (typeof body.company === 'string' && body.company.trim()) return sendJson(res, 202, { ok: true });
+    if (body.acceptTerms !== true) return sendJson(res, 400, { error: 'terms_not_accepted' });
+    const input = parsePartnerApplication(body);
+    if ('error' in input) return sendJson(res, 400, { error: input.error });
+    const { reference } = await partnerStore.submit(input);
+    return sendJson(res, 201, { ok: true, reference });
   }
   if (req.method === 'POST' && url.pathname === '/auth/signup') {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;
@@ -67,6 +83,19 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     if (!staffRole) {
       await authStore.revokeToken(result.token);
       return sendJson(res, 403, { error: 'staff_only' });
+    }
+    // Two-step sign-in: without a valid code the new session is revoked at
+    // once, so a stolen password alone never yields a staff session.
+    if ((await staffMfa.status(result.riderId)).enabled) {
+      if (body.code === undefined || body.code === '') {
+        await authStore.revokeToken(result.token);
+        return sendJson(res, 401, { error: 'mfa_required' });
+      }
+      if (!(await staffMfa.verify(result.riderId, body.code))) {
+        await authStore.revokeToken(result.token);
+        return sendJson(res, 401, { error: 'invalid_code' });
+      }
+      await staffMfa.markSessionVerified(result.token);
     }
     // /admin/me still rechecks current role on every dashboard launch.
     return sendJson(res, 200, result);
