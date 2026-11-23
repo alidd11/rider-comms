@@ -1235,4 +1235,32 @@ export const MIGRATIONS: Migration[] = [
         ON partner_application_events (application_id, seq DESC);
     `,
   },
+  {
+    // Two-step sign-in for staff (authenticator app). The secret may be
+    // encrypted (STAFF_MFA_ENCRYPTION_KEY); recovery codes are hashes only.
+    // A session that passed a code is marked; staff requests from any other
+    // session of an enrolled account are refused.
+    name: '0067_staff_two_step_sign_in',
+    sql: `
+      CREATE TABLE IF NOT EXISTS staff_mfa (
+        rider_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        secret TEXT NOT NULL,
+        enabled_at BIGINT,
+        last_step BIGINT,
+        recovery_hashes TEXT[] NOT NULL DEFAULT '{}',
+        created_at BIGINT NOT NULL
+      );
+      ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS mfa_verified_at TIMESTAMPTZ;
+      ALTER TABLE security_events DROP CONSTRAINT IF EXISTS security_events_event_check;
+      ALTER TABLE security_events ADD CONSTRAINT security_events_event_check CHECK (event IN (
+        'account_created', 'login', 'login_failed', 'signed_out', 'session_revoked',
+        'password_reset', 'reauthenticated', 'reauth_failed',
+        'mfa_enabled', 'mfa_disabled', 'mfa_verified', 'mfa_failed', 'mfa_reset'
+      ));
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset'));
+    `,
+  },
 ];

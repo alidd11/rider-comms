@@ -6,10 +6,11 @@ import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
 import { getPool } from '../db.ts';
 import { emailDeliveryStatus } from '../email.ts';
 import { MAX_MODERATION_NOTE_LENGTH } from '../moderationStore.ts';
-import { readJsonBody, sendJson } from '../serverHttp.ts';
+import { bearerToken, consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
 import { GRANTABLE_STAFF_ROLES, isGrantableStaffRole, permissionsFor, roleCan } from '../staffRoles.ts';
 import type { StaffPermission } from '../staffRoles.ts';
-import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
+import { NOT_HANDLED, refuseWithoutRecentReauth, refuseWithoutStaffCode } from './context.ts';
+import { staffMfa } from '../staffMfa.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
 import { handlePartnerRoutes } from './adminPartners.ts';
 import { parseOperationsWindow, socialSafetyActivityReport } from '../operationsReports.ts';
@@ -23,6 +24,42 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   if (!role) return sendJson(res, 403, { error: 'admin_required' });
   const lacks = (permission: StaffPermission) => !roleCan(role, permission);
   const refuse = (permission: StaffPermission) => sendJson(res, 403, { error: 'permission_required', permission });
+
+  // Two-step sign-in: setting it up and passing a code are the only staff
+  // requests a session that still needs a code may make.
+  if (s[1] === 'mfa') {
+    const token = bearerToken(req);
+    if (req.method === 'GET' && s.length === 2) return sendJson(res, 200, await staffMfa.status(actorId));
+    if (req.method !== 'POST' || s.length !== 3) return sendJson(res, 404, { error: 'not_found' });
+    if (!(await consumeRateLimit(res, ctx.rateLimitStore, rateLimitSubject('rider', actorId), 'auth'))) return;
+    const body = await readJsonBody(req);
+    if (s[2] === 'verify') {
+      // Code guesses share the per-account sign-in limit (10 per 15 minutes).
+      if (!(await consumeRateLimit(res, ctx.rateLimitStore, rateLimitSubject('account', 'mfa:' + actorId), 'auth_account'))) return;
+      if (!(await staffMfa.verify(actorId, body.code))) return sendJson(res, 401, { error: 'invalid_code' });
+      await staffMfa.markSessionVerified(token);
+      return sendJson(res, 200, { verified: true });
+    }
+    if (s[2] === 'setup') {
+      if (await refuseWithoutRecentReauth(ctx)) return;
+      const result = await staffMfa.beginSetup(actorId, actorId);
+      return 'error' in result ? sendJson(res, 409, result) : sendJson(res, 200, result);
+    }
+    if (s[2] === 'confirm') {
+      if (await refuseWithoutRecentReauth(ctx)) return;
+      const result = await staffMfa.confirmSetup(actorId, token, typeof body.code === 'string' ? body.code.trim() : '');
+      if ('error' in result) return sendJson(res, result.error === 'invalid_code' ? 401 : 409, result);
+      return sendJson(res, 200, result);
+    }
+    if (s[2] === 'disable') {
+      if (await refuseWithoutRecentReauth(ctx)) return;
+      if (!(await staffMfa.verify(actorId, body.code))) return sendJson(res, 401, { error: 'invalid_code' });
+      await staffMfa.disable(actorId);
+      return sendJson(res, 200, { enabled: false });
+    }
+    return sendJson(res, 404, { error: 'not_found' });
+  }
+  if (await refuseWithoutStaffCode(ctx)) return;
 
   if (s[1] === 'cases') return handleCompanyCaseRoutes(ctx, role);
   if (s[1] === 'partners') return handlePartnerRoutes(ctx, role);
@@ -141,7 +178,11 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   }
   if (s[1] === 'staff') {
     if (lacks('manage_staff')) return refuse('manage_staff');
-    if (req.method === 'GET' && s.length === 2) return sendJson(res, 200, { staff: await moderationStore.listStaff() });
+    if (req.method === 'GET' && s.length === 2) {
+      const staff = await moderationStore.listStaff();
+      const enrolled = await staffMfa.enabledFor(staff.map((member) => member.riderId));
+      return sendJson(res, 200, { staff: staff.map((member) => ({ ...member, twoStep: enrolled.has(member.riderId) })) });
+    }
     if (req.method !== 'POST') return sendJson(res, 404, { error: 'not_found' });
     if (await refuseWithoutRecentReauth(ctx)) return;
     const body = await readJsonBody(req);
@@ -158,6 +199,16 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       const result = await moderationStore.setStaffRole(riderId, body.role, actorId, note);
       if (!result.ok) return sendJson(res, result.error === 'not_found' ? 404 : 409, { error: result.error });
       return sendJson(res, 200, result);
+    }
+    // An admin can switch off a colleague's two-step sign-in (lost phone and
+    // recovery codes). The colleague then signs in with a password and can
+    // set it up again. Recorded in the audit log with the reason.
+    if (s.length === 4 && s[3] === 'mfa-reset') {
+      const riderId = decodeURIComponent(s[2]!);
+      if (riderId === actorId) return sendJson(res, 409, { error: 'use_own_settings' });
+      if (!(await staffMfa.disable(riderId, 'mfa_reset'))) return sendJson(res, 404, { error: 'not_enrolled' });
+      const action = await moderationStore.recordStaffMfaReset(riderId, actorId, note);
+      return sendJson(res, 200, { ok: true, action });
     }
     if (s.length === 4 && s[3] === 'remove') {
       const result = await moderationStore.removeStaffRole(decodeURIComponent(s[2]!), actorId, note);

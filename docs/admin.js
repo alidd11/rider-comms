@@ -94,6 +94,8 @@
   let caseStatus = 'all';
   let caseOwner = 'all';
   let partnerStatus = 'open';
+  // Filled from the signed-in staff member's profile for the welcome line.
+  let staffDisplayName = '';
   let partnerKind = 'all';
   /** The list a detail page belongs to, for navigation and titles. */
   const parentView = (name) => ({ rider: 'riders', case: 'cases', partner: 'partners' })[name] ?? name;
@@ -884,9 +886,43 @@
 
   // The landing workspace is today's work only; figures and trends are in
   // Insights, and service health is in System.
+  /** Greeting with the staff member's own local time, updated each minute
+   *  while the Overview is on screen. Times are the device's, not UTC. */
+  function welcomeBanner() {
+    const greetingFor = (date) => {
+      const hour = date.getHours();
+      return hour < 5 ? 'Good evening' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    };
+    const greeting = el('span', {});
+    const time = el('time', { class: 'welcome-time' });
+    const date = el('span', { class: 'welcome-date' });
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const update = () => {
+      const now = new Date();
+      greeting.textContent = greetingFor(now) + ', ';
+      time.setAttribute('datetime', now.toISOString());
+      time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      date.textContent = now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }) + (zone ? ' · ' + zone.replace(/_/g, ' ') : '');
+    };
+    update();
+    const banner = el('section', { class: 'welcome-banner', 'aria-label': 'Welcome' }, [
+      el('div', { class: 'welcome-copy' }, [
+        el('p', { class: 'welcome-greeting' }, [greeting, el('span', { dataset: { welcomeName: '' }, text: staffDisplayName || 'there' })]),
+        el('p', { class: 'welcome-role', text: me?.role ? 'Signed in as ' + (ROLE_LABELS[me.role] || me.role).toLowerCase() + '. Here is what needs you today.' : 'Here is what needs you today.' }),
+      ]),
+      el('div', { class: 'welcome-clock' }, [time, date]),
+    ]);
+    const timer = setInterval(() => {
+      if (!banner.isConnected) { clearInterval(timer); return; }
+      update();
+    }, 30_000);
+    return banner;
+  }
+
   function renderOverview(data, workload = null, partners = null) {
     pageEl.replaceChildren(
       pageHeader('Overview', snapshotTimestamp(data.generatedAt) + '. Queues are live and never filtered by a reporting period.'),
+      welcomeBanner(),
       operationsSummary(data, workload, partners),
     );
   }
@@ -3545,7 +3581,11 @@
   footerIdentity(session.riderId);
   api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
     const name = profile?.displayName || profile?.handle;
-    if (name && session) footerIdentity(name, profile.handle && profile.displayName ? profile.handle : '');
+    if (name && session) {
+      staffDisplayName = name;
+      footerIdentity(name, profile.handle && profile.displayName ? profile.handle : '');
+      document.querySelector('[data-welcome-name]')?.replaceChildren(name);
+    }
   }).catch(() => {});
 
   // The role decides which pages appear; the backend enforces it either way.

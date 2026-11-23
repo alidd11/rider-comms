@@ -6,6 +6,7 @@ import { countFilterRejection, NOT_HANDLED } from './context.ts';
 import type { PublicRouteContext } from './context.ts';
 import { parsePartnerApplication } from '../partnerStore.ts';
 import { partnerStore } from './adminPartners.ts';
+import { staffMfa } from '../staffMfa.ts';
 
 export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unknown> {
   const { req, res, url, address, profileStore, authStore, rateLimitStore, socialActivityStore, readinessCheck, adminStatsStore } = ctx;
@@ -82,6 +83,19 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     if (!staffRole) {
       await authStore.revokeToken(result.token);
       return sendJson(res, 403, { error: 'staff_only' });
+    }
+    // Two-step sign-in: without a valid code the new session is revoked at
+    // once, so a stolen password alone never yields a staff session.
+    if ((await staffMfa.status(result.riderId)).enabled) {
+      if (body.code === undefined || body.code === '') {
+        await authStore.revokeToken(result.token);
+        return sendJson(res, 401, { error: 'mfa_required' });
+      }
+      if (!(await staffMfa.verify(result.riderId, body.code))) {
+        await authStore.revokeToken(result.token);
+        return sendJson(res, 401, { error: 'invalid_code' });
+      }
+      await staffMfa.markSessionVerified(result.token);
     }
     // /admin/me still rechecks current role on every dashboard launch.
     return sendJson(res, 200, result);

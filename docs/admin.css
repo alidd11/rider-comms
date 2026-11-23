@@ -2512,3 +2512,19 @@ select.input, .case-field .input { padding-left: 12px; }
 .partner-check { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 13.5px; cursor: pointer; }
 .partner-check input { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
 .partner-decisions { margin-top: 4px; }
+
+/* Overview welcome: greeting and the staff member's local time. */
+.welcome-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap;
+  margin: 0 0 18px; padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius-card);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 9%, var(--surface)), var(--surface) 70%);
+}
+.welcome-greeting { margin: 0; font-size: 19px; font-weight: 720; letter-spacing: -.02em; color: var(--fg); }
+.welcome-role { margin: 3px 0 0; color: var(--muted-fg); font-size: 13px; }
+.welcome-clock { display: grid; justify-items: end; gap: 1px; text-align: right; }
+.welcome-time { font-size: 24px; font-weight: 740; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--fg); }
+.welcome-date { color: var(--muted-fg); font-size: 12px; }
+@media (max-width: 620px) {
+  .welcome-banner { padding: 14px 16px; }
+  .welcome-clock { justify-items: start; text-align: left; }
+}

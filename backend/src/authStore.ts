@@ -41,7 +41,7 @@ const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const ACCOUNT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** How long account security history is kept. */
 export const SECURITY_EVENT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
-export const SECURITY_EVENTS = ['account_created', 'login', 'login_failed', 'signed_out', 'session_revoked', 'password_reset', 'reauthenticated', 'reauth_failed'] as const;
+export const SECURITY_EVENTS = ['account_created', 'login', 'login_failed', 'signed_out', 'session_revoked', 'password_reset', 'reauthenticated', 'reauth_failed', 'mfa_enabled', 'mfa_disabled', 'mfa_verified', 'mfa_failed', 'mfa_reset'] as const;
 export type SecurityEventType = (typeof SECURITY_EVENTS)[number];
 export interface SecurityEvent {
   id: string;

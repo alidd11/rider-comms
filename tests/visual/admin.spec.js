@@ -1178,10 +1178,10 @@ test.describe('staff dashboard', () => {
     test.skip(!/phone/.test(testInfo.project.name), 'Phones only');
     await signIn(page);
     await mockModerationApi(page);
-    await page.goto('/admin.html');
+    // Insights is long on every phone; the compact Overview may not scroll.
+    await page.goto('/admin.html#insights');
     await expect(page.locator('.sidebar')).toHaveCSS('position', 'fixed');
-    // Scroll only once the Overview has rendered; an empty page can't scroll.
-    await expect(page.locator('.operation-card').first()).toBeVisible();
+    await expect(page.locator('.chart-card').first()).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, 1100));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
     const top = await page.locator('.sidebar').evaluate((node) => node.getBoundingClientRect().top);
@@ -2410,4 +2410,22 @@ test('partners: the public form sends a clean application and shows the referenc
   await expect(page.getByRole('heading', { name: 'Application sent' })).toBeVisible();
   await expect(page.locator('#partnerReference')).toHaveText('RC-ABCDEF');
   expect(sent.at(-1)).toMatchObject({ kind: 'advertiser', businessName: 'Coastline Café', country: 'GB', acceptTerms: true, company: '' });
+});
+
+test('overview welcomes the staff member by name with their local time', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-23T09:15:00'));
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html#overview');
+  const welcome = page.getByRole('region', { name: 'Welcome' });
+  await expect(welcome).toContainText('Good morning, ');
+  await expect(welcome.locator('time')).toHaveText(/09:15|9:15/);
+  await expect(welcome).toContainText('Monday');
+  // It sits above the work queue.
+  const order = await page.evaluate(() => {
+    const banner = document.querySelector('.welcome-banner');
+    const work = document.querySelector('.operations-summary');
+    return Boolean(banner.compareDocumentPosition(work) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(order).toBe(true);
 });

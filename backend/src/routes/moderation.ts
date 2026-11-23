@@ -3,7 +3,7 @@ import { MAX_MODERATION_NOTE_LENGTH, MAX_SUSPENSION_DAYS, REPORT_RESOLUTIONS, RE
 import type { ReportResolution, ReportStatus } from '../moderationStore.ts';
 import { readJsonBody, sendJson } from '../serverHttp.ts';
 import { roleCan } from '../staffRoles.ts';
-import { NOT_HANDLED, ejectFromVoice, refuseWithoutRecentReauth, voiceMembershipsOf } from './context.ts';
+import { NOT_HANDLED, ejectFromVoice, refuseWithoutRecentReauth, refuseWithoutStaffCode, voiceMembershipsOf } from './context.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown> {
@@ -19,6 +19,7 @@ export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown
       : req.method === 'POST' && s[1] === 'riders' && (s[3] === 'sign-out' || s[3] === 'password-reset') ? 'account_help'
       : 'moderate';
     if (!roleCan(role, permission)) return sendJson(res, 403, { error: 'permission_required', permission });
+    if (await refuseWithoutStaffCode(ctx)) return;
     // Claiming a report changes nothing about a rider, so it skips the password re-check.
     const isClaim = s[1] === 'reports' && s[3] === 'claim';
     if (req.method === 'POST' && !isClaim && (await refuseWithoutRecentReauth(ctx))) return;
