@@ -230,6 +230,14 @@ assert.ok(betaHtml.includes('__RIDER_MAPS_PAYLOAD_HASH__'), 'CSP must validate p
 assert.ok(read('../docs/map-beta/preview.mjs').includes('parent.postMessage'), 'Preview must signal close');
 assert.match(pwaStyles, /\.rider-map-beta-dialog/);
 assert.match(read('../docs/map-beta/preview.mjs'), /rider-comms-close-map-beta/);
+assert.match(js, /window\.addEventListener\('keydown'/,
+  'Map child must capture Escape before the map renderer keyboard handlers');
+assert.match(js, /document\.documentElement\.dataset\.escapeRelayReady = 'true'/,
+  'Nested sandbox must mark Escape relay readiness only after installing the listener');
+assert.match(betaHtml, /document\.documentElement\.dataset\.escapeRelayReady = 'true'/,
+  'Public launcher must mark its relay readiness after message forwarding is live');
+assert.match(read('../tests/visual/settings-account.spec.js'), /data-escape-relay-ready/,
+  'Escape regression must await sandbox relay setup instead of only map markup');
 assert.doesNotMatch(pwaBundle.slice(pwaBundle.indexOf('function openEmbeddedMapBeta'), pwaBundle.indexOf('async function revealAdminMapBeta')), /google\.maps|Google Directions|Google Places/);
 assert.match(betaHtml, /Use classic map/);
 assert.match(betaHtml, /id="retryMapBeta"/, 'Map preview must offer manual, isolated retry');

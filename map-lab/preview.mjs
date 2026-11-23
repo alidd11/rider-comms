@@ -13,14 +13,18 @@ if (returnClassic && window.parent !== window) {
   });
 }
 
-// Keyboard events do not bubble across sandboxed frame boundaries. Forward
-// only a fixed close signal, never session data or arbitrary commands.
-document.addEventListener('keydown', (event) => {
+// Keyboard events do not bubble across sandboxed frame boundaries. Listen
+// at window capture (before MapLibre's own keyboard handlers), then forward
+// only a fixed close signal; never session data or arbitrary commands.
+window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape' || window.parent === window) return;
   event.preventDefault();
   event.stopPropagation();
   window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, '*');
 }, { capture: true });
+// The map markup can become visible before its bundled keyboard handler has
+// registered. Mark close-relay readiness only after the handler is live.
+document.documentElement.dataset.escapeRelayReady = 'true';
 
 const status = document.getElementById('status');
 const dayButton = document.getElementById('dayStyle');

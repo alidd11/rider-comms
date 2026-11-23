@@ -74,6 +74,8 @@
         || event.data?.type !== 'rider-comms-close-map-beta') return;
     requestParentClose();
   });
+  // A visible iframe is not proof its close relay has initialised.
+  document.documentElement.dataset.escapeRelayReady = 'true';
 })();</script>
 </body>
 </html>

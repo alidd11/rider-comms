@@ -176,14 +176,25 @@ test('PWA admin beta Escape closes when focus is inside either sandboxed iframe'
   const dialog = page.locator('#riderMapBetaDialog');
   await entry.click();
   const outer = page.frameLocator('#riderMapBetaFrame');
+  // The iframe markup can be rendered before the inline relay attaches.
+  // Escape is only a meaningful integration test once the relay is ready.
+  await expect(outer.locator('html')).toHaveAttribute('data-escape-relay-ready', 'true');
   await outer.locator('.return-classic').focus();
+  await expect(outer.locator('.return-classic')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(entry).toBeFocused();
   await entry.click();
   const nested = page.frameLocator('#riderMapBetaFrame').frameLocator('#mapBetaSandbox');
   await expect(nested.locator('#map')).toBeVisible();
+  // The nested renderer is a separate opaque origin. Its keydown handler
+  // needs to finish initialising before we ask it to relay Escape twice.
+  await expect(nested.locator('html')).toHaveAttribute('data-escape-relay-ready', 'true');
   await nested.locator('#map').evaluate((el) => { el.tabIndex = 0; el.focus(); });
+  await expect(nested.locator('#map')).toBeFocused();
+  await expect.poll(() => nested.locator('body').evaluate(() => document.hasFocus())).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('riderMapBetaFrame');
+  await expect.poll(() => outer.locator('body').evaluate(() => document.activeElement?.id)).toBe('mapBetaSandbox');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(entry).toBeFocused();
