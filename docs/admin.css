@@ -2419,3 +2419,144 @@ html { scroll-padding-top: 78px; }
 @media (prefers-reduced-motion: reduce) {
   .company-unit, .sidebar .nav-item { transition: none; }
 }
+
+/* Staff Hub polish pass (screenshot audit, 23 Nov 2026). */
+/* The heading takes focus after navigation for screen readers; it isn't a
+   control, so it needs no visible ring (it read as a stray underline). */
+.page-header .page-title:focus-visible { box-shadow: none; }
+/* .input reserves room for a search icon; fields without one sat indented. */
+select.input, .case-field .input { padding-left: 12px; }
+/* One search entry point per layout: the toolbar's on wide screens, the
+   sidebar's inside the phone drawer. */
+@media (min-width: 900px) { .sidebar .sidebar-search-slot { display: none; } }
+.brand-name { white-space: nowrap; }
+/* Rider quick actions: their own column on wide screens, their own line on
+   phones, so badges and names keep their width. */
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.table .actions-col { width: 1%; white-space: nowrap; text-align: right; }
+.table .actions-col .row-actions { justify-content: flex-end; flex-wrap: nowrap; }
+.list-row:has(> .row-actions) { flex-wrap: wrap; }
+.list-row > .row-actions { flex-basis: 100%; padding-left: 44px; }
+.case-empty-history { margin: 0; padding: 14px 0 2px; color: var(--muted-fg); font-size: 13px; }
+.list-row:has(> .row-actions) > :first-child { flex: 1 1 0; min-width: 0; }
+/* Short laptop screens: the section list scrolls so the footer's sign-out
+   stays reachable instead of being cut off below the viewport. */
+@media (min-width: 900px) { .sidebar .nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; } }
+
+/* Sidebar top: the brand row lines up with the 60px workspace toolbar and
+   shares its divider, so the rail and page read as one frame. */
+@media (min-width: 900px) {
+  .sidebar { padding-top: 0; }
+  .sidebar .brand { height: 60px; min-height: 60px; flex: none; padding: 0 18px; border-bottom: 1px solid #263f4b; margin-bottom: 8px; }
+  .sidebar .brand-tag { margin-left: auto; }
+}
+/* Sidebar bottom: one account row (avatar, name, handle and role) with
+   compact icon actions, instead of a sentence, a link and a full button. */
+.staff-footer-account { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; flex-wrap: nowrap; }
+.staff-footer-avatar {
+  flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; font-size: 11px; font-weight: 720;
+}
+.staff-footer-who { display: grid; gap: 2px; min-width: 0; }
+.staff-footer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; }
+.staff-footer-meta { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11.5px; white-space: nowrap; }
+.staff-footer-meta .footer-role { margin-left: 0; }
+.staff-footer-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.sidebar-footer:has(.staff-footer-actions) { display: flex; align-items: center; gap: 8px; }
+.staff-footer-icon-action {
+  display: inline-grid; place-items: center; width: 34px; height: 34px; min-height: 34px; margin: 0; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; text-decoration: none;
+}
+.staff-footer-icon-action svg { width: 16px; height: 16px; }
+.sidebar .staff-footer-icon-action { background: transparent; border: 0; color: #bed1db; }
+.sidebar .staff-footer-icon-action:hover { background: #24404e; color: #fff; text-decoration: none; }
+.sidebar .staff-footer-avatar { background: #24404e; color: #e1edf2; }
+.sidebar .staff-footer-name { color: #f1f7fa; }
+.staff-footer-actions .staff-install-button { min-height: 34px; padding: 0 10px; font-size: 12px; }
+/* Phones: the drawer footer keeps 44px touch targets. */
+@media (max-width: 899px) { .staff-footer-icon-action { width: 44px; height: 44px; } }
+/* Density: a compact page frame so more of each queue fits above the fold.
+   Section rhythm is 24px; headers no longer spend a full screen line on
+   the scope disclosure, which now sits beside the title. */
+.page { padding-top: 24px; }
+.page-header { padding-bottom: 14px; margin-bottom: 18px; }
+.page-header .page-title { font-size: clamp(26px, 2.2vw, 28px); }
+@media (min-width: 900px) {
+  .page-heading { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; row-gap: 4px; }
+  .page-heading .page-context[open] { flex-basis: 100%; }
+}
+.section-title { margin-top: 24px; margin-bottom: 10px; }
+.operations-summary > .section-title:first-child { margin-top: 0; }
+.operation-card { padding: 14px 16px; }
+.operation-value { margin: 8px 0 4px; font-size: 26px; }
+.operation-description { margin-bottom: 10px; }
+.kpi { min-height: 118px; padding-top: 14px; }
+.chart-card, .panels > .card { padding-top: 14px; }
+.case-workload, .case-list-item, .list-row { scroll-margin-top: 76px; }
+/* Five work cards on wide screens; they wrap cleanly to fewer columns. */
+@media (min-width: 1100px) {
+  .operations-grid[data-count="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .operations-grid[data-count="6"], .operations-grid[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .operations-grid[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Partners: application review. Reuses the case desk's list, workload and
+   detail layout; adds the checklist and a definition grid. */
+.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 4px 0 14px; }
+.detail-field { min-width: 0; }
+.detail-field dt { color: var(--muted-fg); font-size: 11.5px; font-weight: 620; }
+.detail-field dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 14px; }
+@media (max-width: 620px) { .detail-grid { grid-template-columns: 1fr; } }
+.partner-subhead { margin: 16px 0 6px; font-size: 12px; font-weight: 700; color: var(--fg-2); }
+.partner-checklist { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 2px; }
+.partner-check { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 13.5px; cursor: pointer; }
+.partner-check input { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
+.partner-decisions { margin-top: 4px; }
+
+/* Overview welcome: greeting and the staff member's local time. */
+.welcome-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap;
+  margin: 0 0 18px; padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius-card);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 9%, var(--surface)), var(--surface) 70%);
+}
+.welcome-greeting { margin: 0; font-size: 19px; font-weight: 720; letter-spacing: -.02em; color: var(--fg); }
+.welcome-role { margin: 3px 0 0; color: var(--muted-fg); font-size: 13px; }
+.welcome-clock { display: grid; justify-items: end; gap: 1px; text-align: right; }
+.welcome-time { font-size: 24px; font-weight: 740; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--fg); }
+.welcome-date { color: var(--muted-fg); font-size: 12px; }
+@media (max-width: 620px) {
+  .welcome-banner { padding: 14px 16px; }
+  .welcome-clock { justify-items: start; text-align: left; }
+}
+
+/* Account security dialog. */
+.security-dialog .dialog-body { display: grid; gap: 12px; }
+.setup-key { margin: 0; font-size: 13px; color: var(--muted-fg); overflow-wrap: anywhere; }
+.setup-key code { font-size: 14px; color: var(--fg); letter-spacing: .04em; }
+.recovery-codes { margin: 0; padding-left: 22px; columns: 2; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+
+/* Riders: status filter beside the search, and paging past the first 50. */
+.toolbar .select { flex: 0 0 auto; min-height: 40px; }
+.load-more-row { display: flex; justify-content: center; margin: 12px 0 4px; }
+@media (max-width: 640px) {
+  .toolbar { flex-wrap: wrap; }
+  .toolbar .search { flex-basis: 100%; }
+  .toolbar .select { flex: 1 1 auto; }
+}
+
+/* Report queue: select several and dismiss them with one note. */
+.bulk-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.bulk-bar .bulk-count { flex: 1 1 auto; color: var(--muted-fg); font-size: 13px; }
+.bulk-all { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.bulk-bar input, .bulk-select-label input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+.bulk-select-label { display: inline-flex; align-items: center; padding: 4px; margin: -4px 4px -4px -4px; cursor: pointer; }
+
+/* Account dialog: the staff member's own email alerts. */
+.alert-prefs { border: 0; border-top: 1px solid var(--border); margin: 16px 0 0; padding: 12px 0 0; display: grid; gap: 10px; }
+.alert-prefs legend { font-weight: 600; font-size: 14px; padding: 0; float: left; width: 100%; margin-bottom: 2px; }
+.alert-pref { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.alert-pref input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.alert-pref > span { display: grid; gap: 2px; }
+.alert-pref-title { font-size: 14px; }
+.alert-pref-detail, .alert-prefs-state { font-size: 12.5px; color: var(--muted-fg); margin: 0; }
+.alert-prefs-state:empty { display: none; }

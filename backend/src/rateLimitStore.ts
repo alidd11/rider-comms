@@ -18,7 +18,8 @@ export type RateLimitAction =
   | 'password_reset_account'
   | 'billing_verify'
   | 'ride_create'
-  | 'hideout_create';
+  | 'hideout_create'
+  | 'partner_apply';
 
 export interface RateLimitPolicy {
   maxEvents: number;
@@ -36,6 +37,8 @@ export const RATE_LIMIT_POLICIES: Readonly<Record<RateLimitAction, RateLimitPoli
   // evasion while leaving room for a group signing up together behind one
   // carrier-grade NAT address at a meet.
   signup_ip: { maxEvents: 20, windowMs: 60 * 60_000 },
+  // Public seller/advertiser applications: a handful per address per hour.
+  partner_apply: { maxEvents: 5, windowMs: 60 * 60_000 },
   api: { maxEvents: 300, windowMs: 60_000 },
   // A private ride code grants access to live group features, so guessing is
   // constrained independently by authenticated rider and client address.

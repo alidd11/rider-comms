@@ -1,3 +1,4 @@
+import { staffMfa } from '../staffMfa.ts';
 import type { RegroupPoint } from '@rider-comms/shared';
 import type http from 'node:http';
 import { bearerToken, sendJson } from '../serverHttp.ts';
@@ -175,5 +176,13 @@ export const STAFF_REAUTH_WINDOW_MS = 15 * 60_000;
 export async function refuseWithoutRecentReauth(ctx: Pick<RouteContext, 'req' | 'res' | 'authStore'>): Promise<boolean> {
   if (await ctx.authStore.recentlyReauthenticated(bearerToken(ctx.req), STAFF_REAUTH_WINDOW_MS)) return false;
   sendJson(ctx.res, 403, { error: 'reauth_required', windowMs: STAFF_REAUTH_WINDOW_MS });
+  return true;
+}
+
+/** Staff who turned on two-step sign-in must pass a code on this session
+ * before any staff request. True when the request was refused. */
+export async function refuseWithoutStaffCode(ctx: Pick<RouteContext, 'req' | 'res' | 'actorId'>): Promise<boolean> {
+  if (!(await staffMfa.sessionNeedsCode(ctx.actorId, bearerToken(ctx.req)))) return false;
+  sendJson(ctx.res, 403, { error: 'mfa_required' });
   return true;
 }
