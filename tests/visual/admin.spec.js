@@ -1310,7 +1310,8 @@ test.describe('staff dashboard', () => {
     await expect(work.locator('.operation-card')).toHaveCount(6);
     await expect(work.locator('.operation-card', { hasText: 'Cases without an owner' }).locator('.operation-value')).toHaveText('4');
     await expect(work.locator('.operation-card', { hasText: 'Urgent cases' }).locator('.operation-value')).toHaveText('1');
-    await expect(page.locator('.page-subtitle')).toContainText('UTC');
+    // When the queue figures were taken sits beside the queue heading.
+    await expect(work.locator('.operations-updated')).toContainText('Updated');
     await expect(page.locator('.overview-highlight')).toHaveCount(0);
     await expect(page.locator('.kpi')).toHaveCount(0);
     await expect(page.locator('.chart-card')).toHaveCount(0);
@@ -2296,7 +2297,9 @@ test('Staff Hub premium console preserves responsive shell and navigation focus'
     expect(metrics.pageWidth - metrics.viewport).toBeLessThanOrEqual(1);
   }
   await page.goto('/admin.html#overview');
-  await expect(page.locator('.page-context > summary')).toContainText('Scope and definitions');
+  // Overview carries no explanatory disclosure; the queue shows when it was taken.
+  await expect(page.locator('.page-context')).toHaveCount(0);
+  await expect(page.locator('.operations-updated')).toContainText('Updated');
   await expect(page.locator('.operation-card')).toHaveCount(6);
   if (testInfo.project.name !== 'viewport-desktop-chromium') {
     // Capture the actual navigation drawer, not just the fixed mobile header.
@@ -2599,6 +2602,18 @@ test('the installed Staff app opens on Overview, and a reload keeps the current 
   await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
   await expect(page.locator('.page-title')).toHaveText('Overview');
   expect(new URL(page.url()).hash).not.toBe('#inbox');
+  await page.evaluate(() => { location.hash = 'riders'; });
+  await expect(page.locator('.page-title')).toHaveText('Riders');
+  await page.reload();
+  await expect(page.locator('.page-title')).toHaveText('Riders');
+});
+
+test('a Home Screen icon saved from the dashboard at #inbox opens on Overview', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
+  await page.goto('/admin.html#inbox');
+  await expect(page.locator('.page-title')).toHaveText('Overview');
   await page.evaluate(() => { location.hash = 'riders'; });
   await expect(page.locator('.page-title')).toHaveText('Riders');
   await page.reload();
