@@ -98,9 +98,12 @@ describe('offline charging evidence content integrity (no live data)', () => {
       'pretend bytes', [1, 2, 3],
       new Uint8Array(MAX_OFFLINE_CHARGING_DATASET_BYTES + 1),
     ]) {
-      assert.deepEqual(check(manifest, passage, invalid, outputBytes).reasons,
+      // Call the production boundary directly: the convenience check() helper
+      // defaults an explicit undefined to the valid fixture byte buffer.
+      // Passing invalid through unchanged verifies the actual fail-closed path.
+      assert.deepEqual(verifyChargeDatasetContent(manifest, passage, invalid, outputBytes).reasons,
         ['invalid_source_bytes']);
-      assert.deepEqual(check(manifest, passage, sourceBytes, invalid).reasons,
+      assert.deepEqual(verifyChargeDatasetContent(manifest, passage, sourceBytes, invalid).reasons,
         ['invalid_output_bytes']);
     }
   });
