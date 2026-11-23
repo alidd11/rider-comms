@@ -37,7 +37,7 @@ and stable meaning for every field.
 | Graph | **Distinct** Valhalla build/content checksum, costing profile version, graph build settings, edge-ID namespace | edge IDs from a different build are reused |
 | Route snapshot | route ID, monotonic revision, alternative/leg IDs, vehicle class, generation time | graph/vehicle/route revision changes without reassessment |
 | Road observation | unique event/occurrence ID, directed edge ID and direction, layer/bridge/tunnel, operator-road match version and confidence | approximate coordinate/polygon overlap substituted for graph correspondence |
-| Time | offset-bearing earliest, predicted, latest UTC instants for this **occurrence**, not journey departure | wrong ordering, missing offset, bound exceeds 120 min, DST/charge-window conflict |
+| Time | offset-bearing earliest, predicted, latest UTC instants for this **occurrence**, not journey departure; observations ordered by nondecreasing **actual UTC predicted instants** | wrong ordering (including textually misleading offsets), missing offset, bound exceeds 120 min, DST/charge-window conflict |
 | Charge evidence | authority and scheme/zone ID, exact charging unit, current regulation, exceptions reviewed-through, official rule source and rights | conflicting zone/operator, missing licence/review or stale evidence |
 | Entitlement | verified issuing operator, exact vehicle/registration identity where applicable, scheme/zone, validity and review time | solely user-declared, expired, wrong vehicle or wrong CAZ |
 | Coverage | defined set of legally reviewed charge mechanisms and all traversed road occurrences, including unobserved sections | claimed whole-route or charge-free result from partial source coverage |
