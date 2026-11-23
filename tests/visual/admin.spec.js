@@ -2101,22 +2101,25 @@ for (const [deviceProject, label] of [
     });
 }
 
-test('reporting periods are consistent, persistent and do not hide operational queues', async ({ page }) => {
+test('date controls appear only where reporting changes, not on operational queues', async ({ page }) => {
   await signIn(page);
   await mockModerationApi(page);
   await page.goto('/admin.html#cases');
   const range = page.getByRole('combobox', { name: 'Reporting period' });
   await expect(range).toHaveValue('7');
+  await expect(page.locator('.reporting-range-caption')).toHaveText('Period');
   await range.selectOption('30');
   await expect(page.getByText(/loaded cases updated in the last 30 days/)).toBeVisible();
   await expect(page.locator('.case-item')).toHaveCount(4);
-  await openSection(page, 'Action inbox');
-  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
-  await expect(page.getByText(/All open work remains visible regardless of age/)).toBeVisible();
-  await openSection(page, 'Moderation');
-  await expect(page.locator('.reporting-scope')).toHaveText('Live moderation queue');
-  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveCount(0);
-  await openSection(page, 'Overview');
+  for (const name of ['Action inbox', 'Riders', 'Audit log', 'Staff', 'Moderation', 'Overview']) {
+    await openSection(page, name);
+    await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveCount(0);
+  }
+  await expect(page.locator('.overview-highlight')).toHaveCount(3);
+  await expect(page.locator('.chart-card')).toHaveCount(0);
+  await openSection(page, 'Insights');
   await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
   await expect(page.locator('.kpi').first().locator('.kpi-value')).toHaveText('310');
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
 });
