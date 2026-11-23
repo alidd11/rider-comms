@@ -2528,3 +2528,9 @@ select.input, .case-field .input { padding-left: 12px; }
   .welcome-banner { padding: 14px 16px; }
   .welcome-clock { justify-items: start; text-align: left; }
 }
+
+/* Account security dialog. */
+.security-dialog .dialog-body { display: grid; gap: 12px; }
+.setup-key { margin: 0; font-size: 13px; color: var(--muted-fg); overflow-wrap: anywhere; }
+.setup-key code { font-size: 14px; color: var(--fg); letter-spacing: .04em; }
+.recovery-codes { margin: 0; padding-left: 22px; columns: 2; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }

@@ -77,7 +77,7 @@ async function openMenuIfPhone(page) {
 }
 
 /** Minimal in-memory moderation backend. */
-async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false } = {}) {
+async function mockModerationApi(page, { admin = true, suspended = false, role = 'admin', reauth = false, mfa = false } = {}) {
   const state = {
     reports: [{ ...OPEN_REPORT, reportedRiderSuspended: suspended, assignedTo: null, assignedAt: null }],
     assignmentEvents: [],
@@ -135,11 +135,28 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       state.staffLogins.push(body);
       if (body.password !== 'right-password') return json(401, { error: 'invalid_credentials' });
       if (!admin) return json(403, { error: 'staff_only' });
+      if (mfa && !body.code) return json(401, { error: 'mfa_required' });
+      if (mfa && body.code !== '123456') return json(401, { error: 'invalid_code' });
+      if (mfa) state.mfaPassed = true;
       return json(200, { riderId: ADMIN_ID, token: 'staff-token', emailVerified: true });
     }
     if (url.pathname === '/auth/logout' && request.method() === 'POST') {
       state.staffLogouts += 1;
       return route.fulfill({ status: 204, headers, body: '' });
+    }
+    if (url.pathname === '/admin/mfa/verify') {
+      if (request.postDataJSON().code !== '123456') return json(401, { error: 'invalid_code' });
+      state.mfaPassed = true;
+      return json(200, { verified: true });
+    }
+    if (url.pathname === '/admin/mfa') return json(200, { enabled: mfa, recoveryCodesLeft: mfa ? 10 : 0 });
+    if (url.pathname === '/admin/mfa/setup') return json(200, { secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', uri: 'otpauth://totp/Rider%20Comms%20Staff%3Arider_admin01?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' });
+    if (url.pathname === '/admin/mfa/confirm') {
+      if (request.postDataJSON().code !== '123456') return json(401, { error: 'invalid_code' });
+      return json(200, { recoveryCodes: Array.from({ length: 10 }, (_, i) => `abcde-${10000 + i}`) });
+    }
+    if (mfa && !state.mfaPassed && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/moderation'))) {
+      return json(403, { error: 'mfa_required' });
     }
     if (url.pathname === '/admin/me') return json(200, { riderId: ADMIN_ID, role, permissions: ROLE_PERMISSIONS[role] });
     if (url.pathname === '/auth/reauthenticate') {
@@ -2082,6 +2099,8 @@ test.describe('staff dashboard', () => {
     await expect(installLink).toBeFocused();
     await expect(installLink).toHaveAttribute('href', './staff/');
     await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Account security' })).toBeFocused();
+    await page.keyboard.press('Tab');
     const signOut = page.getByRole('button', { name: 'Sign out of Staff' });
     await expect(signOut).toBeFocused();
     await page.keyboard.press('Tab');
@@ -2428,4 +2447,49 @@ test('overview welcomes the staff member by name with their local time', async (
     return Boolean(banner.compareDocumentPosition(work) & Node.DOCUMENT_POSITION_FOLLOWING);
   });
   expect(order).toBe(true);
+});
+
+test('two-step sign-in: staff sign-in asks for the code after the password', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { mfa: true });
+  await page.goto('/staff/');
+  await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+  await page.getByLabel('Password', { exact: true }).fill('right-password');
+  await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+  const code = page.getByRole('textbox', { name: 'Authenticator or recovery code' });
+  await expect(code).toBeVisible();
+  await code.fill('000000');
+  await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+  await expect(page.getByRole('alert')).toContainText('isn’t right');
+  await code.fill('123456');
+  await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+});
+
+test('two-step sign-in: the dashboard asks for a code when a session has not passed one', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { mfa: true });
+  await page.goto('/admin.html#overview');
+  const dialog = page.getByRole('dialog', { name: 'Two-step sign-in' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('textbox', { name: 'Authenticator or recovery code' }).fill('123456');
+  await dialog.getByRole('button', { name: 'Verify' }).click();
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+  await expect(page.getByRole('dialog', { name: 'Two-step sign-in' })).toHaveCount(0);
+});
+
+test('two-step sign-in: staff set it up from Account security and see recovery codes once', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html#overview');
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+  await openMenuIfPhone(page);
+  await page.getByRole('button', { name: 'Account security' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Account security' });
+  await dialog.getByRole('button', { name: 'Set up two-step sign-in' }).click();
+  await expect(dialog.getByRole('link', { name: 'Open in authenticator app' })).toHaveAttribute('href', /^otpauth:\/\/totp\//);
+  await expect(dialog.locator('.setup-key code')).toHaveText('JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP');
+  await dialog.getByRole('textbox', { name: 'Code from the app' }).fill('123456');
+  await dialog.getByRole('button', { name: 'Turn on' }).click();
+  await expect(dialog.getByRole('list', { name: 'Recovery codes' }).locator('li')).toHaveCount(10);
 });

@@ -57,7 +57,7 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
@@ -181,14 +181,127 @@
 
   // Staff changes need the password re-entered every 15 minutes. When the
   // backend asks, confirm it here and send the change again once.
-  async function api(method, path, body) {
+  // Staff with two-step sign-in pass a code once per session; when the
+  // backend asks, take it here and send the request again.
+  async function api(method, path, body, attempt = 0) {
     try {
       return await request(method, path, body);
     } catch (error) {
-      if (!(error instanceof ApiError) || error.code !== 'reauth_required') throw error;
+      if (!(error instanceof ApiError) || attempt > 1) throw error;
+      if (error.code === 'mfa_required') {
+        if (!(await confirmCode())) throw new ApiError(403, 'mfa_cancelled');
+        return api(method, path, body, attempt + 1);
+      }
+      if (error.code !== 'reauth_required') throw error;
       if (!(await confirmPassword())) throw new ApiError(403, 'reauth_cancelled');
-      return request(method, path, body);
+      return api(method, path, body, attempt + 1);
     }
+  }
+
+  /** One shared code prompt, so parallel requests ask only once. */
+  let pendingCode = null;
+  function confirmCode() {
+    pendingCode ??= new Promise((resolve) => {
+      const input = el('input', { class: 'input', id: 'mfaCode', inputmode: 'numeric', autocomplete: 'one-time-code',
+        maxlength: 20, 'aria-label': 'Authenticator or recovery code', required: true });
+      const error = el('p', { class: 'error-text', role: 'alert' });
+      const submit = el('button', { type: 'submit', class: 'button button-primary', text: 'Verify' });
+      const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel' });
+      const form = el('form', { class: 'dialog-body', novalidate: true }, [
+        el('h2', { class: 'card-title', id: 'mfaTitle', text: 'Two-step sign-in' }),
+        el('p', { class: 'card-description', text: 'Enter the 6-digit code from your authenticator app, or one of your recovery codes.' }),
+        input, error,
+        el('div', { class: 'actions' }, [cancel, submit]),
+      ]);
+      const dialog = el('dialog', { class: 'dialog', 'aria-labelledby': 'mfaTitle' }, [form]);
+      let accepted = false;
+      cancel.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', () => { dialog.remove(); pendingCode = null; resolve(accepted); });
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!input.value.trim()) { error.textContent = 'Enter a code.'; return; }
+        submit.disabled = true;
+        error.textContent = '';
+        try {
+          await request('POST', '/admin/mfa/verify', { code: input.value.trim() });
+          accepted = true;
+          dialog.close();
+        } catch (failure) {
+          submit.disabled = false;
+          input.value = '';
+          input.focus();
+          error.textContent = failure instanceof ApiError && failure.status === 401 ? 'That code isn’t right, or was already used.'
+            : failure instanceof ApiError && failure.status === 429 ? 'Too many tries. Wait a few minutes, then try again.'
+            : 'Could not reach the server. Try again.';
+        }
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      input.focus();
+    });
+    return pendingCode;
+  }
+
+  /** Account security: turn two-step sign-in on (with recovery codes) or off. */
+  async function openSecurityDialog() {
+    const body = el('div', { class: 'dialog-body' }, [el('h2', { class: 'card-title', id: 'securityTitle', text: 'Account security' })]);
+    const dialog = el('dialog', { class: 'dialog security-dialog', 'aria-labelledby': 'securityTitle' }, [body]);
+    const close = el('button', { type: 'button', class: 'button', text: 'Close' });
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+    const error = el('p', { class: 'error-text', role: 'alert' });
+    const show = (...children) => body.replaceChildren(el('h2', { class: 'card-title', id: 'securityTitle', text: 'Account security' }), ...children, error, el('div', { class: 'actions' }, [close]));
+    const fail = (failure) => {
+      error.textContent = failure instanceof ApiError && failure.status === 401 ? 'That code isn’t right.'
+        : failure instanceof ApiError && failure.code === 'reauth_cancelled' ? 'Your password is needed to change this.'
+        : 'Something went wrong. Try again.';
+    };
+    let status;
+    try { status = await api('GET', '/admin/mfa'); } catch (failure) { fail(failure); show(); return; }
+    if (status.enabled) {
+      const code = el('input', { class: 'input', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 20, 'aria-label': 'Code to turn it off' });
+      const off = el('button', { type: 'button', class: 'button button-danger', text: 'Turn off two-step sign-in' });
+      off.addEventListener('click', async () => {
+        error.textContent = '';
+        try { await api('POST', '/admin/mfa/disable', { code: code.value.trim() }); flash('Two-step sign-in is off.'); dialog.close(); }
+        catch (failure) { fail(failure); }
+      });
+      show(
+        el('p', { class: 'card-description', text: `Two-step sign-in is on. ${status.recoveryCodesLeft} recovery ${status.recoveryCodesLeft === 1 ? 'code' : 'codes'} left.` }),
+        el('label', { class: 'case-field' }, [el('span', { text: 'To turn it off, enter a current code' }), code]),
+        off,
+      );
+      return;
+    }
+    const start = el('button', { type: 'button', class: 'button button-primary', text: 'Set up two-step sign-in' });
+    start.addEventListener('click', async () => {
+      error.textContent = '';
+      let setup;
+      try { setup = await api('POST', '/admin/mfa/setup', {}); } catch (failure) { fail(failure); return; }
+      const code = el('input', { class: 'input', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, 'aria-label': 'Code from the app' });
+      const confirm = el('button', { type: 'button', class: 'button button-primary', text: 'Turn on' });
+      confirm.addEventListener('click', async () => {
+        error.textContent = '';
+        try {
+          const { recoveryCodes } = await api('POST', '/admin/mfa/confirm', { code: code.value.trim() });
+          show(
+            el('p', { class: 'card-description', text: 'Two-step sign-in is on. Save these recovery codes somewhere safe: each works once if you lose your phone. They won’t be shown again.' }),
+            el('ol', { class: 'recovery-codes', 'aria-label': 'Recovery codes' }, recoveryCodes.map((value) => el('li', { text: value }))),
+          );
+        } catch (failure) { fail(failure); }
+      });
+      show(
+        el('p', { class: 'card-description', text: 'Add Rider Comms Staff to an authenticator app (Google Authenticator, 1Password, Authy). On this phone, tap the link; elsewhere, type the setup key.' }),
+        el('a', { class: 'button', href: setup.uri, text: 'Open in authenticator app' }),
+        el('p', { class: 'setup-key' }, [el('span', { text: 'Setup key ' }), el('code', { text: setup.secret.match(/.{1,4}/g).join(' ') })]),
+        el('label', { class: 'case-field' }, [el('span', { text: 'Then enter the 6-digit code it shows' }), code]),
+        confirm,
+      );
+      code.focus();
+    });
+    show(el('p', { class: 'card-description', text: 'Protect your staff account with a code from an authenticator app as well as your password.' }), start);
   }
 
   /** A password dialog; resolves true once the backend accepts it, false if closed. */
@@ -2586,8 +2699,33 @@
     return form;
   }
 
+  /** Two-step status for a colleague, with an admin reset for a lost phone. */
+  function twoStepControl(member) {
+    if (!member.twoStep) return el('span', { class: 'muted', text: 'Two-step off' });
+    if (member.riderId === session.riderId) return badge('Two-step on', 'success');
+    const reset = el('button', { type: 'button', class: 'button button-small', text: 'Reset two-step' });
+    reset.addEventListener('click', async () => {
+      const choice = await actionDialog({
+        title: `Reset two-step sign-in for ${member.displayName || member.riderId}?`,
+        description: 'Use this when they have lost their phone and recovery codes. They can sign in with a password and set it up again. A reason goes in the audit log.',
+        confirmLabel: 'Reset two-step', danger: true,
+      });
+      if (!choice) return;
+      reset.disabled = true;
+      try {
+        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/mfa-reset`, { note: choice.note });
+        await render();
+        flash('Two-step sign-in reset.');
+      } catch (error) {
+        reset.disabled = false;
+        flash(staffErrorMessage(error), 'danger');
+      }
+    });
+    return el('span', { class: 'row-actions' }, [badge('Two-step on', 'success'), reset]);
+  }
+
   function staffActions(member) {
-    if (member.role === 'admin') return el('span', { class: 'muted', text: 'Set on the backend' });
+    if (member.role === 'admin') return el('div', { class: 'row-actions' }, [el('span', { class: 'muted', text: 'Set on the backend' }), twoStepControl(member)]);
     const select = roleSelect(member.role, `Role for ${member.displayName || member.riderId}`);
     const remove = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'remove-staff' }, text: 'Remove' });
     select.addEventListener('change', async () => {
@@ -2636,7 +2774,7 @@
         remove.disabled = false;
       }
     });
-    return el('div', { class: 'row-actions' }, [select, remove]);
+    return el('div', { class: 'row-actions' }, [select, remove, twoStepControl(member)]);
   }
 
   function roleMatrix() {
@@ -3431,9 +3569,14 @@
       'aria-label': 'Password', placeholder: 'Your password' });
     const error = el('p', { class: 'error-text', role: 'alert', text: message });
     const submit = el('button', { type: 'submit', class: 'button button-primary staff-login-submit', text: 'Sign in to Operations Hub' });
+    // Shown only when the account uses two-step sign-in.
+    const code = el('input', { class: 'input staff-login-field', type: 'text', name: 'code', inputmode: 'numeric',
+      autocomplete: 'one-time-code', maxlength: 20, 'aria-label': 'Authenticator or recovery code', placeholder: '6-digit code' });
+    const codeLabel = el('label', { class: 'staff-login-label', hidden: true }, ['Authenticator code', code]);
     const form = el('form', { class: 'staff-login-form', novalidate: true }, [
       el('label', { class: 'staff-login-label' }, ['Username', username]),
       el('label', { class: 'staff-login-label' }, ['Password', password]),
+      codeLabel,
       error,
       submit,
     ]);
@@ -3450,7 +3593,7 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           credentials: 'omit', redirect: 'error', cache: 'no-store',
           body: JSON.stringify({ username: username.value.trim(), password: password.value,
-            deviceName: 'Rider Comms Staff PWA' }),
+            deviceName: 'Rider Comms Staff PWA', ...(codeLabel.hidden ? {} : { code: code.value.trim() }) }),
         });
         const body = await login.json().catch(() => ({}));
         if (!login.ok) throw new ApiError(login.status, body.error);
@@ -3488,6 +3631,21 @@
         if (failure instanceof ApiError && failure.status === 429) error.textContent = 'Too many attempts. Try again later.';
         else if (failure instanceof ApiError && failure.code === 'staff_only') error.textContent = 'This account does not have staff access.';
         else if (failure instanceof ApiError && failure.code === 'account_suspended') error.textContent = 'This account is suspended.';
+        else if (failure instanceof ApiError && failure.code === 'mfa_required') {
+          // Password accepted; this account also needs its authenticator code.
+          codeLabel.hidden = false;
+          error.textContent = 'Enter the code from your authenticator app.';
+          submit.disabled = false;
+          code.focus();
+          return;
+        }
+        else if (failure instanceof ApiError && failure.code === 'invalid_code') {
+          error.textContent = 'That code isn’t right, or was already used. Try the next one.';
+          code.value = '';
+          submit.disabled = false;
+          code.focus();
+          return;
+        }
         else if (failure instanceof ApiError && failure.status === 401) error.textContent = 'The username or password is incorrect.';
         else error.textContent = 'Sign-in could not complete. Check your connection and try again.';
         password.value = '';
@@ -3530,6 +3688,9 @@
   // in DOM (and tab) order: open the installable app, then sign out.
   const legacyInstallLink = el('a', { class: 'staff-footer-icon-action staff-footer-install-link', href: './staff/',
     'aria-label': 'Open installable Staff app', title: 'Open installable Staff app' }, [icon('device')]);
+  const securityButton = el('button', { type: 'button', class: 'staff-footer-icon-action',
+    'aria-label': 'Account security', title: 'Account security' }, [icon('lock')]);
+  securityButton.addEventListener('click', () => void openSecurityDialog());
   const signOutButton = el('button', { type: 'button', class: 'staff-footer-icon-action staff-signout',
     'aria-label': 'Sign out of Staff', title: 'Sign out of Staff' }, [icon('signOut')]);
   const footerIdentity = (name, handle = '') => footerEl.replaceChildren(
@@ -3544,7 +3705,7 @@
         el('span', { class: 'staff-footer-meta' }, [handle ? el('span', { 'aria-hidden': 'true', text: handle }) : null, footerRole]),
       ]),
     ]),
-    el('div', { class: 'staff-footer-actions' }, [IS_STAFF_PWA ? footerInstall : legacyInstallLink, signOutButton]),
+    el('div', { class: 'staff-footer-actions' }, [IS_STAFF_PWA ? footerInstall : legacyInstallLink, securityButton, signOutButton]),
   );
   signOutButton.addEventListener('click', async () => {
     signOutButton.disabled = true;
