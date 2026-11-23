@@ -2297,7 +2297,9 @@ test('Staff Hub premium console preserves responsive shell and navigation focus'
     expect(metrics.pageWidth - metrics.viewport).toBeLessThanOrEqual(1);
   }
   await page.goto('/admin.html#overview');
-  await expect(page.locator('.page-context > summary')).toContainText('Scope and definitions');
+  // Overview carries no explanatory disclosure; the queue shows when it was taken.
+  await expect(page.locator('.page-context')).toHaveCount(0);
+  await expect(page.locator('.operations-updated')).toContainText('Updated');
   await expect(page.locator('.operation-card')).toHaveCount(6);
   if (testInfo.project.name !== 'viewport-desktop-chromium') {
     // Capture the actual navigation drawer, not just the fixed mobile header.
