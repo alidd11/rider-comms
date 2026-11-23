@@ -16,6 +16,12 @@ const LEGACY_GUEST_KEY = '@rider-comms/auth-v1';
 const mockGetItemAsync = jest.fn();
 const mockSetItemAsync = jest.fn();
 const mockDeleteItemAsync = jest.fn();
+const mockClearTemporaryExports = jest.fn();
+
+jest.mock('../../src/security/accountExportFiles', () => ({
+  pruneExpiredAccountExports: jest.fn(),
+  clearTemporaryAccountExports: (...args: unknown[]) => mockClearTemporaryExports(...args),
+}));
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: (...args: unknown[]) => mockGetItemAsync(...args),
@@ -59,6 +65,7 @@ beforeEach(() => {
   mockGetItemAsync.mockReset().mockResolvedValue(null);
   mockSetItemAsync.mockReset().mockResolvedValue(undefined);
   mockDeleteItemAsync.mockReset().mockResolvedValue(undefined);
+  mockClearTemporaryExports.mockReset();
   mockClientImpl = {
     getMe: jest.fn(async () => ({ riderId: 'me', username: 'me', emailVerified: true })),
     logOut: jest.fn(async () => undefined),
@@ -93,6 +100,7 @@ test('restores a cached session and re-persists it with a fresh emailVerified fl
   await waitFor(() => expect(result.current.riderId).toBe('me'));
   expect(result.current.emailVerified).toBe(true);
   expect(mockSetItemAsync).toHaveBeenCalledWith(KEY, expect.stringContaining('"emailVerified":true'));
+  expect(mockClearTemporaryExports).not.toHaveBeenCalled();
 });
 
 test('skips restoring when there is no cached session', async () => {
@@ -100,10 +108,30 @@ test('skips restoring when there is no cached session', async () => {
   await flushSplashDelay();
 
   expect(mockClientImpl.getMe).not.toHaveBeenCalled();
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
   // AuthProvider renders AuthScreen (not children) while unauthenticated, so
   // the hook container this test's renderHook() wraps around useAuth()
   // never mounts at all -- result.current stays at its ref default.
   expect(result.current).toBeNull();
+});
+
+test('malformed stored sessions cannot leave a former rider\'s exported JSON behind', async () => {
+  mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? '{"unusable":true}' : null));
+  await renderAuth();
+  await flushSplashDelay();
+
+  expect(mockClientImpl.getMe).not.toHaveBeenCalled();
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
+});
+
+test('private export cleanup failure does not block signed-out startup', async () => {
+  mockClearTemporaryExports.mockImplementation(() => { throw new Error('filesystem busy'); });
+  await renderAuth();
+  await flushSplashDelay();
+
+  expect(mockClientImpl.getMe).not.toHaveBeenCalled();
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
+  expect(mockDeleteItemAsync).not.toHaveBeenCalledWith(KEY);
 });
 
 test('clears the stored session on a 401 without surfacing a restore error', async () => {
@@ -115,6 +143,7 @@ test('clears the stored session on a 401 without surfacing a restore error', asy
   await flushSplashDelay();
 
   await waitFor(() => expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY));
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
 });
 
 test('keeps the stored session and reports a retryable error on a non-auth restore failure', async () => {
@@ -125,6 +154,7 @@ test('keeps the stored session and reports a retryable error on a non-auth resto
   await flushSplashDelay();
 
   expect(mockDeleteItemAsync).not.toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).not.toHaveBeenCalled();
 });
 
 test('treats a riderId mismatch between the cache and the server as a restore failure', async () => {
@@ -150,6 +180,20 @@ test('logOut calls the server, then always clears the local session even if that
   })).rejects.toThrow('network down');
 
   expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
+});
+
+test('local sign-out continues when the private export cache cannot be cleared', async () => {
+  mockGetItemAsync.mockImplementation(async (key: string) => (key === KEY ? cachedSession() : null));
+  mockClearTemporaryExports.mockImplementationOnce(() => { throw new Error('locked external viewer'); });
+  const { result } = await renderAuth();
+  await flushSplashDelay();
+  await waitFor(() => expect(result.current.riderId).toBe('me'));
+
+  await act(async () => { await result.current.logOut(); });
+
+  expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
 });
 
 test('deleteAccount clears the local session only after the server call succeeds', async () => {
@@ -164,6 +208,7 @@ test('deleteAccount clears the local session only after the server call succeeds
 
   expect(mockClientImpl.deleteAccount).toHaveBeenCalled();
   expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
 });
 
 test('deleting an account forgets that rider\'s data on the phone, and nobody else\'s', async () => {
@@ -199,6 +244,7 @@ test('deleteAccount leaves the local session intact when the server call fails',
   })).rejects.toThrow('network down');
 
   expect(mockDeleteItemAsync).not.toHaveBeenCalledWith(KEY);
+  expect(mockClearTemporaryExports).not.toHaveBeenCalled();
   expect(result.current.riderId).toBe('me');
 });
 
@@ -265,6 +311,7 @@ test('treats an unreadable saved session as signed out, without a restore error'
   expect(screen.queryByText('We couldn’t check your saved session. Retry or sign in again.')).toBeNull();
   expect(mockDeleteItemAsync).toHaveBeenCalledWith(KEY);
   expect(mockClientImpl.getMe).not.toHaveBeenCalled();
+  expect(mockClearTemporaryExports).toHaveBeenCalledTimes(1);
 });
 
 test('logs out even when the saved session can’t be deleted', async () => {

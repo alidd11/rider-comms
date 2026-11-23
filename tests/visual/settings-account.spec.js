@@ -131,7 +131,7 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   // Sign out lives in Account and login, with reset and delete.
   await page.locator('[data-settings-open="account"]').click();
   await expect(page.locator('#sheetBody .settings-page-heading')).toHaveText(['Login info', 'Advanced']);
-  await expect(page.locator('#sheetBody .settings-row-label')).toHaveText(['Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account']);
+  await expect(page.locator('#sheetBody .settings-row-label')).toHaveText(['Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Download my data', 'Delete account']);
   await page.locator('#closeSheetAll').click();
 
   // About is the last section of Help & Support.
