@@ -4,6 +4,8 @@ import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../s
 import { isGoogleMapsModuleLoadFailure, parseClientErrorReport } from '../clientErrors.ts';
 import { countFilterRejection, NOT_HANDLED } from './context.ts';
 import type { PublicRouteContext } from './context.ts';
+import { parsePartnerApplication } from '../partnerStore.ts';
+import { partnerStore } from './adminPartners.ts';
 
 export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unknown> {
   const { req, res, url, address, profileStore, authStore, rateLimitStore, socialActivityStore, readinessCheck, adminStatsStore } = ctx;
@@ -25,6 +27,19 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
   }
   if (req.method === 'GET' && url.pathname === '/config') {
     return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
+  }
+  // Sellers and advertisers apply without a Rider Comms account. Staff
+  // review every application; nothing is published automatically.
+  if (req.method === 'POST' && url.pathname === '/partners/apply') {
+    if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'partner_apply'))) return;
+    const body = await readJsonBody(req);
+    // A field real people never see; anything that fills it is a bot.
+    if (typeof body.company === 'string' && body.company.trim()) return sendJson(res, 202, { ok: true });
+    if (body.acceptTerms !== true) return sendJson(res, 400, { error: 'terms_not_accepted' });
+    const input = parsePartnerApplication(body);
+    if ('error' in input) return sendJson(res, 400, { error: input.error });
+    const { reference } = await partnerStore.submit(input);
+    return sendJson(res, 201, { ok: true, reference });
   }
   if (req.method === 'POST' && url.pathname === '/auth/signup') {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;

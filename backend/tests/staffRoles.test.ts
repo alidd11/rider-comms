@@ -18,11 +18,11 @@ describe('staff roles', () => {
     assert.equal(roleCan('analyst', 'view_overview'), true);
     assert.equal(roleCan('analyst', 'view_riders'), false);
     assert.equal(roleCan(null, 'view_overview'), false);
-    for (const role of ['moderator', 'support', 'analyst'] as const) assert.equal(roleCan(role, 'manage_staff'), false);
+    for (const role of ['moderator', 'support', 'analyst', 'partnerships'] as const) assert.equal(roleCan(role, 'manage_staff'), false);
   });
 
   it('only lets the dashboard grant roles below admin', () => {
-    assert.deepEqual([...GRANTABLE_STAFF_ROLES], ['moderator', 'support', 'analyst']);
+    assert.deepEqual([...GRANTABLE_STAFF_ROLES], ['moderator', 'support', 'analyst', 'partnerships']);
     assert.equal(isGrantableStaffRole('support'), true);
     assert.equal(isGrantableStaffRole('admin'), false);
     assert.equal(isGrantableStaffRole(3), false);

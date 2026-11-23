@@ -58,10 +58,11 @@ async function signIn(page) {
 }
 
 const ROLE_PERMISSIONS = {
-  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff'],
+  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners'],
   moderator: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'view_audit'],
   support: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit'],
   analyst: ['view_overview', 'view_system'],
+  partnerships: ['view_overview', 'view_system', 'review_partners'],
 };
 
 /** Opens a dashboard section, through the side menu on phones. */
@@ -91,6 +92,19 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       { id: '44444444-4444-4444-8444-444444444444', kind: 'incident', title: 'Route service degradation', description: 'Manual incident triage', status: 'open', priority: 'urgent', subjectRiderId: null, createdBy: ADMIN_ID, assignedTo: null, version: 1, createdAt: Date.now() - 70_000, updatedAt: Date.now() - 70_000, dueAt: null },
     ],
     posts: [],
+    partnerCalls: [],
+    partners: [
+      { id: '55555555-5555-4555-8555-555555555555', reference: 'RC-7K3QX9', kind: 'seller', businessName: 'Twisties Moto Gear',
+        contactName: 'Sam Rider', contactEmail: 'sam@example.com', website: 'https://twisties.example/', country: 'GB',
+        category: 'Riding gear', description: 'Independent shop selling helmets, gloves and jackets.', status: 'in_review',
+        checklist: { identity: true, business: true, website: true, policies: false }, assignedTo: null,
+        createdAt: Date.now() - 3_600_000, updatedAt: Date.now() - 60_000, version: 3 },
+      { id: '66666666-6666-4666-8666-666666666666', reference: 'RC-9PLM2T', kind: 'advertiser', businessName: 'Coastline Café',
+        contactName: 'Ava Stone', contactEmail: 'ava@example.com', website: null, country: 'GB',
+        category: 'Biker café', description: 'Café on a popular coastal route that wants to reach weekend riders.', status: 'submitted',
+        checklist: { identity: false, business: false, website: false, policies: false }, assignedTo: null,
+        createdAt: Date.now() - 7_200_000, updatedAt: Date.now() - 7_200_000, version: 1 },
+    ],
     riderQueries: [],
     reauthenticated: !reauth,
     // Each test gets its own riders, so verifying one doesn't leak into the next.
@@ -203,6 +217,41 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
           hiddenNow: state.socialPosts.length, moderationDecisions: 1 },
         unavailable: ['social_audience_retention', 'customer_reply_sla', 'financial_reconciliation'],
       });
+    }
+    if (url.pathname.startsWith('/admin/partners')) {
+      if (!ROLE_PERMISSIONS[role].includes('review_partners')) return json(403, { error: 'permission_required', permission: 'review_partners' });
+      const open = (item) => ['submitted', 'in_review', 'info_requested'].includes(item.status);
+      if (url.pathname === '/admin/partners/summary') {
+        return json(200, {
+          awaitingReview: state.partners.filter((item) => ['submitted', 'in_review'].includes(item.status)).length,
+          infoRequested: state.partners.filter((item) => item.status === 'info_requested').length,
+          approvedSellers: state.partners.filter((item) => item.status === 'approved' && item.kind === 'seller').length,
+          approvedAdvertisers: state.partners.filter((item) => item.status === 'approved' && item.kind === 'advertiser').length,
+        });
+      }
+      if (url.pathname === '/admin/partners') {
+        const status = url.searchParams.get('status') ?? 'all';
+        const kind = url.searchParams.get('kind') ?? 'all';
+        return json(200, { items: state.partners.filter((item) => (status === 'all' || (status === 'open' ? open(item) : item.status === status))
+          && (kind === 'all' || item.kind === kind)) });
+      }
+      const match = /^\/admin\/partners\/([0-9a-f-]{36})(?:\/(status|checklist|notes|assign))?$/.exec(url.pathname);
+      const item = match && state.partners.find((value) => value.id === match[1]);
+      if (!item) return json(404, { error: 'not_found' });
+      if (!match[2]) return json(200, { item, events: [{ id: 'e1', actorId: null, event: 'submitted', note: 'Application submitted through the public form', fromValue: null, toValue: 'submitted', createdAt: item.createdAt }] });
+      if (!state.reauthenticated) return json(403, { error: 'reauth_required' });
+      const body = request.postDataJSON();
+      state.partnerCalls.push({ path: url.pathname, body });
+      if (body.expectedVersion !== item.version) return json(409, { error: 'stale_application' });
+      if (match[2] === 'status') {
+        if (body.status === 'approved' && !Object.values(item.checklist).every(Boolean)) return json(409, { error: 'checklist_incomplete' });
+        item.status = body.status;
+      }
+      if (match[2] === 'checklist') item.checklist[body.check] = body.done;
+      if (match[2] === 'assign') item.assignedTo = body.assigneeId === undefined ? ADMIN_ID : body.assigneeId;
+      item.version += 1;
+      item.updatedAt = Date.now();
+      return json(200, { ok: true, item });
     }
     if (url.pathname === '/admin/cases/summary') {
       if (!ROLE_PERMISSIONS[role].includes('view_cases')) return json(403, { error: 'permission_required', permission: 'view_cases' });
@@ -1211,8 +1260,8 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page);
     await page.goto('/admin.html#overview');
     const work = page.getByRole('region', { name: 'Operations at a glance' });
-    // Reports, three case queues (from the case summary) and rides on the road.
-    await expect(work.locator('.operation-card')).toHaveCount(5);
+    // Reports, three case queues (from the case summary), partner applications and rides on the road.
+    await expect(work.locator('.operation-card')).toHaveCount(6);
     await expect(work.locator('.operation-card', { hasText: 'Cases without an owner' }).locator('.operation-value')).toHaveText('4');
     await expect(work.locator('.operation-card', { hasText: 'Urgent cases' }).locator('.operation-value')).toHaveText('1');
     await expect(page.locator('.page-subtitle')).toContainText('UTC');
@@ -1745,8 +1794,9 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.staff-roles-details')).not.toHaveAttribute('open', '');
     await page.locator('.staff-roles-details > summary').click();
     // The Case Desk permission adds an actual row to the staff rights matrix.
-    await expect(page.locator('.matrix tbody tr')).toHaveCount(9);
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(10);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
+    await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Seller and advertiser applications' })).toHaveCount(1);
     await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
   });
 
@@ -2152,7 +2202,7 @@ test('Staff Hub premium console preserves responsive shell and navigation focus'
   }
   await page.goto('/admin.html#overview');
   await expect(page.locator('.page-context > summary')).toContainText('Scope and definitions');
-  await expect(page.locator('.operation-card')).toHaveCount(5);
+  await expect(page.locator('.operation-card')).toHaveCount(6);
   if (testInfo.project.name !== 'viewport-desktop-chromium') {
     // Capture the actual navigation drawer, not just the fixed mobile header.
     const toggle = page.locator('#menuToggle');
@@ -2268,4 +2318,96 @@ test('date controls appear only where reporting changes, not on operational queu
   await expect(page.locator('.kpi').first().locator('.kpi-value')).toHaveText('310');
   await page.reload();
   await expect(page.getByRole('combobox', { name: 'Reporting period' })).toHaveValue('30');
+});
+
+
+test('partners: an application is reviewed with notes, checklist and a final approval', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#overview');
+  const work = page.getByRole('region', { name: 'Operations at a glance' });
+  await expect(work.locator('.operation-card', { hasText: 'Partner applications' }).locator('.operation-value')).toHaveText('2');
+  await work.getByRole('button', { name: 'Review applications' }).click();
+  await expect(page).toHaveURL(/#partners$/);
+  await expect(page.locator('#nav [aria-current="page"]')).toHaveText('Partners');
+  const list = page.getByRole('list', { name: 'Partner applications' });
+  await expect(list.locator('.case-item')).toHaveCount(2);
+  await page.getByRole('combobox', { name: 'Type' }).selectOption('advertiser');
+  await expect(list.locator('.case-item')).toHaveCount(1);
+  await page.getByRole('combobox', { name: 'Type' }).selectOption('all');
+  await list.getByRole('link', { name: 'Twisties Moto Gear' }).click();
+  await expect(page).toHaveURL(/#partner\/55555555/);
+  await expect(page.locator('.page-title')).toHaveText('Twisties Moto Gear');
+  await expect(page.locator('#nav [aria-current="page"]')).toHaveText('Partners');
+  // The website is a link that cannot reach back into the dashboard.
+  await expect(page.getByRole('link', { name: 'https://twisties.example/' })).toHaveAttribute('rel', /noopener/);
+
+  // A change without a note is refused in the page, before any request.
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Write a note' })).toBeVisible();
+  expect(state.partnerCalls).toHaveLength(0);
+
+  const note = page.getByRole('textbox', { name: 'Decision note' });
+  await note.fill('Approving now');
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Tick every checklist item' })).toBeVisible();
+
+  await note.fill('Policies accepted by email');
+  await page.getByRole('checkbox', { name: 'Agrees to the seller and advertising policies' }).check();
+  await expect.poll(() => state.partnerCalls.at(-1)?.body).toEqual({ check: 'policies', done: true, note: 'Policies accepted by email', expectedVersion: 3 });
+  // The page re-renders with the new version and an empty note.
+  await expect(page.getByRole('textbox', { name: 'Decision note' })).toHaveValue('');
+  await expect(page.getByRole('checkbox', { name: 'Agrees to the seller and advertising policies' })).toBeChecked();
+  await page.getByRole('textbox', { name: 'Decision note' }).fill('All checks passed');
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect.poll(() => state.partners[0].status).toBe('approved');
+  await expect(page.locator('.case-detail-meta')).toContainText('Approved');
+  await expect(page.getByText('Approved. This decision is final.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reject' })).toHaveCount(0);
+});
+
+test('partners: the partnerships role sees applications but not riders or moderation', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { role: 'partnerships' });
+  await page.goto('/admin.html#overview');
+  await openMenuIfPhone(page);
+  const nav = page.locator('#nav');
+  await expect(nav.getByRole('button', { name: 'Partners' })).toBeVisible();
+  await expect(nav.getByRole('button', { name: 'Riders' })).toBeHidden();
+  await expect(nav.getByRole('button', { name: 'Moderation' })).toBeHidden();
+  await expect(nav.getByRole('button', { name: 'Case desk' })).toBeHidden();
+  await page.goto('/admin.html#riders');
+  await expect(page.locator('.page-title')).not.toHaveText('Riders');
+});
+
+test('partners: the public form sends a clean application and shows the reference', async ({ page }) => {
+  const sent = [];
+  await page.route(`${API}/partners/apply`, async (route) => {
+    const body = route.request().postDataJSON();
+    sent.push(body);
+    const headers = { 'Access-Control-Allow-Origin': '*' };
+    if (body.description.length < 20) {
+      return route.fulfill({ status: 400, headers, contentType: 'application/json', body: JSON.stringify({ error: 'invalid_description' }) });
+    }
+    return route.fulfill({ status: 201, headers, contentType: 'application/json', body: JSON.stringify({ ok: true, reference: 'RC-ABCDEF' }) });
+  });
+  await page.goto('/partners/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sell or advertise to riders');
+  await page.getByRole('radio', { name: /Advertise/ }).check();
+  await page.getByRole('textbox', { name: 'Business name' }).fill('Coastline Café');
+  await page.getByRole('textbox', { name: 'Your name' }).fill('Ava Stone');
+  await page.getByRole('textbox', { name: 'Work email' }).fill('ava@example.com');
+  await page.getByRole('textbox', { name: 'What you sell or promote' }).fill('Biker café');
+  await page.getByRole('textbox', { name: 'About your business' }).fill('Too short');
+  await page.getByRole('button', { name: 'Send application' }).click();
+  await expect(page.getByRole('alert')).toContainText('Agree to the Terms');
+  expect(sent).toHaveLength(0);
+  await page.getByRole('checkbox', { name: /I agree to the/ }).check();
+  await page.getByRole('button', { name: 'Send application' }).click();
+  await expect(page.getByRole('alert')).toContainText('at least 20 characters');
+  await page.getByRole('textbox', { name: 'About your business' }).fill('Café on a popular coastal route that wants to reach weekend riders.');
+  await page.getByRole('button', { name: 'Send application' }).click();
+  await expect(page.getByRole('heading', { name: 'Application sent' })).toBeVisible();
+  await expect(page.locator('#partnerReference')).toHaveText('RC-ABCDEF');
+  expect(sent.at(-1)).toMatchObject({ kind: 'advertiser', businessName: 'Coastline Café', country: 'GB', acceptTerms: true, company: '' });
 });

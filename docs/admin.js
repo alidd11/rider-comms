@@ -14,39 +14,41 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
     suspend: ['Harassment of other riders.', 'Spam or scam messages.', 'Sexual content sent without consent.', 'Dangerous riding encouraged or shown.'],
   };
   const SUSPENSION_LENGTHS = [['1', '1 day'], ['7', '7 days'], ['30', '30 days'], ['', 'No end date']];
-  const ROLE_LABELS = { admin: 'Admin', moderator: 'Moderator', support: 'Support', analyst: 'Analyst' };
+  const ROLE_LABELS = { admin: 'Admin', moderator: 'Moderator', support: 'Support', analyst: 'Analyst', partnerships: 'Partnerships' };
   const CASE_KIND_LABELS = { support: 'Customer support', appeal: 'Appeals', privacy: 'Privacy requests', incident: 'Incidents' };
   const CASE_STATUS_LABELS = { open: 'Open', in_progress: 'In progress', waiting: 'Waiting', resolved: 'Resolved', closed: 'Closed' };
   const CASE_PRIORITY_LABELS = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
   const CASE_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'];
   const CASE_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 
-  const ROLE_TONES = { admin: 'accent', moderator: 'warning', support: 'success', analyst: null };
+  const ROLE_TONES = { admin: 'accent', moderator: 'warning', support: 'success', analyst: null, partnerships: null };
   // What each role can do, in words; mirrors backend/src/staffRoles.ts.
   const ROLE_SUMMARIES = [
     ['admin', 'Everything, including adding and removing staff. Set with ADMIN_RIDER_IDS on the backend.'],
     ['moderator', 'Reports, hidden Social posts and suspensions. Can look riders up and read the audit log.'],
     ['support', 'Account help: looks riders up, verifies email, sends password resets and signs out lost devices. Cannot suspend or see reports.'],
     ['analyst', 'Overview and system status only. No rider details, reports or notes.'],
+    ['partnerships', 'Seller and advertiser applications only: review, verification checklist and decisions. No rider details or reports.'],
   ];
   const PERMISSION_LABELS = [
     ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
-    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['view_system', 'System'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['view_system', 'System'],
   ];
   const ROLE_MATRIX = {
-    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'view_system'],
+    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'view_system'],
     moderator: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'view_audit', 'view_system'],
     support: ['view_overview', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit', 'view_system'],
     analyst: ['view_overview', 'view_system'],
+    partnerships: ['view_overview', 'review_partners', 'view_system'],
   };
   const REASON_LABELS = {
     harassment: 'Harassment',
@@ -76,7 +78,10 @@
     if (match) return { view: 'rider', riderId: match[1], caseId: null };
     const caseMatch = /^case\/([0-9a-f-]{36})$/i.exec(hash);
     if (caseMatch) return { view: 'case', riderId: null, caseId: caseMatch[1] };
-    return { view: VIEWS.includes(hash) && hash !== 'rider' && hash !== 'case' ? hash : 'overview', riderId: null, caseId: null };
+    // A partner application uses the same detail-id slot as a case.
+    const partnerMatch = /^partner\/([0-9a-f-]{36})$/i.exec(hash);
+    if (partnerMatch) return { view: 'partner', riderId: null, caseId: partnerMatch[1] };
+    return { view: VIEWS.includes(hash) && !['rider', 'case', 'partner'].includes(hash) ? hash : 'overview', riderId: null, caseId: null };
   }
   let { view, riderId: detailRiderId, caseId: detailCaseId } = parseHash(location.hash.slice(1));
   let period = readPeriod();
@@ -88,6 +93,12 @@
   let caseKind = 'all';
   let caseStatus = 'all';
   let caseOwner = 'all';
+  let partnerStatus = 'open';
+  let partnerKind = 'all';
+  /** The list a detail page belongs to, for navigation and titles. */
+  const parentView = (name) => ({ rider: 'riders', case: 'cases', partner: 'partners' })[name] ?? name;
+  const viewHash = () => view === 'rider' ? `rider/${detailRiderId}`
+    : view === 'case' || view === 'partner' ? `${view}/${detailCaseId}` : view;
   let riderQuery = '';
   let auditGroup = 'all';
   let auditRider = '';
@@ -104,6 +115,7 @@
   const renderKey = () => JSON.stringify([view, detailRiderId, detailCaseId,
     view === 'cases' ? caseKind : null, view === 'cases' ? caseStatus : null,
     view === 'cases' ? caseOwner : null,
+    view === 'partners' ? partnerStatus : null, view === 'partners' ? partnerKind : null,
     view === 'riders' ? riderQuery : null,
     view === 'moderation' ? moderationView : null,
     view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
@@ -764,12 +776,14 @@
 
   /** The Overview's queue: reports and cases waiting on staff, then what is
    *  happening on the road right now. Trends live in Insights only. */
-  function operationsSummary({ activity, safety }, workload) {
+  function operationsSummary({ activity, safety }, workload, partners) {
     const totals = workload?.totals;
-    const cards = [
-      workCard({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
-        description: 'Open rider reports that need a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }),
-    ];
+    const cards = [];
+    // Each card appears only for staff whose role can act on it.
+    if (allowed('moderate')) {
+      cards.push(workCard({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
+        description: 'Open rider reports that need a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }));
+    }
     if (totals) {
       cards.push(
         workCard({ label: 'Cases without an owner', value: formatNumber(totals.unassigned),
@@ -780,6 +794,11 @@
         workCard({ label: 'Assigned to you', value: formatNumber(totals.mine),
           description: 'Your active cases.', destination: 'cases', action: 'My cases', onOpen: () => { caseOwner = 'mine'; } }),
       );
+    }
+    if (partners) {
+      cards.push(workCard({ label: 'Partner applications', value: formatNumber(partners.awaitingReview),
+        description: `Sellers and advertisers waiting on a decision · ${formatNumber(partners.infoRequested)} waiting on the business.`,
+        destination: 'partners', action: 'Review applications', attention: partners.awaitingReview > 0, onOpen: () => { partnerStatus = 'open'; } }));
     }
     cards.push(workCard({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
       description: `Group rides on the road now · ${formatNumber(activity.liveNearbyNow)} riders live on Nearby. No locations are shown.` }));
@@ -865,10 +884,10 @@
 
   // The landing workspace is today's work only; figures and trends are in
   // Insights, and service health is in System.
-  function renderOverview(data, workload = null) {
+  function renderOverview(data, workload = null, partners = null) {
     pageEl.replaceChildren(
       pageHeader('Overview', snapshotTimestamp(data.generatedAt) + '. Queues are live and never filtered by a reporting period.'),
-      operationsSummary(data, workload),
+      operationsSummary(data, workload, partners),
     );
   }
 
@@ -2241,6 +2260,205 @@
     );
   }
 
+  // ------------------------------------------------------------ Partners
+  // Seller and advertiser onboarding. Businesses apply on the public form
+  // (../partners/); staff review, tick the checklist and decide, always with
+  // a note. No payments, payouts or ad spend are handled here.
+  const PARTNER_KIND_LABELS = { seller: 'Seller', advertiser: 'Advertiser' };
+  const PARTNER_STATUS_LABELS = { submitted: 'New', in_review: 'In review', info_requested: 'Info requested', approved: 'Approved', rejected: 'Rejected' };
+  const PARTNER_STATUS_TONES = { submitted: 'neutral', in_review: 'neutral', info_requested: 'warning', approved: 'success', rejected: 'danger' };
+  const PARTNER_CHECK_LABELS = [
+    ['identity', 'Contact identity confirmed'],
+    ['business', 'Business is registered and trading'],
+    ['website', 'Website or shop checked'],
+    ['policies', 'Agrees to the seller and advertising policies'],
+  ];
+  // Decisions offered from each state; mirrors backend/src/partnerStore.ts.
+  const PARTNER_NEXT = {
+    submitted: [['in_review', 'Start review'], ['info_requested', 'Ask for more information'], ['rejected', 'Reject']],
+    in_review: [['approved', 'Approve'], ['info_requested', 'Ask for more information'], ['rejected', 'Reject']],
+    info_requested: [['in_review', 'Resume review'], ['rejected', 'Reject']],
+    approved: [],
+    rejected: [['in_review', 'Reopen review']],
+  };
+
+  function partnerRecord(item) {
+    return el('li', { class: 'case-item', dataset: { partnerId: item.id } }, [
+      el('div', { class: 'case-item-main' }, [
+        el('div', { class: 'case-item-label', text: PARTNER_KIND_LABELS[item.kind] + ' · ' + item.category }),
+        el('a', { class: 'case-item-title', href: '#partner/' + item.id, text: item.businessName }),
+        el('div', { class: 'case-item-metadata' }, [
+          el('span', { text: item.reference }),
+          el('span', { text: item.country }),
+          el('span', { text: item.assignedTo ? 'Owner: ' + item.assignedTo : 'Unassigned' }),
+          el('span', { text: 'Updated ' }),
+          timeEl(item.updatedAt),
+        ]),
+      ]),
+      el('div', { class: 'case-item-badges' }, [caseBadge(item.status, PARTNER_STATUS_LABELS, PARTNER_STATUS_TONES[item.status])]),
+    ]);
+  }
+
+  async function renderPartners(generation) {
+    const params = new URLSearchParams({ status: partnerStatus, kind: partnerKind, limit: '50' });
+    const [{ items }, summary] = await Promise.all([
+      api('GET', '/admin/partners?' + params.toString()),
+      api('GET', '/admin/partners/summary'),
+    ]);
+    if (!isCurrentRender(generation)) return;
+    const formLink = el('a', { class: 'button', href: '../partners/', target: '_blank', rel: 'noopener', text: 'Open application form' });
+    const filter = (label, options, selected, onChange) => {
+      const select = el('select', { class: 'input case-filter-select', 'aria-label': label },
+        options.map(([value, text]) => el('option', { value, text })));
+      select.value = selected;
+      select.addEventListener('change', () => { onChange(select.value); void render(); });
+      return el('label', { class: 'case-filter-field' }, [el('span', { class: 'case-filter-caption', text: label }), select]);
+    };
+    const tile = (label, value, description) => el('div', { class: 'case-workload-metric' }, [
+      el('div', { class: 'case-workload-label', text: label }),
+      el('div', { class: 'case-workload-value', text: formatNumber(value) }),
+      el('div', { class: 'case-workload-description', text: description }),
+    ]);
+    pageEl.replaceChildren(
+      pageHeader('Partners', 'Sellers and advertisers apply on the public form. Every decision needs a note and is kept in the application history. No payments are handled here.', [formLink]),
+      el('section', { class: 'case-workload', 'aria-label': 'Partner applications' }, [
+        tile('Awaiting review', summary.awaitingReview, 'New or in review'),
+        tile('Info requested', summary.infoRequested, 'Waiting on the business'),
+        tile('Approved sellers', summary.approvedSellers, 'Can be listed in Shop'),
+        tile('Approved advertisers', summary.approvedAdvertisers, 'Can be offered placements'),
+      ]),
+      el('div', { class: 'case-filter-toolbar', role: 'group', 'aria-label': 'Filter applications' }, [
+        filter('Status', [['open', 'Needs a decision'], ['all', 'All'], ...Object.entries(PARTNER_STATUS_LABELS)], partnerStatus, (v) => { partnerStatus = v; }),
+        filter('Type', [['all', 'Sellers and advertisers'], ['seller', 'Sellers'], ['advertiser', 'Advertisers']], partnerKind, (v) => { partnerKind = v; }),
+      ]),
+      items.length
+        ? el('ul', { class: 'case-list', 'aria-label': 'Partner applications' }, items.map(partnerRecord))
+        : el('div', { class: 'card' }, [emptyState('inbox', 'No applications here', partnerStatus === 'open'
+          ? 'Nothing is waiting on a decision. New applications from the public form appear here.'
+          : 'No applications match these filters.')]),
+    );
+  }
+
+  async function renderPartnerDetail(generation) {
+    if (!detailCaseId) return;
+    let payload;
+    try { payload = await api('GET', '/admin/partners/' + encodeURIComponent(detailCaseId)); }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 404 && isCurrentRender(generation)) {
+        pageEl.replaceChildren(pageHeader('Application unavailable', 'No application was found with this link.'),
+          el('div', { class: 'card case-empty' }, [emptyState('lock', 'Application not found', 'It may have been removed.'),
+            el('a', { class: 'button', href: '#partners', text: 'Back to partners' })]));
+        return;
+      }
+      throw error;
+    }
+    if (!isCurrentRender(generation)) return;
+    const { item, events } = payload;
+    const finished = item.status === 'approved' || item.status === 'rejected';
+    const isMine = item.assignedTo === session.riderId;
+    const canAct = me?.role === 'admin' || item.assignedTo === null || isMine;
+    const note = el('textarea', { class: 'input case-description', rows: 3, maxlength: 2000,
+      'aria-label': 'Decision note', placeholder: 'A note is required for every change, including checklist ticks.' });
+    const message = el('p', { class: 'error-text', role: 'alert' });
+    const buttons = [];
+    const commit = async (path, data, done) => {
+      if (!note.value.trim()) { message.textContent = 'Write a note before making a change.'; note.focus(); return false; }
+      for (const button of buttons) button.disabled = true;
+      message.textContent = '';
+      try {
+        await api('POST', '/admin/partners/' + encodeURIComponent(item.id) + '/' + path,
+          { ...data, note: note.value.trim(), expectedVersion: item.version });
+        flash(done);
+        await render();
+        return true;
+      } catch (error) {
+        message.textContent = error instanceof ApiError && error.code === 'stale_application'
+          ? 'This application changed since you opened it. Refresh to see the latest version.'
+          : error instanceof ApiError && error.code === 'checklist_incomplete'
+            ? 'Tick every checklist item before approving.'
+            : error instanceof ApiError && error.code === 'assigned_to_other'
+              ? 'Another reviewer owns this application. Ask them or an admin to hand it over.'
+              : actionErrorMessage(error);
+        for (const button of buttons) button.disabled = false;
+        return false;
+      }
+    };
+    const checklist = el('ul', { class: 'partner-checklist', 'aria-label': 'Verification checklist' },
+      PARTNER_CHECK_LABELS.map(([key, label]) => {
+        const box = el('input', { type: 'checkbox', checked: item.checklist[key] || undefined, disabled: finished || !canAct || undefined });
+        box.addEventListener('change', async () => {
+          const ok = await commit('checklist', { check: key, done: box.checked }, 'Checklist updated.');
+          if (!ok) box.checked = !box.checked;
+        });
+        buttons.push(box);
+        return el('li', {}, [el('label', { class: 'partner-check' }, [box, el('span', { text: label })])]);
+      }));
+    const decisions = el('div', { class: 'actions partner-decisions' }, (PARTNER_NEXT[item.status] || []).map(([status, label]) => {
+      const button = el('button', { type: 'button', class: 'button' + (status === 'approved' ? ' button-primary' : status === 'rejected' ? ' button-danger' : ''),
+        text: label, disabled: !canAct || undefined });
+      button.addEventListener('click', () => void commit('status', { status }, `Marked ${PARTNER_STATUS_LABELS[status].toLowerCase()}.`));
+      buttons.push(button);
+      return button;
+    }));
+    const own = el('button', { type: 'button', class: 'button', text: isMine ? 'Release' : 'Take ownership', disabled: !canAct || undefined });
+    own.addEventListener('click', () => void commit('assign', isMine ? { assigneeId: null } : {}, isMine ? 'Released to the queue.' : 'You own this application.'));
+    const addNote = el('button', { type: 'button', class: 'button', text: 'Add note only' });
+    addNote.addEventListener('click', () => void commit('notes', {}, 'Note added to the history.'));
+    buttons.push(own, addNote);
+    const field = (label, value) => el('div', { class: 'detail-field' }, [el('dt', { text: label }), el('dd', {}, [value])]);
+    const website = item.website
+      ? el('a', { href: item.website, target: '_blank', rel: 'noopener noreferrer nofollow', text: item.website })
+      : el('span', { class: 'muted', text: 'None given' });
+    const history = events.length
+      ? el('ol', { class: 'case-timeline', 'aria-label': 'Application history' }, events.map((event) => el('li', { class: 'case-event' }, [
+        el('div', { class: 'case-event-meta' }, [
+          el('strong', { text: event.event === 'status' ? PARTNER_STATUS_LABELS[event.toValue] || event.toValue
+            : event.event === 'checklist' ? 'Checklist' : event.event[0].toUpperCase() + event.event.slice(1) }),
+          el('span', { text: event.actorId ? 'by ' + event.actorId : 'by the applicant' }),
+          timeEl(event.createdAt),
+        ]),
+        el('p', { class: 'case-event-note', text: event.note }),
+      ])))
+      : el('p', { class: 'case-empty-history', text: 'No history yet.' });
+    pageEl.replaceChildren(
+      el('a', { class: 'case-back', href: '#partners', text: '← All applications' }),
+      pageHeader(item.businessName, `${PARTNER_KIND_LABELS[item.kind]} application ${item.reference}. Contact details are only for onboarding; nothing is sent to the business from here.`),
+      el('div', { class: 'case-detail-meta' }, [
+        caseBadge(item.kind, PARTNER_KIND_LABELS),
+        caseBadge(item.status, PARTNER_STATUS_LABELS, PARTNER_STATUS_TONES[item.status]),
+        el('span', { text: item.assignedTo ? 'Owner: ' + item.assignedTo : 'Unassigned' }),
+        el('span', { text: 'Submitted ' }), timeEl(item.createdAt),
+      ]),
+      el('div', { class: 'case-detail-layout' }, [
+        el('div', { class: 'case-detail-primary' }, [
+          el('section', { class: 'card case-description-card' }, [
+            el('h2', { class: 'card-title', text: 'Application' }),
+            el('dl', { class: 'detail-grid' }, [
+              field('Contact', item.contactName),
+              field('Email', el('a', { href: 'mailto:' + item.contactEmail, text: item.contactEmail })),
+              field('Website', website),
+              field('Country', item.country),
+              field('Category', item.category),
+              field('Reference', item.reference),
+            ]),
+            el('p', { class: 'case-body-text', text: item.description }),
+          ]),
+          el('section', { class: 'card case-history' }, [el('h2', { class: 'card-title', text: 'History' }), history]),
+        ]),
+        el('section', { class: 'card case-controls', 'aria-label': 'Review' }, [
+          el('h2', { class: 'card-title', text: 'Review' }),
+          el('label', { class: 'case-field' }, [el('span', { text: 'Note' }), note]),
+          el('h3', { class: 'partner-subhead', text: 'Verification checklist' }),
+          checklist,
+          finished ? el('p', { class: 'case-help', text: item.status === 'approved' ? 'Approved. This decision is final.' : 'Rejected. The review can be reopened.' }) : null,
+          decisions,
+          el('div', { class: 'actions' }, [own, addNote]),
+          message,
+        ]),
+      ]),
+    );
+  }
+
   async function renderAudit(generation) {
     const query = auditRider ? `&riderId=${encodeURIComponent(auditRider)}` : '';
     const { actions } = await api('GET', `/moderation/actions?limit=200${query}`);
@@ -2298,7 +2516,7 @@
 
   function roleSelect(value, label) {
     const select = el('select', { class: 'input select', 'aria-label': label });
-    for (const role of ['moderator', 'support', 'analyst']) select.append(el('option', { value: role, text: ROLE_LABELS[role], selected: role === value }));
+    for (const role of ['moderator', 'support', 'analyst', 'partnerships']) select.append(el('option', { value: role, text: ROLE_LABELS[role], selected: role === value }));
     return select;
   }
 
@@ -2442,7 +2660,7 @@
     await loadNames(staff.map((member) => member.grantedBy).filter(Boolean));
     if (!isCurrentRender(generation)) return;
     pageEl.replaceChildren(
-      pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
+      pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst', 'partnerships'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
       el('details', { class: 'workspace-disclosure staff-add-details' }, [
         el('summary', { text: 'Add a staff member' }),
         addStaffForm(),
@@ -2634,12 +2852,12 @@
     const focusHeading = focusHeadingOnNextRender;
     focusHeadingOnNextRender = false;
     for (const button of navEl.querySelectorAll('[data-view]')) {
-      if (button.dataset.view === (view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view)) button.setAttribute('aria-current', 'page');
+      if (button.dataset.view === parentView(view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
-    document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view];
-    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view];
+    document.getElementById('brandSection').textContent = VIEW_TITLES[parentView(view)];
+    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[parentView(view)];
     // Refresh the current section in place; skeletons are for navigation only.
     // Keep inbox filter controls available during a source refresh.
     const refreshing = key === displayedKey ||
@@ -2651,11 +2869,17 @@
     setBusy(true);
     try {
       if (['overview', 'insights', 'company'].includes(view)) {
-        const [overview, caseWorkload] = await Promise.all([
+        const [overview, caseWorkload, partnerWorkload] = await Promise.all([
           api('GET', '/admin/overview'),
           // The Overview is a work queue: it also needs the case workload.
           view === 'overview' && allowed('view_cases')
             ? api('GET', '/admin/cases/summary').catch((error) => {
+              if (error instanceof ApiError && error.status === 401) throw error;
+              return null;
+            })
+            : null,
+          view === 'overview' && allowed('review_partners')
+            ? api('GET', '/admin/partners/summary').catch((error) => {
               if (error instanceof ApiError && error.status === 401) throw error;
               return null;
             })
@@ -2666,7 +2890,7 @@
         updateReportCount(overviewCache.safety.openReports);
         if (view === 'insights') renderInsights(overviewCache);
         else if (view === 'company') renderCompany(overviewCache);
-        else renderOverview(overviewCache, caseWorkload);
+        else renderOverview(overviewCache, caseWorkload, partnerWorkload);
       } else if (view === 'inbox') {
         await renderInbox(generation);
       } else if (view === 'riders') {
@@ -2679,6 +2903,10 @@
         await renderCases(generation);
       } else if (view === 'case') {
         await renderCaseDetail(generation);
+      } else if (view === 'partners') {
+        await renderPartners(generation);
+      } else if (view === 'partner') {
+        await renderPartnerDetail(generation);
       } else if (view === 'audit') {
         await renderAudit(generation);
       } else if (view === 'staff') {
@@ -2746,8 +2974,7 @@
     const next = parseHash(hash);
     if ((next.view === 'overview' && hash !== 'overview' && hash !== '')
       || (me && !allowed(VIEW_PERMISSIONS[next.view]))) {
-      const current = view === 'rider' ? `rider/${detailRiderId}` : view === 'case' ? `case/${detailCaseId}` : view;
-      history.replaceState(null, '', `#${current}`);
+      history.replaceState(null, '', `#${viewHash()}`);
       return;
     }
     if (next.view === view && next.riderId === detailRiderId && next.caseId === detailCaseId) return;
@@ -2756,8 +2983,7 @@
     detailRiderId = next.riderId;
     detailCaseId = next.caseId;
     focusHeadingOnNextRender = true;
-    const target = view === 'rider' ? `rider/${detailRiderId}` : view === 'case' ? `case/${detailCaseId}` : view;
-    if (location.hash !== `#${target}`) history.pushState(null, '', `#${target}`);
+    if (location.hash !== `#${viewHash()}`) history.pushState(null, '', `#${viewHash()}`);
     window.scrollTo(0, 0);
     void render();
   }

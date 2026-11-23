@@ -11,6 +11,7 @@ import { GRANTABLE_STAFF_ROLES, isGrantableStaffRole, permissionsFor, roleCan } 
 import type { StaffPermission } from '../staffRoles.ts';
 import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
+import { handlePartnerRoutes } from './adminPartners.ts';
 import { parseOperationsWindow, socialSafetyActivityReport } from '../operationsReports.ts';
 import type { RouteContext } from './context.ts';
 
@@ -24,6 +25,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   const refuse = (permission: StaffPermission) => sendJson(res, 403, { error: 'permission_required', permission });
 
   if (s[1] === 'cases') return handleCompanyCaseRoutes(ctx, role);
+  if (s[1] === 'partners') return handlePartnerRoutes(ctx, role);
 
   if (req.method === 'GET' && url.pathname === '/admin/me') {
     return sendJson(res, 200, { riderId: actorId, role, permissions: permissionsFor(role) });

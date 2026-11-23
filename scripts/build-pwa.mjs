@@ -22,6 +22,8 @@ const publicFiles = [
 await Promise.all(publicFiles.map((file) => cp(resolve(source, file), resolve(destination, file))));
 // Dedicated /staff/ PWA: separate manifest, scope, service worker and shell.
 await cp(resolve(source, 'staff'), resolve(destination, 'staff'), { recursive: true });
+// Public seller/advertiser application form (no account needed).
+await cp(resolve(source, 'partners'), resolve(destination, 'partners'), { recursive: true });
 await cp(resolve(source, 'icons'), resolve(destination, 'icons'), { recursive: true });
 // Self-hosted Inter (SIL Open Font License) for the staff dashboard.
 await cp(resolve(source, 'fonts'), resolve(destination, 'fonts'), { recursive: true });

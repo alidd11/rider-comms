@@ -5,11 +5,11 @@
  * people who can grant or remove the other roles; granting admin itself
  * stays a deployment decision.
  */
-export const STAFF_ROLES = ['admin', 'moderator', 'support', 'analyst'] as const;
+export const STAFF_ROLES = ['admin', 'moderator', 'support', 'analyst', 'partnerships'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 /** Roles an admin can grant from the dashboard. */
-export const GRANTABLE_STAFF_ROLES = ['moderator', 'support', 'analyst'] as const;
+export const GRANTABLE_STAFF_ROLES = ['moderator', 'support', 'analyst', 'partnerships'] as const;
 export type GrantableStaffRole = (typeof GRANTABLE_STAFF_ROLES)[number];
 
 export const STAFF_PERMISSIONS = [
@@ -22,6 +22,7 @@ export const STAFF_PERMISSIONS = [
   'account_help',
   'view_audit',
   'manage_staff',
+  'review_partners',
 ] as const;
 export type StaffPermission = (typeof STAFF_PERMISSIONS)[number];
 
@@ -34,6 +35,8 @@ const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
   support: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit'],
   // Numbers only: no rider details, reports or notes.
   analyst: ['view_overview', 'view_system'],
+  // Seller and advertiser applications only: no riders, reports or staff.
+  partnerships: ['view_overview', 'view_system', 'review_partners'],
 };
 
 export function permissionsFor(role: StaffRole | null): StaffPermission[] {

@@ -1185,4 +1185,54 @@ export const MIGRATIONS: Migration[] = [
     `,
   },
 
+  {
+    // Seller and advertiser onboarding: public applications reviewed by
+    // admins or the new partnerships role. No payments or payouts. Every
+    // staff decision carries a note and is kept in an append-only history.
+    name: '0066_partner_applications',
+    sql: `
+      ALTER TABLE rate_limit_events DROP CONSTRAINT IF EXISTS rate_limit_events_action_check;
+      ALTER TABLE rate_limit_events ADD CONSTRAINT rate_limit_events_action_check
+        CHECK (
+          action IN ('auth', 'auth_account', 'signup_ip', 'api', 'ride_join_rider', 'ride_join_ip', 'hazard_create', 'directions', 'places', 'place_suggestions', 'client_error', 'presence', 'verification_resend', 'password_reset_request', 'password_reset_account', 'billing_verify', 'ride_create', 'hideout_create', 'partner_apply')
+        );
+      ALTER TABLE staff_roles DROP CONSTRAINT IF EXISTS staff_roles_role_check;
+      ALTER TABLE staff_roles ADD CONSTRAINT staff_roles_role_check
+        CHECK (role IN ('moderator', 'support', 'analyst', 'partnerships'));
+      CREATE TABLE IF NOT EXISTS partner_applications (
+        id UUID PRIMARY KEY,
+        reference TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL CHECK (kind IN ('seller', 'advertiser')),
+        business_name TEXT NOT NULL CHECK (char_length(business_name) BETWEEN 2 AND 120),
+        contact_name TEXT NOT NULL CHECK (char_length(contact_name) BETWEEN 2 AND 80),
+        contact_email TEXT NOT NULL CHECK (char_length(contact_email) BETWEEN 5 AND 254),
+        website TEXT CHECK (website IS NULL OR char_length(website) <= 200),
+        country TEXT NOT NULL CHECK (char_length(country) = 2),
+        category TEXT NOT NULL CHECK (char_length(category) BETWEEN 2 AND 60),
+        description TEXT NOT NULL CHECK (char_length(description) BETWEEN 20 AND 2000),
+        status TEXT NOT NULL DEFAULT 'submitted'
+          CHECK (status IN ('submitted', 'in_review', 'info_requested', 'approved', 'rejected')),
+        checklist JSONB NOT NULL DEFAULT '{}'::jsonb,
+        assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE INDEX IF NOT EXISTS partner_applications_status_updated_idx
+        ON partner_applications (status, updated_at DESC, id DESC);
+      CREATE TABLE IF NOT EXISTS partner_application_events (
+        id UUID PRIMARY KEY,
+        seq BIGSERIAL NOT NULL UNIQUE,
+        application_id UUID NOT NULL REFERENCES partner_applications(id) ON DELETE CASCADE,
+        actor_id TEXT,
+        event TEXT NOT NULL CHECK (event IN ('submitted', 'status', 'note', 'checklist', 'assigned', 'released')),
+        note TEXT NOT NULL CHECK (char_length(note) BETWEEN 1 AND 2000),
+        from_value TEXT,
+        to_value TEXT,
+        created_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS partner_application_events_app_seq_idx
+        ON partner_application_events (application_id, seq DESC);
+    `,
+  },
 ];
