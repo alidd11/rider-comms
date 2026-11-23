@@ -417,7 +417,7 @@ if (!nativeManeuverGlyphSource.includes("import { MATERIAL_NAVIGATION_PATHS } fr
   || !nativeManeuverGlyphSource.includes('viewBox="0 -960 960 960"')) {
   throw new Error('Native navigation manoeuvre renderer must use the bundled Material Symbols catalogue');
 }
-const materialPathEntries = [...nativeMaterialSymbolsSource.matchAll(/^\\s*'([^']+)':\\s*"([^"]+)",$/gm)];
+const materialPathEntries = [...nativeMaterialSymbolsSource.matchAll(/^\s*'([^']+)':\s*"([^"]+)",$/gm)];
 const materialPaths = new Map(materialPathEntries.map((match) => [match[1], match[2]]));
 const maneuverKinds = [
   'straight',
