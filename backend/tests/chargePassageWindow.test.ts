@@ -107,4 +107,43 @@ describe('future-only individual charging-passage uncertainty window', () => {
     assert.equal(result.status, 'consistent');
     assert.equal(result.routeCoverageComplete, false);
   });
+  it('rejects an interval over the UK spring clock change', () => {
+    const march = { ...allDayRule, checkedAt: '2026-03-28T12:00:00Z' };
+    const result = run({ rule: march, earliestPassageAt: '2026-03-29T00:59:00Z',
+      predictedPassageAt: '2026-03-29T01:00:00Z', latestPassageAt: '2026-03-29T01:02:00Z' });
+    assert.equal(result.status, 'unknown');
+    assert.equal(result.reason, 'uk_clock_transition');
+  });
+  it('honours a local date exception even if weekly rules are all day', () => {
+    const holiday = { ...allDayRule, exceptions: [{ date: '2026-11-23', periods: [] }] };
+    const closed = run({ rule: holiday });
+    assert.equal(closed.status, 'consistent');
+    assert.equal(closed.assessment?.outcome, 'outside_hours');
+    const crossingMidnight = run({ rule: holiday,
+      earliestPassageAt: '2026-11-23T23:59:00Z',
+      predictedPassageAt: '2026-11-24T00:00:00Z',
+      latestPassageAt: '2026-11-24T00:01:00Z' });
+    assert.equal(crossingMidnight.status, 'unknown');
+  });
+  it('fails closed if source freshness expires inside the passage interval', () => {
+    const expiresAt = { ...allDayRule, checkedAt: '2026-10-24T09:12:00Z' };
+    const result = run({ rule: expiresAt,
+      earliestPassageAt: '2026-11-23T09:11:59.999Z',
+      predictedPassageAt: '2026-11-23T09:12:00Z',
+      latestPassageAt: '2026-11-23T09:12:00.001Z' });
+    assert.equal(result.status, 'unknown');
+    assert.equal(result.assessment, undefined);
+  });
+  it('fails closed if operator entitlement review expires inside the interval', () => {
+    const entitlement = { schemeId: 'london_congestion' as const,
+      vehicleClass: 'car' as const, source: 'operator_verified' as const,
+      status: 'exempt' as const, checkedAt: '2026-11-16T09:12:00Z',
+      validThrough: '2026-11-23' };
+    const result = run({ rule: allDayRule, entitlement,
+      earliestPassageAt: '2026-11-23T09:11:59.999Z',
+      predictedPassageAt: '2026-11-23T09:12:00Z',
+      latestPassageAt: '2026-11-23T09:12:00.001Z' });
+    assert.equal(result.status, 'unknown');
+    assert.equal(result.assessment, undefined);
+  });
 });
