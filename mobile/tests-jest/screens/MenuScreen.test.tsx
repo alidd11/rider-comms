@@ -156,6 +156,6 @@ test('premium menu groups the full rider journey and labels device-local ride to
   expect(screen.getByText('Account & support')).toBeTruthy();
   expect(screen.getByTestId('menu-ride-stats')).toBeTruthy();
   for (const name of ['Ride', 'Friends', 'Routes', 'Rider Social', 'Your plan', 'Settings', 'Help & Support']) {
-    expect(screen.getByLabelText(new RegExp(`^${name}`))).toBeTruthy();
+    expect(screen.getByLabelText(new RegExp(`^${name}(?:,|$)`))).toBeTruthy();
   }
 });
