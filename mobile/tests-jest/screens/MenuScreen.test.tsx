@@ -145,3 +145,17 @@ test('the ride stats total the rides kept on this device', () => {
   expect(menuRideStats(history, 'km')).toEqual({ rides: '2', time: '1h 45m', distance: '86.0', distanceLabel: 'Kilometres' });
   expect(menuRideStats(history.slice(1), 'mi').time).toBe('15m');
 });
+
+test('premium menu groups the full rider journey and labels device-local ride totals', async () => {
+  mockSocialBootstrap.mockResolvedValue({ entitlement: 'beta' });
+  await renderMenu();
+  expect(screen.getByText('Menu')).toBeTruthy();
+  expect(screen.getByText('Your rides')).toBeTruthy();
+  expect(screen.getByText('On this device')).toBeTruthy();
+  expect(screen.getByText('Ride & explore')).toBeTruthy();
+  expect(screen.getByText('Account & support')).toBeTruthy();
+  expect(screen.getByTestId('menu-ride-stats')).toBeTruthy();
+  for (const name of ['Ride', 'Friends', 'Routes', 'Rider Social', 'Your plan', 'Settings', 'Help & Support']) {
+    expect(screen.getByLabelText(new RegExp(`^${name}(?:,|$)`))).toBeTruthy();
+  }
+});

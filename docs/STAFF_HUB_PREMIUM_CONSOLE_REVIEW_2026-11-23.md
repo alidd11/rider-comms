@@ -26,3 +26,6 @@ No backend, database, role permissions, authenticated API calls, user input flow
 
 ## Verification limits
 Playwright Staff screenshots contain deterministic mock API data; physical installed iPhone testing and authenticated production interactions are not represented by the artifacts.
+
+## Upstream integration — 23 November 2026
+Integrated current `main` at `af6413f2ac3fa58921246c37a182d440a320c552` (merged PRs #588 and #589) with a non-rewriting merge commit. The upstream paths (`docs/sw.js`, Rider Comms PWA menu, native menu and menu tests) have no file overlap with this Staff-only change. Added mobile drawer screenshots to the responsive test so the premium dark navigation surface can be judged explicitly.

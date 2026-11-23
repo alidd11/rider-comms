@@ -2147,6 +2147,20 @@ test('Staff Hub premium console preserves responsive shell and navigation focus'
   await expect(page.locator('.page-context > summary')).toContainText('Scope and definitions');
   await expect(page.locator('.operation-card')).toHaveCount(4);
   await expect(page.locator('.overview-highlight')).toHaveCount(3);
+  if (testInfo.project.name !== 'viewport-desktop-chromium') {
+    // Capture the actual navigation drawer, not just the fixed mobile header.
+    const toggle = page.locator('#menuToggle');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#drawerClose')).toBeVisible();
+    await expect(page.locator('.app')).toHaveClass(/menu-open/);
+    await page.screenshot({
+      path: testInfo.outputPath('staff-premium-' + testInfo.project.name + '-navigation-drawer.png'),
+      fullPage: false,
+    });
+    await page.locator('#drawerClose').click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  }
 });
 
 // CI visual baselines are screenshots of the real rendered Staff PWA shell
