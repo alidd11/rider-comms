@@ -83,7 +83,23 @@
     if (partnerMatch) return { view: 'partner', riderId: null, caseId: partnerMatch[1] };
     return { view: VIEWS.includes(hash) && !['rider', 'case', 'partner'].includes(hash) ? hash : 'overview', riderId: null, caseId: null };
   }
-  let { view, riderId: detailRiderId, caseId: detailCaseId } = parseHash(location.hash.slice(1));
+  // The installed Staff app opens on Overview. iOS keeps the address a Home
+  // Screen app was added from (say #inbox) and would reopen there on every
+  // launch; a reload within the same launch (an update) keeps its place.
+  const STAFF_LAUNCHED_KEY = '__staff_launched';
+  const launchedFromHomeScreen = () => navigator.standalone === true
+    || Boolean(window.matchMedia?.('(display-mode: standalone)').matches);
+  const launchHash = (() => {
+    // Links opened in a browser tab (an alert email's #cases) keep their page.
+    if (!IS_STAFF_PWA || !launchedFromHomeScreen()) return location.hash.slice(1);
+    try {
+      if (sessionStorage.getItem(STAFF_LAUNCHED_KEY)) return location.hash.slice(1);
+      sessionStorage.setItem(STAFF_LAUNCHED_KEY, '1');
+    } catch { /* storage blocked: treat as a fresh launch */ }
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    return '';
+  })();
+  let { view, riderId: detailRiderId, caseId: detailCaseId } = parseHash(launchHash);
   let period = readPeriod();
   let moderationView = 'open';
   let inboxFilter = 'all';
