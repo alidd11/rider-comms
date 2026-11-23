@@ -815,10 +815,7 @@
     // The shell already identifies the Operations Hub and current section.
     // Keep that context available, but avoid repeating an eyebrow and several
     // paragraphs above the working area on every screen.
-    const context = subtitle ? el('details', { class: 'page-context' }, [
-      el('summary', { text: 'Scope and definitions', 'aria-label': 'About ' + title }),
-      el('p', { class: 'page-subtitle', text: subtitle }),
-    ]) : null;
+    const context = subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null;
     return el('div', { class: 'page-header' }, [
       el('div', { class: 'page-heading' }, [
         el('h1', { class: 'page-title', tabindex: '-1', text: title }),
@@ -862,7 +859,7 @@
   function skeletonOverview() {
     const kpi = () => el('div', { class: 'card kpi' }, [el('div', { class: 'skeleton sk-label' }), el('div', { class: 'skeleton sk-value' }), el('div', { class: 'skeleton sk-foot' })]);
     return [
-      pageHeader('Insights', 'Loading…'),
+      pageHeader('Insights', null),
       el('div', { class: 'kpis' }, Array.from({ length: 8 }, kpi)),
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, Array.from({ length: 2 }, () => el('div', { class: 'card' }, [el('div', { class: 'skeleton sk-chart' })]))),
@@ -1098,7 +1095,7 @@
 
   function renderCompany(data) {
     pageEl.replaceChildren(
-      pageHeader('Company areas', 'Each team or service, what it is connected to, and where its staff tools are.'),
+      pageHeader('Company areas', null),
       companyCommandCentre(data),
     );
   }
@@ -1149,7 +1146,7 @@
     ]);
 
     pageEl.replaceChildren(
-      pageHeader('Insights', 'Period-based activity from the backend snapshot; chart labels explain coverage.'),
+      pageHeader('Insights', null),
       el('p', { class: 'overview-snapshot', text: snapshotTimestamp(data.generatedAt) + '. Reporting dates use UTC; each metric specifies its coverage.' }),
       kpis,
       el('h2', { class: 'section-title', text: 'Trends' }),
@@ -1338,7 +1335,7 @@
       form,
       ...[].concat(content),
       ...(loadMore ? [el('div', { class: 'load-more-row' }, [loadMore])] : []),
-      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last 7 days. Search results and existing accounts are never hidden by this range.` }),
+      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last 7 days.` }),
     );
   }
 
@@ -1502,11 +1499,19 @@
         actions.append(dismiss, length, suspend);
         wireAction(card, dismiss, note, (text) => api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/resolve`, { resolution: 'dismiss', note: text }));
         wireAction(card, suspend, note, (text) => api('POST', `/moderation/reports/${encodeURIComponent(report.id)}/resolve`, { resolution: 'suspend', note: text, ...(length.value ? { days: Number(length.value) } : {}) }));
-        card.append(el('div', { class: 'chips', role: 'group', 'aria-label': 'Start the note from a reason' }, [...NOTE_TEMPLATES.dismiss, ...NOTE_TEMPLATES.suspend].map((text) => {
-          const chip = el('button', { type: 'button', class: 'chip', text });
-          chip.addEventListener('click', () => { note.value = text; note.focus(); });
-          return chip;
-        })));
+        // Ready-made reasons as one compact picker instead of a wall of chips.
+        const reasons = el('select', { class: 'input select note-reason', 'aria-label': `Start the note from a reason for report ${report.id}` }, [
+          el('option', { value: '', text: 'Start from a reason…' }),
+          el('optgroup', { label: 'Dismiss' }, NOTE_TEMPLATES.dismiss.map((text) => el('option', { value: text, text }))),
+          el('optgroup', { label: 'Suspend' }, NOTE_TEMPLATES.suspend.map((text) => el('option', { value: text, text }))),
+        ]);
+        reasons.addEventListener('change', () => {
+          if (!reasons.value) return;
+          note.value = reasons.value;
+          reasons.value = '';
+          note.focus();
+        });
+        card.append(reasons);
       }
 
       if (report.status === 'open') {
@@ -1773,7 +1778,7 @@
         text: sampleText + ' This is not a company-wide count or priority order.' });
 
     pageEl.replaceChildren(
-      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.'),
+      pageHeader('Action inbox', null),
       tabs,
       el('details', { class: 'inbox-intro' }, [
         el('summary', { text: 'How this queue works' }),
@@ -1795,7 +1800,7 @@
       inboxFocusTarget = null;
       renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
     }, 'Moderation queues');
-    const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.');
+    const header = pageHeader('Moderation', null);
     // Exact-ID lookups bypass list sampling and sorting. A case could have
     // been claimed, resolved or removed since the Action Inbox snapshot.
     const selected = inboxFocusTarget &&
@@ -2324,14 +2329,14 @@
     const metric = (label, value, description) => el('div', { class: 'case-workload-metric' }, [
       el('div', { class: 'case-workload-label', text: label }),
       el('div', { class: 'case-workload-value', text: formatNumber(value) }),
-      el('div', { class: 'case-workload-description', text: description }),
+      description ? el('div', { class: 'case-workload-description', text: description }) : null,
     ]);
     const counts = workload.totals;
     const workloadPanel = el('section', { class: 'case-workload', 'aria-label': 'Permitted case workload' }, [
-      metric('Active', counts.active, 'Open, in progress or waiting'),
-      metric('Mine', counts.mine, 'Active cases assigned to you'),
-      metric('Unassigned', counts.unassigned, 'Active cases without an owner'),
-      metric('Urgent', counts.urgent, 'Active high-priority escalation'),
+      metric('Active', counts.active),
+      metric('Assigned to you', counts.mine),
+      metric('Without an owner', counts.unassigned),
+      metric('Urgent', counts.urgent),
     ]);
     const caseActivity = el('details', { class: 'workspace-disclosure case-activity-report' }, [
       el('summary', { text: history
@@ -2357,7 +2362,7 @@
     const note = el('p', { class: 'case-page-note' });
     const updatePageNote = () => {
       const recentCases = loadedCases.filter((item) => inReportingWindow(item.updatedAt)).length;
-      note.textContent = `${recentCases} of ${loadedCases.length} loaded cases updated in the last ${period} days. The queue is ordered by latest update, not priority, and remains unfiltered by reporting period. Pages contain up to 25 cases; older matching cases may require loading more.`;
+      note.textContent = `${recentCases} of ${loadedCases.length} loaded cases updated in the last ${period} days · most recently updated first`;
     };
     updatePageNote();
     const more = el('button', { type: 'button', class: 'button', text: 'Load older cases' });
@@ -2380,7 +2385,7 @@
       } finally { more.disabled = false; }
     });
     pageEl.replaceChildren(
-      pageHeader('Case desk', 'Manage the company’s internal support, appeal, privacy and incident work with a recorded audit trail.', [create]),
+      pageHeader('Case desk', null, [create]),
       el('section', { class: 'case-workspace' }, [
         workloadPanel,
         caseActivity,
@@ -2613,15 +2618,15 @@
     const tile = (label, value, description) => el('div', { class: 'case-workload-metric' }, [
       el('div', { class: 'case-workload-label', text: label }),
       el('div', { class: 'case-workload-value', text: formatNumber(value) }),
-      el('div', { class: 'case-workload-description', text: description }),
+      description ? el('div', { class: 'case-workload-description', text: description }) : null,
     ]);
     pageEl.replaceChildren(
-      pageHeader('Partners', 'Sellers and advertisers apply on the public form. Every decision needs a note and is kept in the application history. No payments are handled here.', [formLink]),
+      pageHeader('Partners', null, [formLink]),
       el('section', { class: 'case-workload', 'aria-label': 'Partner applications' }, [
-        tile('Awaiting review', summary.awaitingReview, 'New or in review'),
-        tile('Info requested', summary.infoRequested, 'Waiting on the business'),
-        tile('Approved sellers', summary.approvedSellers, 'Can be listed in Shop'),
-        tile('Approved advertisers', summary.approvedAdvertisers, 'Can be offered placements'),
+        tile('Awaiting review', summary.awaitingReview),
+        tile('Info requested', summary.infoRequested),
+        tile('Approved sellers', summary.approvedSellers),
+        tile('Approved advertisers', summary.approvedAdvertisers),
       ]),
       el('div', { class: 'case-filter-toolbar', role: 'group', 'aria-label': 'Filter applications' }, [
         filter('Status', [['open', 'Needs a decision'], ['all', 'All'], ...Object.entries(PARTNER_STATUS_LABELS)], partnerStatus, (v) => { partnerStatus = v; }),
@@ -2718,7 +2723,7 @@
       : el('p', { class: 'case-empty-history', text: 'No history yet.' });
     pageEl.replaceChildren(
       el('a', { class: 'case-back', href: '#partners', text: '← All applications' }),
-      pageHeader(item.businessName, `${PARTNER_KIND_LABELS[item.kind]} application ${item.reference}. Contact details are only for onboarding; nothing is sent to the business from here.`),
+      pageHeader(item.businessName, `${PARTNER_KIND_LABELS[item.kind]} application · ${item.reference}`),
       el('div', { class: 'case-detail-meta' }, [
         caseBadge(item.kind, PARTNER_KIND_LABELS),
         caseBadge(item.status, PARTNER_STATUS_LABELS, PARTNER_STATUS_TONES[item.status]),
@@ -2784,7 +2789,7 @@
     const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'} in the last ${period} days${auditRider ? ` for ${auditRider}` : ''}. Based on at most 200 returned records, not all historical decisions.`;
     pageEl.replaceChildren(
       pageHeader('Audit log', subtitle, [exportButton]),
-      el('p', { class: 'period-context', text: 'Showing matching decisions from the latest 200 returned actions. Older actions may be excluded; CSV exports contain only the displayed sample.' }),
+      el('p', { class: 'period-context', text: 'Showing matching decisions from the latest 200 returned actions. The CSV contains what is shown.' }),
       el('div', { class: 'audit-filters' }, [filters]),
       form,
       el('div', { class: 'card reports' }, shown.length
@@ -2956,7 +2961,7 @@
         el('h2', { class: 'section-title', text: 'Staff sign-ins' }),
         reportingWindow('Staff sign-in period'),
       ]),
-      el('p', { class: 'period-context', text: `${recent.length} of ${events.length} latest returned sign-in events occurred in the last ${period} days. The source returns at most 20 events; this is not a complete security-event export and the staff roster is not date-filtered.` }),
+      el('p', { class: 'period-context', text: `${recent.length} of the latest ${events.length} sign-in events happened in the last ${period} days.` }),
       el('div', { class: 'card reports' }, recent.length
         ? [el('ul', { class: 'list' }, recent.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
           person(riderLabel(event.riderId).name, [SECURITY_EVENT_LABELS[event.event] || event.event, event.device].filter(Boolean).join(' · '), event.riderId),
@@ -3185,7 +3190,7 @@
       (view === 'inbox' && displayedKey?.startsWith('["inbox",'));
     if (!refreshing) {
       if (view === 'insights') pageEl.replaceChildren(...skeletonOverview());
-      else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], 'Loading…'), ...skeletonList());
+      else pageEl.replaceChildren(pageHeader(VIEW_TITLES[view], null), ...skeletonList());
     }
     setBusy(true);
     try {
