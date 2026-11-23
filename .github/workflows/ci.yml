@@ -12,6 +12,8 @@ on:
   # expired test fixture shows up even in a week with no merges.
   schedule:
     - cron: '41 4 * * 1'
+  # Started by update-pr-branches.yml after it merges main into a PR branch.
+  workflow_dispatch:
 
 permissions:
   contents: read
