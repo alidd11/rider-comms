@@ -2366,7 +2366,7 @@ html[data-active-screen="map"] #app.safety-locked .map-canvas{inset:0}
 .app-menu-profile-button{margin-top:8px;min-height:40px;padding:0 16px;border:0;border-radius:var(--radius-pill);background:var(--surface-raised);color:var(--accent-ink,var(--accent));font-size:.95rem;font-weight:780}
 .app-menu-list{display:grid;gap:2px;padding-top:12px}
 .app-menu-list button{min-height:60px;display:flex;align-items:center;gap:16px;padding:0 6px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--text);font-size:1.12rem;font-weight:560;text-align:left}
-.app-menu-list button:active{background:var(--surface)}.app-menu-list button:active{opacity:1}
+.app-menu-list button:active{opacity:1}
 .app-menu-list svg{width:26px;height:26px;flex:none}
 .app-menu-list span{flex:1}
 .app-menu-list small{color:var(--text-secondary);font-size:.85rem;font-weight:600}
