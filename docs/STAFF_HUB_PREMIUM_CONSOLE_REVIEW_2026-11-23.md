@@ -29,3 +29,6 @@ Playwright Staff screenshots contain deterministic mock API data; physical insta
 
 ## Upstream integration — 23 November 2026
 Integrated current `main` at `af6413f2ac3fa58921246c37a182d440a320c552` (merged PRs #588 and #589) with a non-rewriting merge commit. The upstream paths (`docs/sw.js`, Rider Comms PWA menu, native menu and menu tests) have no file overlap with this Staff-only change. Added mobile drawer screenshots to the responsive test so the premium dark navigation surface can be judged explicitly.
+
+## Screenshot-led adjustments (draft)
+The first PR-head Playwright visual artifact (`pwa-visual-audit` #14818813879, from the subsequently superseded CI attempt) included real mobile Chromium and emulated dark iPhone WebKit screenshots. Relative to PR #587, full-page Overview and Company Areas captures were around 7–9% shorter, though the new heading/action stack consumed extra first-fold height. Corrected the long focused-title underline by sizing the title to its text, tightened mobile header spacing, and restored Case Desk workload tile dividers. These are presentation-only follow-ups; the final current-head screenshots and CI still require verification.

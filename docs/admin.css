@@ -2122,6 +2122,7 @@ html { scroll-padding-top: 78px; }
 }
 .page-heading { display: grid; align-items: start; gap: 8px; }
 .page-header .page-title {
+  justify-self: start; /* Keep keyboard-focus underline under the title text, not across the whole page. */
   font-size: clamp(27px, 2.6vw, 34px);
   line-height: 1.12;
   font-weight: 770;
@@ -2307,7 +2308,7 @@ html { scroll-padding-top: 78px; }
    scannable record rows and visible keyboard focus remain intact. */
 .case-workload {
   margin-bottom: 16px;
-  background: var(--surface);
+  background: var(--border); /* Restore one-pixel cell separators for scanability. */
   border-color: var(--border);
 }
 .case-workload-metric { padding: 15px 18px; }
@@ -2367,11 +2368,12 @@ html { scroll-padding-top: 78px; }
   .brand-section:not(:empty)::before { color: #68818e; }
   .brand-actions .icon-button, .menu-toggle { color: #e5f2f6; }
   .brand-actions .icon-button:hover, .menu-toggle:hover { background: #2b4654; color: #fff; }
-  .page { padding-top: 29px; }
-  .page-header { padding-bottom: 19px; margin-bottom: 19px; }
+  .page { padding-top: 25px; }
+  .page-header { padding-bottom: 13px; margin-bottom: 14px; }
+  .page-heading { gap: 4px; }
   .page-header-actions { align-self: start; }
-  .page-header .page-title { font-size: 28px; }
-  .overview-snapshot { margin-bottom: 18px; }
+  .page-header .page-title { font-size: 27px; }
+  .overview-snapshot { margin-bottom: 14px; }
 }
 @media (max-width: 699px) {
   .page { padding-inline: 16px; }
