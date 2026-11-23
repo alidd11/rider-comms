@@ -83,19 +83,17 @@
     if (partnerMatch) return { view: 'partner', riderId: null, caseId: partnerMatch[1] };
     return { view: VIEWS.includes(hash) && !['rider', 'case', 'partner'].includes(hash) ? hash : 'overview', riderId: null, caseId: null };
   }
-  // The installed Staff app opens on Overview. iOS keeps the address a Home
-  // Screen app was added from (say #inbox) and would reopen there on every
-  // launch; a reload within the same launch (an update) keeps its place.
-  const STAFF_LAUNCHED_KEY = '__staff_launched';
+  // Opened from a Home Screen icon, the dashboard starts on Overview. iOS
+  // keeps the address the icon was saved from (say #inbox) and would reopen
+  // there on every launch. A reload (an app update) keeps its place, and a
+  // link opened in a browser tab (an alert email's #cases) opens its page.
   const launchedFromHomeScreen = () => navigator.standalone === true
     || Boolean(window.matchMedia?.('(display-mode: standalone)').matches);
   const launchHash = (() => {
-    // Links opened in a browser tab (an alert email's #cases) keep their page.
-    if (!IS_STAFF_PWA || !launchedFromHomeScreen()) return location.hash.slice(1);
-    try {
-      if (sessionStorage.getItem(STAFF_LAUNCHED_KEY)) return location.hash.slice(1);
-      sessionStorage.setItem(STAFF_LAUNCHED_KEY, '1');
-    } catch { /* storage blocked: treat as a fresh launch */ }
+    const navigation = performance.getEntriesByType?.('navigation')?.[0];
+    if (!launchedFromHomeScreen() || navigation?.type === 'reload' || navigation?.type === 'back_forward') {
+      return location.hash.slice(1);
+    }
     if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     return '';
   })();
@@ -928,50 +926,58 @@
 
   /** One work card: a live count, what it means and where to act on it.
    *  Every figure comes from the backend; nothing here is analytics. */
-  function workCard({ label, value, description, destination, action, attention = false, onOpen }) {
+  /** One queue figure: label, number, an optional short qualifier and a
+   *  quiet link to the page where the work is done. */
+  function workCard({ label, value, detail = '', destination, action, attention = false, onOpen }) {
     const children = [
       el('div', { class: 'operation-label', text: label }),
       el('strong', { class: 'operation-value', text: String(value) }),
-      el('p', { class: 'operation-description', text: description }),
+      detail ? el('p', { class: 'operation-description', text: detail }) : null,
     ];
     if (destination && allowed(VIEW_PERMISSIONS[destination])) {
-      const button = el('button', { type: 'button', class: 'button', text: action });
+      const button = el('button', { type: 'button', class: 'operation-action', text: action });
       button.addEventListener('click', () => { onOpen?.(); selectView(destination); });
       children.push(button);
     }
-    return el('div', { class: 'operation-card', dataset: { attention: String(attention) } }, children);
+    return el('div', { class: 'operation-card', dataset: { attention: String(attention), zero: String(String(value) === '0') } }, children);
   }
 
   /** The Overview's queue: reports and cases waiting on staff, then what is
    *  happening on the road right now. Trends live in Insights only. */
-  function operationsSummary({ activity, safety }, workload, partners) {
+  function operationsSummary({ activity, safety, generatedAt }, workload, partners) {
+    const generated = new Date(generatedAt);
+    const updatedAt = Number.isNaN(generated.getTime()) ? ''
+      : 'Updated ' + generated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const totals = workload?.totals;
     const cards = [];
     // Each card appears only for staff whose role can act on it.
     if (allowed('moderate')) {
       cards.push(workCard({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
-        description: 'Open rider reports that need a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }));
+        destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }));
     }
     if (totals) {
       cards.push(
         workCard({ label: 'Cases without an owner', value: formatNumber(totals.unassigned),
-          description: 'Active internal cases nobody has taken yet.', destination: 'cases', action: 'Assign cases',
+          destination: 'cases', action: 'Assign cases',
           attention: totals.unassigned > 0, onOpen: () => { caseOwner = 'unassigned'; } }),
         workCard({ label: 'Urgent cases', value: formatNumber(totals.urgent),
-          description: 'Active cases marked urgent.', destination: 'cases', action: 'Open case desk', attention: totals.urgent > 0 }),
+          destination: 'cases', action: 'Open case desk', attention: totals.urgent > 0 }),
         workCard({ label: 'Assigned to you', value: formatNumber(totals.mine),
-          description: 'Your active cases.', destination: 'cases', action: 'My cases', onOpen: () => { caseOwner = 'mine'; } }),
+          destination: 'cases', action: 'My cases', onOpen: () => { caseOwner = 'mine'; } }),
       );
     }
     if (partners) {
       cards.push(workCard({ label: 'Partner applications', value: formatNumber(partners.awaitingReview),
-        description: `Sellers and advertisers waiting on a decision · ${formatNumber(partners.infoRequested)} waiting on the business.`,
+        detail: partners.infoRequested ? `${formatNumber(partners.infoRequested)} waiting on the business` : '',
         destination: 'partners', action: 'Review applications', attention: partners.awaitingReview > 0, onOpen: () => { partnerStatus = 'open'; } }));
     }
     cards.push(workCard({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
-      description: `Group rides on the road now · ${formatNumber(activity.liveNearbyNow)} riders live on Nearby. No locations are shown.` }));
+      detail: `${formatNumber(activity.liveNearbyNow)} riders live on Nearby` }));
     return el('section', { class: 'operations-summary', 'aria-label': 'Operations at a glance' }, [
-      el('h2', { class: 'section-title', text: 'Needs attention' }),
+      el('div', { class: 'operations-head' }, [
+        el('h2', { class: 'section-title', text: 'Needs attention' }),
+        updatedAt ? el('span', { class: 'operations-updated', text: updatedAt }) : null,
+      ]),
       el('div', { class: 'operations-grid', dataset: { count: String(cards.length) } }, cards),
     ]);
   }
@@ -1068,15 +1074,12 @@
       greeting.textContent = greetingFor(now) + ', ';
       time.setAttribute('datetime', now.toISOString());
       time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      date.textContent = now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }) + (zone ? ' · ' + zone.replace(/_/g, ' ') : '');
+      date.textContent = now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' }) + (zone ? ' · ' + zone.replace(/_/g, ' ') : '');
     };
     update();
     const banner = el('section', { class: 'welcome-banner', 'aria-label': 'Welcome' }, [
-      el('div', { class: 'welcome-copy' }, [
-        el('p', { class: 'welcome-greeting' }, [greeting, el('span', { dataset: { welcomeName: '' }, text: staffDisplayName || 'there' })]),
-        el('p', { class: 'welcome-role', text: me?.role ? 'Signed in as ' + (ROLE_LABELS[me.role] || me.role).toLowerCase() + '. Here is what needs you today.' : 'Here is what needs you today.' }),
-      ]),
-      el('div', { class: 'welcome-clock' }, [time, date]),
+      el('p', { class: 'welcome-greeting' }, [greeting, el('span', { dataset: { welcomeName: '' }, text: staffDisplayName || 'there' })]),
+      el('p', { class: 'welcome-clock' }, [time, el('span', { 'aria-hidden': 'true', text: ' · ' }), date]),
     ]);
     const timer = setInterval(() => {
       if (!banner.isConnected) { clearInterval(timer); return; }
@@ -1087,7 +1090,7 @@
 
   function renderOverview(data, workload = null, partners = null) {
     pageEl.replaceChildren(
-      pageHeader('Overview', snapshotTimestamp(data.generatedAt) + '. Queues are live and never filtered by a reporting period.'),
+      pageHeader('Overview', null),
       welcomeBanner(),
       operationsSummary(data, workload, partners),
     );
@@ -3846,7 +3849,8 @@
           name,
           handle ? el('span', { class: 'visually-hidden', text: ' · ' + handle }) : null,
         ]),
-        el('span', { class: 'staff-footer-meta' }, [handle ? el('span', { 'aria-hidden': 'true', text: handle }) : null, footerRole]),
+        // The handle is read out with the name; visually the role is enough.
+        el('span', { class: 'staff-footer-meta' }, [footerRole]),
       ]),
     ]),
     el('div', { class: 'staff-footer-actions' }, [IS_STAFF_PWA ? footerInstall : legacyInstallLink, securityButton, signOutButton]),
