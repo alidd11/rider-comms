@@ -171,7 +171,10 @@ jobs:
             cat "$output"
             [ -f "$report" ] && cp "$report" maestro-ios.xml
             [ "$test_status" -eq 0 ] && break
-            if [ "$attempt" -eq 2 ] || ! grep -Eq 'DeviceUnreachableException|Transport unreachable|Unreachable while processing deviceInfo' "$report" "$output" 2>/dev/null; then
+            # Only retry an explicit transport fault, or an EXACT JUnit Unknown error
+            # corroborated by the newest unprinted Maestro XCTest driver log.
+            # The verifier never displays log contents or secrets.
+            if [ "$attempt" -eq 2 ] || ! python3 scripts/maestro_transport.py "$report" "$output" "$HOME/.maestro/tests"; then
               break
             fi
             echo "::warning title=iOS Maestro transport::XCTest driver disconnected; restarting the simulator and retrying the full authenticated flow once"
