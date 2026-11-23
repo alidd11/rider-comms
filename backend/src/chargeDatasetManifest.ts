@@ -57,8 +57,14 @@ function onlyKeys(value: Record<string, unknown>, keys: string[]): boolean {
   return Object.keys(value).every(key => keys.includes(key));
 }
 function label(value: unknown, min = 1, max = 250): boolean {
-  return typeof value === 'string' && value.trim().length >= min
-    && value.length <= max && !/[\u0000-\u001f]/.test(value);
+  if (typeof value !== 'string' || value.trim().length < min || value.length > max)
+    return false;
+  // Keep rejecting ASCII control characters without a control-character
+  // regex, which violates the repository's ESLint no-control-regex rule.
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) < 32) return false;
+  }
+  return true;
 }
 function version(value: unknown): boolean {
   return typeof value === 'string' && VERSION.test(value);
@@ -121,7 +127,10 @@ export function reviewChargeDatasetManifest(
     reasons.push('invalid_transform_provenance');
 
   const review = object(input.review) ? input.review : null;
-  const passageDate = londonChargingDate(predictedPassageAt);
+  // The public metadata boundary accepts unknown input; narrow it before
+  // calling the string-only London calendar helper.
+  const passageDate = typeof predictedPassageAt === 'string'
+    ? londonChargingDate(predictedPassageAt) : null;
   if (!passageDate) reasons.push('invalid_passage_time');
   if (!review || !onlyKeys(review, ['checkedAt', 'effectiveFrom',
     'effectiveThrough', 'reviewedThrough'])

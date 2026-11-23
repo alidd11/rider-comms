@@ -63,6 +63,8 @@ describe('offline UK charging dataset manifest (metadata only)', () => {
       { ...manifest, source: { ...source, snapshotSha256: 'a'.repeat(63) } },
       { ...manifest, source: { ...source, retrievedAt: '2026-11-22T24:00:00Z' } },
       { ...manifest, reuse: { ...manifest.reuse, reviewReference: '' } },
+      { ...manifest, reuse: { ...manifest.reuse, attribution: 'Line 1\nLine 2' } },
+      { ...manifest, source: { ...source, publisher: 'Unsafe\u0000name' } },
       { ...manifest, reuse: { ...manifest.reuse, licenceUrl: 'https://user:pass@example.org/' } },
       { ...manifest, transform: { ...manifest.transform, outputSha256: 'invalid' } },
       { ...manifest, transform: { ...manifest.transform, toolVersion: '' } },
@@ -79,6 +81,8 @@ describe('offline UK charging dataset manifest (metadata only)', () => {
       ...manifest, source: { ...source, retrievedAt: '2026-11-23T00:00:00Z' },
     }).reasons.includes('snapshot_after_review'));
     assert.ok(check(manifest, '2026-11-23T24:00:00Z').reasons.includes('invalid_passage_time'));
+    assert.ok(check(manifest, null).reasons.includes('invalid_passage_time'));
+    assert.ok(check(manifest, 1700000000000).reasons.includes('invalid_passage_time'));
   });
   it('uses conservative rule/geometry 30-day and tariff/entitlement 7-day review windows', () => {
     const old = {
