@@ -67,9 +67,8 @@ describe('Google Material Symbols Rounded PWA/native asset parity', () => {
   it('uses the same offline SVG paths for every supported manoeuvre in both clients', () => {
     for (const [maneuver, kind] of classes) {
       assert.equal(navigationManeuverKind(maneuver), kind);
-      const match = pwaShell.match(new RegExp(`<symbol id="i-nav-${kind}" viewBox="0 -960 960 960"><path style="fill:currentColor;stroke:none" d="([^"]+)"\\/><\\/symbol>`));
-      assert.ok(match, `Missing Google Material Symbols Rounded PWA sprite for ${kind}`);
-      assert.equal(match[1], MATERIAL_NAVIGATION_PATHS[kind]);
+      const expected = `<symbol id="i-nav-${kind}" viewBox="0 -960 960 960"><path style="fill:currentColor;stroke:none" d="${MATERIAL_NAVIGATION_PATHS[kind]}"/></symbol>`;
+      assert.ok(pwaShell.includes(expected), `PWA/native Google Material Symbols path mismatch: ${kind}`);
     }
     assert.equal(navigationManeuverKind('ferry-train'), 'ferry');
   });
