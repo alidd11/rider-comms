@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radii.md, paddingHorizontal: spacing.sm, paddingVertical: 5 },
   rowPressed: { backgroundColor: colors.surface },
   rowIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
-  rowLabel: { ...type.body, flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: 16, lineHeight: 22, fontWeight: '650' },
+  rowLabel: { ...type.body, flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: 16, lineHeight: 22, fontWeight: '600' },
   rowDetail: { ...type.caption, color: colors.textSecondary, fontSize: 13, maxWidth: '40%' },
   liveDetail: { color: colors.success },
   version: { ...type.caption, color: colors.textMuted, textAlign: 'center', marginTop: 'auto', paddingTop: spacing.lg, fontSize: 12 },
