@@ -1088,7 +1088,7 @@ test.describe('staff dashboard', () => {
   test('Case Desk loaded record count updates after another bounded page is fetched', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
-    await page.route(/\\/admin\\/cases\\?/, async (route) => {
+    await page.route('**/admin/cases?*', async (route) => {
       const nextPage = new URL(route.request().url()).searchParams.has('before');
       await route.fulfill({
         status: 200,
