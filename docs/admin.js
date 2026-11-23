@@ -1989,16 +1989,24 @@
     if (!isCurrentRender(generation)) return;
     const create = el('button', { type: 'button', class: 'button button-primary', text: 'New case' });
     create.addEventListener('click', () => openNewCaseDialog(available));
-    const kindTabs = segmented([['all', 'All permitted'], ...available.map((k) => [k, CASE_KIND_LABELS[k]])],
-      caseKind, (next) => { caseKind = next; renderAndFocus('[aria-label="Case categories"] [aria-pressed="true"]'); }, 'Case categories');
-    const statusTabs = segmented([['all', 'All statuses'], ...CASE_STATUSES.map((k) => [k, CASE_STATUS_LABELS[k]])],
-      caseStatus, (next) => { caseStatus = next; renderAndFocus('[aria-label="Case statuses"] [aria-pressed="true"]'); }, 'Case statuses');
-    const ownerTabs = segmented([
-      ['all', 'All owners'], ['mine', 'Assigned to me'], ['unassigned', 'Unassigned'],
-    ], caseOwner, (next) => {
-      caseOwner = next;
-      renderAndFocus('[aria-label="Case owners"] [aria-pressed="true"]');
-    }, 'Case owners');
+    const caseFilter = (label, options, selected, onChange) => {
+      const select = el('select', { class: 'input case-filter-select', 'aria-label': label },
+        options.map(([value, text]) => el('option', { value, text })));
+      select.value = selected;
+      select.addEventListener('change', () => onChange(select.value));
+      return el('label', { class: 'case-filter-field' }, [
+        el('span', { class: 'case-filter-caption', text: label }),
+        select,
+      ]);
+    };
+    const filters = el('div', { class: 'case-filter-toolbar', role: 'group', 'aria-label': 'Filter cases' }, [
+      caseFilter('Workstream', [['all', 'All permitted'], ...available.map((kind) => [kind, CASE_KIND_LABELS[kind]])],
+        caseKind, (next) => { caseKind = next; renderAndFocus('select[aria-label="Workstream"]'); }),
+      caseFilter('Status', [['all', 'All statuses'], ...CASE_STATUSES.map((status) => [status, CASE_STATUS_LABELS[status]])],
+        caseStatus, (next) => { caseStatus = next; renderAndFocus('select[aria-label="Status"]'); }),
+      caseFilter('Ownership', [['all', 'All owners'], ['mine', 'Assigned to me'], ['unassigned', 'Unassigned']],
+        caseOwner, (next) => { caseOwner = next; renderAndFocus('select[aria-label="Ownership"]'); }),
+    ]);
     const metric = (label, value, description) => el('div', { class: 'case-workload-metric' }, [
       el('div', { class: 'case-workload-label', text: label }),
       el('div', { class: 'case-workload-value', text: formatNumber(value) }),
@@ -2055,12 +2063,7 @@
       el('section', { class: 'case-workspace' }, [
         workloadPanel,
         caseActivity,
-        el('div', { class: 'case-filter-label', text: 'Workstream' }),
-        el('div', { class: 'scroll-row case-filters' }, [kindTabs]),
-        el('div', { class: 'case-filter-label', text: 'Status' }),
-        el('div', { class: 'scroll-row case-filters' }, [statusTabs]),
-        el('div', { class: 'case-filter-label', text: 'Ownership' }),
-        el('div', { class: 'scroll-row case-filters' }, [ownerTabs]),
+        filters,
         result.items.length ? list : el('div', { class: 'card case-empty' }, [
           emptyState('inbox', 'No cases in this view', 'Create an internal case to start tracking this workstream.'),
         ]),
