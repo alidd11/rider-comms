@@ -1901,7 +1901,16 @@
     return el('span', { class: 'case-chip', dataset: { tone: tone ?? 'neutral' }, text: labels[value] || value });
   }
 
+  // Internal follow-up dates are staff targets, never legal deadlines or
+  // customer reply SLAs. Only unresolved cases can be overdue.
+  function overdueInternalFollowUp(item) {
+    if (!item.dueAt || ['resolved', 'closed'].includes(item.status)) return false;
+    const due = new Date(item.dueAt).getTime();
+    return Number.isFinite(due) && due < Date.now();
+  }
+
   function caseRecord(item) {
+    const overdue = overdueInternalFollowUp(item);
     const title = el('a', {
       class: 'case-item-title', href: '#case/' + item.id, text: item.title,
     });
@@ -1909,7 +1918,7 @@
       : item.status === 'waiting' ? 'warning' : 'neutral';
     const priorityTone = item.priority === 'urgent' ? 'danger'
       : item.priority === 'high' ? 'warning' : 'neutral';
-    return el('li', { class: 'case-item', dataset: { caseId: item.id } }, [
+    return el('li', { class: 'case-item', dataset: { caseId: item.id, followUp: overdue ? 'overdue' : 'normal' } }, [
       el('div', { class: 'case-item-main' }, [
         el('div', { class: 'case-item-label', text: CASE_KIND_LABELS[item.kind] || item.kind }),
         title,
@@ -1925,6 +1934,7 @@
       el('div', { class: 'case-item-badges' }, [
         caseBadge(item.status, CASE_STATUS_LABELS, statusTone),
         caseBadge(item.priority, CASE_PRIORITY_LABELS, priorityTone),
+        overdue ? caseBadge('overdue', { overdue: 'Internal target overdue' }, 'danger') : null,
       ]),
     ]);
   }
@@ -2050,8 +2060,13 @@
     ]);
     const list = el('ul', { class: 'case-list', 'aria-label': 'Internal work cases' },
       result.items.map(caseRecord));
-    const recentCases = result.items.filter((item) => inReportingWindow(item.updatedAt)).length;
-    const note = el('p', { class: 'case-page-note', text: `${recentCases} of ${result.items.length} loaded cases updated in the last ${period} days. Workload totals and the queue include all dates; older cases are never hidden. Pages contain up to 25 matching cases.` });
+    const loadedCases = [...result.items];
+    const note = el('p', { class: 'case-page-note' });
+    const updatePageNote = () => {
+      const recentCases = loadedCases.filter((item) => inReportingWindow(item.updatedAt)).length;
+      note.textContent = `${recentCases} of ${loadedCases.length} loaded cases updated in the last ${period} days. The queue is ordered by latest update, not priority, and remains unfiltered by reporting period. Pages contain up to 25 cases; older matching cases may require loading more.`;
+    };
+    updatePageNote();
     const more = el('button', { type: 'button', class: 'button', text: 'Load older cases' });
     more.hidden = !result.hasMore;
     let cursor = result.nextCursor;
@@ -2063,6 +2078,8 @@
         const page = await api('GET', '/admin/cases?' + next.toString());
         if (!isCurrentRender(generation)) return;
         list.append(...page.items.map(caseRecord));
+        loadedCases.push(...page.items);
+        updatePageNote();
         cursor = page.nextCursor;
         more.hidden = !page.hasMore;
       } catch (error) {
@@ -2119,9 +2136,16 @@
       && !['resolved', 'closed'].includes(item.status);
     const targetInput = el('input', { class: 'input', type: 'datetime-local',
       'aria-label': 'Internal follow-up target' });
-    if (item.dueAt) {
-      const timezoneOffset = new Date(item.dueAt).getTimezoneOffset() * 60_000;
-      targetInput.value = new Date(item.dueAt - timezoneOffset).toISOString().slice(0, 16);
+    if (item.dueAt != null) {
+      // The API may return an epoch timestamp or ISO 8601 string.
+      // Subtract from the parsed epoch, never directly from the raw value:
+      // ISO strings coerced to numbers are NaN and would crash Case Details.
+      const instant = new Date(item.dueAt);
+      const timestamp = instant.getTime();
+      if (Number.isFinite(timestamp)) {
+        const timezoneOffset = instant.getTimezoneOffset() * 60_000;
+        targetInput.value = new Date(timestamp - timezoneOffset).toISOString().slice(0, 16);
+      }
     }
     targetInput.disabled = !canTarget;
     const setTarget = el('button', { type: 'button', class: 'button',
@@ -2201,8 +2225,9 @@
       caseBadge(item.priority, CASE_PRIORITY_LABELS),
       el('span', { text: item.assignedTo ? 'Assigned to ' + item.assignedTo : 'Unassigned' }),
       el('span', { text: 'Version ' + item.version }),
-      item.dueAt ? el('span', { text: 'Internal target ' +
-        new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }) : null,
+      item.dueAt ? el('span', { class: overdueInternalFollowUp(item) ? 'case-detail-overdue-target' : '',
+        text: (overdueInternalFollowUp(item) ? 'Internal target overdue · ' : 'Internal target · ') +
+          new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }) : null,
     ]);
     const trail = el('ol', { class: 'case-timeline', 'aria-label': 'Case activity history' },
       events.map((event) => el('li', { class: 'case-event' }, [
