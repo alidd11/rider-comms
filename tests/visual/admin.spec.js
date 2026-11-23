@@ -1012,9 +1012,10 @@ test.describe('staff dashboard', () => {
     const list = page.getByRole('list', { name: 'Internal work cases' });
     await expect(page.getByRole('region', { name: 'Permitted case workload' })).toContainText('Urgent');
     await expect(list.locator('.case-item')).toHaveCount(4);
-    await page.getByRole('group', { name: 'Case categories' }).getByRole('button', { name: 'Customer support' }).click();
+    await expect(page.getByRole('group', { name: 'Filter cases' }).getByRole('combobox')).toHaveCount(3);
+    await page.getByRole('combobox', { name: 'Workstream' }).selectOption('support');
     await expect(list.locator('.case-item')).toHaveCount(1);
-    await page.getByRole('group', { name: 'Case owners' }).getByRole('button', { name: 'Unassigned' }).click();
+    await page.getByRole('combobox', { name: 'Ownership' }).selectOption('unassigned');
     await expect(list.locator('.case-item')).toHaveCount(1);
     await page.getByRole('link', { name: 'Account sign-in assistance' }).click();
     await expect(page).toHaveURL(/#case\/11111111-1111-4111-8111-111111111111$/);
@@ -1060,7 +1061,7 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#cases');
     await expect(page.locator('.case-item')).toHaveCount(1);
     await expect(page.getByRole('link', { name: 'Moderation decision review' })).toBeVisible();
-    await expect(page.getByRole('group', { name: 'Case categories' })).not.toContainText('Customer support');
+    await expect(page.getByRole('combobox', { name: 'Workstream' }).locator('option')).not.toContainText('Customer support');
   });
 
   test('support sees support cases only, while analysts cannot open the case desk', async ({ page }) => {
@@ -1069,7 +1070,7 @@ test.describe('staff dashboard', () => {
     await page.goto('/admin.html#cases');
     await expect(page.locator('.page-title')).toHaveText('Case desk');
     await expect(page.locator('.case-item')).toHaveCount(1);
-    await expect(page.getByRole('group', { name: 'Case categories' })).not.toContainText('Privacy requests');
+    await expect(page.getByRole('combobox', { name: 'Workstream' }).locator('option')).not.toContainText('Privacy requests');
     await page.goto('/admin.html#case/33333333-3333-4333-8333-333333333333');
     await expect(page).toHaveURL(/#case\/33333333-3333-4333-8333-333333333333$/);
     await expect(page.locator('#page')).toContainText('Case not available');
