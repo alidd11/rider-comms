@@ -160,6 +160,26 @@ jobs:
           key: ${{ steps.apt-cache.outputs.cache-primary-key }}
       - name: Run PWA visual smoke audit
         run: npm run test:pwa:visual
+      - name: Advisory Rider Comms Maps live-tile screenshot audit
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 572
+        continue-on-error: true
+        timeout-minutes: 4
+        env:
+          RIDER_MAPS_LIVE_TILE_QA: '1'
+        run: |
+          # Experimental public CDN + tiles. This is evidence, never a
+          # production release check or a dependency of ordinary CI success.
+          set +e
+          npx playwright test tests/visual/map-beta-live.spec.js --project=phone-modern --output=test-results/maps-beta-live --reporter=line --workers=1
+          result=$?
+          set -e
+          if [ "$result" -eq 0 ]; then
+            echo "REAL_MAP_TILES=passed (review day/night screenshots)" > test-results/maps-beta-live-result.txt
+          else
+            echo "REAL_MAP_TILES=failed_or_unavailable (not production ready)" > test-results/maps-beta-live-result.txt
+            echo "::warning::Optional Maps beta live tile screenshot failed. Inspect map-beta-live artifact; normal CI remains separately enforced."
+          fi
+          exit "$result"
       - name: Verify Android bundle
         working-directory: mobile
         run: npx expo export --platform android --output-dir /tmp/rider-comms-android
@@ -181,5 +201,7 @@ jobs:
           name: pwa-visual-audit
           path: |
             test-results/playwright
+            test-results/maps-beta-live
+            test-results/maps-beta-live-result.txt
             playwright-report
           if-no-files-found: warn

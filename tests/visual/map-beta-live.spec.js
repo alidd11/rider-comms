@@ -6,6 +6,7 @@ test.skip(process.env.RIDER_MAPS_LIVE_TILE_QA !== '1',
   'Research-only live tile smoke requires explicit opt-in and external network');
 
 test('Rider Comms Maps beta renders real tiles and captures day/night screenshots', async ({ page }, testInfo) => {
+  test.setTimeout(150_000); // Public tile styles may load slowly on a research network.
   // Static public sample geography only. No staff login, rider GPS or Google
   // Maps requests are used here.
   const tileResponses = [];
