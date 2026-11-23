@@ -2149,6 +2149,32 @@ for (const [deviceProject, label] of [
     });
 }
 
+// Capture a real overdue state, not only the default empty-target screenshots.
+// These attachments let reviewers inspect badge wrapping on three form factors.
+for (const [deviceProject, label] of [
+  ['phone-modern', 'mobile'],
+  ['iphone-17-pro-max-webkit', 'ios-dark'],
+  ['viewport-desktop-chromium', 'desktop'],
+]) {
+  test(`staff Case Desk overdue follow-up screenshot on ${label}${deviceProject.includes('viewport') ? ' @viewport' : ''}`,
+    async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== deviceProject, 'Capture one per target');
+      await signIn(page);
+      const state = await mockModerationApi(page);
+      state.companyCases[0].dueAt = new Date(Date.now() - 86_400_000).toISOString();
+      await page.goto('/staff/#cases');
+      await expect(page.locator('[data-case-id="11111111-1111-4111-8111-111111111111"]')).toHaveAttribute('data-follow-up', 'overdue');
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      });
+      const filename = `staff-${label}-case-overdue.png`;
+      const filePath = testInfo.outputPath(filename);
+      await page.screenshot({ path: filePath, fullPage: true, animations: 'disabled' });
+      await testInfo.attach(filename, { path: filePath, contentType: 'image/png' });
+    });
+}
+
 test('date controls appear only where reporting changes, not on operational queues', async ({ page }) => {
   await signIn(page);
   await mockModerationApi(page);

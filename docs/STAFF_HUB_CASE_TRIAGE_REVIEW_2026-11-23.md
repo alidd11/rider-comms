@@ -20,6 +20,6 @@ No backend routes, migrations, authorisation scopes, sensitive rider content, Ma
 
 ## Gates
 - Exact-head CI and isolated security staging.
-- Real Playwright-rendered Staff PWA screenshots across desktop Chromium, mobile Chromium and emulated iPhone WebKit dark.
+- Real Playwright-rendered Staff PWA screenshots across desktop Chromium, mobile Chromium and emulated iPhone WebKit dark. In addition to the normal full-page navigation capture, capture the **actual overdue case state** for all three targets.
 - Verify /admin.html and /staff/ parity; physical installed PWA and authenticated live staff sessions remain unverified without actual testing.
 - Keep PR draft; no merge or deployment without owner approval.
