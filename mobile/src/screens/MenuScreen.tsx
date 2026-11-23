@@ -13,7 +13,7 @@ import { useFriends } from '../friends/FriendsContext';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import { RIDER_SOCIAL_URL } from '@rider-comms/shared';
-import { colors, elevation, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
+import { colors, MIN_TOUCH_TARGET, radii, spacing, type } from '../theme';
 import { useRideHistory } from '../ride/rideHistory';
 import type { RideHistoryEntry } from '@rider-comms/shared';
 
