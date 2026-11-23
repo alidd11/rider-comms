@@ -405,9 +405,55 @@ for (const token of [
     throw new Error(`Native navigation maneuver categories are missing ${token}`);
   }
 }
-for (const glyph of ['slightLeft', 'left', 'sharpLeft', 'forkLeft', 'rampLeft', 'roundaboutLeft', 'uturnLeft']) {
-  if (!nativeManeuverGlyphSource.includes(glyph)) {
-    throw new Error(`Native navigation maneuver glyphs are missing ${glyph}`);
+// Material Symbols Rounded are bundled locally; the PWA and native renderers
+// must use identical paths for every supported manoeuvre (including safety-
+// significant differences between slight, normal, sharp and roundabout turns).
+const nativeMaterialSymbolsSource = await readFile(
+  new URL('../mobile/src/components/materialNavigationPaths.ts', import.meta.url), 'utf8',
+);
+if (!nativeManeuverGlyphSource.includes("import { MATERIAL_NAVIGATION_PATHS } from './materialNavigationPaths';")
+  || !nativeManeuverGlyphSource.includes('d={MATERIAL_NAVIGATION_PATHS[kind]}')
+  || !nativeManeuverGlyphSource.includes('fill={color}')
+  || !nativeManeuverGlyphSource.includes('viewBox="0 -960 960 960"')) {
+  throw new Error('Native navigation manoeuvre renderer must use the bundled Material Symbols catalogue');
+}
+const materialPathEntries = [...nativeMaterialSymbolsSource.matchAll(/^\s*'([^']+)':\s*"([^"]+)",$/gm)];
+const materialPaths = new Map(materialPathEntries.map((match) => [match[1], match[2]]));
+const maneuverKinds = [
+  'straight',
+  'slight-left',
+  'left',
+  'sharp-left',
+  'uturn-left',
+  'slight-right',
+  'right',
+  'sharp-right',
+  'uturn-right',
+  'merge',
+  'fork-left',
+  'fork-right',
+  'ramp-left',
+  'ramp-right',
+  'roundabout-left',
+  'roundabout-right',
+  'ferry',
+  'arrive',
+];
+if (materialPathEntries.length !== maneuverKinds.length || materialPaths.size !== maneuverKinds.length) {
+  throw new Error('Native navigation Material Symbols catalogue has missing or duplicated manoeuvres');
+}
+for (const kind of maneuverKinds) {
+  const path = materialPaths.get(kind);
+  if (!path) throw new Error(`Native navigation Material Symbols missing ${kind}`);
+  const expected = `<symbol id="i-nav-${kind}" viewBox="0 -960 960 960"><path style="fill:currentColor;stroke:none" d="${path}"/></symbol>`;
+  if (!pwaIndexSource.includes(expected)) {
+    throw new Error(`PWA/native Material Symbols mismatch for ${kind}`);
+  }
+}
+for (const side of ['left', 'right']) {
+  const different = [`slight-${side}`, side, `sharp-${side}`].map((kind) => materialPaths.get(kind));
+  if (new Set(different).size !== 3) {
+    throw new Error(`Navigation turn strengths are visually indistinguishable on the ${side}`);
   }
 }
 
