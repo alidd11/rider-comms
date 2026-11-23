@@ -3173,3 +3173,54 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 @media (max-width:360px){.app-menu-profile{gap:12px}.app-menu-stats>div{padding-inline:8px}.app-menu-stats strong{font-size:1.2rem}.app-menu-list button{gap:10px}}
 @media (max-height:690px){.app-menu-profile{padding-block:12px 16px}.app-menu-ride-summary{margin-top:12px}.app-menu-navigation{margin-top:16px;gap:12px}.app-menu-group+.app-menu-group{padding-top:12px}}
 @media (prefers-reduced-motion:reduce){.app-menu{animation:none}.app-menu-list button{animation:none}}
+
+
+/* Premium Rider Cockpit: own-profile summary parity (native SettingsScreen).
+   Profile viewing is intentionally read-only; edits remain behind the existing
+   save screen and connected-profile visibility stays server-authoritative. */
+.my-profile-page{display:grid;gap:24px;padding:4px 0 16px}
+.my-profile-page .my-profile-hero{
+  display:grid;align-items:stretch;gap:16px;margin:0;padding:16px;
+  text-align:left;border:1px solid var(--border);
+  border-radius:var(--radius-lg);background:var(--surface)
+}
+.my-profile-identity{display:flex;align-items:center;gap:16px;min-width:0}
+.my-profile-identity .my-profile-avatar{flex:0 0 88px;display:block}
+.my-profile-page .my-profile-hero .avatar-xl{width:88px;height:88px}
+.my-profile-identity-copy{flex:1;min-width:0;display:grid;justify-items:start;align-content:center;gap:4px}
+.my-profile-page .my-profile-hero .my-profile-name{
+  margin:0;max-width:100%;font-size:1.5rem;font-weight:800;line-height:1.2;
+  overflow-wrap:anywhere;white-space:normal
+}
+.my-profile-page .my-profile-hero .my-profile-handle{font-size:.9rem;line-height:1.35;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.my-profile-page .my-profile-hero .my-profile-plan{
+  margin:3px 0 0;padding:5px 10px;border-radius:var(--radius-pill);
+  border:0;background:var(--surface-raised);color:var(--accent-ink,var(--accent));
+  font-size:.78rem;font-weight:750
+}
+.my-profile-page .my-profile-hero .my-profile-bio{
+  margin:0;max-width:none;color:var(--text-secondary);
+  font-size:.94rem;line-height:1.5;text-align:left;white-space:pre-line
+}
+.my-profile-page .my-profile-bio-empty{color:var(--text-muted)}
+.my-profile-edit-action{
+  display:flex;align-items:center;gap:10px;width:100%;min-height:48px;
+  padding:12px 2px 0;border:0;border-top:1px solid var(--border-soft);
+  border-radius:0;background:transparent;color:var(--accent-ink,var(--accent));
+  text-align:left;font-family:inherit;font-weight:700;font-size:1rem;line-height:1.25;cursor:pointer
+}
+.my-profile-edit-action svg{width:20px;height:20px;flex:none;color:inherit}
+.my-profile-edit-action span{flex:1;min-width:0}
+.my-profile-edit-action svg:last-child{width:18px;height:18px;color:var(--text-secondary)}
+.my-profile-edit-action:active{opacity:.65}
+.my-profile-edit-action:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.my-profile-page .my-profile-section{display:grid;gap:8px;margin:0}
+.my-profile-page .my-profile-section .settings-page-heading{margin:0;padding:0 2px}
+@media(max-width:360px){
+  .my-profile-page .my-profile-hero{padding:13px}
+  .my-profile-identity{gap:12px}
+  .my-profile-identity .my-profile-avatar{flex-basis:76px}
+  .my-profile-page .my-profile-hero .avatar-xl{width:76px;height:76px}
+  .my-profile-page .my-profile-hero .my-profile-name{font-size:1.25rem}
+}
+@media(prefers-reduced-motion:reduce){.my-profile-edit-action{transition:none}}
