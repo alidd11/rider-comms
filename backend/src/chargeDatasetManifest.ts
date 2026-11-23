@@ -3,6 +3,7 @@
  * approval, permission to use a bus lane, or a live charging rule.
  * Intentionally independent of the unapproved Maps #572 shared contract.
  */
+import { createHash } from 'node:crypto';
 import { parseChargeInstant } from './chargeInstant.ts';
 import { londonChargingDate } from './chargingRules.ts';
 import { reviewChargeEvidenceFreshness, type ChargeReviewSubject } from './chargeSourceFreshness.ts';
@@ -155,4 +156,60 @@ export function reviewChargeDatasetManifest(
       reasons.push('snapshot_after_review');
   }
   return answer();
+}
+
+
+/**
+ * Content-integrity check for small, offline, charging-only dataset snapshots.
+ * It verifies bytes against a previously recorded versioned manifest; it does
+ * NOT authenticate the source, approve its licence, establish full UK road
+ * coverage, validate operator charge rules or authorise production use.
+ *
+ * Larger datasets require a separate bounded streaming archive pipeline.
+ * Neither the bytes nor their contents are sent to a network service.
+ */
+export interface ChargeDatasetContentReview {
+  status: 'hashes_match' | 'blocked';
+  reasons: readonly ('invalid_metadata' | 'invalid_source_bytes' |
+    'invalid_output_bytes' | 'source_sha256_mismatch' | 'output_sha256_mismatch')[];
+  requiresIndependentAuthorityAndLicenceVerification: true;
+  productionApproved: false;
+}
+export const MAX_OFFLINE_CHARGING_DATASET_BYTES = 16 * 1024 * 1024;
+
+function validSnapshotBytes(value: unknown): value is Uint8Array {
+  return value instanceof Uint8Array && value.byteLength > 0
+    && value.byteLength <= MAX_OFFLINE_CHARGING_DATASET_BYTES;
+}
+
+/**
+ * The caller must first save immutable copies of the original source bytes
+ * and the derived artefact; a manifest with plausible-looking SHA-256 strings
+ * is not proof those bytes were actually pinned or reproducibly transformed.
+ */
+export function verifyChargeDatasetContent(
+  manifest: unknown,
+  predictedPassageAt: unknown,
+  sourceBytes: unknown,
+  outputBytes: unknown,
+): ChargeDatasetContentReview {
+  const reasons: ChargeDatasetContentReview['reasons'][number][] = [];
+  const metadata = reviewChargeDatasetManifest(manifest, predictedPassageAt);
+  if (metadata.status !== 'metadata_valid') reasons.push('invalid_metadata');
+  if (!validSnapshotBytes(sourceBytes)) reasons.push('invalid_source_bytes');
+  if (!validSnapshotBytes(outputBytes)) reasons.push('invalid_output_bytes');
+  if (reasons.length === 0) {
+    // Input has passed the strict manifest and byte-shape gates above.
+    const pinned = manifest as ChargeDatasetManifestV1;
+    const actualSource = createHash('sha256').update(sourceBytes as Uint8Array).digest('hex');
+    const actualOutput = createHash('sha256').update(outputBytes as Uint8Array).digest('hex');
+    if (actualSource !== pinned.source.snapshotSha256) reasons.push('source_sha256_mismatch');
+    if (actualOutput !== pinned.transform.outputSha256) reasons.push('output_sha256_mismatch');
+  }
+  return {
+    status: reasons.length === 0 ? 'hashes_match' : 'blocked',
+    reasons,
+    requiresIndependentAuthorityAndLicenceVerification: true,
+    productionApproved: false,
+  };
 }
