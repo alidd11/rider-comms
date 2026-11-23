@@ -14,9 +14,19 @@ test('rider menu is grouped, legible and keeps every destination reachable', asy
   await expect(page.locator('#appMenuStatsHeading')).toHaveText('Your rides');
   await expect(page.locator('.app-menu-section-heading > span')).toHaveText('On this device');
   await expect(page.locator('#appMenuStats')).toHaveAttribute('aria-label', 'Ride totals on this device');
-  await expect(page.locator('#appMenu .app-menu-row-label')).toContainText([
-    'Ride', 'Friends', 'Routes', 'Your plan', 'Settings', 'Help & Support',
-  ]);
+  // Rider Social may be present only for server-entitled riders. Check the
+  // six unconditional destinations by their original route keys instead of
+  // assuming a fixed row count in the presence of that optional entry.
+  for (const [selector, label] of [
+    ['[data-menu-nav="ride"]', 'Ride'],
+    ['[data-menu-nav="friends"]', 'Friends'],
+    ['[data-menu-nav="routes"]', 'Routes'],
+    ['[data-menu-sheet="plans"]', 'Your plan'],
+    ['[data-menu-nav="settings"]', 'Settings'],
+    ['[data-menu-sheet="help"]', 'Help & Support'],
+  ]) {
+    await expect(menu.locator(selector).locator('.app-menu-row-label')).toHaveText(label);
+  }
   await expect(page.locator('#appMenuViewProfile')).toBeVisible();
   await assertNoViewportOverflow(page);
 
