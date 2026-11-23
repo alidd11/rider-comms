@@ -225,3 +225,71 @@ These are conservative internal **maximum ages**, not evidence that every operat
 - **National CAZs** require local-authority class, vehicle records and exemptions: not the same charging policy as London ULEZ. The UK government provides a separate checker and guidance. Official: https://www.gov.uk/guidance/driving-in-a-clean-air-zone .
 
 **Outstanding launch blockers:** no legally reviewed complete UK road graph, fully verified motorway toll-zone road matching, operator data licences/refresh pipeline, authenticated official vehicle/permit lookups, signed/traceable review attestations, date-specific exceptions, audited source change alerts, or final PWA/native/Maps Settings integration. These blockers cannot be waived by green CI. No user-facing routing/fee/exemption decision has been enabled.
+
+
+## Free-first Maps ↔ Tolls coordination, UK lane access, and data provenance (23 November 2026)
+
+**Review-only contract feedback, NOT integration approval.** Maps #572 remains the sole owner of lane guidance, bus-lane/road-access decisions, route generation, navigation UI and graph builds. Tolls #566 remains sole owner of charging assessments, source freshness, charging scheme-to-road evidence and tariff/verified exemption logic. Neither PR is merged or released. No Maps code or production route is changed by this research.
+
+### Maps contract v0.1 — Tolls assessment and required clarifications
+
+The proposed Maps contract on PR #572 (https://github.com/alidd11/rider-comms/pull/572#issuecomment-7088711577) is a sound design baseline. Before approving any shared code:
+
+1. **Pin distinct map-build identities.** Preserve the downloaded OSM PBF SHA-256, *separate* Valhalla graph-build/checksum, routing-profile revision, source extract date and map region. Valhalla graph-edge IDs are only valid in that exact build; OSM way IDs alone do not identify a directed carriageway, stacked bridge, lane or toll. A new graph or profile revision invalidates previously reviewed road-to-charge correspondences until independently rematched.
+2. **Provide directed road traversals, not GPS/polygon guesses.** Each candidate must include plan/revision/alternative/leg/traversal occurrence IDs, scoped graph-edge ID, OSM way/node references if available, known bridge/tunnel/layer, forward/backward direction, match method/confidence, road-level coverage and a bounded passage-time interval. Repeated U-turns and tunnel crossings are separate occurrences.
+3. **Use absolute passage instants.** Supply earliest, estimated and latest UTC instants per traversal. Tolls must assess *all* relevant local Europe/London windows, bank holidays and effective periods; an interval straddling a charging boundary is uncertain unless every plausible passage has the same outcome. Do not infer passage time from route departure; reject bare local time.
+4. **Separate access from monetary consequences.** Maps must return independent lane/road access decisions; Tolls must return separate potential charges, compliance/exemption assessments, source and coverage status. A self-declared exemption, legal toll discount or charging-zone compliance is NEVER permission to enter a prohibited bus lane, bus gate, traffic filter or cycle lane. Do not share an overloaded `allowed` or `free` boolean.
+5. **Avoid false certainty.** A charge-free route verdict is forbidden while any section has unknown/missing charge coverage. An OSM `toll=yes` or `motorcycle=yes` tag, bare polygon contact or a Valhalla route preference is not operator evidence. Charge-avoidance suggestions are versioned *advisory* graph-scoped hints, not unconditional route exclusions or guarantees.
+6. **Invalidate and bound.** Every reroute increments plan revision; reuse assessments only on an identical plan, graph build, vehicle and data snapshot. Compare *all* alternatives and waypoints using deterministic bounded work, with daily scheme charge dedup by scheme/zone/UK day and each crossing charge counted per occurrence. Unknown road or stale authority source cannot silently become zero.
+7. **Keep legal/data licences separated.** Map graph provenance is not permission to redistribute third-party charging polygons/TROs; operator data rights and authentic charging policy require separate review. Do not build a combined database without reviewing ODbL/OGL compatibility and notices.
+
+**No shared TypeScript module yet:** The owner has not approved contract v1, so #566 must not implement the proposed RouteCandidatesV1 adapter, Valhalla edge bridge, lane evaluator, cross-PR imports or live charge-aware rerouter.
+
+### Lane arrows versus legal bus-lane permission (Maps-only)
+
+* A generic Valhalla turn-lane arrow shows maneuver geometry; it is not a legal permission for motorcycles to occupy a reserved bus lane.
+* Maps should model a particular directed **lane** separately from its parent road and turn arrow. Proposed Maps-side statuses: `verified_permitted`, `verified_prohibited`, `unknown`. Display a positive motorcycle/bus-lane permission marker **only** for verified affirmative current evidence for the actual vehicle, lane, carriageway direction and *entire* predicted passage-time window. Unknown/contradictory/stale evidence must not show a positive icon.
+* Candidate evidence fields for Maps (not Tolls): exact graph and directed road/lane identity, traffic authority, relevant TRO and amendments, applicable road sign, permitted solo-motorcycle/moped category, official source URL, licence/attribution and review timestamp, effective dates, lane-specific/seasonal hours, UK bank-holiday exceptions, closure/suspension notices, direction and match confidence. A turn-only geometry response or generic OSM tag is not a substitute for these.
+* Distinguish **with-flow bus lane**, **contra-flow bus lane**, **bus gate**, **bus-only road**, **cycle lane**, and **other traffic filter**. They can have different rules and physical safety requirements. Do not silently infer that a moped, scooter, e-scooter or motorcycle with passenger gets identical access: actual signed/TRO class matters.
+* The Department for Transport confirms that traffic regulation orders determine permitted vehicle types and operating hours, and that the motorcycle traffic sign represents a *solo* motorcycle; the DfT advisory definition includes mopeds but excludes e-scooters. UK Highway Code Rule 141 states lane use during operating times requires permission on accompanying signs. England rules are not automatic evidence for devolved authorities or all UK lanes.
+
+Source anchors:
+- Highway Code Rule 141: https://www.gov.uk/guidance/the-highway-code/general-rules-techniques-and-advice-for-all-drivers-and-riders-103-to-158
+- DfT Motorcyclists using bus lanes (TAL 1/24), local TROs, vehicle definition and signs: https://www.gov.uk/government/publications/motorcyclists-using-bus-lanes-tal-124/motorcyclists-using-bus-lanes-tal-124
+- London TfL/borough differences: https://www.london.gov.uk/who-we-are/what-london-assembly-does/questions-mayor/find-an-answer/motorcycles-bus-lanes-1-0
+- OSM lane and conditional access tags (candidate evidence only): https://wiki.openstreetmap.org/wiki/Bus_lanes and https://wiki.openstreetmap.org/wiki/Conditional_restrictions
+
+### Legally reusable free-first sources and limitations
+
+| Source | Free-development role | Why it is not a verified bus-lane or toll decision |
+| --- | --- | --- |
+| Geofabrik regional/UK OSM PBF | Download pinned extract for Maps-owned local Valhalla graph, with separate snapshot SHA-256 and ODbL notices | Community road/toll/access tags can be missing, outdated or contradictory; no statutory licence for riding in a lane |
+| OS Open Roads | OGL Great Britain high-level road-network cross-check | Lacks authoritative lane-by-lane TRO/sign coverage; **not Northern Ireland** |
+| DfT Digital TRO (D-TRO) | OGL v3 regulation data; useful candidate UK road restrictions, licence reviewed separately | API requires registration/credentials; completeness, freshness, region, real-world sign state and edge correspondence must be assessed |
+| Local council / TfL official orders and operator tariff pages | Source of scheme-specific legal restrictions, charges, permitted vehicles, amended hours | Often different publication formats/terms; not proof of reusable licensed road geometry or real-time availability |
+| OSM bus-lane/conditional access tags | Candidate mapping data useful for targeted manual authority checks | ODbL and variable coverage/quality; not enough for an affirmative motorcycle lane icon |
+
+Reference links:
+- Geofabrik UK extract: https://download.geofabrik.de/europe/united-kingdom/index.html
+- Geofabrik download/source rights: https://www.geofabrik.de/en/data/download.html
+- OpenStreetMap ODbL legal FAQ and attribution: https://osmfoundation.org/wiki/Licence_and_Legal_FAQ and https://osmfoundation.org/wiki/Licence/Attribution_Guidelines
+- OS Open Roads: https://www.ordnancesurvey.co.uk/products/os-open-roads
+- D-TRO access: https://www.gov.uk/guidance/digital-traffic-regulation-orders-d-tro-service
+- D-TRO licence and registration: https://d-tro.dft.gov.uk/terms_and_conditions and https://d-tro.dft.gov.uk/
+- Valhalla route / map-matching APIs: https://valhalla.github.io/valhalla/api/route/api-reference/ and https://valhalla.github.io/valhalla/api/map-matching/api-reference/
+
+### Tolls-only metadata validator — versioned, synthetic, offline
+
+The new backend module `backend/src/chargeDatasetManifest.ts` and synthetic test `backend/tests/chargeDatasetManifest.test.ts` define an independent *charging-only*, schema-versioned manifest. A dataset snapshot records publisher/version, HTTPS source, retrieval date, original-byte SHA-256, licence URL, attribution, human rights-review reference, transform tool/version, output SHA-256, charge evidence kind (rule, tariff, geometry, entitlement) and authority-reviewed dates.
+
+The validator rejects unknown contract keys, lane-permission content, broken checksums, malformed timestamps, inconsistent chronology, missing rights-review metadata and evidence that is out of date at the predicted passage instant. Existing conservative source policies apply: **30 days** for charging rules/geometry and **7 days** for tariffs/entitlements. London daylight-saving and reviewed-through dates are checked; unknown evidence fails closed.
+
+**Critical distinction:** checking a SHA-256 *string* is not hashing actual downloaded bytes; a source URL and a human review-reference field do not grant reuse rights, verify a TRO, prove geographic coverage or confer legal permission. The manifest result always reports `productionApproved: false` and `requiresIndependentAuthorityAndLicenceVerification: true`. Actual binary download/archive/hash verification, signature/attestation, operator legal review and graph matching remain separate release gates. No paid API, downloaded official data, hosted service, route change or production feature flag is added.
+
+### Remaining £0-development / production blockers
+
+Development target is **£0 additional infrastructure spending**. Use local static synthetic graphs, locally pinned extracts when rights are verified, local transformation scripts and deterministic test fixtures. Do not provision paid compute, card-backed trials, subscriptions, paid routes/search or live third-party APIs without owner authorisation.
+
+Features not defensibly deliverable from currently demonstrated *free, licensed, complete, timely* data include: guaranteed UK-wide legally permitted bus-lane guidance, definitive live/temporary lane closures, verified nationwide motorcycle exemption eligibility and number-plate compliance checks, guaranteed charge-free route alternatives, current operator-level tariff coverage for every bridge/tunnel/authority, and reliable real-time traffic. Some areas may become feasible with authority data, manual review or future infrastructure; **do not claim production readiness or £0 long-term hosting** in the absence of evidence.
+
+Both PRs remain draft, unmerged and unreleased; classic navigation and existing Avoid tolls are preserved.
