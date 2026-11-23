@@ -125,7 +125,7 @@ export interface ApiServerOptions {
   readinessCheck?: () => Promise<void>;
   pushStore?: PushStore;
   /** Tests pass a recorder; by default notifications are really sent. */
-  pushNotifier?: Pick<PushNotifier, 'notify'>;
+  pushNotifier?: Pick<PushNotifier, 'notify'> & Partial<Pick<PushNotifier, 'broadcast'>>;
 }
 
 /** Everything createApp can be given. Stores default to their Postgres-backed

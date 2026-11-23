@@ -13,6 +13,7 @@ import type { StaffPermission } from '../staffRoles.ts';
 import { NOT_HANDLED, refuseWithoutRecentReauth, refuseWithoutStaffCode } from './context.ts';
 import { staffMfa } from '../staffMfa.ts';
 import { getStaffAlertPrefs, setStaffAlertPrefs } from '../staffAlerts.ts';
+import { BROADCAST_COOLDOWN_MS, broadcastStore, parseBroadcast } from '../staffBroadcasts.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
 import { handlePartnerRoutes } from './adminPartners.ts';
 import { parseOperationsWindow, socialSafetyActivityReport } from '../operationsReports.ts';
@@ -69,6 +70,41 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   if (req.method === 'GET' && url.pathname === '/admin/me') {
     return sendJson(res, 200, { riderId: actorId, role, permissions: permissionsFor(role) });
   }
+  // Push notifications to riders (admins only). A test goes to the sender's
+  // own devices; a send to everyone needs a note, a recent password check and
+  // waits out a cooldown, and is recorded in the audit log.
+  if (s[1] === 'broadcasts' && s.length === 2) {
+    if (lacks('send_notifications')) return refuse('send_notifications');
+    if (req.method === 'GET') {
+      const [audience, items] = await Promise.all([broadcastStore.audience(), broadcastStore.list()]);
+      return sendJson(res, 200, { audience, items, cooldownMs: BROADCAST_COOLDOWN_MS });
+    }
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'method_not_allowed' });
+    const body = await readJsonBody(req);
+    const input = parseBroadcast(body);
+    if ('error' in input) return sendJson(res, 400, input);
+    const test = body.test === true;
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!test && (!note || note.length > MAX_MODERATION_NOTE_LENGTH)) {
+      return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    if (!test && (await refuseWithoutRecentReauth(ctx))) return;
+    if (!test) {
+      const last = await broadcastStore.lastFullSendAt();
+      if (last !== null && Date.now() - last < BROADCAST_COOLDOWN_MS) {
+        return sendJson(res, 429, { error: 'broadcast_cooldown', retryAfterMs: BROADCAST_COOLDOWN_MS - (Date.now() - last) });
+      }
+    }
+    const broadcaster = ctx.pushNotifier.broadcast;
+    if (!broadcaster) return sendJson(res, 503, { error: 'push_unavailable' });
+    const record = await broadcastStore.start(input, actorId, test ? 'Test send' : note, test);
+    if (!test) await moderationStore.recordPushBroadcast(actorId, note);
+    // Sending can take a while for many devices; the page polls the list.
+    void broadcaster.call(ctx.pushNotifier, { ...input, tag: 'broadcast:' + record.id }, test ? actorId : undefined)
+      .then((result) => broadcastStore.finish(record.id, result), () => broadcastStore.finish(record.id, null));
+    return sendJson(res, 202, { broadcast: record });
+  }
+
   // Each staff member's own email alert choices; no other staff member can change them.
   if (url.pathname === '/admin/alerts') {
     if (req.method === 'GET') return sendJson(res, 200, await getStaffAlertPrefs(actorId));
