@@ -143,9 +143,10 @@
       }),
       account: () => ({
         title: 'Account and data',
-        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This can’t be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
+        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This can’t be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button secondary wide" id="exportAccountBtn">Download my data</button><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
         ready: () => {
           $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
+          $('#exportAccountBtn').addEventListener('click', () => void exportCurrentAccount());
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
         },
       }),
@@ -307,11 +308,13 @@
         body: settingsRowsMarkup([
           settingsAction('logoutBtn', 'Sign out'),
           settingsAction('resetSettingsBtn', 'Reset settings'),
+          settingsAction('exportAccountBtn', 'Download my data'),
           settingsAction('deleteAccountBtn', 'Delete account', true),
-        ], 'Deleting your account permanently removes it and its data straight away.'),
+        ], 'Your download includes private information. Store it securely. Deleting your account permanently removes it and its data.'),
         ready: () => {
           $('#logoutBtn').addEventListener('click', () => void signOut());
           $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
+          $('#exportAccountBtn').addEventListener('click', () => void exportCurrentAccount());
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
         },
       }),
@@ -508,7 +511,7 @@
   }
 
   // Masked password confirmation is never saved in browser storage or app state.
-  function confirmAccountPassword() {
+  function confirmAccountPassword(action = 'delete') {
     const tokenAtOpen = session?.token;
     if (!tokenAtOpen || document.getElementById('accountStepupDialog')) return Promise.resolve(false);
     return new Promise((resolve) => {
@@ -517,7 +520,9 @@
       dialog.className = 'account-stepup-dialog';
       dialog.setAttribute('aria-labelledby', 'accountStepupTitle');
       dialog.innerHTML = '<form class="account-stepup-form"><h2 id="accountStepupTitle">Confirm your password</h2>'
-        + '<p>Enter your account password before permanently deleting your account.</p>'
+        + (action === 'export'
+          ? '<p>Enter your account password before downloading a copy of your private data.</p>'
+          : '<p>Enter your account password before permanently deleting your account.</p>')
         + '<label for="accountStepupPassword">Account password</label>'
         + '<input id="accountStepupPassword" type="password" autocomplete="current-password" maxlength="128" required>'
         + '<p id="accountStepupError" role="alert" hidden></p>'
@@ -586,6 +591,37 @@
       dialog.showModal();
       input.focus({ preventScroll: true });
     });
+  }
+
+  async function exportCurrentAccount() {
+    if (!(await confirmAccountPassword('export'))) return;
+    const button = $('#exportAccountBtn');
+    if (button) button.disabled = true;
+    try {
+      const tokenAtRequest = session?.token;
+      const data = await apiFetch('GET', '/auth/export');
+      if (!tokenAtRequest || session?.token !== tokenAtRequest) throw new Error('session_changed');
+      const blob = new Blob([JSON.stringify(data, null, 2) + '\n'], { type: 'application/json' });
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = `rider-comms-data-${new Date().toISOString().slice(0, 10)}.json`;
+        link.hidden = true;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        showToast('Download requested. Keep the account-data file somewhere private.');
+      } finally {
+        // Delay revocation long enough for WebKit and installed-PWA downloads
+        // to consume the temporary URL. Nothing is persisted in app storage.
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch {
+      showToast('Couldn’t download your account data. Try again.');
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   async function deleteCurrentAccount() {

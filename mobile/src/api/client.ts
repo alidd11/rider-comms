@@ -98,6 +98,7 @@ export class RiderCommsClient {
   getSessions(): Promise<{ sessions: AccountSessionSummary[] }> { return this.request('GET', '/auth/sessions'); }
   revokeSession(id: string): Promise<void> { return this.request('DELETE', `/auth/sessions/${encodeURIComponent(id)}`); }
   reauthenticate(password: string): Promise<{ reauthenticated: true; validForMs: number }> { return this.request('POST', '/auth/reauthenticate', { password }); }
+  exportAccountData(): Promise<Record<string, unknown>> { return this.request('GET', '/auth/export'); }
   deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
   getBilling(): Promise<BillingStatus> { return this.request('GET', '/billing'); }
   /** The store can be slow to answer the server, so this waits longer. */

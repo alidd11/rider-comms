@@ -282,6 +282,12 @@ export async function openTab(page, screen) {
     // dispatch the click and wait for the map itself.
     await back.dispatchEvent('click');
     await expect(page.locator('.screen[data-screen="map"]')).toHaveClass(/active/);
+    // The map screen slides in (.screen's 160 ms screen-in): measuring before
+    // it ends reads its contents a few pixels low, as the WebKit geometry
+    // check did on #570 and #588.
+    await page.locator('.screen[data-screen="map"]').evaluate((screen) => Promise.all(
+      screen.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+    ));
   }
   if (screen === 'map') return;
   await openFromMenu(page, screen);

@@ -1979,3 +1979,584 @@ html { scroll-padding-top: 78px; }
 /* Internal follow-up highlighting uses a scoped status, never an SLA claim. */
 .case-item[data-follow-up="overdue"] { box-shadow: inset 3px 0 0 var(--danger); }
 .case-detail-overdue-target { color: var(--danger); font-weight: 700; }
+
+
+/* ==========================================================================
+   Premium operations console · Staff Hub design system (2026-11-23)
+   One visual rhythm across Overview, Insights, Rider records, Trust & Safety,
+   Company Areas, Case Desk, Staff and System. No data/auth behaviour changes.
+   Generated shared Rider Comms brand colours above remain untouched.
+   ========================================================================== */
+:root {
+  --admin-console-radius: 10px;
+  --admin-console-rail: #10212b;
+  --admin-console-rail-border: #2d4654;
+  --admin-console-rail-text: #edf6f8;
+  --admin-console-rail-muted: #afc4cf;
+  --admin-console-rail-hover: #223947;
+  --admin-console-rail-active: #294c5c;
+  --admin-console-rail-accent: #88d9ec;
+  --admin-console-content-width: 1330px;
+}
+@media not (prefers-color-scheme: dark) {
+  :root {
+    --bg: #f4f6f8;
+    --surface: #fff;
+    --surface-2: #eef2f5;
+    --border: #dfe6eb;
+    --border-strong: #c4cfd7;
+    --shadow-sm: 0 1px 2px rgba(16, 32, 44, .028);
+  }
+}
+/* The rail remains a distinct ink-coloured navigation landmark in both
+   themes. Scope its tokens, never change the brand palette application-wide. */
+.sidebar {
+  --fg: var(--admin-console-rail-text);
+  --fg-2: #ccdde5;
+  --muted-fg: var(--admin-console-rail-muted);
+  --surface: #182d38;
+  --surface-2: var(--admin-console-rail-hover);
+  --border: var(--admin-console-rail-border);
+  --border-strong: #42606e;
+  --accent: var(--admin-console-rail-accent);
+  --accent-soft: var(--admin-console-rail-active);
+  --sidebar-bg: var(--admin-console-rail);
+  color: var(--admin-console-rail-text);
+  background: var(--admin-console-rail);
+  border-color: var(--admin-console-rail-border);
+}
+.sidebar .brand-mark {
+  background: #217b9a;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.2), 0 3px 9px rgba(0,0,0,.17);
+}
+.sidebar .brand-name { color: var(--admin-console-rail-text); font-weight: 730; }
+.sidebar .brand-tag {
+  color: var(--admin-console-rail-muted);
+  background: #1c3440;
+  border-color: #36505e;
+}
+.sidebar .nav-group-label { color: #91aebd; letter-spacing: .12em; }
+.sidebar .nav-item {
+  color: #ccdae1;
+  border-bottom-color: transparent;
+  border-radius: 8px;
+  font-weight: 540;
+}
+.sidebar .nav-item:hover { color: #fff; background: var(--admin-console-rail-hover); }
+.sidebar .nav-item[aria-current="page"],
+.sidebar-panel .nav-item[aria-current="page"] {
+  color: #fff;
+  background: var(--admin-console-rail-active);
+  font-weight: 690;
+  border-bottom-color: transparent;
+}
+.sidebar .nav-item[aria-current="page"] svg { color: var(--admin-console-rail-accent); }
+.sidebar .nav-item[aria-current="page"]::before {
+  background: var(--admin-console-rail-accent);
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 3px;
+}
+.sidebar .nav-count {
+  background: #2e4856;
+  color: #eff9fc;
+  border-color: #41606e;
+}
+.sidebar .sidebar-search-button {
+  color: #c8d9e1;
+  background: #1a303c;
+  border-color: #385362;
+  box-shadow: none;
+}
+.sidebar .sidebar-search-button:hover { color: #fff; background: #24404e; }
+.sidebar .sidebar-search-button kbd { color: #c1d3db; background: #294350; border-color: #41606e; }
+.sidebar .sidebar-footer { border-top-color: #304955; color: #bed1db; }
+.sidebar .staff-signout {
+  background: #223744;
+  color: #e1edf2;
+  border-color: #3a5462;
+}
+.sidebar .staff-signout:hover { color: #fff; background: #2b4756; }
+.sidebar .staff-footer-install-link { color: #95ddeb; }
+.sidebar .drawer-heading { border-bottom-color: #35505d; }
+.sidebar .drawer-eyebrow { color: var(--admin-console-rail-accent); }
+.sidebar .drawer-title { color: #fff; }
+.sidebar :is(.nav-item, .sidebar-search-button, .staff-signout, .icon-button):focus-visible {
+  outline: 2px solid #a4e7f4;
+  outline-offset: 2px;
+}
+@media (min-width: 900px) {
+  :root { --sidebar: 244px; }
+  .sidebar { border-right: 1px solid var(--admin-console-rail-border); }
+  .sidebar .brand { min-height: 68px; padding-inline: 19px; }
+  .sidebar .nav { padding-inline: 12px; }
+  .sidebar .nav-item { height: 38px; padding-inline: 13px; }
+  .sidebar .nav-group + .nav-group { margin-top: 16px; }
+  .sidebar .nav-group-label { padding-top: 13px; }
+  .sidebar .sidebar-search-slot { padding-inline: 13px; padding-bottom: 11px; }
+  .sidebar .sidebar-footer { padding: 16px 18px 18px; }
+}
+.main { background: var(--bg); }
+.workspace-toolbar {
+  min-height: 60px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.workspace-crumb-root { color: var(--muted-fg); }
+.workspace-crumb-current { font-weight: 720; }
+.workspace-command { background: var(--surface); min-height: 34px; border-radius: 8px; }
+.page {
+  max-width: var(--admin-console-content-width);
+  padding-top: 36px;
+}
+.page-header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  padding: 0 0 22px;
+  margin-bottom: 25px;
+  gap: 12px 22px;
+}
+.page-heading { display: grid; align-items: start; gap: 8px; }
+.page-header .page-title {
+  justify-self: start; /* Keep keyboard-focus underline under the title text, not across the whole page. */
+  font-size: clamp(27px, 2.6vw, 34px);
+  line-height: 1.12;
+  font-weight: 770;
+  letter-spacing: -.05em;
+  text-wrap: balance;
+}
+.page-header .page-title:focus { outline: none; }
+.page-header .page-title:focus-visible {
+  outline: none;
+  box-shadow: inset 0 -2px 0 var(--accent);
+  border-radius: 0;
+}
+.page-context { font-size: 12px; }
+.page-context > summary {
+  display: list-item;
+  padding: 0;
+  color: var(--muted-fg);
+  font-weight: 560;
+  line-height: 19px;
+  width: fit-content;
+}
+.page-context[open] { max-width: min(75ch, 100%); }
+.page-context .page-subtitle { padding-top: 5px; color: var(--fg-2); }
+.page-header-actions { gap: 9px; align-self: center; }
+.overview-snapshot {
+  max-width: 100%;
+  margin: 0 0 26px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+.section-title {
+  text-transform: none;
+  letter-spacing: -.024em;
+  font-size: 16px;
+  line-height: 22px;
+  color: var(--fg);
+  font-weight: 760;
+  margin-top: 31px;
+  margin-bottom: 12px;
+}
+.card, .operation-card, .company-unit, .overview-highlight, .case-list,
+.case-workload, .workspace-disclosure, .inbox-items, .report, .staff-update-banner {
+  border-radius: var(--admin-console-radius);
+  box-shadow: none;
+}
+.card:hover { border-color: var(--border); }
+.card-title { font-size: 14px; font-weight: 720; }
+.button { min-height: 36px; height: auto; font-weight: 620; border-radius: 8px; }
+.button:focus-visible, .input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.button-primary { background: var(--fg); color: var(--bg); }
+.button-primary:hover { background: color-mix(in srgb, var(--fg) 86%, var(--surface)); }
+.reporting-range, .case-filter-select, .input {
+  box-shadow: none;
+  border-color: var(--border-strong);
+  border-radius: 8px;
+}
+.reporting-range { min-height: 38px; }
+.reporting-range-caption { font-size: 11px; font-weight: 670; }
+.reporting-range-select { font-size: 12px; font-weight: 690; }
+.segmented { box-shadow: none; border-color: var(--border); }
+.table th {
+  background: var(--surface-2);
+  font-size: 11px;
+  color: var(--fg-2);
+  letter-spacing: .025em;
+}
+.table tbody tr:hover, .list-row:hover { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
+.workspace-disclosure > summary { background: transparent; }
+.workspace-disclosure > summary:hover { color: var(--accent); }
+
+/* Overview: one action-oriented priority, followed by an intentionally quiet
+   utility panel. Avoid repeating giant single-metric marketing cards. */
+.operations-summary { margin-bottom: 29px; }
+.operations-summary .section-title { margin: 0 0 4px; }
+.operations-lead { margin: 0 0 14px; font-size: 12px; }
+.operations-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+}
+.operation-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  gap: 0;
+  padding: 18px 19px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.operation-label { font-weight: 660; font-size: 12px; color: var(--fg-2); }
+.operation-value { margin: 12px 0 7px; font-size: 30px; line-height: 1.05; letter-spacing: -.045em; }
+.operation-description { min-height: 0; flex: 1 1 auto; font-size: 11.5px; line-height: 1.55; margin: 0 0 13px; }
+.operation-card .button { align-self: flex-start; margin-top: auto; }
+.operation-card[data-attention="true"] {
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+.operation-card[data-attention="true"] .operation-value { color: var(--fg); }
+.overview-highlights { margin-top: 25px; }
+.overview-highlights-heading { margin-bottom: 12px; }
+.overview-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--admin-console-radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.overview-highlight {
+  border: 0;
+  border-radius: 0;
+  min-width: 0;
+  gap: 7px;
+  padding: 20px 22px;
+  background: transparent;
+}
+.overview-highlight + .overview-highlight { border-left: 1px solid var(--border); }
+.overview-highlight-label { color: var(--fg-2); font-size: 12px; font-weight: 630; }
+.overview-highlight-value { font-size: clamp(27px,2.6vw,34px); font-weight: 760; letter-spacing: -.047em; }
+.overview-highlight-description { font-size: 11.5px; line-height: 1.5; }
+
+/* Insights: metrics remain real, but the figures and charts form one visual
+   scale rather than eight heavyweight cards competing with the trends. */
+.kpis { gap: 10px; }
+.kpi { padding: 17px 18px 0; min-height: 137px; }
+.kpi-label { color: var(--fg-2); font-weight: 625; font-size: 12px; }
+.kpi-value-row { margin-top: 8px; }
+.kpi-value { font-size: clamp(25px,2.5vw,31px); font-weight: 765; letter-spacing: -.05em; }
+.kpi-foot { font-size: 11px; line-height: 17px; }
+.chart-card, .funnel, .panels > .card { border-color: var(--border); }
+.chart-total { letter-spacing: -.047em; }
+.company-section-heading { margin: 29px 0 15px; }
+.company-section-heading .section-title { margin: 0; }
+
+/* Company Areas is a browsable capability directory, not eight promotional
+   product cards. Each row follows the same header / scope / action rhythm. */
+.company-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--admin-console-radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.company-unit {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 18px;
+  align-items: start;
+  padding: 20px 22px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transition: background-color .15s ease;
+}
+.company-unit:nth-child(odd) { border-right: 1px solid var(--border); }
+.company-unit:nth-child(n+3) { border-top: 1px solid var(--border); }
+.company-unit:hover { border-color: var(--border); background: color-mix(in srgb, var(--accent) 3%, var(--surface)); }
+.company-unit-header { grid-column: 1 / -1; min-width: 0; }
+.company-unit-title { font-size: 14px; font-weight: 730; }
+.company-unit-description { grid-column: 1; max-width: 58ch; margin: 9px 0 7px; line-height: 1.5; font-size: 12px; }
+.company-unit-fact { grid-column: 1; margin-top: 5px; font-size: 11.5px; line-height: 1.5; color: var(--fg-2); font-weight: 625; }
+.company-unit .button {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  align-self: end;
+  margin-top: 10px;
+  min-height: 36px;
+  font-size: 11.5px;
+}
+.company-unit[data-unavailable="true"] { background: color-mix(in srgb, var(--bg) 35%, var(--surface)); }
+.company-unit-status { border-radius: 6px; }
+.company-methodology { margin-top: 14px; max-width: 110ch; }
+
+/* Case Desk: work first. Compact workload strip, clearly grouped filters,
+   scannable record rows and visible keyboard focus remain intact. */
+.case-workload {
+  margin-bottom: 16px;
+  background: var(--border); /* Restore one-pixel cell separators for scanability. */
+  border-color: var(--border);
+}
+.case-workload-metric { padding: 15px 18px; }
+.case-workload-label { font-size: 11px; font-weight: 650; color: var(--fg-2); }
+.case-workload-value { font-size: 29px; margin: 7px 0 5px; font-weight: 760; }
+.case-workload-description { font-size: 11px; line-height: 1.45; }
+.case-activity-report { margin-bottom: 14px; background: transparent; }
+.case-filter-toolbar {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--admin-console-radius);
+  background: var(--surface);
+  margin: 0 0 14px;
+  gap: 10px;
+}
+.case-filter-caption { font-size: 11px; color: var(--muted-fg); }
+.case-filter-select { min-height: 39px; background: var(--surface); }
+.case-list { border-color: var(--border); }
+.case-item { padding: 13px 18px; gap: 15px; }
+.case-item:focus-within { background: color-mix(in srgb,var(--accent) 5%,var(--surface)); }
+.case-item-label { margin-bottom: 3px; font-size: 10px; }
+.case-item-title { font-size: 14px; line-height: 20px; font-weight: 720; }
+.case-item-metadata { margin-top: 6px; gap: 4px 12px; font-size: 11px; }
+.case-item-badges { max-width: 45%; justify-content: flex-end; }
+.case-chip { border-radius: 6px; font-size: 11px; }
+.case-page-note { max-width: 105ch; line-height: 1.55; }
+.case-description-card, .case-history, .case-controls { padding: 20px; }
+
+/* The shared typography, panel and button system also applies to people,
+   moderation, audit, access and diagnostics without changing permissions. */
+.inbox-item.card { padding: 15px 18px; }
+.inbox-item-title { font-size: 14px; font-weight: 710; }
+.inbox-items { border-color: var(--border); }
+.status-row { border-bottom-color: var(--border); }
+.staff-login-card { box-shadow: none; }
+.staff-login-title { font-weight: 770; letter-spacing: -.055em; }
+.staff-login-kicker { color: var(--accent); }
+
+@media (max-width: 1099px) {
+  .operations-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .company-unit { grid-template-columns: 1fr; }
+  .company-unit-header, .company-unit-description, .company-unit-fact,
+  .company-unit .button { grid-column: 1; }
+  .company-unit .button { grid-row: auto; justify-self: start; margin-top: 12px; }
+}
+@media (max-width: 899px) {
+  .sidebar { background: var(--admin-console-rail); border-bottom-color: var(--admin-console-rail-border); }
+  .sidebar-panel {
+    background: var(--admin-console-rail);
+    border-right-color: var(--admin-console-rail-border);
+  }
+  .sidebar-panel .nav-item { color: #cfdee5; }
+  .sidebar-panel .nav-item[aria-current="page"] { color: #fff; background: var(--admin-console-rail-active); }
+  .sidebar-panel .drawer-close { background: #25404d; color: #fff; border-color: #406171; }
+  .sidebar-panel .nav { padding-bottom: max(25px, env(safe-area-inset-bottom)); }
+  .brand-name, .brand-section { color: #e9f4f8; }
+  .brand-section:not(:empty)::before { color: #68818e; }
+  .brand-actions .icon-button, .menu-toggle { color: #e5f2f6; }
+  .brand-actions .icon-button:hover, .menu-toggle:hover { background: #2b4654; color: #fff; }
+  .page { padding-top: 25px; }
+  .page-header { padding-bottom: 13px; margin-bottom: 14px; }
+  .page-heading { gap: 4px; }
+  .page-header-actions { align-self: start; }
+  .page-header .page-title { font-size: 27px; }
+  .overview-snapshot { margin-bottom: 14px; }
+}
+@media (max-width: 699px) {
+  .page { padding-inline: 16px; }
+  .operations-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .operation-card { min-height: 0; padding: 15px; }
+  .operation-card:first-child, .operation-card:last-child { grid-column: 1 / -1; }
+  .operation-card:first-child { display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: 12px; }
+  .operation-card:first-child .operation-label, .operation-card:first-child .operation-description { grid-column: 1; }
+  .operation-card:first-child .operation-value { grid-column: 2; grid-row: 1 / span 2; margin: 0; align-self: start; font-size: 31px; }
+  .operation-card:first-child .button { grid-column: 1 / -1; margin-top: 8px; }
+  .operation-card .operation-value { font-size: 26px; }
+  .operation-card .operation-description { font-size: 11px; }
+  .operation-card .button { max-width: 100%; white-space: normal; height: auto; min-height: 40px; }
+  .overview-highlight-grid { grid-template-columns: 1fr; }
+  .overview-highlight { display: grid; grid-template-columns: minmax(0,1fr) auto; padding: 14px 16px; gap: 4px 10px; align-items: center; }
+  .overview-highlight + .overview-highlight { border-left: 0; border-top: 1px solid var(--border); }
+  .overview-highlight-value { grid-column: 2; grid-row: 1 / span 2; font-size: 23px; }
+  .overview-highlight-description { grid-column: 1; }
+  .company-grid { grid-template-columns: minmax(0,1fr); }
+  .company-unit { grid-template-columns: minmax(0,1fr); padding: 16px 18px; border-right: 0 !important; }
+  .company-unit + .company-unit { border-top: 1px solid var(--border); }
+  .company-unit .button { grid-column: 1; grid-row: auto; margin-top: 12px; }
+  .case-workload { grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 14px; }
+  .case-workload-metric { padding: 13px 14px; }
+  .case-workload-value { font-size: 26px; }
+  .case-filter-toolbar { padding: 10px; }
+  .case-item { display: flex; flex-wrap: wrap; padding: 13px 14px; gap: 8px 10px; }
+  .case-item-main { flex: 1 1 100%; }
+  .case-item-badges { max-width: 100%; justify-content: flex-start; margin-top: 0; }
+  .case-item-metadata { margin-top: 5px; }
+  .kpis { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+  .kpi { min-height: 125px; padding: 13px 14px 0; }
+  .kpi-value { font-size: 25px; line-height: 30px; }
+  .page-context > summary { font-size: 11.5px; }
+}
+@media (max-width: 359px) {
+  .operations-grid, .kpis { grid-template-columns: 1fr; }
+  .operation-card:first-child, .operation-card:last-child { grid-column: auto; }
+  .operation-card:first-child { display: flex; }
+  .operation-card:first-child .operation-value { margin: 8px 0; }
+  .overview-highlight { padding: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .company-unit, .sidebar .nav-item { transition: none; }
+}
+
+/* Staff Hub polish pass (screenshot audit, 23 Nov 2026). */
+/* The heading takes focus after navigation for screen readers; it isn't a
+   control, so it needs no visible ring (it read as a stray underline). */
+.page-header .page-title:focus-visible { box-shadow: none; }
+/* .input reserves room for a search icon; fields without one sat indented. */
+select.input, .case-field .input { padding-left: 12px; }
+/* One search entry point per layout: the toolbar's on wide screens, the
+   sidebar's inside the phone drawer. */
+@media (min-width: 900px) { .sidebar .sidebar-search-slot { display: none; } }
+.brand-name { white-space: nowrap; }
+/* Rider quick actions: their own column on wide screens, their own line on
+   phones, so badges and names keep their width. */
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.table .actions-col { width: 1%; white-space: nowrap; text-align: right; }
+.table .actions-col .row-actions { justify-content: flex-end; flex-wrap: nowrap; }
+.list-row:has(> .row-actions) { flex-wrap: wrap; }
+.list-row > .row-actions { flex-basis: 100%; padding-left: 44px; }
+.case-empty-history { margin: 0; padding: 14px 0 2px; color: var(--muted-fg); font-size: 13px; }
+.list-row:has(> .row-actions) > :first-child { flex: 1 1 0; min-width: 0; }
+/* Short laptop screens: the section list scrolls so the footer's sign-out
+   stays reachable instead of being cut off below the viewport. */
+@media (min-width: 900px) { .sidebar .nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; } }
+
+/* Sidebar top: the brand row lines up with the 60px workspace toolbar and
+   shares its divider, so the rail and page read as one frame. */
+@media (min-width: 900px) {
+  .sidebar { padding-top: 0; }
+  .sidebar .brand { height: 60px; min-height: 60px; flex: none; padding: 0 18px; border-bottom: 1px solid #263f4b; margin-bottom: 8px; }
+  .sidebar .brand-tag { margin-left: auto; }
+}
+/* Sidebar bottom: one account row (avatar, name, handle and role) with
+   compact icon actions, instead of a sentence, a link and a full button. */
+.staff-footer-account { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; flex-wrap: nowrap; }
+.staff-footer-avatar {
+  flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; font-size: 11px; font-weight: 720;
+}
+.staff-footer-who { display: grid; gap: 2px; min-width: 0; }
+.staff-footer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; }
+.staff-footer-meta { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11.5px; white-space: nowrap; }
+.staff-footer-meta .footer-role { margin-left: 0; }
+.staff-footer-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.sidebar-footer:has(.staff-footer-actions) { display: flex; align-items: center; gap: 8px; }
+.staff-footer-icon-action {
+  display: inline-grid; place-items: center; width: 34px; height: 34px; min-height: 34px; margin: 0; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; text-decoration: none;
+}
+.staff-footer-icon-action svg { width: 16px; height: 16px; }
+.sidebar .staff-footer-icon-action { background: transparent; border: 0; color: #bed1db; }
+.sidebar .staff-footer-icon-action:hover { background: #24404e; color: #fff; text-decoration: none; }
+.sidebar .staff-footer-avatar { background: #24404e; color: #e1edf2; }
+.sidebar .staff-footer-name { color: #f1f7fa; }
+.staff-footer-actions .staff-install-button { min-height: 34px; padding: 0 10px; font-size: 12px; }
+/* Phones: the drawer footer keeps 44px touch targets. */
+@media (max-width: 899px) { .staff-footer-icon-action { width: 44px; height: 44px; } }
+/* Density: a compact page frame so more of each queue fits above the fold.
+   Section rhythm is 24px; headers no longer spend a full screen line on
+   the scope disclosure, which now sits beside the title. */
+.page { padding-top: 24px; }
+.page-header { padding-bottom: 14px; margin-bottom: 18px; }
+.page-header .page-title { font-size: clamp(26px, 2.2vw, 28px); }
+@media (min-width: 900px) {
+  .page-heading { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; row-gap: 4px; }
+  .page-heading .page-context[open] { flex-basis: 100%; }
+}
+.section-title { margin-top: 24px; margin-bottom: 10px; }
+.operations-summary > .section-title:first-child { margin-top: 0; }
+.operation-card { padding: 14px 16px; }
+.operation-value { margin: 8px 0 4px; font-size: 26px; }
+.operation-description { margin-bottom: 10px; }
+.kpi { min-height: 118px; padding-top: 14px; }
+.chart-card, .panels > .card { padding-top: 14px; }
+.case-workload, .case-list-item, .list-row { scroll-margin-top: 76px; }
+/* Five work cards on wide screens; they wrap cleanly to fewer columns. */
+@media (min-width: 1100px) {
+  .operations-grid[data-count="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .operations-grid[data-count="6"], .operations-grid[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .operations-grid[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Partners: application review. Reuses the case desk's list, workload and
+   detail layout; adds the checklist and a definition grid. */
+.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 4px 0 14px; }
+.detail-field { min-width: 0; }
+.detail-field dt { color: var(--muted-fg); font-size: 11.5px; font-weight: 620; }
+.detail-field dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 14px; }
+@media (max-width: 620px) { .detail-grid { grid-template-columns: 1fr; } }
+.partner-subhead { margin: 16px 0 6px; font-size: 12px; font-weight: 700; color: var(--fg-2); }
+.partner-checklist { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 2px; }
+.partner-check { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 13.5px; cursor: pointer; }
+.partner-check input { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
+.partner-decisions { margin-top: 4px; }
+
+/* Overview welcome: greeting and the staff member's local time. */
+.welcome-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap;
+  margin: 0 0 18px; padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius-card);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 9%, var(--surface)), var(--surface) 70%);
+}
+.welcome-greeting { margin: 0; font-size: 19px; font-weight: 720; letter-spacing: -.02em; color: var(--fg); }
+.welcome-role { margin: 3px 0 0; color: var(--muted-fg); font-size: 13px; }
+.welcome-clock { display: grid; justify-items: end; gap: 1px; text-align: right; }
+.welcome-time { font-size: 24px; font-weight: 740; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--fg); }
+.welcome-date { color: var(--muted-fg); font-size: 12px; }
+@media (max-width: 620px) {
+  .welcome-banner { padding: 14px 16px; }
+  .welcome-clock { justify-items: start; text-align: left; }
+}
+
+/* Account security dialog. */
+.security-dialog .dialog-body { display: grid; gap: 12px; }
+.setup-key { margin: 0; font-size: 13px; color: var(--muted-fg); overflow-wrap: anywhere; }
+.setup-key code { font-size: 14px; color: var(--fg); letter-spacing: .04em; }
+.recovery-codes { margin: 0; padding-left: 22px; columns: 2; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+
+/* Riders: status filter beside the search, and paging past the first 50. */
+.toolbar .select { flex: 0 0 auto; min-height: 40px; }
+.load-more-row { display: flex; justify-content: center; margin: 12px 0 4px; }
+@media (max-width: 640px) {
+  .toolbar { flex-wrap: wrap; }
+  .toolbar .search { flex-basis: 100%; }
+  .toolbar .select { flex: 1 1 auto; }
+}
+
+/* Report queue: select several and dismiss them with one note. */
+.bulk-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.bulk-bar .bulk-count { flex: 1 1 auto; color: var(--muted-fg); font-size: 13px; }
+.bulk-all { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.bulk-bar input, .bulk-select-label input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+.bulk-select-label { display: inline-flex; align-items: center; padding: 4px; margin: -4px 4px -4px -4px; cursor: pointer; }
+
+/* Account dialog: the staff member's own email alerts. */
+.alert-prefs { border: 0; border-top: 1px solid var(--border); margin: 16px 0 0; padding: 12px 0 0; display: grid; gap: 10px; }
+.alert-prefs legend { font-weight: 600; font-size: 14px; padding: 0; float: left; width: 100%; margin-bottom: 2px; }
+.alert-pref { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.alert-pref input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.alert-pref > span { display: grid; gap: 2px; }
+.alert-pref-title { font-size: 14px; }
+.alert-pref-detail, .alert-prefs-state { font-size: 12.5px; color: var(--muted-fg); margin: 0; }
+.alert-prefs-state:empty { display: none; }

@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - main
+  # Started by update-pr-branches.yml after it merges main into a PR branch.
+  workflow_dispatch:
 
 permissions:
   contents: read

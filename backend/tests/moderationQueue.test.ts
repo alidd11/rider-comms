@@ -112,6 +112,28 @@ describe('moderation queue API', { skip: !hasDatabase && 'DATABASE_URL not set; 
     assert.deepEqual(actions.actions.map((action) => action.action), ['dismiss']);
   });
 
+  it('dismisses several reports with one note, skipping ones already closed', async () => {
+    await insertReport('b-1', REPORTED, 1_000);
+    await insertReport('b-2', REPORTED, 2_000);
+    await insertReport('b-3', REPORTED, 3_000);
+    await postJson(ctx, ADMIN, '/moderation/reports/b-3/resolve', { resolution: 'dismiss', note: 'First' });
+    const url = '/moderation/reports/dismiss-many';
+    assert.equal((await postJson(ctx, ADMIN, url, { reportIds: ['b-1'] })).status, 400);
+    assert.equal((await postJson(ctx, ADMIN, url, { reportIds: [], note: 'x' })).status, 400);
+    assert.equal((await postJson(ctx, ADMIN, url, { reportIds: Array.from({ length: 51 }, (_, i) => 'x' + i), note: 'x' })).status, 400);
+    assert.equal((await postJson(ctx, ADMIN, url, { reportIds: [1], note: 'x' })).status, 400);
+    assert.equal((await postJson(ctx, MEMBER, url, { reportIds: ['b-1'], note: 'x' })).status, 403);
+    const res = await postJson(ctx, ADMIN, url, { reportIds: ['b-1', 'b-2', 'b-2', 'b-3', 'missing'], note: 'Duplicates' });
+    assert.equal(res.status, 200);
+    const body = await res.json() as { dismissed: string[]; skipped: { reportId: string; error: string }[] };
+    assert.deepEqual(body.dismissed, ['b-1', 'b-2']);
+    assert.deepEqual(body.skipped.map((item) => item.reportId), ['b-3', 'missing']);
+    assert.equal(await reportStatus('b-1'), 'dismissed');
+    assert.equal(await reportStatus('b-2'), 'dismissed');
+    const actions = await (await authenticatedFetch(ctx, ADMIN, `/moderation/actions?riderId=${REPORTED}`)).json() as { actions: ModerationAction[] };
+    assert.equal(actions.actions.filter((action) => action.note === 'Duplicates').length, 2);
+  });
+
   it('staff can mark a rider\'s email verified, with a note in the audit log', async () => {
     const username = `modv_${Math.random().toString(36).slice(2, 8)}`;
     const signup = await fetch(`${ctx.baseUrl()}/auth/signup`, {

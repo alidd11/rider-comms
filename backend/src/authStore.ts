@@ -41,7 +41,7 @@ const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const ACCOUNT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** How long account security history is kept. */
 export const SECURITY_EVENT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
-export const SECURITY_EVENTS = ['account_created', 'login', 'login_failed', 'signed_out', 'session_revoked', 'password_reset', 'reauthenticated', 'reauth_failed'] as const;
+export const SECURITY_EVENTS = ['account_created', 'login', 'login_failed', 'signed_out', 'session_revoked', 'password_reset', 'reauthenticated', 'reauth_failed', 'mfa_enabled', 'mfa_disabled', 'mfa_verified', 'mfa_failed', 'mfa_reset'] as const;
 export type SecurityEventType = (typeof SECURITY_EVENTS)[number];
 export interface SecurityEvent {
   id: string;
@@ -485,12 +485,33 @@ export class AuthStore {
     return true;
   }
 
+  /** A failed password challenge must also invalidate any earlier successful
+   * proof for this specific bearer session; otherwise an expired/mistyped
+   * retry would leave the previous sensitive-action privilege in place. */
+  private async clearRecentReauthentication(riderId: string, token: string): Promise<void> {
+    if (!riderId || !token) return;
+    const tokenHash = this.digest(token);
+    const cached = this.riderByTokenDigest.get(tokenHash);
+    if (cached?.riderId === riderId) delete cached.reauthenticatedAt;
+    if (!process.env.DATABASE_URL) return;
+    await ensureMigrated();
+    await getPool().query(
+      `UPDATE account_sessions SET reauthenticated_at = NULL
+       WHERE token_hash = $1 AND user_id = $2 AND expires_at > now()
+         AND reauthenticated_at IS NOT NULL`,
+      [tokenHash, riderId],
+    );
+  }
+
   /**
    * Re-checks the rider's password on this session, so staff can make
    * sensitive changes for the next STAFF_REAUTH_WINDOW_MS.
    */
   async reauthenticate(riderId: string, token: string, password: unknown): Promise<boolean> {
-    if (typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) return false;
+    if (typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) {
+      await this.clearRecentReauthentication(riderId, token);
+      return false;
+    }
     await ensureMigrated();
     const { rows } = await getPool().query<{ password_hash: string; password_algorithm: string }>(
       'SELECT password_hash, password_algorithm FROM users WHERE id = $1',
@@ -500,14 +521,24 @@ export class AuthStore {
     const sessionId = await this.sessionIdForToken(token) ?? null;
     const matches = await verifyPassword(password, row?.password_hash ?? DUMMY_PASSWORD_HASH, row?.password_algorithm ?? PASSWORD_ALGORITHM);
     if (!row || !matches) {
+      await this.clearRecentReauthentication(riderId, token);
       if (row) await this.recordSecurityEvent(riderId, 'reauth_failed', sessionId, null);
       return false;
     }
     const tokenHash = this.digest(token);
+    // Password verification and bearer authorization are separate checks.
+    // A session may be revoked or expire while the password hash is being
+    // verified: never claim step-up succeeded if no live session was updated.
+    const updated = await getPool().query<{ id: string }>(
+      `UPDATE account_sessions SET reauthenticated_at = now()
+       WHERE token_hash = $1 AND user_id = $2 AND expires_at > now()
+       RETURNING id`,
+      [tokenHash, riderId],
+    );
+    if (updated.rowCount !== 1) return false;
     const cached = this.riderByTokenDigest.get(tokenHash);
     if (cached) cached.reauthenticatedAt = Date.now();
-    await getPool().query('UPDATE account_sessions SET reauthenticated_at = now() WHERE token_hash = $1 AND user_id = $2', [tokenHash, riderId]);
-    await this.recordSecurityEvent(riderId, 'reauthenticated', sessionId, null);
+    await this.recordSecurityEvent(riderId, 'reauthenticated', updated.rows[0]!.id, null);
     return true;
   }
 

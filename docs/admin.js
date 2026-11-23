@@ -14,39 +14,41 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
     suspend: ['Harassment of other riders.', 'Spam or scam messages.', 'Sexual content sent without consent.', 'Dangerous riding encouraged or shown.'],
   };
   const SUSPENSION_LENGTHS = [['1', '1 day'], ['7', '7 days'], ['30', '30 days'], ['', 'No end date']];
-  const ROLE_LABELS = { admin: 'Admin', moderator: 'Moderator', support: 'Support', analyst: 'Analyst' };
+  const ROLE_LABELS = { admin: 'Admin', moderator: 'Moderator', support: 'Support', analyst: 'Analyst', partnerships: 'Partnerships' };
   const CASE_KIND_LABELS = { support: 'Customer support', appeal: 'Appeals', privacy: 'Privacy requests', incident: 'Incidents' };
   const CASE_STATUS_LABELS = { open: 'Open', in_progress: 'In progress', waiting: 'Waiting', resolved: 'Resolved', closed: 'Closed' };
   const CASE_PRIORITY_LABELS = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
   const CASE_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'];
   const CASE_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 
-  const ROLE_TONES = { admin: 'accent', moderator: 'warning', support: 'success', analyst: null };
+  const ROLE_TONES = { admin: 'accent', moderator: 'warning', support: 'success', analyst: null, partnerships: null };
   // What each role can do, in words; mirrors backend/src/staffRoles.ts.
   const ROLE_SUMMARIES = [
     ['admin', 'Everything, including adding and removing staff. Set with ADMIN_RIDER_IDS on the backend.'],
     ['moderator', 'Reports, hidden Social posts and suspensions. Can look riders up and read the audit log.'],
     ['support', 'Account help: looks riders up, verifies email, sends password resets and signs out lost devices. Cannot suspend or see reports.'],
     ['analyst', 'Overview and system status only. No rider details, reports or notes.'],
+    ['partnerships', 'Seller and advertiser applications only: review, verification checklist and decisions. No rider details or reports.'],
   ];
   const PERMISSION_LABELS = [
     ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
-    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['view_system', 'System'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['view_system', 'System'],
   ];
   const ROLE_MATRIX = {
-    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'view_system'],
+    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'view_system'],
     moderator: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'view_audit', 'view_system'],
     support: ['view_overview', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit', 'view_system'],
     analyst: ['view_overview', 'view_system'],
+    partnerships: ['view_overview', 'review_partners', 'view_system'],
   };
   const REASON_LABELS = {
     harassment: 'Harassment',
@@ -55,7 +57,7 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
@@ -76,7 +78,10 @@
     if (match) return { view: 'rider', riderId: match[1], caseId: null };
     const caseMatch = /^case\/([0-9a-f-]{36})$/i.exec(hash);
     if (caseMatch) return { view: 'case', riderId: null, caseId: caseMatch[1] };
-    return { view: VIEWS.includes(hash) && hash !== 'rider' && hash !== 'case' ? hash : 'overview', riderId: null, caseId: null };
+    // A partner application uses the same detail-id slot as a case.
+    const partnerMatch = /^partner\/([0-9a-f-]{36})$/i.exec(hash);
+    if (partnerMatch) return { view: 'partner', riderId: null, caseId: partnerMatch[1] };
+    return { view: VIEWS.includes(hash) && !['rider', 'case', 'partner'].includes(hash) ? hash : 'overview', riderId: null, caseId: null };
   }
   let { view, riderId: detailRiderId, caseId: detailCaseId } = parseHash(location.hash.slice(1));
   let period = readPeriod();
@@ -88,7 +93,16 @@
   let caseKind = 'all';
   let caseStatus = 'all';
   let caseOwner = 'all';
+  let partnerStatus = 'open';
+  // Filled from the signed-in staff member's profile for the welcome line.
+  let staffDisplayName = '';
+  let partnerKind = 'all';
+  /** The list a detail page belongs to, for navigation and titles. */
+  const parentView = (name) => ({ rider: 'riders', case: 'cases', partner: 'partners' })[name] ?? name;
+  const viewHash = () => view === 'rider' ? `rider/${detailRiderId}`
+    : view === 'case' || view === 'partner' ? `${view}/${detailCaseId}` : view;
   let riderQuery = '';
+  let riderFilter = 'all';
   let auditGroup = 'all';
   let auditRider = '';
   let me = null;
@@ -104,7 +118,8 @@
   const renderKey = () => JSON.stringify([view, detailRiderId, detailCaseId,
     view === 'cases' ? caseKind : null, view === 'cases' ? caseStatus : null,
     view === 'cases' ? caseOwner : null,
-    view === 'riders' ? riderQuery : null,
+    view === 'partners' ? partnerStatus : null, view === 'partners' ? partnerKind : null,
+    view === 'riders' ? riderQuery : null, view === 'riders' ? riderFilter : null,
     view === 'moderation' ? moderationView : null,
     view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
     view === 'inbox' ? inboxFilter : null,
@@ -167,14 +182,163 @@
 
   // Staff changes need the password re-entered every 15 minutes. When the
   // backend asks, confirm it here and send the change again once.
-  async function api(method, path, body) {
+  // Staff with two-step sign-in pass a code once per session; when the
+  // backend asks, take it here and send the request again.
+  async function api(method, path, body, attempt = 0) {
     try {
       return await request(method, path, body);
     } catch (error) {
-      if (!(error instanceof ApiError) || error.code !== 'reauth_required') throw error;
+      if (!(error instanceof ApiError) || attempt > 1) throw error;
+      if (error.code === 'mfa_required') {
+        if (!(await confirmCode())) throw new ApiError(403, 'mfa_cancelled');
+        return api(method, path, body, attempt + 1);
+      }
+      if (error.code !== 'reauth_required') throw error;
       if (!(await confirmPassword())) throw new ApiError(403, 'reauth_cancelled');
-      return request(method, path, body);
+      return api(method, path, body, attempt + 1);
     }
+  }
+
+  /** One shared code prompt, so parallel requests ask only once. */
+  let pendingCode = null;
+  function confirmCode() {
+    pendingCode ??= new Promise((resolve) => {
+      const input = el('input', { class: 'input', id: 'mfaCode', inputmode: 'numeric', autocomplete: 'one-time-code',
+        maxlength: 20, 'aria-label': 'Authenticator or recovery code', required: true });
+      const error = el('p', { class: 'error-text', role: 'alert' });
+      const submit = el('button', { type: 'submit', class: 'button button-primary', text: 'Verify' });
+      const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel' });
+      const form = el('form', { class: 'dialog-body', novalidate: true }, [
+        el('h2', { class: 'card-title', id: 'mfaTitle', text: 'Two-step sign-in' }),
+        el('p', { class: 'card-description', text: 'Enter the 6-digit code from your authenticator app, or one of your recovery codes.' }),
+        input, error,
+        el('div', { class: 'actions' }, [cancel, submit]),
+      ]);
+      const dialog = el('dialog', { class: 'dialog', 'aria-labelledby': 'mfaTitle' }, [form]);
+      let accepted = false;
+      cancel.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('close', () => { dialog.remove(); pendingCode = null; resolve(accepted); });
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!input.value.trim()) { error.textContent = 'Enter a code.'; return; }
+        submit.disabled = true;
+        error.textContent = '';
+        try {
+          await request('POST', '/admin/mfa/verify', { code: input.value.trim() });
+          accepted = true;
+          dialog.close();
+        } catch (failure) {
+          submit.disabled = false;
+          input.value = '';
+          input.focus();
+          error.textContent = failure instanceof ApiError && failure.status === 401 ? 'That code isn’t right, or was already used.'
+            : failure instanceof ApiError && failure.status === 429 ? 'Too many tries. Wait a few minutes, then try again.'
+            : 'Could not reach the server. Try again.';
+        }
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      input.focus();
+    });
+    return pendingCode;
+  }
+
+  /** Your own email alerts: a morning summary of waiting work, and new urgent cases. */
+  function emailAlertsSection() {
+    const digest = el('input', { type: 'checkbox', disabled: true });
+    const urgent = el('input', { type: 'checkbox', disabled: true });
+    const state = el('p', { class: 'alert-prefs-state', role: 'status' });
+    const row = (input, title, detail) => el('label', { class: 'alert-pref' }, [input, el('span', {}, [
+      el('span', { class: 'alert-pref-title', text: title }), el('span', { class: 'alert-pref-detail', text: detail }),
+    ])]);
+    const save = async () => {
+      digest.disabled = urgent.disabled = true;
+      try {
+        await api('POST', '/admin/alerts', { dailyDigest: digest.checked, urgentAlerts: urgent.checked });
+        state.textContent = 'Saved.';
+      } catch {
+        state.textContent = 'Couldn’t save. Try again.';
+      } finally {
+        digest.disabled = urgent.disabled = false;
+      }
+    };
+    digest.addEventListener('change', save);
+    urgent.addEventListener('change', save);
+    void api('GET', '/admin/alerts').then((prefs) => {
+      digest.checked = prefs.dailyDigest;
+      urgent.checked = prefs.urgentAlerts;
+      digest.disabled = urgent.disabled = false;
+    }, () => { state.textContent = 'Email alerts couldn’t be loaded.'; });
+    return el('fieldset', { class: 'alert-prefs' }, [
+      el('legend', { text: 'Email alerts' }),
+      row(digest, 'Morning summary', 'Work waiting for your role, each day from 08:00 UTC.'),
+      allowed('view_cases') ? row(urgent, 'Urgent cases', 'An email when a new urgent case is opened.') : null,
+      el('p', { class: 'alert-pref-detail', text: 'Sent to your verified account email. Counts only, never rider details.' }),
+      state,
+    ]);
+  }
+
+  /** Account security: turn two-step sign-in on (with recovery codes) or off. */
+  async function openSecurityDialog() {
+    const body = el('div', { class: 'dialog-body' }, [el('h2', { class: 'card-title', id: 'securityTitle', text: 'Account security' })]);
+    const dialog = el('dialog', { class: 'dialog security-dialog', 'aria-labelledby': 'securityTitle' }, [body]);
+    const close = el('button', { type: 'button', class: 'button', text: 'Close' });
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+    const error = el('p', { class: 'error-text', role: 'alert' });
+    const alerts = emailAlertsSection();
+    const show = (...children) => body.replaceChildren(el('h2', { class: 'card-title', id: 'securityTitle', text: 'Account security' }), ...children, error, alerts, el('div', { class: 'actions' }, [close]));
+    const fail = (failure) => {
+      error.textContent = failure instanceof ApiError && failure.status === 401 ? 'That code isn’t right.'
+        : failure instanceof ApiError && failure.code === 'reauth_cancelled' ? 'Your password is needed to change this.'
+        : 'Something went wrong. Try again.';
+    };
+    let status;
+    try { status = await api('GET', '/admin/mfa'); } catch (failure) { fail(failure); show(); return; }
+    if (status.enabled) {
+      const code = el('input', { class: 'input', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 20, 'aria-label': 'Code to turn it off' });
+      const off = el('button', { type: 'button', class: 'button button-danger', text: 'Turn off two-step sign-in' });
+      off.addEventListener('click', async () => {
+        error.textContent = '';
+        try { await api('POST', '/admin/mfa/disable', { code: code.value.trim() }); flash('Two-step sign-in is off.'); dialog.close(); }
+        catch (failure) { fail(failure); }
+      });
+      show(
+        el('p', { class: 'card-description', text: `Two-step sign-in is on. ${status.recoveryCodesLeft} recovery ${status.recoveryCodesLeft === 1 ? 'code' : 'codes'} left.` }),
+        el('label', { class: 'case-field' }, [el('span', { text: 'To turn it off, enter a current code' }), code]),
+        off,
+      );
+      return;
+    }
+    const start = el('button', { type: 'button', class: 'button button-primary', text: 'Set up two-step sign-in' });
+    start.addEventListener('click', async () => {
+      error.textContent = '';
+      let setup;
+      try { setup = await api('POST', '/admin/mfa/setup', {}); } catch (failure) { fail(failure); return; }
+      const code = el('input', { class: 'input', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, 'aria-label': 'Code from the app' });
+      const confirm = el('button', { type: 'button', class: 'button button-primary', text: 'Turn on' });
+      confirm.addEventListener('click', async () => {
+        error.textContent = '';
+        try {
+          const { recoveryCodes } = await api('POST', '/admin/mfa/confirm', { code: code.value.trim() });
+          show(
+            el('p', { class: 'card-description', text: 'Two-step sign-in is on. Save these recovery codes somewhere safe: each works once if you lose your phone. They won’t be shown again.' }),
+            el('ol', { class: 'recovery-codes', 'aria-label': 'Recovery codes' }, recoveryCodes.map((value) => el('li', { text: value }))),
+          );
+        } catch (failure) { fail(failure); }
+      });
+      show(
+        el('p', { class: 'card-description', text: 'Add Rider Comms Staff to an authenticator app (Google Authenticator, 1Password, Authy). On this phone, tap the link; elsewhere, type the setup key.' }),
+        el('a', { class: 'button', href: setup.uri, text: 'Open in authenticator app' }),
+        el('p', { class: 'setup-key' }, [el('span', { text: 'Setup key ' }), el('code', { text: setup.secret.match(/.{1,4}/g).join(' ') })]),
+        el('label', { class: 'case-field' }, [el('span', { text: 'Then enter the 6-digit code it shows' }), code]),
+        confirm,
+      );
+      code.focus();
+    });
+    show(el('p', { class: 'card-description', text: 'Protect your staff account with a code from an authenticator app as well as your password.' }), start);
   }
 
   /** A password dialog; resolves true once the backend accepts it, false if closed. */
@@ -252,6 +416,8 @@
     lock: ['M4 7.5h8v6H4z', 'M5.5 7.5V5a2.5 2.5 0 0 1 5 0v2.5'],
     users: ['M6 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z', 'M1.5 13.5c.6-2.3 2.4-3.5 4.5-3.5s3.9 1.2 4.5 3.5'],
     wifiOff: ['M2 2l12 12', 'M8 12.5v.01', 'M5.5 10a3.5 3.5 0 0 1 5 0'],
+    signOut: ['M6.5 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3', 'M10.5 11 13.5 8l-3-3', 'M13.5 8H6.5'],
+    device: ['M5 1.5h6a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z', 'M7 12.5h2'],
   };
   function icon(name) {
     const node = svg('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
@@ -636,7 +802,7 @@
     // Keep that context available, but avoid repeating an eyebrow and several
     // paragraphs above the working area on every screen.
     const context = subtitle ? el('details', { class: 'page-context' }, [
-      el('summary', { text: 'About this view', 'aria-label': 'About ' + title }),
+      el('summary', { text: 'Scope and definitions', 'aria-label': 'About ' + title }),
       el('p', { class: 'page-subtitle', text: subtitle }),
     ]) : null;
     return el('div', { class: 'page-header' }, [
@@ -744,45 +910,59 @@
   }
 
 
-  /** Operational shortcuts are grounded in /admin/overview, not mock inbox data. */
-  function operationsSummary({ riders, activity, safety }) {
-    const card = ({ label, value, description, destination, action, attention = false }) => {
-      const children = [
-        el('div', { class: 'operation-label', text: label }),
-        el('strong', { class: 'operation-value', text: String(value) }),
-        el('p', { class: 'operation-description', text: description }),
-      ];
-      if (destination && allowed(VIEW_PERMISSIONS[destination])) {
-        const button = el('button', { type: 'button', class: 'button', text: action });
-        button.addEventListener('click', () => selectView(destination));
-        children.push(button);
-      }
-      return el('div', { class: 'operation-card', dataset: { attention: String(attention) } }, children);
-    };
+  /** One work card: a live count, what it means and where to act on it.
+   *  Every figure comes from the backend; nothing here is analytics. */
+  function workCard({ label, value, description, destination, action, attention = false, onOpen }) {
+    const children = [
+      el('div', { class: 'operation-label', text: label }),
+      el('strong', { class: 'operation-value', text: String(value) }),
+      el('p', { class: 'operation-description', text: description }),
+    ];
+    if (destination && allowed(VIEW_PERMISSIONS[destination])) {
+      const button = el('button', { type: 'button', class: 'button', text: action });
+      button.addEventListener('click', () => { onOpen?.(); selectView(destination); });
+      children.push(button);
+    }
+    return el('div', { class: 'operation-card', dataset: { attention: String(attention) } }, children);
+  }
+
+  /** The Overview's queue: reports and cases waiting on staff, then what is
+   *  happening on the road right now. Trends live in Insights only. */
+  function operationsSummary({ activity, safety }, workload, partners) {
+    const totals = workload?.totals;
+    const cards = [];
+    // Each card appears only for staff whose role can act on it.
+    if (allowed('moderate')) {
+      cards.push(workCard({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
+        description: 'Open rider reports that need a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }));
+    }
+    if (totals) {
+      cards.push(
+        workCard({ label: 'Cases without an owner', value: formatNumber(totals.unassigned),
+          description: 'Active internal cases nobody has taken yet.', destination: 'cases', action: 'Assign cases',
+          attention: totals.unassigned > 0, onOpen: () => { caseOwner = 'unassigned'; } }),
+        workCard({ label: 'Urgent cases', value: formatNumber(totals.urgent),
+          description: 'Active cases marked urgent.', destination: 'cases', action: 'Open case desk', attention: totals.urgent > 0 }),
+        workCard({ label: 'Assigned to you', value: formatNumber(totals.mine),
+          description: 'Your active cases.', destination: 'cases', action: 'My cases', onOpen: () => { caseOwner = 'mine'; } }),
+      );
+    }
+    if (partners) {
+      cards.push(workCard({ label: 'Partner applications', value: formatNumber(partners.awaitingReview),
+        description: `Sellers and advertisers waiting on a decision · ${formatNumber(partners.infoRequested)} waiting on the business.`,
+        destination: 'partners', action: 'Review applications', attention: partners.awaitingReview > 0, onOpen: () => { partnerStatus = 'open'; } }));
+    }
+    cards.push(workCard({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
+      description: `Group rides on the road now · ${formatNumber(activity.liveNearbyNow)} riders live on Nearby. No locations are shown.` }));
     return el('section', { class: 'operations-summary', 'aria-label': 'Operations at a glance' }, [
-      el('h2', { class: 'section-title', text: 'Operations at a glance' }),
-      el('p', { class: 'operations-lead', text: 'Current activity and next steps, based on the latest dashboard snapshot.' }),
-      el('div', { class: 'operations-grid' }, [
-        card({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
-          description: 'Open rider reports requiring a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }),
-        card({ label: 'New riders today', value: formatNumber(riders.newToday),
-          description: 'New sign-ups recorded today.', destination: 'riders', action: 'Find riders' }),
-        card({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
-          description: 'Active group rides. No private locations are displayed.' }),
-        card({ label: 'Platform diagnostics', value: 'System',
-          description: 'Inspect backend health, integrations and request metrics.', destination: 'system', action: 'View system' }),
-      ]),
+      el('h2', { class: 'section-title', text: 'Needs attention' }),
+      el('div', { class: 'operations-grid', dataset: { count: String(cards.length) } }, cards),
     ]);
   }
 
   // Portfolio figures come only from the authorised backend snapshot. A
   // disconnected domain explicitly says so instead of displaying fake KPIs.
-  function companyCommandCentre(data) {
-    const { riders, activity, social, content, safety } = data;
-    const metric = (label, value) => el('div', { class: 'company-hero-metric' }, [
-      el('span', { class: 'company-hero-metric-label', text: label }),
-      el('strong', { class: 'company-hero-metric-value', text: formatNumber(value) }),
-    ]);
+  function companyCommandCentre() {
     const unit = ({ title, status, description, fact, destination, action, permittedRoles, startKind, unavailable = false }) => {
       const canOpen = destination && allowed(VIEW_PERMISSIONS[destination])
         && (!permittedRoles || permittedRoles.includes(me?.role));
@@ -798,19 +978,7 @@
         button,
       ]);
     };
-    return [
-      el('section', { class: 'company-hero', 'aria-label': 'Company pulse' }, [
-        el('div', {}, [
-          el('span', { class: 'company-hero-kicker', text: 'Rider Comms · Company operations' }),
-          el('h2', { class: 'company-hero-title', text: 'The business at a glance' }),
-          el('p', { class: 'company-hero-description', text: 'One source of truth for mobility, community and platform operations. These figures are a time-stamped backend snapshot, not simulated live analytics.' }),
-        ]),
-        el('div', { class: 'company-hero-metrics' }, [
-          metric('Riders active · 24h', activity.active24h),
-          metric('Open rider reports', safety.openReports),
-          metric('Group rides now', activity.activeRides),
-        ]),
-      ]),
+    return (
       el('section', { class: 'company-portfolio', 'aria-label': 'Company operations' }, [
         el('div', { class: 'company-section-heading' }, [
           el('h2', { class: 'section-title', text: 'Company operations' }),
@@ -819,15 +987,15 @@
         el('div', { class: 'company-grid' }, [
           unit({ title: 'Rider Comms', status: 'Connected',
             description: 'Rider accounts, group journeys, community activity and live road reporting.',
-            fact: formatNumber(riders.total) + ' riders · ' + formatNumber(content.activeHazards) + ' active hazards',
+            fact: 'Rider search, account help and live road reports',
             destination: 'riders', action: 'Explore riders' }),
           unit({ title: 'Rider Social', status: 'Moderation',
             description: 'Photo posts and Reels are reviewed through the shared trust and safety workflow. No fabricated Social audience figures.',
-            fact: formatNumber(social.friendships) + ' friendships across the shared rider network',
+            fact: 'Post and Reel reports share the moderation queue',
             destination: 'inbox', action: 'Review Social queue' }),
           unit({ title: 'Trust & safety', status: 'Connected',
             description: 'Triage rider reports, act on reported content and preserve case history and audit evidence.',
-            fact: formatNumber(safety.openReports) + ' rider reports open',
+            fact: 'Reports, decisions and the audit log',
             destination: 'inbox', action: 'Open action inbox' }),
           unit({ title: 'Customer support', status: 'Account tools',
             description: 'Create and track internal rider support cases, investigate accounts and record handovers. Customer messages and SLA automation are not yet connected.',
@@ -851,8 +1019,8 @@
         ]),
         el('p', { class: 'company-methodology', text:
           'Scope: Rider Comms accounts and activity share a backend with Rider Social. Social audience, customer messaging and response SLAs, finance reconciliation, privacy request deadline automation and company-wide revenue require dedicated, permission-scoped datasets before they can be reported here.' }),
-      ]),
-    ];
+      ])
+    );
   }
 
   // Use the source timestamp, not the viewer's current clock, when describing
@@ -866,46 +1034,53 @@
     });
   }
 
-  // The landing workspace is a short operational briefing, not every report.
-  function renderOverview(data) {
-    const { riders, activity, social, safety } = data;
-    const insights = el('button', { type: 'button', class: 'button button-primary', text: 'Explore insights' });
-    insights.addEventListener('click', () => selectView('insights'));
-    const highlight = (label, value, description) => el('div', { class: 'overview-highlight' }, [
-      el('span', { class: 'overview-highlight-label', text: label }),
-      el('strong', { class: 'overview-highlight-value', text: value }),
-      el('span', { class: 'overview-highlight-description', text: description }),
-    ]);
-    const snapshot = snapshotTimestamp(data.generatedAt);
-    pageEl.replaceChildren(
-      pageHeader('Overview', 'Your immediate operational priorities and a short platform snapshot.', [insights]),
-      el('p', { class: 'overview-snapshot', text:
-        snapshot + '. Operational work remains visible regardless of the reporting preference.' }),
-      operationsSummary({ riders, activity, safety }),
-      el('section', { class: 'overview-highlights', 'aria-label': 'Platform highlights' }, [
-        el('div', { class: 'overview-highlights-heading' }, [
-          el('h2', { class: 'section-title', text: 'Platform highlights' }),
-          el('span', { class: 'overview-highlight-note', text: 'Totals and 7-day activity · full breakdown in Insights' }),
-        ]),
-        el('div', { class: 'overview-highlight-grid' }, [
-          highlight('Total riders', formatNumber(riders.total), 'All registered riders'),
-          highlight('Active riders · 7 days', formatNumber(activity.active7d), 'Distinct active accounts'),
-          highlight('Messages · 7 days', formatNumber(social.messages7d), 'Recorded direct messages'),
-        ]),
+  // The landing workspace is today's work only; figures and trends are in
+  // Insights, and service health is in System.
+  /** Greeting with the staff member's own local time, updated each minute
+   *  while the Overview is on screen. Times are the device's, not UTC. */
+  function welcomeBanner() {
+    const greetingFor = (date) => {
+      const hour = date.getHours();
+      return hour < 5 ? 'Good evening' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    };
+    const greeting = el('span', {});
+    const time = el('time', { class: 'welcome-time' });
+    const date = el('span', { class: 'welcome-date' });
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const update = () => {
+      const now = new Date();
+      greeting.textContent = greetingFor(now) + ', ';
+      time.setAttribute('datetime', now.toISOString());
+      time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      date.textContent = now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }) + (zone ? ' · ' + zone.replace(/_/g, ' ') : '');
+    };
+    update();
+    const banner = el('section', { class: 'welcome-banner', 'aria-label': 'Welcome' }, [
+      el('div', { class: 'welcome-copy' }, [
+        el('p', { class: 'welcome-greeting' }, [greeting, el('span', { dataset: { welcomeName: '' }, text: staffDisplayName || 'there' })]),
+        el('p', { class: 'welcome-role', text: me?.role ? 'Signed in as ' + (ROLE_LABELS[me.role] || me.role).toLowerCase() + '. Here is what needs you today.' : 'Here is what needs you today.' }),
       ]),
+      el('div', { class: 'welcome-clock' }, [time, date]),
+    ]);
+    const timer = setInterval(() => {
+      if (!banner.isConnected) { clearInterval(timer); return; }
+      update();
+    }, 30_000);
+    return banner;
+  }
+
+  function renderOverview(data, workload = null, partners = null) {
+    pageEl.replaceChildren(
+      pageHeader('Overview', snapshotTimestamp(data.generatedAt) + '. Queues are live and never filtered by a reporting period.'),
+      welcomeBanner(),
+      operationsSummary(data, workload, partners),
     );
   }
 
   function renderCompany(data) {
-    const sections = companyCommandCentre(data);
     pageEl.replaceChildren(
-      pageHeader('Company areas', 'Connected teams and services, with unavailable integrations identified.'),
-      el('p', { class: 'overview-snapshot', text: snapshotTimestamp(data.generatedAt) + '. Connected services and unavailable reporting sources are identified below.' }),
-      sections[1],
-      el('details', { class: 'overview-more company-pulse-details' }, [
-        el('summary', { text: 'Platform pulse and reporting scope' }),
-        sections[0],
-      ]),
+      pageHeader('Company areas', 'Each team or service, what it is connected to, and where its staff tools are.'),
+      companyCommandCentre(data),
     );
   }
 
@@ -932,13 +1107,13 @@
       kpiCard({ label: 'Messages sent', value: formatNumber(messages), delta: deltaBadge(messages, messagesPrev), foot: periodText, spark: sparkline(slice(series.messages)) }),
       kpiCard({ label: 'Rides started', value: ridesTracked ? formatNumber(sum(ridesSeries)) : '—', foot: ridesTracked ? `Last ${days} days` : 'Tracking starts with the next ride', spark: sparkline(ridesSeries) }),
       kpiCard({ label: 'Total riders', value: formatNumber(riders.total), foot: `${verifiedPct ?? 0}% verified · ${formatNumber(riders.suspended)} suspended` }),
-      kpiCard({ label: 'Live now', value: formatNumber(activity.liveNearbyNow), foot: `On Nearby · ${formatNumber(activity.activeRides)} rides in progress` }),
       kpiCard({ label: 'Stickiness', value: stickiness === null ? '—' : `${stickiness}%`, foot: 'Daily ÷ monthly active riders' }),
+      kpiCard({ label: 'Moderation decisions', value: formatNumber(safety.moderationActions7d), foot: 'Last 7 days · see the audit log' }),
       kpiCard({
-        label: 'Open reports',
-        value: formatNumber(safety.openReports),
-        delta: days === 7 ? deltaBadge(safety.reports7d, previous.reports7d, { lowerIsBetter: true }) : null,
-        foot: reportsLink ? [reportsLink, ` · ${formatNumber(safety.reports7d)} filed this week`] : `${formatNumber(safety.reports7d)} filed this week`,
+        label: 'Reports filed',
+        value: formatNumber(safety.reports7d),
+        delta: deltaBadge(safety.reports7d, previous.reports7d, { lowerIsBetter: true }),
+        foot: reportsLink ? [reportsLink, ' · last 7 days'] : 'Last 7 days',
       }),
     ]);
 
@@ -969,11 +1144,8 @@
           ['Pending friend requests', formatNumber(social.pendingFriendRequests)],
           ['Messages today', formatNumber(social.messages24h)],
           ['Location sharing on', formatNumber(activity.sharingLocation)],
-          ['Riders in a ride now', formatNumber(activity.ridersInRides)],
         ]),
         statList('Safety and content', 'Moderation workload and shared places', [
-          ['Open reports', formatNumber(safety.openReports)],
-          ['Moderation decisions this week', formatNumber(safety.moderationActions7d)],
           ['Blocked by the content filter this week', formatNumber(safety.filterRejections7d ?? 0)],
           ['Active hazard reports', formatNumber(content.activeHazards)],
           ['Scenic routes', formatNumber(content.scenicRoutes)],
@@ -1056,11 +1228,34 @@
     });
   }
 
-  function renderRiders(riders) {
+  /** Quick account actions sit apart from the status badges, so a narrow
+   *  row never squeezes the rider's name. Empty when none are permitted. */
+  function riderRowActions(rider) {
+    const buttons = [verifyEmailButton(rider), exportButton(rider)].filter(Boolean);
+    return buttons.length ? el('div', { class: 'row-actions' }, buttons) : null;
+  }
+
+  const RIDER_FILTER_LABELS = {
+    all: 'All riders', suspended: 'Suspended', unverified: 'Email not verified',
+    staff: 'Staff', reported: 'Open reports', new: 'Joined in the last 7 days',
+  };
+  const riderListPath = (offset = 0) => '/admin/riders?' + new URLSearchParams({
+    limit: '50', q: riderQuery, filter: riderFilter, ...(offset ? { offset: String(offset) } : {}),
+  });
+
+  function renderRiders(riders, nextOffset = null) {
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', name: 'q', placeholder: 'Search name, username, email or ID', 'aria-label': 'Search riders', maxlength: 100, autocomplete: 'off' });
     input.value = riderQuery;
-    form.append(el('div', { class: 'search' }, [icon('search'), input]), el('button', { type: 'submit', class: 'button', text: 'Search' }));
+    const filterSelect = el('select', { class: 'select', 'aria-label': 'Show riders' },
+      Object.entries(RIDER_FILTER_LABELS).map(([value, label]) => el('option', { value, text: label })));
+    filterSelect.value = riderFilter;
+    filterSelect.addEventListener('change', () => {
+      riderFilter = filterSelect.value;
+      riderQuery = input.value.trim();
+      renderAndFocus('select[aria-label="Show riders"]');
+    });
+    form.append(el('div', { class: 'search' }, [icon('search'), input]), filterSelect, el('button', { type: 'submit', class: 'button', text: 'Search' }));
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       riderQuery = input.value.trim();
@@ -1069,33 +1264,61 @@
 
     const displayName = (rider) => rider.displayName || rider.username;
     const content = riders.length === 0
-      ? el('div', { class: 'card' }, [emptyState('users', 'No riders found', riderQuery ? `Nothing matches “${riderQuery}”. Try a username, email or rider ID.` : 'Riders appear here once they sign up.')])
+      ? el('div', { class: 'card' }, [emptyState('users', 'No riders found', riderQuery ? `Nothing matches “${riderQuery}”. Try a username, email or rider ID.`
+        : riderFilter !== 'all' ? `No riders in “${RIDER_FILTER_LABELS[riderFilter]}”.` : 'Riders appear here once they sign up.')])
       : [
         el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, riders.map((rider) => el('li', { class: 'list-row', dataset: { riderId: rider.riderId } }, [
           person(displayName(rider), [rider.handle, rider.email].filter(Boolean).join(' · '), rider.riderId),
-          el('div', { class: 'trail' }, [riderBadges(rider), verifyEmailButton(rider), exportButton(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
+          el('div', { class: 'trail' }, [riderBadges(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
+          riderRowActions(rider),
         ])))]),
         el('div', { class: 'card table-card only-desktop' }, [el('div', { class: 'table-scroll' }, [el('table', { class: 'table' }, [
           el('thead', {}, [el('tr', {}, [
-            el('th', { text: 'Rider' }), el('th', { text: 'Email' }), el('th', { text: 'Status' }),
+            el('th', { text: 'Rider' }), el('th', { text: 'Status' }),
             el('th', { text: 'Joined' }), el('th', { text: 'Last active' }), el('th', { class: 'num', text: 'Friends' }), el('th', { class: 'num', text: 'Reports' }),
+            el('th', { class: 'actions-col' }, [el('span', { class: 'visually-hidden', text: 'Actions' })]),
           ])]),
           el('tbody', {}, riders.map((rider) => el('tr', { dataset: { riderId: rider.riderId } }, [
-            el('td', {}, [person(displayName(rider), [rider.handle, rider.riderId].filter(Boolean).join(' · '), rider.riderId)]),
-            el('td', { class: 'muted', text: rider.email || '—' }),
-            el('td', {}, [riderBadges(rider), verifyEmailButton(rider), exportButton(rider)]),
+            // Email sits under the name, as on phones, leaving room for the actions column.
+            el('td', {}, [person(displayName(rider), [rider.handle, rider.email].filter(Boolean).join(' · '), rider.riderId)]),
+            el('td', {}, [riderBadges(rider)]),
             el('td', { class: 'muted' }, [timeEl(rider.createdAt)]),
             el('td', { class: 'muted' }, [timeEl(rider.lastSeenAt, 'Over 30 days')]),
             el('td', { class: 'num', text: numberFormat.format(rider.friends) }),
             el('td', { class: 'num', text: numberFormat.format(rider.reportsAgainst) }),
+            el('td', { class: 'actions-col' }, [riderRowActions(rider)]),
           ]))),
         ])])]),
       ];
     const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt, 7)).length;
+    const shown = `${riders.length}${nextOffset !== null ? '+' : ''}`;
+    const subtitle = riderQuery ? `${shown} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”`
+      : riderFilter !== 'all' ? `${shown} ${RIDER_FILTER_LABELS[riderFilter].toLowerCase()}` : `Newest ${shown} riders`;
+    const generation = renderGeneration;
+    const loadMore = nextOffset === null ? null : el('button', { type: 'button', class: 'button load-more', text: 'Load more riders' });
+    loadMore?.addEventListener('click', async () => {
+      loadMore.disabled = true;
+      loadMore.textContent = 'Loading…';
+      try {
+        const page = await api('GET', riderListPath(nextOffset));
+        if (!isCurrentRender(generation)) return;
+        const firstNew = page.riders[0]?.riderId;
+        renderRiders(riders.concat(page.riders), page.nextOffset ?? null);
+        const target = firstNew && [...pageEl.querySelectorAll('[data-rider-id]')]
+          .find((row) => row.dataset.riderId === firstNew && row.offsetParent !== null);
+        (target?.querySelector('a, button') ?? target)?.focus({ preventScroll: false });
+      } catch (error) {
+        if (!isCurrentRender(generation)) return;
+        loadMore.disabled = false;
+        loadMore.textContent = 'Load more riders';
+        flash(error.message || 'Could not load more riders.', 'danger');
+      }
+    });
     pageEl.replaceChildren(
-      pageHeader('Riders', riderQuery ? `${riders.length} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”` : `Newest ${riders.length} riders`),
+      pageHeader('Riders', subtitle),
       form,
       ...[].concat(content),
+      ...(loadMore ? [el('div', { class: 'load-more-row' }, [loadMore])] : []),
       el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last 7 days. Search results and existing accounts are never hidden by this range.` }),
     );
   }
@@ -1652,9 +1875,59 @@
     await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy, report.assignedTo]));
     if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
-    pageEl.replaceChildren(header, tabs, el('div', { class: 'reports' }, reports.length
-      ? reports.map(reportCard)
+    const cards = reports.map(reportCard);
+    pageEl.replaceChildren(header, tabs, ...(moderationView === 'open' && reports.length > 1 ? [bulkReportBar(cards)] : []), el('div', { class: 'reports' }, reports.length
+      ? cards
       : [el('div', { class: 'card' }, [emptyState('inbox', moderationView === 'open' ? 'No open reports' : 'Nothing here yet', moderationView === 'open' ? 'You’re all caught up.' : null)])]));
+  }
+
+  const MAX_BULK_REPORTS = 50;
+
+  /** Select open reports and dismiss them together with one note: for a run of
+   *  duplicates or spam. Each report is still resolved and audited on its own. */
+  function bulkReportBar(cards) {
+    const count = el('span', { class: 'bulk-count', 'aria-live': 'polite' });
+    const selectAll = el('input', { type: 'checkbox', 'aria-label': 'Select all open reports' });
+    const dismiss = el('button', { type: 'button', class: 'button', text: 'Dismiss selected' });
+    const boxes = cards.map((card) => {
+      const box = el('input', { type: 'checkbox', class: 'bulk-select', 'aria-label': `Select report ${card.dataset.reportId}` });
+      card.querySelector('.report-head').prepend(el('label', { class: 'bulk-select-label' }, [box]));
+      return box;
+    });
+    const chosen = () => boxes.filter((box) => box.checked).map((box) => box.closest('[data-report-id]').dataset.reportId);
+    const sync = () => {
+      const picked = chosen().length;
+      count.textContent = picked ? `${picked} selected` : 'Select reports to dismiss together';
+      dismiss.disabled = picked === 0 || picked > MAX_BULK_REPORTS;
+      selectAll.checked = picked === boxes.length;
+      selectAll.indeterminate = picked > 0 && picked < boxes.length;
+    };
+    boxes.forEach((box) => box.addEventListener('change', sync));
+    selectAll.addEventListener('change', () => { boxes.forEach((box) => { box.checked = selectAll.checked; }); sync(); });
+    dismiss.addEventListener('click', async () => {
+      const reportIds = chosen();
+      const choice = await actionDialog({
+        title: `Dismiss ${reportIds.length} ${reportIds.length === 1 ? 'report' : 'reports'}?`,
+        description: 'Each report is closed with this note and recorded in the audit log. Riders are not told.',
+        confirmLabel: 'Dismiss reports',
+        templates: ['Duplicate reports of the same incident.', 'Spam reports; no rule broken.'],
+      });
+      if (!choice) return;
+      dismiss.disabled = true;
+      try {
+        const result = await api('POST', '/moderation/reports/dismiss-many', { reportIds, note: choice.note });
+        const skipped = result.skipped?.length ?? 0;
+        await render();
+        flash(`${result.dismissed.length} dismissed${skipped ? `; ${skipped} already handled by someone else` : ''}.`, skipped ? 'warning' : 'success');
+      } catch (error) {
+        dismiss.disabled = false;
+        flash(error.message || 'Could not dismiss these reports.', 'danger');
+      }
+    });
+    sync();
+    return el('div', { class: 'bulk-bar', role: 'group', 'aria-label': 'Bulk actions' }, [
+      el('label', { class: 'bulk-all' }, [selectAll, el('span', { text: 'All' })]), count, dismiss,
+    ]);
   }
 
   function updateReportCount(count) {
@@ -1933,7 +2206,8 @@
       ]),
       el('div', { class: 'case-item-badges' }, [
         caseBadge(item.status, CASE_STATUS_LABELS, statusTone),
-        caseBadge(item.priority, CASE_PRIORITY_LABELS, priorityTone),
+        // Normal is the default: a badge on every row only adds noise.
+        item.priority === 'normal' ? null : caseBadge(item.priority, CASE_PRIORITY_LABELS, priorityTone),
         overdue ? caseBadge('overdue', { overdue: 'Internal target overdue' }, 'danger') : null,
       ]),
     ]);
@@ -2255,10 +2529,209 @@
           el('section', { class: 'card case-history' }, [
             el('h2', { class: 'card-title', text: 'Activity history' }),
             el('p', { class: 'case-help', text: 'Time-ordered staff changes. The latest 200 events are returned; earlier events remain in the database.' }),
-            trail,
+            events.length ? trail : el('p', { class: 'case-empty-history', text: 'No staff changes yet. Updates, notes and ownership changes appear here.' }),
           ]),
         ]),
         controls,
+      ]),
+    );
+  }
+
+  // ------------------------------------------------------------ Partners
+  // Seller and advertiser onboarding. Businesses apply on the public form
+  // (../partners/); staff review, tick the checklist and decide, always with
+  // a note. No payments, payouts or ad spend are handled here.
+  const PARTNER_KIND_LABELS = { seller: 'Seller', advertiser: 'Advertiser' };
+  const PARTNER_STATUS_LABELS = { submitted: 'New', in_review: 'In review', info_requested: 'Info requested', approved: 'Approved', rejected: 'Rejected' };
+  const PARTNER_STATUS_TONES = { submitted: 'neutral', in_review: 'neutral', info_requested: 'warning', approved: 'success', rejected: 'danger' };
+  const PARTNER_CHECK_LABELS = [
+    ['identity', 'Contact identity confirmed'],
+    ['business', 'Business is registered and trading'],
+    ['website', 'Website or shop checked'],
+    ['policies', 'Agrees to the seller and advertising policies'],
+  ];
+  // Decisions offered from each state; mirrors backend/src/partnerStore.ts.
+  const PARTNER_NEXT = {
+    submitted: [['in_review', 'Start review'], ['info_requested', 'Ask for more information'], ['rejected', 'Reject']],
+    in_review: [['approved', 'Approve'], ['info_requested', 'Ask for more information'], ['rejected', 'Reject']],
+    info_requested: [['in_review', 'Resume review'], ['rejected', 'Reject']],
+    approved: [],
+    rejected: [['in_review', 'Reopen review']],
+  };
+
+  function partnerRecord(item) {
+    return el('li', { class: 'case-item', dataset: { partnerId: item.id } }, [
+      el('div', { class: 'case-item-main' }, [
+        el('div', { class: 'case-item-label', text: PARTNER_KIND_LABELS[item.kind] + ' · ' + item.category }),
+        el('a', { class: 'case-item-title', href: '#partner/' + item.id, text: item.businessName }),
+        el('div', { class: 'case-item-metadata' }, [
+          el('span', { text: item.reference }),
+          el('span', { text: item.country }),
+          el('span', { text: item.assignedTo ? 'Owner: ' + item.assignedTo : 'Unassigned' }),
+          el('span', { text: 'Updated ' }),
+          timeEl(item.updatedAt),
+        ]),
+      ]),
+      el('div', { class: 'case-item-badges' }, [caseBadge(item.status, PARTNER_STATUS_LABELS, PARTNER_STATUS_TONES[item.status])]),
+    ]);
+  }
+
+  async function renderPartners(generation) {
+    const params = new URLSearchParams({ status: partnerStatus, kind: partnerKind, limit: '50' });
+    const [{ items }, summary] = await Promise.all([
+      api('GET', '/admin/partners?' + params.toString()),
+      api('GET', '/admin/partners/summary'),
+    ]);
+    if (!isCurrentRender(generation)) return;
+    const formLink = el('a', { class: 'button', href: '../partners/', target: '_blank', rel: 'noopener', text: 'Open application form' });
+    const filter = (label, options, selected, onChange) => {
+      const select = el('select', { class: 'input case-filter-select', 'aria-label': label },
+        options.map(([value, text]) => el('option', { value, text })));
+      select.value = selected;
+      select.addEventListener('change', () => { onChange(select.value); void render(); });
+      return el('label', { class: 'case-filter-field' }, [el('span', { class: 'case-filter-caption', text: label }), select]);
+    };
+    const tile = (label, value, description) => el('div', { class: 'case-workload-metric' }, [
+      el('div', { class: 'case-workload-label', text: label }),
+      el('div', { class: 'case-workload-value', text: formatNumber(value) }),
+      el('div', { class: 'case-workload-description', text: description }),
+    ]);
+    pageEl.replaceChildren(
+      pageHeader('Partners', 'Sellers and advertisers apply on the public form. Every decision needs a note and is kept in the application history. No payments are handled here.', [formLink]),
+      el('section', { class: 'case-workload', 'aria-label': 'Partner applications' }, [
+        tile('Awaiting review', summary.awaitingReview, 'New or in review'),
+        tile('Info requested', summary.infoRequested, 'Waiting on the business'),
+        tile('Approved sellers', summary.approvedSellers, 'Can be listed in Shop'),
+        tile('Approved advertisers', summary.approvedAdvertisers, 'Can be offered placements'),
+      ]),
+      el('div', { class: 'case-filter-toolbar', role: 'group', 'aria-label': 'Filter applications' }, [
+        filter('Status', [['open', 'Needs a decision'], ['all', 'All'], ...Object.entries(PARTNER_STATUS_LABELS)], partnerStatus, (v) => { partnerStatus = v; }),
+        filter('Type', [['all', 'Sellers and advertisers'], ['seller', 'Sellers'], ['advertiser', 'Advertisers']], partnerKind, (v) => { partnerKind = v; }),
+      ]),
+      items.length
+        ? el('ul', { class: 'case-list', 'aria-label': 'Partner applications' }, items.map(partnerRecord))
+        : el('div', { class: 'card' }, [emptyState('inbox', 'No applications here', partnerStatus === 'open'
+          ? 'Nothing is waiting on a decision. New applications from the public form appear here.'
+          : 'No applications match these filters.')]),
+    );
+  }
+
+  async function renderPartnerDetail(generation) {
+    if (!detailCaseId) return;
+    let payload;
+    try { payload = await api('GET', '/admin/partners/' + encodeURIComponent(detailCaseId)); }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 404 && isCurrentRender(generation)) {
+        pageEl.replaceChildren(pageHeader('Application unavailable', 'No application was found with this link.'),
+          el('div', { class: 'card case-empty' }, [emptyState('lock', 'Application not found', 'It may have been removed.'),
+            el('a', { class: 'button', href: '#partners', text: 'Back to partners' })]));
+        return;
+      }
+      throw error;
+    }
+    if (!isCurrentRender(generation)) return;
+    const { item, events } = payload;
+    const finished = item.status === 'approved' || item.status === 'rejected';
+    const isMine = item.assignedTo === session.riderId;
+    const canAct = me?.role === 'admin' || item.assignedTo === null || isMine;
+    const note = el('textarea', { class: 'input case-description', rows: 3, maxlength: 2000,
+      'aria-label': 'Decision note', placeholder: 'A note is required for every change, including checklist ticks.' });
+    const message = el('p', { class: 'error-text', role: 'alert' });
+    const buttons = [];
+    const commit = async (path, data, done) => {
+      if (!note.value.trim()) { message.textContent = 'Write a note before making a change.'; note.focus(); return false; }
+      for (const button of buttons) button.disabled = true;
+      message.textContent = '';
+      try {
+        await api('POST', '/admin/partners/' + encodeURIComponent(item.id) + '/' + path,
+          { ...data, note: note.value.trim(), expectedVersion: item.version });
+        flash(done);
+        await render();
+        return true;
+      } catch (error) {
+        message.textContent = error instanceof ApiError && error.code === 'stale_application'
+          ? 'This application changed since you opened it. Refresh to see the latest version.'
+          : error instanceof ApiError && error.code === 'checklist_incomplete'
+            ? 'Tick every checklist item before approving.'
+            : error instanceof ApiError && error.code === 'assigned_to_other'
+              ? 'Another reviewer owns this application. Ask them or an admin to hand it over.'
+              : actionErrorMessage(error);
+        for (const button of buttons) button.disabled = false;
+        return false;
+      }
+    };
+    const checklist = el('ul', { class: 'partner-checklist', 'aria-label': 'Verification checklist' },
+      PARTNER_CHECK_LABELS.map(([key, label]) => {
+        const box = el('input', { type: 'checkbox', checked: item.checklist[key] || undefined, disabled: finished || !canAct || undefined });
+        box.addEventListener('change', async () => {
+          const ok = await commit('checklist', { check: key, done: box.checked }, 'Checklist updated.');
+          if (!ok) box.checked = !box.checked;
+        });
+        buttons.push(box);
+        return el('li', {}, [el('label', { class: 'partner-check' }, [box, el('span', { text: label })])]);
+      }));
+    const decisions = el('div', { class: 'actions partner-decisions' }, (PARTNER_NEXT[item.status] || []).map(([status, label]) => {
+      const button = el('button', { type: 'button', class: 'button' + (status === 'approved' ? ' button-primary' : status === 'rejected' ? ' button-danger' : ''),
+        text: label, disabled: !canAct || undefined });
+      button.addEventListener('click', () => void commit('status', { status }, `Marked ${PARTNER_STATUS_LABELS[status].toLowerCase()}.`));
+      buttons.push(button);
+      return button;
+    }));
+    const own = el('button', { type: 'button', class: 'button', text: isMine ? 'Release' : 'Take ownership', disabled: !canAct || undefined });
+    own.addEventListener('click', () => void commit('assign', isMine ? { assigneeId: null } : {}, isMine ? 'Released to the queue.' : 'You own this application.'));
+    const addNote = el('button', { type: 'button', class: 'button', text: 'Add note only' });
+    addNote.addEventListener('click', () => void commit('notes', {}, 'Note added to the history.'));
+    buttons.push(own, addNote);
+    const field = (label, value) => el('div', { class: 'detail-field' }, [el('dt', { text: label }), el('dd', {}, [value])]);
+    const website = item.website
+      ? el('a', { href: item.website, target: '_blank', rel: 'noopener noreferrer nofollow', text: item.website })
+      : el('span', { class: 'muted', text: 'None given' });
+    const history = events.length
+      ? el('ol', { class: 'case-timeline', 'aria-label': 'Application history' }, events.map((event) => el('li', { class: 'case-event' }, [
+        el('div', { class: 'case-event-meta' }, [
+          el('strong', { text: event.event === 'status' ? PARTNER_STATUS_LABELS[event.toValue] || event.toValue
+            : event.event === 'checklist' ? 'Checklist' : event.event[0].toUpperCase() + event.event.slice(1) }),
+          el('span', { text: event.actorId ? 'by ' + event.actorId : 'by the applicant' }),
+          timeEl(event.createdAt),
+        ]),
+        el('p', { class: 'case-event-note', text: event.note }),
+      ])))
+      : el('p', { class: 'case-empty-history', text: 'No history yet.' });
+    pageEl.replaceChildren(
+      el('a', { class: 'case-back', href: '#partners', text: '← All applications' }),
+      pageHeader(item.businessName, `${PARTNER_KIND_LABELS[item.kind]} application ${item.reference}. Contact details are only for onboarding; nothing is sent to the business from here.`),
+      el('div', { class: 'case-detail-meta' }, [
+        caseBadge(item.kind, PARTNER_KIND_LABELS),
+        caseBadge(item.status, PARTNER_STATUS_LABELS, PARTNER_STATUS_TONES[item.status]),
+        el('span', { text: item.assignedTo ? 'Owner: ' + item.assignedTo : 'Unassigned' }),
+        el('span', { text: 'Submitted ' }), timeEl(item.createdAt),
+      ]),
+      el('div', { class: 'case-detail-layout' }, [
+        el('div', { class: 'case-detail-primary' }, [
+          el('section', { class: 'card case-description-card' }, [
+            el('h2', { class: 'card-title', text: 'Application' }),
+            el('dl', { class: 'detail-grid' }, [
+              field('Contact', item.contactName),
+              field('Email', el('a', { href: 'mailto:' + item.contactEmail, text: item.contactEmail })),
+              field('Website', website),
+              field('Country', item.country),
+              field('Category', item.category),
+              field('Reference', item.reference),
+            ]),
+            el('p', { class: 'case-body-text', text: item.description }),
+          ]),
+          el('section', { class: 'card case-history' }, [el('h2', { class: 'card-title', text: 'History' }), history]),
+        ]),
+        el('section', { class: 'card case-controls', 'aria-label': 'Review' }, [
+          el('h2', { class: 'card-title', text: 'Review' }),
+          el('label', { class: 'case-field' }, [el('span', { text: 'Note' }), note]),
+          el('h3', { class: 'partner-subhead', text: 'Verification checklist' }),
+          checklist,
+          finished ? el('p', { class: 'case-help', text: item.status === 'approved' ? 'Approved. This decision is final.' : 'Rejected. The review can be reopened.' }) : null,
+          decisions,
+          el('div', { class: 'actions' }, [own, addNote]),
+          message,
+        ]),
       ]),
     );
   }
@@ -2320,7 +2793,7 @@
 
   function roleSelect(value, label) {
     const select = el('select', { class: 'input select', 'aria-label': label });
-    for (const role of ['moderator', 'support', 'analyst']) select.append(el('option', { value: role, text: ROLE_LABELS[role], selected: role === value }));
+    for (const role of ['moderator', 'support', 'analyst', 'partnerships']) select.append(el('option', { value: role, text: ROLE_LABELS[role], selected: role === value }));
     return select;
   }
 
@@ -2354,8 +2827,33 @@
     return form;
   }
 
+  /** Two-step status for a colleague, with an admin reset for a lost phone. */
+  function twoStepControl(member) {
+    if (!member.twoStep) return el('span', { class: 'muted', text: 'Two-step off' });
+    if (member.riderId === session.riderId) return badge('Two-step on', 'success');
+    const reset = el('button', { type: 'button', class: 'button button-small', text: 'Reset two-step' });
+    reset.addEventListener('click', async () => {
+      const choice = await actionDialog({
+        title: `Reset two-step sign-in for ${member.displayName || member.riderId}?`,
+        description: 'Use this when they have lost their phone and recovery codes. They can sign in with a password and set it up again. A reason goes in the audit log.',
+        confirmLabel: 'Reset two-step', danger: true,
+      });
+      if (!choice) return;
+      reset.disabled = true;
+      try {
+        await api('POST', `/admin/staff/${encodeURIComponent(member.riderId)}/mfa-reset`, { note: choice.note });
+        await render();
+        flash('Two-step sign-in reset.');
+      } catch (error) {
+        reset.disabled = false;
+        flash(staffErrorMessage(error), 'danger');
+      }
+    });
+    return el('span', { class: 'row-actions' }, [badge('Two-step on', 'success'), reset]);
+  }
+
   function staffActions(member) {
-    if (member.role === 'admin') return el('span', { class: 'muted', text: 'Set on the backend' });
+    if (member.role === 'admin') return el('div', { class: 'row-actions' }, [el('span', { class: 'muted', text: 'Set on the backend' }), twoStepControl(member)]);
     const select = roleSelect(member.role, `Role for ${member.displayName || member.riderId}`);
     const remove = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'remove-staff' }, text: 'Remove' });
     select.addEventListener('change', async () => {
@@ -2404,7 +2902,7 @@
         remove.disabled = false;
       }
     });
-    return el('div', { class: 'row-actions' }, [select, remove]);
+    return el('div', { class: 'row-actions' }, [select, remove, twoStepControl(member)]);
   }
 
   function roleMatrix() {
@@ -2464,7 +2962,7 @@
     await loadNames(staff.map((member) => member.grantedBy).filter(Boolean));
     if (!isCurrentRender(generation)) return;
     pageEl.replaceChildren(
-      pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
+      pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst', 'partnerships'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
       el('details', { class: 'workspace-disclosure staff-add-details' }, [
         el('summary', { text: 'Add a staff member' }),
         addStaffForm(),
@@ -2656,12 +3154,12 @@
     const focusHeading = focusHeadingOnNextRender;
     focusHeadingOnNextRender = false;
     for (const button of navEl.querySelectorAll('[data-view]')) {
-      if (button.dataset.view === (view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view)) button.setAttribute('aria-current', 'page');
+      if (button.dataset.view === parentView(view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
-    document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view];
-    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view];
+    document.getElementById('brandSection').textContent = VIEW_TITLES[parentView(view)];
+    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[parentView(view)];
     // Refresh the current section in place; skeletons are for navigation only.
     // Keep inbox filter controls available during a source refresh.
     const refreshing = key === displayedKey ||
@@ -2673,25 +3171,44 @@
     setBusy(true);
     try {
       if (['overview', 'insights', 'company'].includes(view)) {
-        const overview = await api('GET', '/admin/overview');
+        const [overview, caseWorkload, partnerWorkload] = await Promise.all([
+          api('GET', '/admin/overview'),
+          // The Overview is a work queue: it also needs the case workload.
+          view === 'overview' && allowed('view_cases')
+            ? api('GET', '/admin/cases/summary').catch((error) => {
+              if (error instanceof ApiError && error.status === 401) throw error;
+              return null;
+            })
+            : null,
+          view === 'overview' && allowed('review_partners')
+            ? api('GET', '/admin/partners/summary').catch((error) => {
+              if (error instanceof ApiError && error.status === 401) throw error;
+              return null;
+            })
+            : null,
+        ]);
         if (!isCurrentRender(generation)) return;
         overviewCache = overview;
         updateReportCount(overviewCache.safety.openReports);
         if (view === 'insights') renderInsights(overviewCache);
         else if (view === 'company') renderCompany(overviewCache);
-        else renderOverview(overviewCache);
+        else renderOverview(overviewCache, caseWorkload, partnerWorkload);
       } else if (view === 'inbox') {
         await renderInbox(generation);
       } else if (view === 'riders') {
-        const { riders } = await api('GET', `/admin/riders?limit=50&q=${encodeURIComponent(riderQuery)}`);
+        const { riders, nextOffset } = await api('GET', riderListPath());
         if (!isCurrentRender(generation)) return;
-        renderRiders(riders);
+        renderRiders(riders, nextOffset ?? null);
       } else if (view === 'moderation') {
         await renderModeration(generation);
       } else if (view === 'cases') {
         await renderCases(generation);
       } else if (view === 'case') {
         await renderCaseDetail(generation);
+      } else if (view === 'partners') {
+        await renderPartners(generation);
+      } else if (view === 'partner') {
+        await renderPartnerDetail(generation);
       } else if (view === 'audit') {
         await renderAudit(generation);
       } else if (view === 'staff') {
@@ -2759,8 +3276,7 @@
     const next = parseHash(hash);
     if ((next.view === 'overview' && hash !== 'overview' && hash !== '')
       || (me && !allowed(VIEW_PERMISSIONS[next.view]))) {
-      const current = view === 'rider' ? `rider/${detailRiderId}` : view === 'case' ? `case/${detailCaseId}` : view;
-      history.replaceState(null, '', `#${current}`);
+      history.replaceState(null, '', `#${viewHash()}`);
       return;
     }
     if (next.view === view && next.riderId === detailRiderId && next.caseId === detailCaseId) return;
@@ -2769,8 +3285,7 @@
     detailRiderId = next.riderId;
     detailCaseId = next.caseId;
     focusHeadingOnNextRender = true;
-    const target = view === 'rider' ? `rider/${detailRiderId}` : view === 'case' ? `case/${detailCaseId}` : view;
-    if (location.hash !== `#${target}`) history.pushState(null, '', `#${target}`);
+    if (location.hash !== `#${viewHash()}`) history.pushState(null, '', `#${viewHash()}`);
     window.scrollTo(0, 0);
     void render();
   }
@@ -3182,9 +3697,14 @@
       'aria-label': 'Password', placeholder: 'Your password' });
     const error = el('p', { class: 'error-text', role: 'alert', text: message });
     const submit = el('button', { type: 'submit', class: 'button button-primary staff-login-submit', text: 'Sign in to Operations Hub' });
+    // Shown only when the account uses two-step sign-in.
+    const code = el('input', { class: 'input staff-login-field', type: 'text', name: 'code', inputmode: 'numeric',
+      autocomplete: 'one-time-code', maxlength: 20, 'aria-label': 'Authenticator or recovery code', placeholder: '6-digit code' });
+    const codeLabel = el('label', { class: 'staff-login-label', hidden: true }, ['Authenticator code', code]);
     const form = el('form', { class: 'staff-login-form', novalidate: true }, [
       el('label', { class: 'staff-login-label' }, ['Username', username]),
       el('label', { class: 'staff-login-label' }, ['Password', password]),
+      codeLabel,
       error,
       submit,
     ]);
@@ -3201,7 +3721,7 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           credentials: 'omit', redirect: 'error', cache: 'no-store',
           body: JSON.stringify({ username: username.value.trim(), password: password.value,
-            deviceName: 'Rider Comms Staff PWA' }),
+            deviceName: 'Rider Comms Staff PWA', ...(codeLabel.hidden ? {} : { code: code.value.trim() }) }),
         });
         const body = await login.json().catch(() => ({}));
         if (!login.ok) throw new ApiError(login.status, body.error);
@@ -3239,6 +3759,21 @@
         if (failure instanceof ApiError && failure.status === 429) error.textContent = 'Too many attempts. Try again later.';
         else if (failure instanceof ApiError && failure.code === 'staff_only') error.textContent = 'This account does not have staff access.';
         else if (failure instanceof ApiError && failure.code === 'account_suspended') error.textContent = 'This account is suspended.';
+        else if (failure instanceof ApiError && failure.code === 'mfa_required') {
+          // Password accepted; this account also needs its authenticator code.
+          codeLabel.hidden = false;
+          error.textContent = 'Enter the code from your authenticator app.';
+          submit.disabled = false;
+          code.focus();
+          return;
+        }
+        else if (failure instanceof ApiError && failure.code === 'invalid_code') {
+          error.textContent = 'That code isn’t right, or was already used. Try the next one.';
+          code.value = '';
+          submit.disabled = false;
+          code.focus();
+          return;
+        }
         else if (failure instanceof ApiError && failure.status === 401) error.textContent = 'The username or password is incorrect.';
         else error.textContent = 'Sign-in could not complete. Check your connection and try again.';
         password.value = '';
@@ -3277,12 +3812,28 @@
   }
   const footerRole = el('span', { class: 'footer-role' });
   const footerInstall = installButton();
-  const legacyInstallLink = el('a', { class: 'staff-footer-install-link', href: './staff/',
-    text: 'Open installable Staff app' });
-  const signOutButton = el('button', { type: 'button', class: 'staff-signout', text: 'Sign out of Staff' });
-  const footerIdentity = (label) => footerEl.replaceChildren(
-    el('div', { class: 'staff-footer-account' }, [label, footerRole]),
-    IS_STAFF_PWA ? footerInstall : legacyInstallLink, signOutButton,
+  // Account row: who is signed in and their role, then compact icon actions
+  // in DOM (and tab) order: open the installable app, then sign out.
+  const legacyInstallLink = el('a', { class: 'staff-footer-icon-action staff-footer-install-link', href: './staff/',
+    'aria-label': 'Open installable Staff app', title: 'Open installable Staff app' }, [icon('device')]);
+  const securityButton = el('button', { type: 'button', class: 'staff-footer-icon-action',
+    'aria-label': 'Account security', title: 'Account security' }, [icon('lock')]);
+  securityButton.addEventListener('click', () => void openSecurityDialog());
+  const signOutButton = el('button', { type: 'button', class: 'staff-footer-icon-action staff-signout',
+    'aria-label': 'Sign out of Staff', title: 'Sign out of Staff' }, [icon('signOut')]);
+  const footerIdentity = (name, handle = '') => footerEl.replaceChildren(
+    el('div', { class: 'staff-footer-account' }, [
+      el('span', { class: 'staff-footer-avatar', 'aria-hidden': 'true', text: initials(name) }),
+      el('div', { class: 'staff-footer-who' }, [
+        el('span', { class: 'staff-footer-name' }, [
+          el('span', { class: 'visually-hidden', text: 'Signed in as ' }),
+          name,
+          handle ? el('span', { class: 'visually-hidden', text: ' · ' + handle }) : null,
+        ]),
+        el('span', { class: 'staff-footer-meta' }, [handle ? el('span', { 'aria-hidden': 'true', text: handle }) : null, footerRole]),
+      ]),
+    ]),
+    el('div', { class: 'staff-footer-actions' }, [IS_STAFF_PWA ? footerInstall : legacyInstallLink, securityButton, signOutButton]),
   );
   signOutButton.addEventListener('click', async () => {
     signOutButton.disabled = true;
@@ -3316,10 +3867,14 @@
     renderStaffSignIn();
     return;
   }
-  footerIdentity(`Signed in as ${session.riderId}`);
+  footerIdentity(session.riderId);
   api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
     const name = profile?.displayName || profile?.handle;
-    if (name && session) footerIdentity(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`);
+    if (name && session) {
+      staffDisplayName = name;
+      footerIdentity(name, profile.handle && profile.displayName ? profile.handle : '');
+      document.querySelector('[data-welcome-name]')?.replaceChildren(name);
+    }
   }).catch(() => {});
 
   // The role decides which pages appear; the backend enforces it either way.
@@ -3356,7 +3911,7 @@
     document.getElementById('globalSearchMobile').hidden = false;
     workspaceSearchTrigger.hidden = false;
     footerRole.replaceChildren(roleBadge(me.role));
-    if (!footerEl.contains(footerRole)) footerIdentity(`Signed in as ${session.riderId}`);
+    if (!footerEl.contains(footerRole)) footerIdentity(session.riderId);
     if (!allowed(VIEW_PERMISSIONS[view])) {
       view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
       detailRiderId = null;
