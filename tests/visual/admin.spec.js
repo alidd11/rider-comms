@@ -1083,7 +1083,7 @@ test.describe('staff dashboard', () => {
     // An ISO timestamp from the API must populate datetime-local without
     // crashing the entire case view (numeric epoch values also remain valid).
     await expect(page.getByRole('region', { name: 'Case actions' })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Internal follow-up target' })).toHaveValue(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/);
+    await expect(page.getByLabel('Internal follow-up target')).toHaveValue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
     state.companyCases[0].status = 'resolved';
     await page.goto('/admin.html#cases');
     await expect(page.locator('[data-case-id="11111111-1111-4111-8111-111111111111"]')).toHaveAttribute('data-follow-up', 'normal');
