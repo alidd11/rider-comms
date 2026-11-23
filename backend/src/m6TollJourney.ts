@@ -7,6 +7,7 @@
  */
 import { classifyRiderVehicleForCharging } from './riderVehicleChargePreview.ts';
 import type { ChargeVehicleClass } from './chargingRules.ts';
+import { parseChargeInstant } from './chargeInstant.ts';
 
 export const M6_TOLL_OFFICIAL_JUNCTION_SOURCE =
   'https://www.m6toll.co.uk/using-the-m6toll/what-to-expect/';
@@ -54,16 +55,6 @@ export interface M6TollJourneyReview {
   requiresOperatorTariffReview: true;
   routeCoverageComplete: false;
 }
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
-function instant(value: unknown): number | null {
-  if (typeof value !== 'string' || !INSTANT.test(value) || !DATE.test(value.slice(0, 10))) return null;
-  const datePart = value.slice(0, 10);
-  const day = new Date(datePart + 'T00:00:00Z');
-  if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== datePart) return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 const MAX_JOURNEY_HOURS = 48;
 const validId = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(value);
@@ -88,7 +79,7 @@ export function reviewM6TollJourney(input: M6TollJourneyCandidate): M6TollJourne
     requiresOperatorTariffReview: true, routeCoverageComplete: false,
   });
   if (!input || !validId(input.journeyId)) return make('unknown', 'invalid_journey');
-  const start = instant(input.enteredAt), end = instant(input.exitedAt);
+  const start = parseChargeInstant(input.enteredAt), end = parseChargeInstant(input.exitedAt);
   if (start === null || end === null || end <= start
     || end - start > MAX_JOURNEY_HOURS * 60 * 60 * 1000) return make('unknown', 'invalid_journey');
   if (!junctionsFeasible(input)) return make('unknown', 'invalid_entry_or_exit');

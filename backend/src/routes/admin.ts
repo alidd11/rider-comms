@@ -10,6 +10,8 @@ import { readJsonBody, sendJson } from '../serverHttp.ts';
 import { GRANTABLE_STAFF_ROLES, isGrantableStaffRole, permissionsFor, roleCan } from '../staffRoles.ts';
 import type { StaffPermission } from '../staffRoles.ts';
 import { NOT_HANDLED, refuseWithoutRecentReauth } from './context.ts';
+import { handleCompanyCaseRoutes } from './adminCases.ts';
+import { parseOperationsWindow, socialSafetyActivityReport } from '../operationsReports.ts';
 import type { RouteContext } from './context.ts';
 
 /** Staff dashboard. The caller's role is re-read from Postgres on every request. */
@@ -20,6 +22,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   if (!role) return sendJson(res, 403, { error: 'admin_required' });
   const lacks = (permission: StaffPermission) => !roleCan(role, permission);
   const refuse = (permission: StaffPermission) => sendJson(res, 403, { error: 'permission_required', permission });
+
+  if (s[1] === 'cases') return handleCompanyCaseRoutes(ctx, role);
 
   if (req.method === 'GET' && url.pathname === '/admin/me') {
     return sendJson(res, 200, { riderId: actorId, role, permissions: permissionsFor(role) });
@@ -50,6 +54,15 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       limit, filter: type, sampleLimit: INBOX_SAMPLE_SIZE,
     }));
   }
+  // Complete retained-database aggregate of Rider Social posts/reports,
+  // only to staff permitted to moderate. No rider identifiers are returned.
+  if (req.method === 'GET' && url.pathname === '/admin/social/activity') {
+    if (lacks('moderate')) return refuse('moderate');
+    const days = parseOperationsWindow(url.searchParams.get('days'));
+    if (days === null) return sendJson(res, 400, { error: 'invalid_report_window', values: [7, 30] });
+    return sendJson(res, 200, await socialSafetyActivityReport(days));
+  }
+
   // What the running backend is set up to do, for the dashboard's System page.
   if (req.method === 'GET' && url.pathname === '/admin/system') {
     if (lacks('view_system')) return refuse('view_system');

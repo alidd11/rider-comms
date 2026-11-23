@@ -1,21 +1,22 @@
-// Rider Comms staff dashboard: business overview, riders, moderation, the
-// audit log, staff roles and system health. Uses the PWA's own sign-in on
-// this origin (same session storage key), so staff sign in to the app in this
-// browser first. Each staff member has one role (admin, moderator, support or
-// analyst; backend/src/staffRoles.ts). The backend re-checks the role on
-// every /admin and /moderation request; this page only decides what to show.
+// Rider Comms Operations Hub: separate staff PWA login and web dashboard.
+// Staff authenticate using their Rider Comms account through /auth/staff-login.
+// The installed /staff/ app has its own session key, manifest and worker.
+// Every admin/moderation API still enforces the current server-side staff role.
 //
 // Rider-supplied text (names, report details, notes) is only ever inserted
 // with textContent, never parsed as HTML.
 (() => {
   const API_BASE_URL = 'https://backend-production-7fa0.up.railway.app';
   const SESSION_KEY = 'rider-comms-session-v1';
+  const STAFF_SESSION_KEY = 'rider-comms-staff-session-v1';
+  const STAFF_SIGNED_OUT_KEY = 'rider-comms-staff-signed-out-v1';
+  const IS_STAFF_PWA = /\/staff\/(?:index\.html)?$/.test(location.pathname);
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'inbox', 'riders', 'moderation', 'audit', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'inbox', 'riders', 'moderation', 'cases', 'case', 'audit', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', audit: 'Audit log', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', audit: 'view_audit', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -23,6 +24,12 @@
   };
   const SUSPENSION_LENGTHS = [['1', '1 day'], ['7', '7 days'], ['30', '30 days'], ['', 'No end date']];
   const ROLE_LABELS = { admin: 'Admin', moderator: 'Moderator', support: 'Support', analyst: 'Analyst' };
+  const CASE_KIND_LABELS = { support: 'Customer support', appeal: 'Appeals', privacy: 'Privacy requests', incident: 'Incidents' };
+  const CASE_STATUS_LABELS = { open: 'Open', in_progress: 'In progress', waiting: 'Waiting', resolved: 'Resolved', closed: 'Closed' };
+  const CASE_PRIORITY_LABELS = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
+  const CASE_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'];
+  const CASE_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+
   const ROLE_TONES = { admin: 'accent', moderator: 'warning', support: 'success', analyst: null };
   // What each role can do, in words; mirrors backend/src/staffRoles.ts.
   const ROLE_SUMMARIES = [
@@ -33,12 +40,12 @@
   ];
   const PERMISSION_LABELS = [
     ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
-    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['view_system', 'System'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['view_system', 'System'],
   ];
   const ROLE_MATRIX = {
-    admin: ['view_overview', 'view_riders', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'view_system'],
-    moderator: ['view_overview', 'view_riders', 'moderate', 'view_audit', 'view_system'],
-    support: ['view_overview', 'view_riders', 'verify_email', 'account_help', 'view_audit', 'view_system'],
+    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'view_system'],
+    moderator: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'view_audit', 'view_system'],
+    support: ['view_overview', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit', 'view_system'],
     analyst: ['view_overview', 'view_system'],
   };
   const REASON_LABELS = {
@@ -66,16 +73,21 @@
   // #rider/<id> opens one rider; every other hash is a section.
   function parseHash(hash) {
     const match = /^rider\/([A-Za-z0-9_-]{1,64})$/.exec(hash);
-    if (match) return { view: 'rider', riderId: match[1] };
-    return { view: VIEWS.includes(hash) && hash !== 'rider' ? hash : 'overview', riderId: null };
+    if (match) return { view: 'rider', riderId: match[1], caseId: null };
+    const caseMatch = /^case\/([0-9a-f-]{36})$/i.exec(hash);
+    if (caseMatch) return { view: 'case', riderId: null, caseId: caseMatch[1] };
+    return { view: VIEWS.includes(hash) && hash !== 'rider' && hash !== 'case' ? hash : 'overview', riderId: null, caseId: null };
   }
-  let { view, riderId: detailRiderId } = parseHash(location.hash.slice(1));
+  let { view, riderId: detailRiderId, caseId: detailCaseId } = parseHash(location.hash.slice(1));
   let period = readPeriod();
   let moderationView = 'open';
   let inboxFilter = 'all';
   // A local view over the returned 50-item snapshot, never a global ownership count.
   let inboxOwnerFilter = 'all';
   let inboxFocusTarget = null;
+  let caseKind = 'all';
+  let caseStatus = 'all';
+  let caseOwner = 'all';
   let riderQuery = '';
   let auditGroup = 'all';
   let auditRider = '';
@@ -88,7 +100,10 @@
   const isCurrentRender = (generation) => generation === renderGeneration;
   let displayedKey = null;
   let focusHeadingOnNextRender = false;
-  const renderKey = () => JSON.stringify([view, detailRiderId,
+  let focusReportingWindowAfterNextRender = false;
+  const renderKey = () => JSON.stringify([view, detailRiderId, detailCaseId,
+    view === 'cases' ? caseKind : null, view === 'cases' ? caseStatus : null,
+    view === 'cases' ? caseOwner : null,
     view === 'riders' ? riderQuery : null,
     view === 'moderation' ? moderationView : null,
     view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
@@ -108,15 +123,23 @@
   }
 
   function readSession() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STAFF_SESSION_KEY) || 'null');
+      if (stored?.token && stored?.riderId) return { ...stored, source: 'staff' };
+    } catch { /* Storage is optional; staff may sign in again. */ }
+    // Keep legacy /admin.html access for signed-in Rider Comms users, but
+    // installed /staff/ must NEVER depend on another app's isolated storage.
+    if (IS_STAFF_PWA) return null;
+    try { if (sessionStorage.getItem(STAFF_SIGNED_OUT_KEY) === '1') return null; } catch { /* no-op */ }
     for (const storage of [localStorage, sessionStorage]) {
       try {
         const stored = JSON.parse(storage.getItem(SESSION_KEY) || 'null');
-        if (stored?.token && stored?.riderId) return stored;
+        if (stored?.token && stored?.riderId) return { ...stored, source: 'legacy' };
       } catch { /* Ignore unreadable storage. */ }
     }
     return null;
   }
-  const session = readSession();
+  let session = readSession();
 
   class ApiError extends Error {
     constructor(status, code) {
@@ -558,19 +581,80 @@
 
   // ------------------------------------------------------------ Page chrome
 
+  // One consistent, keyboard-operable period control for reports that own
+  // a meaningful time axis. Operational queues and record details remain
+  // unfiltered, so urgent work cannot vanish behind an analytics preference.
+  function reportingWindow() {
+    const label = el('label', { class: 'reporting-range' }, [
+      el('span', { class: 'reporting-range-caption', text: 'Date range' }),
+    ]);
+    const select = el('select', { class: 'reporting-range-select', 'aria-label': 'Reporting period' }, [
+      el('option', { value: '7', text: 'Last 7 days' }),
+      el('option', { value: '30', text: 'Last 30 days' }),
+    ]);
+    select.value = String(period);
+    select.addEventListener('change', () => {
+      const next = Number(select.value);
+      if (next !== 7 && next !== 30) return;
+      // Never silently wipe staff access form drafts merely to change a chart.
+      const staffForm = view === 'staff' ? pageEl.querySelector('#addStaffForm') : null;
+      const unsavedStaffInput = staffForm && [...staffForm.querySelectorAll('input')]
+        .some((input) => input.value.trim().length > 0);
+      const pendingSearch = (view === 'riders' &&
+        pageEl.querySelector('input[aria-label="Search riders"]')?.value !== riderQuery) ||
+        (view === 'audit' &&
+        pageEl.querySelector('input[aria-label="Show actions for one rider"]')?.value !== auditRider);
+      if (unsavedStaffInput || pendingSearch) {
+        select.value = String(period);
+        flash('Apply or clear your form edits before changing the date range.', 'warning');
+        return;
+      }
+      period = next;
+      savePeriod(next);
+      if (view === 'overview' && overviewCache) {
+        renderOverview(overviewCache);
+        pageEl.querySelector('.reporting-range-select')?.focus({ preventScroll: true });
+      } else {
+        focusReportingWindowAfterNextRender = true;
+        void render();
+      }
+    });
+    label.append(select);
+    return label;
+  }
+
+  function periodCutoff() { return Date.now() - period * 86_400_000; }
+  function inReportingWindow(timestamp) {
+    const milliseconds = typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);
+    return Number.isFinite(milliseconds) && milliseconds >= periodCutoff();
+  }
+
   function pageHeader(title, subtitle, actions = []) {
     const refresh = el('button', { type: 'button', class: 'button desktop-refresh', dataset: { refresh: '' }, text: 'Refresh' });
     refresh.addEventListener('click', () => void render());
+    // The shell already identifies the Operations Hub and current section.
+    // Keep that context available, but avoid repeating an eyebrow and several
+    // paragraphs above the working area on every screen.
+    const context = subtitle ? el('details', { class: 'page-context' }, [
+      el('summary', { text: 'About this view', 'aria-label': 'About ' + title }),
+      el('p', { class: 'page-subtitle', text: subtitle }),
+    ]) : null;
     return el('div', { class: 'page-header' }, [
       el('div', { class: 'page-heading' }, [
-        el('span', { class: 'page-eyebrow' }, [
-          el('span', { class: 'page-eyebrow-dot', 'aria-hidden': 'true' }),
-          el('span', { text: 'Operations hub' }),
-        ]),
         el('h1', { class: 'page-title', tabindex: '-1', text: title }),
-        subtitle ? el('p', { class: 'page-subtitle', text: subtitle }) : null,
+        context,
       ]),
-      el('div', { class: 'actions' }, [...actions, refresh]),
+      el('div', { class: 'actions page-header-actions' }, [
+        ['overview', 'riders', 'inbox', 'cases', 'audit', 'staff'].includes(view)
+          ? reportingWindow()
+          : el('span', { class: 'reporting-scope', text: ({
+            moderation: 'Live moderation queue',
+            system: 'Live service status',
+            rider: 'Account record',
+            case: 'Full case history',
+          })[view] || 'Live data' }),
+        ...actions, refresh,
+      ]),
     ]);
   }
 
@@ -684,6 +768,86 @@
     ]);
   }
 
+  // Portfolio figures come only from the authorised backend snapshot. A
+  // disconnected domain explicitly says so instead of displaying fake KPIs.
+  function companyCommandCentre(data) {
+    const { riders, activity, social, content, safety } = data;
+    const metric = (label, value) => el('div', { class: 'company-hero-metric' }, [
+      el('span', { class: 'company-hero-metric-label', text: label }),
+      el('strong', { class: 'company-hero-metric-value', text: formatNumber(value) }),
+    ]);
+    const unit = ({ title, status, description, fact, destination, action, permittedRoles, startKind, unavailable = false }) => {
+      const canOpen = destination && allowed(VIEW_PERMISSIONS[destination])
+        && (!permittedRoles || permittedRoles.includes(me?.role));
+      const button = canOpen ? el('button', { type: 'button', class: 'button button-small', text: action }) : null;
+      if (button) button.addEventListener('click', () => { if (startKind) caseKind = startKind; selectView(destination); });
+      return el('article', { class: 'company-unit', dataset: { unavailable: String(unavailable) } }, [
+        el('div', { class: 'company-unit-header' }, [
+          el('h3', { class: 'company-unit-title', text: title }),
+          el('span', { class: 'company-unit-status', dataset: { status: unavailable ? 'unavailable' : 'available' }, text: status }),
+        ]),
+        el('p', { class: 'company-unit-description', text: description }),
+        el('div', { class: 'company-unit-fact', text: fact }),
+        button,
+      ]);
+    };
+    return [
+      el('section', { class: 'company-hero', 'aria-label': 'Company pulse' }, [
+        el('div', {}, [
+          el('span', { class: 'company-hero-kicker', text: 'Rider Comms · Company operations' }),
+          el('h2', { class: 'company-hero-title', text: 'The business at a glance' }),
+          el('p', { class: 'company-hero-description', text: 'One source of truth for mobility, community and platform operations. These figures are a time-stamped backend snapshot, not simulated live analytics.' }),
+        ]),
+        el('div', { class: 'company-hero-metrics' }, [
+          metric('Riders active · 24h', activity.active24h),
+          metric('Open rider reports', safety.openReports),
+          metric('Group rides now', activity.activeRides),
+        ]),
+      ]),
+      el('section', { class: 'company-portfolio', 'aria-label': 'Company operations' }, [
+        el('div', { class: 'company-section-heading' }, [
+          el('h2', { class: 'section-title', text: 'Company operations' }),
+          el('p', { class: 'company-section-description', text: 'Connected areas open existing staff workflows. Reporting gaps are explicitly identified.' }),
+        ]),
+        el('div', { class: 'company-grid' }, [
+          unit({ title: 'Rider Comms', status: 'Connected',
+            description: 'Rider accounts, group journeys, community activity and live road reporting.',
+            fact: formatNumber(riders.total) + ' riders · ' + formatNumber(content.activeHazards) + ' active hazards',
+            destination: 'riders', action: 'Explore riders' }),
+          unit({ title: 'Rider Social', status: 'Moderation',
+            description: 'Photo posts and Reels are reviewed through the shared trust and safety workflow. No fabricated Social audience figures.',
+            fact: formatNumber(social.friendships) + ' friendships across the shared rider network',
+            destination: 'inbox', action: 'Review Social queue' }),
+          unit({ title: 'Trust & safety', status: 'Connected',
+            description: 'Triage rider reports, act on reported content and preserve case history and audit evidence.',
+            fact: formatNumber(safety.openReports) + ' rider reports open',
+            destination: 'inbox', action: 'Open action inbox' }),
+          unit({ title: 'Customer support', status: 'Account tools',
+            description: 'Create and track internal rider support cases, investigate accounts and record handovers. Customer messages and SLA automation are not yet connected.',
+            fact: 'Staff case desk connected · customer messaging pending',
+            destination: 'cases', action: 'Open support cases', startKind: 'support', permittedRoles: ['admin', 'support'] }),
+          unit({ title: 'People & access', status: 'Role-gated',
+            description: 'Manage operational staff roles, recent authentication events and privileged access.',
+            fact: 'Roles: Admin · Moderator · Support · Analyst',
+            destination: 'staff', action: 'Manage staff roles' }),
+          unit({ title: 'Platform reliability', status: 'Connected',
+            description: 'Backend readiness, provider configuration, request performance and recovery runbooks.',
+            fact: 'Health, traffic and database diagnostics',
+            destination: 'system', action: 'Inspect platform' }),
+          unit({ title: 'Privacy & compliance', status: 'Partial',
+            description: 'Track internal privacy requests, account data exports and audit trails. Deadline automation and identity verification workflows remain separate.',
+            fact: 'Internal privacy case records · deadline automation pending',
+            destination: 'cases', action: 'Open privacy cases', startKind: 'privacy', permittedRoles: ['admin'] }),
+          unit({ title: 'Commercial & billing', status: 'Not connected', unavailable: true,
+            description: 'Company revenue, subscriptions, refunds and payment reconciliation need an authorised reporting integration.',
+            fact: 'No financial totals shown until validated against the billing provider' }),
+        ]),
+        el('p', { class: 'company-methodology', text:
+          'Scope: Rider Comms accounts and activity share a backend with Rider Social. Social audience, customer messaging and response SLAs, finance reconciliation, privacy request deadline automation and company-wide revenue require dedicated, permission-scoped datasets before they can be reported here.' }),
+      ]),
+    ];
+  }
+
   function renderOverview(data) {
     const days = period;
     const { riders, activity, social, content, safety, series, previous } = data;
@@ -729,18 +893,19 @@
       el('ul', { class: 'stat-list' }, rows.map(([name, value]) => el('li', {}, [el('span', { class: 'stat-name', text: name }), el('span', { class: 'stat-value', text: value })]))),
     ]);
 
-    const periodControl = segmented([[7, '7 days'], [30, '30 days']], days, (next) => {
-      period = next;
-      savePeriod(next);
-      renderOverview(overviewCache);
-      pageEl.querySelector('[aria-label="Period"] [aria-pressed="true"]')?.focus({ preventScroll: true });
-    }, 'Period');
+    const companySections = companyCommandCentre(data);
+    const companyDetails = el('details', { class: 'overview-more', 'aria-label': 'Company operations and services' }, [
+      el('summary', { text: 'Company areas and connected services' }),
+      companySections[0],
+      companySections[1],
+    ]);
     pageEl.replaceChildren(
-      pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · days in UTC`, [periodControl]),
+      pageHeader('Overview', `Updated ${new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · reporting in UTC`),
       operationsSummary({ riders, activity, safety }),
       kpis,
       el('h2', { class: 'section-title', text: 'Trends' }),
       el('div', { class: 'charts' }, charts),
+      companyDetails,
       el('h2', { class: 'section-title', text: 'Growth' }),
       funnelCard(data.funnel),
       el('h2', { class: 'section-title', text: 'Community and safety' }),
@@ -872,10 +1037,12 @@
           ]))),
         ])])]),
       ];
+    const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt)).length;
     pageEl.replaceChildren(
       pageHeader('Riders', riderQuery ? `${riders.length} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”` : `Newest ${riders.length} riders`),
       form,
       ...[].concat(content),
+      el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last ${period} days. Search results and existing accounts are never hidden by this range.` }),
     );
   }
 
@@ -1301,17 +1468,20 @@
           ? 'Try All owners or another source. Ownership filters only apply to the items returned in this snapshot.'
           : 'No open reports or reported Social posts were returned for this source. Refresh to check again.')]);
 
+    const recentItems = validItems.filter((item) => inReportingWindow(item.eventAt)).length;
+    const sampleText = `${recentItems} of ${validItems.length} returned items arrived in the last ${period} days. All open work remains visible regardless of age.`;
     const note = response.mayHaveMore
       ? el('p', { class: 'inbox-limit-note', role: 'status',
-        text: 'Showing up to 50 items from a bounded sample. More work may be waiting in Moderation.' })
+        text: sampleText + ' This is a bounded sample of up to 50 items; additional work may be waiting in Moderation.' })
       : el('p', { class: 'inbox-limit-note',
-        text: 'Bounded queue snapshot, not a complete count or global priority order · refresh to check for new work.' });
+        text: sampleText + ' This is not a company-wide count or priority order.' });
 
     pageEl.replaceChildren(
-      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.', [tabs]),
-      el('div', { class: 'inbox-intro', role: 'note' }, [
-        el('strong', { text: 'Review and assign work in Moderation' }),
-        el('span', { text: 'This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
+      pageHeader('Action inbox', 'One place to review incoming rider and Rider Social safety work.'),
+      tabs,
+      el('details', { class: 'inbox-intro' }, [
+        el('summary', { text: 'How this queue works' }),
+        el('span', { text: 'Review and assign work in Moderation. This inbox shows summary details only. Open an item to claim it, review evidence and record an audited decision.' }),
       ]),
       el('div', { class: 'inbox-triage-toolbar' }, [
         ownershipTabs,
@@ -1329,7 +1499,7 @@
       inboxFocusTarget = null;
       renderAndFocus('[aria-label="Moderation queues"] [aria-pressed="true"]');
     }, 'Moderation queues');
-    const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.', [tabs]);
+    const header = pageHeader('Moderation', 'Every decision needs a note and is recorded in the audit log.');
     // Exact-ID lookups bypass list sampling and sorting. A case could have
     // been claimed, resolved or removed since the Action Inbox snapshot.
     const selected = inboxFocusTarget &&
@@ -1357,7 +1527,7 @@
             'It may have been removed or changed since your inbox snapshot. No resolution is assumed.'),
           back,
         ]);
-        pageEl.replaceChildren(header, unavailable);
+        pageEl.replaceChildren(header, tabs, unavailable);
         return;
       }
       if (!isCurrentRender(generation)) return;
@@ -1369,6 +1539,7 @@
       const changed = selected.type === 'rider_report' && item.status !== 'open';
       pageEl.replaceChildren(
         header,
+        tabs,
         el('div', { class: 'inbox-intro', role: 'note' }, [
           el('strong', { text: changed ? `Report currently ${item.status}` : 'Showing the selected case' }),
           el('span', { text: changed
@@ -1389,10 +1560,35 @@
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 404) throw error;
       }
+      // Read-only safety reporting cannot stop the moderation queue if
+      // analytics is unavailable. A revoked role/session still fails closed.
+      const socialReport = await api('GET', '/admin/social/activity?days=7').catch((error) => {
+        if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
+        return null;
+      });
       if (!isCurrentRender(generation)) return;
       await loadNames(posts.map((entry) => entry.post.authorId));
       if (!isCurrentRender(generation)) return;
-      pageEl.replaceChildren(header, el('div', { class: 'reports' }, posts.length
+      const summary = el('details', { class: 'workspace-disclosure social-activity-report' }, [
+        el('summary', { text: socialReport
+          ? `Social safety · last 7 days · ${formatNumber(socialReport.metrics.reports)} reports`
+          : 'Social safety activity unavailable' }),
+        socialReport ? el('div', { class: 'case-activity-body' }, [
+          el('p', { class: 'case-help', text:
+            'Counts across retained Social records. Hidden posts is a live total, not a 7-day metric. ' +
+            'This is moderation activity, not a Social audience or engagement report.' }),
+          el('div', { class: 'case-activity-stats' }, [
+            el('span', { text: 'Posts ' + formatNumber(socialReport.metrics.posts) }),
+            el('span', { text: 'Photos ' + formatNumber(socialReport.metrics.photos) }),
+            el('span', { text: 'Reels ' + formatNumber(socialReport.metrics.reels) }),
+            el('span', { text: 'Reported posts ' + formatNumber(socialReport.metrics.reportedPosts) }),
+            el('span', { text: 'Staff content decisions ' + formatNumber(socialReport.metrics.moderationDecisions) }),
+            el('span', { text: 'Hidden now ' + formatNumber(socialReport.metrics.hiddenNow) }),
+          ]),
+        ]) : el('p', { class: 'case-help', text:
+          'Historical Social reporting could not be loaded. You can still review hidden content.' }),
+      ]);
+      pageEl.replaceChildren(header, tabs, summary, el('div', { class: 'reports' }, posts.length
         ? posts.map(socialPostCard)
         : [el('div', { class: 'card' }, [emptyState('inbox', 'No hidden posts', 'Posts reported by three riders are hidden here until you restore or remove them.')])]));
       return;
@@ -1402,7 +1598,7 @@
     await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy, report.assignedTo]));
     if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
-    pageEl.replaceChildren(header, el('div', { class: 'reports' }, reports.length
+    pageEl.replaceChildren(header, tabs, el('div', { class: 'reports' }, reports.length
       ? reports.map(reportCard)
       : [el('div', { class: 'card' }, [emptyState('inbox', moderationView === 'open' ? 'No open reports' : 'Nothing here yet', moderationView === 'open' ? 'You’re all caught up.' : null)])]));
   }
@@ -1636,6 +1832,355 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
+
+  // ------------------------------------------------------------ Case desk
+  // These are *internal* cases, not customer messages. Only the backend can
+  // authorise a workstream, and all values are rendered with textContent.
+  function permittedCaseKinds() {
+    if (me?.role === 'admin') return ['support', 'appeal', 'privacy', 'incident'];
+    if (me?.role === 'support') return ['support'];
+    if (me?.role === 'moderator') return ['appeal'];
+    return [];
+  }
+
+  function caseBadge(value, labels, tone) {
+    return el('span', { class: 'case-chip', dataset: { tone: tone ?? 'neutral' }, text: labels[value] || value });
+  }
+
+  function caseRecord(item) {
+    const title = el('a', {
+      class: 'case-item-title', href: '#case/' + item.id, text: item.title,
+    });
+    const statusTone = item.status === 'closed' || item.status === 'resolved' ? 'success'
+      : item.status === 'waiting' ? 'warning' : 'neutral';
+    const priorityTone = item.priority === 'urgent' ? 'danger'
+      : item.priority === 'high' ? 'warning' : 'neutral';
+    return el('li', { class: 'case-item', dataset: { caseId: item.id } }, [
+      el('div', { class: 'case-item-main' }, [
+        el('div', { class: 'case-item-label', text: CASE_KIND_LABELS[item.kind] || item.kind }),
+        title,
+        el('div', { class: 'case-item-metadata' }, [
+          el('span', { text: 'Case ' + item.id.slice(0, 8) }),
+          el('span', { text: item.assignedTo ? 'Owner: ' + item.assignedTo : 'Unassigned' }),
+          el('span', { text: 'Updated ' }),
+          timeEl(item.updatedAt),
+          item.dueAt ? el('span', { class: 'case-follow-up-target', text:
+            'Internal follow-up ' + new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }) : null,
+        ]),
+      ]),
+      el('div', { class: 'case-item-badges' }, [
+        caseBadge(item.status, CASE_STATUS_LABELS, statusTone),
+        caseBadge(item.priority, CASE_PRIORITY_LABELS, priorityTone),
+      ]),
+    ]);
+  }
+
+  function openNewCaseDialog(kinds) {
+    const dialog = el('dialog', { class: 'dialog case-create-dialog', 'aria-labelledby': 'newCaseTitle' });
+    const field = (label, child) => el('label', { class: 'case-field' }, [
+      el('span', { text: label }), child,
+    ]);
+    const kind = el('select', { class: 'input', 'aria-label': 'Case category' },
+      kinds.map((value) => el('option', { value, text: CASE_KIND_LABELS[value] })));
+    const title = el('input', { type: 'text', class: 'input', 'aria-label': 'Case title',
+      required: true, maxlength: 120, placeholder: 'Brief, actionable title' });
+    const description = el('textarea', { class: 'input case-description', 'aria-label': 'Internal description',
+      maxlength: 2000, rows: 4, placeholder: 'Context for other authorised staff. Do not paste passwords or private ride locations.' });
+    const subject = el('input', { type: 'text', class: 'input', 'aria-label': 'Related rider ID',
+      maxlength: 90, placeholder: 'Optional: rider_…' });
+    const priority = el('select', { class: 'input', 'aria-label': 'Case priority' },
+      CASE_PRIORITIES.map((value) => el('option', { value, text: CASE_PRIORITY_LABELS[value] })));
+    priority.value = 'normal';
+    const feedback = el('p', { class: 'error-text', role: 'alert' });
+    const create = el('button', { type: 'submit', class: 'button button-primary', text: 'Create internal case' });
+    const cancel = el('button', { type: 'button', class: 'button', text: 'Cancel' });
+    cancel.addEventListener('click', () => dialog.close());
+    const form = el('form', { class: 'case-form', novalidate: true }, [
+      el('h2', { id: 'newCaseTitle', class: 'card-title', text: 'New company case' }),
+      el('p', { class: 'case-help', text: 'For internal tracking only. This does not notify the rider or initiate a legal or financial process.' }),
+      field('Workstream', kind),
+      field('Title', title),
+      field('Internal description', description),
+      field('Related rider (optional)', subject),
+      field('Priority', priority),
+      feedback,
+      el('div', { class: 'actions', }, [cancel, create]),
+    ]);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (title.value.trim().length < 3) { feedback.textContent = 'Enter a descriptive title (at least three characters).'; return; }
+      create.disabled = true;
+      feedback.textContent = '';
+      try {
+        const result = await api('POST', '/admin/cases', {
+          kind: kind.value, title: title.value.trim(), description: description.value.trim(),
+          priority: priority.value, subjectRiderId: subject.value.trim() || null,
+        });
+        dialog.close();
+        if (view === 'cases') selectView('case/' + result.item.id);
+        flash('Internal case created.');
+      } catch (error) {
+        feedback.textContent = actionErrorMessage(error);
+        create.disabled = false;
+      }
+    });
+    dialog.append(form);
+    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+    document.body.append(dialog);
+    dialog.showModal();
+    title.focus();
+  }
+
+  async function renderCases(generation) {
+    const available = permittedCaseKinds();
+    if (caseKind !== 'all' && !available.includes(caseKind)) caseKind = 'all';
+    const params = new URLSearchParams({ kind: caseKind, status: caseStatus, owner: caseOwner, limit: '25' });
+    const [result, workload, history] = await Promise.all([
+      api('GET', '/admin/cases?' + params.toString()),
+      api('GET', '/admin/cases/summary'),
+      api('GET', '/admin/cases/activity?days=' + period).catch((error) => {
+        if (error instanceof ApiError && [401, 403].includes(error.status)) throw error;
+        return null;
+      }),
+    ]);
+    if (!isCurrentRender(generation)) return;
+    const create = el('button', { type: 'button', class: 'button button-primary', text: 'New case' });
+    create.addEventListener('click', () => openNewCaseDialog(available));
+    const kindTabs = segmented([['all', 'All permitted'], ...available.map((k) => [k, CASE_KIND_LABELS[k]])],
+      caseKind, (next) => { caseKind = next; renderAndFocus('[aria-label="Case categories"] [aria-pressed="true"]'); }, 'Case categories');
+    const statusTabs = segmented([['all', 'All statuses'], ...CASE_STATUSES.map((k) => [k, CASE_STATUS_LABELS[k]])],
+      caseStatus, (next) => { caseStatus = next; renderAndFocus('[aria-label="Case statuses"] [aria-pressed="true"]'); }, 'Case statuses');
+    const ownerTabs = segmented([
+      ['all', 'All owners'], ['mine', 'Assigned to me'], ['unassigned', 'Unassigned'],
+    ], caseOwner, (next) => {
+      caseOwner = next;
+      renderAndFocus('[aria-label="Case owners"] [aria-pressed="true"]');
+    }, 'Case owners');
+    const metric = (label, value, description) => el('div', { class: 'case-workload-metric' }, [
+      el('div', { class: 'case-workload-label', text: label }),
+      el('div', { class: 'case-workload-value', text: formatNumber(value) }),
+      el('div', { class: 'case-workload-description', text: description }),
+    ]);
+    const counts = workload.totals;
+    const workloadPanel = el('section', { class: 'case-workload', 'aria-label': 'Permitted case workload' }, [
+      metric('Active', counts.active, 'Open, in progress or waiting'),
+      metric('Mine', counts.mine, 'Active cases assigned to you'),
+      metric('Unassigned', counts.unassigned, 'Active cases without an owner'),
+      metric('Urgent', counts.urgent, 'Active high-priority escalation'),
+    ]);
+    const caseActivity = el('details', { class: 'workspace-disclosure case-activity-report' }, [
+      el('summary', { text: history
+        ? `Case activity · last ${period} days · ${formatNumber(history.totals.created)} opened`
+        : 'Case activity report unavailable' }),
+      history ? el('div', { class: 'case-activity-body' }, [
+        el('p', { class: 'case-help', text:
+          'Complete counts from retained internal cases and events, across the workstreams your role may access. ' +
+          'This is not a response-time SLA or a legal deadline report.' }),
+        el('div', { class: 'case-activity-stats' }, [
+          el('span', { text: 'Opened ' + formatNumber(history.totals.created) }),
+          el('span', { text: 'Resolved/closed changes ' + formatNumber(history.totals.resolvedTransitions) }),
+          el('span', { text: 'Internal notes ' + formatNumber(history.totals.internalNotes) }),
+          el('span', { text: 'Owner changes ' + formatNumber(history.totals.assignmentChanges) }),
+          el('span', { text: 'Overdue internal targets ' + formatNumber(history.totals.overdueTargets) }),
+        ]),
+      ]) : el('p', { class: 'case-help', text:
+        'Historical case reporting could not be loaded. The case queue and its real-time workload remain available.' }),
+    ]);
+    const list = el('ul', { class: 'case-list', 'aria-label': 'Internal work cases' },
+      result.items.map(caseRecord));
+    const recentCases = result.items.filter((item) => inReportingWindow(item.updatedAt)).length;
+    const note = el('p', { class: 'case-page-note', text: `${recentCases} of ${result.items.length} loaded cases updated in the last ${period} days. Workload totals and the queue include all dates; older cases are never hidden. Pages contain up to 25 matching cases.` });
+    const more = el('button', { type: 'button', class: 'button', text: 'Load older cases' });
+    more.hidden = !result.hasMore;
+    let cursor = result.nextCursor;
+    more.addEventListener('click', async () => {
+      if (!cursor) return;
+      more.disabled = true;
+      try {
+        const next = new URLSearchParams({ kind: caseKind, status: caseStatus, owner: caseOwner, limit: '25', before: cursor });
+        const page = await api('GET', '/admin/cases?' + next.toString());
+        if (!isCurrentRender(generation)) return;
+        list.append(...page.items.map(caseRecord));
+        cursor = page.nextCursor;
+        more.hidden = !page.hasMore;
+      } catch (error) {
+        flash(actionErrorMessage(error), 'warning');
+      } finally { more.disabled = false; }
+    });
+    pageEl.replaceChildren(
+      pageHeader('Case desk', 'Manage the company’s internal support, appeal, privacy and incident work with a recorded audit trail.', [create]),
+      el('section', { class: 'case-workspace' }, [
+        workloadPanel,
+        caseActivity,
+        el('div', { class: 'case-filter-label', text: 'Workstream' }),
+        el('div', { class: 'scroll-row case-filters' }, [kindTabs]),
+        el('div', { class: 'case-filter-label', text: 'Status' }),
+        el('div', { class: 'scroll-row case-filters' }, [statusTabs]),
+        el('div', { class: 'case-filter-label', text: 'Ownership' }),
+        el('div', { class: 'scroll-row case-filters' }, [ownerTabs]),
+        result.items.length ? list : el('div', { class: 'card case-empty' }, [
+          emptyState('inbox', 'No cases in this view', 'Create an internal case to start tracking this workstream.'),
+        ]),
+        more, note,
+      ]),
+    );
+  }
+
+  async function renderCaseDetail(generation) {
+    if (!detailCaseId) return;
+    let payload;
+    try { payload = await api('GET', '/admin/cases/' + encodeURIComponent(detailCaseId)); }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 404 && isCurrentRender(generation)) {
+        const back = el('a', { class: 'button', href: '#cases', text: 'Back to case desk' });
+        pageEl.replaceChildren(pageHeader('Case unavailable', 'No case was found in your authorised workstreams.'),
+          el('div', { class: 'card case-empty' }, [emptyState('lock', 'Case not available', 'It may have been removed or may belong to another staff team.'), back]));
+        return;
+      }
+      throw error;
+    }
+    if (!isCurrentRender(generation)) return;
+    const { item, events } = payload;
+    const back = el('a', { class: 'case-back', href: '#cases', text: '← All cases' });
+    const note = el('textarea', { class: 'input case-description', rows: 4, maxlength: 2000,
+      'aria-label': 'Case update reason', placeholder: 'A concise internal note is required for every update.' });
+    const message = el('p', { class: 'error-text', role: 'alert' });
+    const status = el('select', { class: 'input', 'aria-label': 'Case status' },
+      CASE_STATUSES.map((v) => el('option', { value: v, text: CASE_STATUS_LABELS[v] })));
+    status.value = item.status;
+    const priority = el('select', { class: 'input', 'aria-label': 'Case priority' },
+      CASE_PRIORITIES.map((v) => el('option', { value: v, text: CASE_PRIORITY_LABELS[v] })));
+    priority.value = item.priority;
+    const isMine = item.assignedTo === session.riderId;
+    const canClaim = me?.role === 'admin' || item.assignedTo === null || isMine;
+    const updateStatus = el('button', { type: 'button', class: 'button', text: 'Update status' });
+    const updatePriority = el('button', { type: 'button', class: 'button', text: 'Update priority' });
+    const assign = el('button', { type: 'button', class: 'button', text: isMine ? 'Release ownership' : 'Take ownership',
+      disabled: !canClaim });
+    const addNote = el('button', { type: 'button', class: 'button button-primary', text: 'Add internal note' });
+    const canTarget = (me?.role === 'admin' || item.assignedTo === null || isMine)
+      && !['resolved', 'closed'].includes(item.status);
+    const targetInput = el('input', { class: 'input', type: 'datetime-local',
+      'aria-label': 'Internal follow-up target' });
+    if (item.dueAt) {
+      const timezoneOffset = new Date(item.dueAt).getTimezoneOffset() * 60_000;
+      targetInput.value = new Date(item.dueAt - timezoneOffset).toISOString().slice(0, 16);
+    }
+    targetInput.disabled = !canTarget;
+    const setTarget = el('button', { type: 'button', class: 'button',
+      text: 'Set follow-up target', disabled: !canTarget });
+    const clearTarget = el('button', { type: 'button', class: 'button',
+      text: 'Clear follow-up target', disabled: !canTarget || item.dueAt === null });
+    const actionButtons = [updateStatus, updatePriority, assign, addNote, setTarget, clearTarget];
+    const commit = async (path, data) => {
+      if (!note.value.trim()) { message.textContent = 'Enter a reason or internal note before making a change.'; note.focus(); return; }
+      for (const button of actionButtons) button.disabled = true;
+      message.textContent = '';
+      try {
+        await api('POST', '/admin/cases/' + encodeURIComponent(item.id) + '/' + path,
+          { ...data, note: note.value.trim(), expectedVersion: item.version });
+        flash('Case updated and recorded in the activity log.');
+        await render();
+      } catch (error) {
+        message.textContent = error instanceof ApiError && error.code === 'stale_case'
+          ? 'This case changed since you opened it. Reload to view the newest version before retrying.'
+          : actionErrorMessage(error);
+        for (const button of actionButtons) button.disabled = false;
+        assign.disabled = !canClaim;
+        setTarget.disabled = !canTarget;
+        clearTarget.disabled = !canTarget || item.dueAt === null;
+      }
+    };
+    setTarget.addEventListener('click', () => {
+      const timestamp = Date.parse(targetInput.value);
+      if (!Number.isSafeInteger(timestamp) || timestamp < Date.now() + 60_000 ||
+        timestamp > Date.now() + 90 * 86_400_000) {
+        message.textContent = 'Choose a follow-up within the next 90 days, at least one minute from now.';
+        targetInput.focus();
+        return;
+      }
+      void commit('target', { dueAt: timestamp });
+    });
+    clearTarget.addEventListener('click', () => void commit('target', { dueAt: null }));
+    updateStatus.addEventListener('click', () => void commit('status', { status: status.value }));
+    updatePriority.addEventListener('click', () => void commit('priority', { priority: priority.value }));
+    assign.addEventListener('click', () => void commit('assign', { assigneeId: isMine ? null : session.riderId }));
+    addNote.addEventListener('click', () => void commit('notes', {}));
+    const controls = el('section', { class: 'card case-controls', 'aria-label': 'Case actions' }, [
+      el('h2', { class: 'card-title', text: 'Manage case' }),
+      el('p', { class: 'case-help', text: 'Every change requires an internal note and a recent password re-check. No message is sent to the rider.' }),
+      el('div', { class: 'case-control-grid' }, [
+        el('label', { class: 'case-field' }, [el('span', { text: 'Status' }), status, updateStatus]),
+        el('label', { class: 'case-field' }, [el('span', { text: 'Priority' }), priority, updatePriority]),
+      ]),
+      el('div', { class: 'case-owner-action' }, [assign]),
+      el('label', { class: 'case-field' }, [el('span', { text: 'Update note' }), note]),
+      addNote,
+      el('details', { class: 'case-follow-up workspace-disclosure' }, [
+        el('summary', { text: item.dueAt
+          ? 'Internal follow-up · ' + new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+          : 'Internal follow-up · not set' }),
+        el('p', { class: 'case-help', text:
+          'Optional internal work target only. Not a legal deadline, promised response SLA or automated escalation. An update requires the note above.' }),
+        el('label', { class: 'case-field' }, [el('span', { text: 'Follow-up date and time' }), targetInput]),
+        el('div', { class: 'actions' }, [setTarget, clearTarget]),
+      ]),
+      message,
+    ]);
+    if (me?.role === 'admin') {
+      const assignee = el('input', { class: 'input', 'aria-label': 'Assign to staff rider ID', maxlength: 90,
+        placeholder: 'rider_…' });
+      const transfer = el('button', { type: 'button', class: 'button', text: 'Assign staff member' });
+      actionButtons.push(transfer);
+      transfer.addEventListener('click', () => void commit('assign', { assigneeId: assignee.value.trim() }));
+      controls.append(el('div', { class: 'case-admin-assign' }, [
+        el('label', { class: 'case-field' }, [el('span', { text: 'Reassign to authorised staff rider ID' }), assignee]),
+        transfer,
+      ]));
+    }
+    const meta = el('div', { class: 'case-detail-meta' }, [
+      caseBadge(item.kind, CASE_KIND_LABELS),
+      caseBadge(item.status, CASE_STATUS_LABELS),
+      caseBadge(item.priority, CASE_PRIORITY_LABELS),
+      el('span', { text: item.assignedTo ? 'Assigned to ' + item.assignedTo : 'Unassigned' }),
+      el('span', { text: 'Version ' + item.version }),
+      item.dueAt ? el('span', { text: 'Internal target ' +
+        new Date(item.dueAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) }) : null,
+    ]);
+    const trail = el('ol', { class: 'case-timeline', 'aria-label': 'Case activity history' },
+      events.map((event) => el('li', { class: 'case-event' }, [
+        el('div', { class: 'case-event-meta' }, [
+          el('strong', { text: event.event }),
+          el('span', { text: 'by ' + event.actorId }),
+          timeEl(event.createdAt),
+        ]),
+        el('p', { class: 'case-event-note', text: event.note }),
+        event.fromValue !== null || event.toValue !== null
+          ? el('p', { class: 'case-event-change', text: (event.fromValue || '—') + ' → ' + (event.toValue || '—') })
+          : null,
+      ])));
+    pageEl.replaceChildren(
+      back,
+      pageHeader(item.title, 'Internal ' + CASE_KIND_LABELS[item.kind].toLowerCase() + ' · Case ' + item.id.slice(0, 8)),
+      meta,
+      el('div', { class: 'case-detail-layout' }, [
+        el('div', { class: 'case-detail-primary' }, [
+          el('section', { class: 'card case-description-card' }, [
+            el('h2', { class: 'card-title', text: 'Case brief' }),
+            el('p', { class: 'case-body-text', text: item.description || 'No additional description.' }),
+            item.subjectRiderId ? el('p', { class: 'case-help', text: 'Related rider: ' + item.subjectRiderId }) : null,
+          ]),
+          el('section', { class: 'card case-history' }, [
+            el('h2', { class: 'card-title', text: 'Activity history' }),
+            el('p', { class: 'case-help', text: 'Time-ordered staff changes. The latest 200 events are returned; earlier events remain in the database.' }),
+            trail,
+          ]),
+        ]),
+        controls,
+      ]),
+    );
+  }
+
   async function renderAudit(generation) {
     const query = auditRider ? `&riderId=${encodeURIComponent(auditRider)}` : '';
     const { actions } = await api('GET', `/moderation/actions?limit=200${query}`);
@@ -1643,7 +2188,8 @@
     await loadNames(actions.flatMap((action) => [action.targetRiderId, action.moderatorId]));
     if (!isCurrentRender(generation)) return;
     const group = ACTION_GROUPS.find(([id]) => id === auditGroup) ?? ACTION_GROUPS[0];
-    const shown = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
+    const groupActions = group[2] ? actions.filter((action) => group[2].includes(action.action)) : actions;
+    const shown = groupActions.filter((action) => inReportingWindow(action.createdAt));
 
     const filters = segmented(ACTION_GROUPS.map(([id, label]) => [id, label]), auditGroup, (next) => {
       auditGroup = next;
@@ -1661,7 +2207,7 @@
     const exportButton = el('button', { type: 'button', class: 'button', dataset: { action: 'export' }, text: 'Export CSV', disabled: shown.length === 0 });
     exportButton.addEventListener('click', () => downloadAuditCsv(shown));
 
-    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'}${auditRider ? ` for ${auditRider}` : ''}, newest first. Notes are kept for good.`;
+    const subtitle = `${shown.length} ${shown.length === 1 ? 'decision' : 'decisions'} in the last ${period} days${auditRider ? ` for ${auditRider}` : ''}. Filtered from the latest 200 returned records; older decisions remain in the audit log.`;
     pageEl.replaceChildren(
       pageHeader('Audit log', subtitle, [exportButton]),
       el('div', { class: 'audit-filters' }, [filters]),
@@ -1804,10 +2350,12 @@
 
   function signInHistory(events) {
     if (!events) return [];
+    const recent = events.filter((event) => inReportingWindow(event.createdAt));
     return [
-      el('h2', { class: 'section-title', text: 'Staff sign-ins' }),
-      el('div', { class: 'card reports' }, events.length
-        ? [el('ul', { class: 'list' }, events.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
+      el('h2', { class: 'section-title', text: `Staff sign-ins · last ${period} days` }),
+      el('p', { class: 'period-context', text: 'This view filters the latest 20 returned sign-in events, not a complete security-event export.' }),
+      el('div', { class: 'card reports' }, recent.length
+        ? [el('ul', { class: 'list' }, recent.map((event) => el('li', { class: 'list-row', dataset: { securityEvent: event.event } }, [
           person(riderLabel(event.riderId).name, [SECURITY_EVENT_LABELS[event.event] || event.event, event.device].filter(Boolean).join(' · '), event.riderId),
           el('span', { class: 'trail' }, [SECURITY_EVENT_TONES[event.event] ? badge(event.event === 'password_reset' ? 'Reset' : 'Failed', SECURITY_EVENT_TONES[event.event]) : null, el('div', {}, [timeEl(event.createdAt)])]),
         ])))]
@@ -1831,7 +2379,10 @@
     if (!isCurrentRender(generation)) return;
     pageEl.replaceChildren(
       pageHeader('Staff and roles', `${staff.length} ${staff.length === 1 ? 'person has' : 'people have'} dashboard access · ${['admin', 'moderator', 'support', 'analyst'].filter((role) => counts[role]).map((role) => `${counts[role]} ${ROLE_LABELS[role].toLowerCase()}`).join(', ')}`),
-      addStaffForm(),
+      el('details', { class: 'workspace-disclosure staff-add-details' }, [
+        el('summary', { text: 'Add a staff member' }),
+        addStaffForm(),
+      ]),
       el('h2', { class: 'section-title', text: 'Team' }),
       el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, staff.map((member) => el('li', { class: 'list-row staff-row', dataset: { riderId: member.riderId } }, [
         person(name(member), sub(member), member.riderId),
@@ -1848,8 +2399,10 @@
         ]))),
       ])])]),
       ...signInHistory(events),
-      el('h2', { class: 'section-title', text: 'Roles' }),
-      roleMatrix(),
+      el('details', { class: 'workspace-disclosure staff-roles-details' }, [
+        el('summary', { text: 'Role permissions' }),
+        roleMatrix(),
+      ]),
     );
   }
 
@@ -2017,12 +2570,12 @@
     const focusHeading = focusHeadingOnNextRender;
     focusHeadingOnNextRender = false;
     for (const button of navEl.querySelectorAll('[data-view]')) {
-      if (button.dataset.view === (view === 'rider' ? 'riders' : view)) button.setAttribute('aria-current', 'page');
+      if (button.dataset.view === (view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view)) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     }
     document.title = `${VIEW_TITLES[view]} · Rider Comms Operations Hub`;
-    document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
-    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view];
+    document.getElementById('brandSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view];
+    document.getElementById('workspaceCurrentSection').textContent = VIEW_TITLES[view === 'rider' ? 'riders' : view === 'case' ? 'cases' : view];
     // Refresh the current section in place; skeletons are for navigation only.
     // Keep inbox filter controls available during a source refresh.
     const refreshing = key === displayedKey ||
@@ -2047,6 +2600,10 @@
         renderRiders(riders);
       } else if (view === 'moderation') {
         await renderModeration(generation);
+      } else if (view === 'cases') {
+        await renderCases(generation);
+      } else if (view === 'case') {
+        await renderCaseDetail(generation);
       } else if (view === 'audit') {
         await renderAudit(generation);
       } else if (view === 'staff') {
@@ -2074,6 +2631,10 @@
             const unavailable = pageEl.querySelector('[data-selected-unavailable]');
             if (unavailable) unavailable.focus({ preventScroll: true });
           }
+        }
+        if (focusReportingWindowAfterNextRender) {
+          focusReportingWindowAfterNextRender = false;
+          pageEl.querySelector('.reporting-range-select')?.focus({ preventScroll: true });
         }
         if (focusHeading && (document.activeElement === document.body || document.activeElement === menuToggle || document.activeElement?.closest('.nav') || document.activeElement?.closest('.sidebar-search-slot') || document.activeElement?.closest('.brand-actions'))) {
           pageEl.querySelector('.page-title')?.focus({ preventScroll: true });
@@ -2110,16 +2671,17 @@
     const next = parseHash(hash);
     if ((next.view === 'overview' && hash !== 'overview' && hash !== '')
       || (me && !allowed(VIEW_PERMISSIONS[next.view]))) {
-      const current = view === 'rider' ? `rider/${detailRiderId}` : view;
+      const current = view === 'rider' ? `rider/${detailRiderId}` : view === 'case' ? `case/${detailCaseId}` : view;
       history.replaceState(null, '', `#${current}`);
       return;
     }
-    if (next.view === view && next.riderId === detailRiderId) return;
+    if (next.view === view && next.riderId === detailRiderId && next.caseId === detailCaseId) return;
     if (next.view !== 'moderation') inboxFocusTarget = null;
     view = next.view;
     detailRiderId = next.riderId;
+    detailCaseId = next.caseId;
     focusHeadingOnNextRender = true;
-    const target = view === 'rider' ? `rider/${detailRiderId}` : view;
+    const target = view === 'rider' ? `rider/${detailRiderId}` : view === 'case' ? `case/${detailCaseId}` : view;
     if (location.hash !== `#${target}`) history.pushState(null, '', `#${target}`);
     window.scrollTo(0, 0);
     void render();
@@ -2130,6 +2692,7 @@
   const appEl = document.querySelector('.app');
   const menuToggle = document.getElementById('menuToggle');
   const menuBackdrop = document.getElementById('menuBackdrop');
+  const drawerClose = document.getElementById('drawerClose');
   function setMenu(open) {
     appEl.classList.toggle('menu-open', open);
     document.body.classList.toggle('menu-visible', open);
@@ -2144,12 +2707,16 @@
     if (!open) menuToggle.focus();
   });
   menuBackdrop.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
+  drawerClose.addEventListener('click', () => { setMenu(false); menuToggle.focus(); });
   document.addEventListener('keydown', (event) => {
     if (!appEl.classList.contains('menu-open')) return;
     if (event.key === 'Escape') { setMenu(false); menuToggle.focus(); return; }
     if (event.key !== 'Tab') return;
-    const focusables = [...document.querySelectorAll('.sidebar button:not([disabled]):not([hidden])')]
-      .filter((element) => element.getClientRects().length > 0);
+    // Include footer links as well as buttons in the mobile focus loop.
+    // Installed-app entry links and Staff sign-out are keyboard-reachable.
+    const focusables = [...document.querySelectorAll(
+      '.sidebar-panel button:not([disabled]), .sidebar-panel a[href], .sidebar-panel input:not([disabled])',
+    )].filter((element) => !element.closest('[hidden]') && element.getClientRects().length > 0);
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
@@ -2260,14 +2827,33 @@
   workspaceSearchTrigger.addEventListener('click', () => openCommandSearch(workspaceSearchTrigger));
   document.getElementById('globalSearchClose').addEventListener('click', () => searchDialog.close());
   searchInput.addEventListener('input', updateCommandSearch);
+  // One predictable keyboard path through both authorised page and rider
+  // results. Native buttons retain Tab/Shift+Tab and Enter/Space semantics.
+  // Home/End in the search field keep their normal text-editing behaviour.
+  searchDialog.addEventListener('keydown', (event) => {
+    const key = event.key;
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(key)) return;
+    const options = [...searchDialog.querySelectorAll('.search-result')]
+      .filter((option) => !option.disabled && option.getClientRects().length > 0);
+    if (!options.length) return;
+    const inSearchField = document.activeElement === searchInput;
+    const index = options.indexOf(document.activeElement);
+    if (!inSearchField && index === -1) return;
+    if (inSearchField && (key === 'Home' || key === 'End')) return;
+
+    const next = key === 'Home' ? options[0]
+      : key === 'End' ? options[options.length - 1]
+      : key === 'ArrowDown' ? options[index < 0 ? 0 : (index + 1) % options.length]
+      : index < 0 ? options[options.length - 1]
+      : index === 0 ? searchInput : options[index - 1];
+    event.preventDefault();
+    next.focus();
+    if (next !== searchInput) next.scrollIntoView({ block: 'nearest' });
+  });
   searchInput.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowDown') {
-      const first = searchDialog.querySelector('.search-result');
-      if (first) { event.preventDefault(); first.focus(); }
-    } else if (event.key === 'Enter') {
-      const first = searchDialog.querySelector('.search-result');
-      if (first) { event.preventDefault(); first.click(); }
-    }
+    if (event.key !== 'Enter') return;
+    const first = searchDialog.querySelector('.search-result');
+    if (first) { event.preventDefault(); first.click(); }
   });
   searchDialog.addEventListener('close', () => {
     ++searchGeneration;
@@ -2304,15 +2890,348 @@
     }, 150);
   });
 
+  // ---------------------------------------------------- Staff PWA updates
+  // Check on launch, foreground/resume and while open. A waiting worker only
+  // activates automatically when there are no unsaved staff edits or dialogs.
+  // This manager never touches session storage, tokens or privileged API data.
+  function setupStaffAutoUpdates() {
+    if (!IS_STAFF_PWA || !('serviceWorker' in navigator)) return;
+    const workers = navigator.serviceWorker;
+    const MIN_CHECK_MS = 60 * 1000;
+    const PERIODIC_CHECK_MS = 15 * 60 * 1000;
+    const SAFE_IDLE_MS = 20 * 1000;
+    let registration = null;
+    let lastCheck = 0;
+    let lastInteraction = 0;
+    let deferred = false;
+    let applying = false;
+    let reloadRequired = false;
+    let reloading = false;
+    let manualActivation = false;
+    let hadController = Boolean(workers.controller);
+    const touched = new WeakSet();
+    const label = el('span', { class: 'staff-update-message', text: 'Staff app update ready.' });
+    const update = el('button', { type: 'button', class: 'button button-primary staff-update-apply', text: 'Update now' });
+    const later = el('button', { type: 'button', class: 'button staff-update-later', text: 'Later' });
+    const notice = el('div', { class: 'staff-update-banner', role: 'status', hidden: true }, [
+      el('div', { class: 'staff-update-content' }, [
+        el('strong', { text: 'App update available' }), label,
+      ]),
+      el('div', { class: 'staff-update-actions' }, [update, later]),
+    ]);
+    document.body.append(notice);
+    const editor = (node) => node?.matches?.('input, textarea, select, [contenteditable="true"]');
+    const track = (event) => {
+      if (editor(event.target)) touched.add(event.target);
+      lastInteraction = Date.now();
+    };
+    document.addEventListener('input', track, true);
+    document.addEventListener('change', track, true);
+    document.addEventListener('keydown', () => { lastInteraction = Date.now(); }, true);
+    document.addEventListener('pointerdown', (event) => {
+      if (!event.target.closest?.('.staff-update-banner')) lastInteraction = Date.now();
+    }, { passive: true, capture: true });
+
+    const editing = () => {
+      if (document.querySelector('dialog[open]') || pageEl.getAttribute('aria-busy') === 'true') return true;
+      if (document.querySelector('.staff-login-form button[type="submit"]:disabled')) return true;
+      // A form that has been replaced by a successful save is no longer dirty.
+      // Ignore global search controls in a closed dialog.
+      return [...document.querySelectorAll('input, textarea, select, [contenteditable="true"]')]
+        .some((node) => touched.has(node) && node.getClientRects().length > 0 &&
+          (!node.closest('dialog') || node.closest('dialog').open) &&
+          (node.matches('select') || String(node.value ?? node.textContent ?? '').trim().length > 0));
+    };
+    const safe = () => navigator.onLine !== false &&
+      document.visibilityState === 'visible' && !deferred &&
+      Date.now() - lastInteraction >= SAFE_IDLE_MS && !editing();
+    const show = () => {
+      label.textContent = editing()
+        ? 'Finish or save your edits first, or choose Update now to confirm a reload.'
+        : 'The latest dashboard is downloaded. Your staff session will be checked again after the update.';
+      notice.hidden = false;
+    };
+    const refresh = () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    };
+    const requestActivation = (force = false) => {
+      if (!registration?.waiting || applying || !workers.controller) return;
+      if (!force && !safe()) { if (!deferred) show(); return; }
+      if (force && editing() && !window.confirm('Updating now may discard unsaved staff changes. Update anyway?')) return;
+      if (force) manualActivation = true;
+      applying = true;
+      notice.hidden = true;
+      try {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      } catch {
+        applying = false;
+        manualActivation = false;
+        show();
+      }
+    };
+    const considerUpdate = () => {
+      if (reloading) return;
+      if (reloadRequired) {
+        if (safe()) refresh();
+        else if (!deferred) show();
+      } else if (registration?.waiting && workers.controller) {
+        requestActivation();
+      }
+    };
+    update.addEventListener('click', () => {
+      if (reloadRequired) {
+        if (editing() && !window.confirm('Updating now may discard unsaved staff changes. Update anyway?')) return;
+        refresh();
+      } else requestActivation(true);
+    });
+    later.addEventListener('click', () => {
+      deferred = true;
+      notice.hidden = true;
+    });
+    workers.addEventListener('controllerchange', () => {
+      if (!hadController) { hadController = Boolean(workers.controller); return; }
+      if (!workers.controller || reloading) return;
+      applying = false;
+      reloadRequired = true;
+      if (manualActivation) refresh();
+      else considerUpdate();
+    });
+    const watchInstall = (worker) => {
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && workers.controller) considerUpdate();
+      });
+    };
+    const check = async (force = false) => {
+      if (!registration || navigator.onLine === false || document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (!force && now - lastCheck < MIN_CHECK_MS) { considerUpdate(); return; }
+      lastCheck = now;
+      try { await registration.update(); } catch { /* Offline: use the existing Staff shell. */ }
+      considerUpdate();
+    };
+    const resume = () => {
+      deferred = false;
+      void check();
+      considerUpdate();
+    };
+    window.addEventListener('pageshow', resume);
+    window.addEventListener('focus', () => void check());
+    window.addEventListener('online', () => void check(true));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') resume();
+    });
+    // iOS may suspend timers when the installed app is backgrounded. Foreground
+    // listeners above are the essential path; this handles long open sessions.
+    setInterval(() => {
+      considerUpdate();
+      if (Date.now() - lastCheck >= PERIODIC_CHECK_MS) void check();
+    }, 60 * 1000);
+    workers.register('./sw.js', { scope: './', updateViaCache: 'none' }).then((result) => {
+      registration = result;
+      result.addEventListener('updatefound', () => watchInstall(result.installing));
+      watchInstall(result.installing);
+      considerUpdate();
+      void check(true);
+    }).catch(() => { /* Staff sign-in still works online without offline support. */ });
+  }
+
+  // Browser installation is optional; iOS uses Share > Add to Home Screen.
+  // No prompt is fired without an explicit user click.
+  let installPrompt = null;
+  const installControls = new Set();
+  window.addEventListener('beforeinstallprompt', (event) => {
+    if (!IS_STAFF_PWA) return;
+    event.preventDefault();
+    installPrompt = event;
+    for (const button of installControls) button.hidden = false;
+  });
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    for (const button of installControls) button.hidden = true;
+  });
+  function installButton() {
+    const button = el('button', {
+      type: 'button', class: 'button staff-install-button', hidden: !installPrompt,
+      text: 'Install staff app',
+    });
+    installControls.add(button);
+    button.addEventListener('click', async () => {
+      if (!installPrompt) return;
+      const prompt = installPrompt;
+      installPrompt = null;
+      for (const control of installControls) control.hidden = true;
+      await prompt.prompt();
+    });
+    return button;
+  }
+  function clearStaffSession() {
+    // Invalidate any in-flight queue/profile render before hiding staff data.
+    ++renderGeneration;
+    displayedKey = null;
+    session = null;
+    me = null;
+    try { localStorage.removeItem(STAFF_SESSION_KEY); } catch { /* no-op */ }
+    // Do not silently reenter staff mode through an old rider login
+    // after signing out of the Operations Hub.
+    try { sessionStorage.setItem(STAFF_SIGNED_OUT_KEY, '1'); } catch { /* no-op */ }
+  }
+  function renderStaffSignIn(message = '') {
+    navEl.hidden = true;
+    // Navigation/search/refresh are inoperable until /admin/me authorises staff.
+    if (appEl.classList.contains('menu-open')) setMenu(false);
+    document.getElementById('menuToggle').hidden = true;
+    refreshMobile.hidden = true;
+    document.querySelector('.workspace-toolbar').hidden = true;
+    footerEl.replaceChildren();
+    const username = el('input', { class: 'input staff-login-field', type: 'text', name: 'username',
+      autocomplete: 'username', maxlength: 100, required: true, 'aria-label': 'Rider Comms username',
+      placeholder: 'Your Rider Comms username' });
+    const password = el('input', { class: 'input staff-login-field', type: 'password',
+      name: 'password', autocomplete: 'current-password', required: true,
+      'aria-label': 'Password', placeholder: 'Your password' });
+    const error = el('p', { class: 'error-text', role: 'alert', text: message });
+    const submit = el('button', { type: 'submit', class: 'button button-primary staff-login-submit', text: 'Sign in to Operations Hub' });
+    const form = el('form', { class: 'staff-login-form', novalidate: true }, [
+      el('label', { class: 'staff-login-label' }, ['Username', username]),
+      el('label', { class: 'staff-login-label' }, ['Password', password]),
+      error,
+      submit,
+    ]);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!username.value.trim() || !password.value) {
+        error.textContent = 'Enter your username and password.';
+        return;
+      }
+      submit.disabled = true;
+      error.textContent = '';
+      try {
+        const login = await fetch(`${API_BASE_URL}/auth/staff-login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'omit', redirect: 'error', cache: 'no-store',
+          body: JSON.stringify({ username: username.value.trim(), password: password.value,
+            deviceName: 'Rider Comms Staff PWA' }),
+        });
+        const body = await login.json().catch(() => ({}));
+        if (!login.ok) throw new ApiError(login.status, body.error);
+        if (typeof body.token !== 'string' || typeof body.riderId !== 'string') {
+          throw new Error('Invalid staff login response');
+        }
+        // Recheck the live permissions before storing the new token locally.
+        const check = await fetch(`${API_BASE_URL}/admin/me`, {
+          headers: { Authorization: `Bearer ${body.token}` },
+          credentials: 'omit', redirect: 'error', cache: 'no-store',
+        });
+        if (!check.ok) {
+          await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST', headers: { Authorization: `Bearer ${body.token}` },
+            credentials: 'omit', redirect: 'error', cache: 'no-store',
+          }).catch(() => {});
+          throw new ApiError(check.status, 'staff_only');
+        }
+        const identity = await check.json();
+        if (!identity.role || !Array.isArray(identity.permissions)) {
+          throw new Error('Invalid staff permissions response');
+        }
+        session = { token: body.token, riderId: body.riderId, source: 'staff' };
+        try {
+          localStorage.setItem(STAFF_SESSION_KEY, JSON.stringify({
+            riderId: session.riderId, token: session.token,
+          }));
+          sessionStorage.removeItem(STAFF_SIGNED_OUT_KEY);
+        } catch { /* If storage is blocked, this tab stays signed in. */ }
+        password.value = '';
+        footerEl.textContent = `Signed in as ${session.riderId}`;
+        pageEl.replaceChildren();
+        void start();
+      } catch (failure) {
+        if (failure instanceof ApiError && failure.status === 429) error.textContent = 'Too many attempts. Try again later.';
+        else if (failure instanceof ApiError && failure.code === 'staff_only') error.textContent = 'This account does not have staff access.';
+        else if (failure instanceof ApiError && failure.code === 'account_suspended') error.textContent = 'This account is suspended.';
+        else if (failure instanceof ApiError && failure.status === 401) error.textContent = 'The username or password is incorrect.';
+        else error.textContent = 'Sign-in could not complete. Check your connection and try again.';
+        password.value = '';
+        submit.disabled = false;
+        password.focus();
+      }
+    });
+    const guide = el('p', { class: 'staff-install-guide',
+      text: 'On iPhone or iPad: open this page in Safari, tap Share, then Add to Home Screen. On Android or desktop: choose Install app in your browser menu.' });
+    const heading = el('h1', { class: 'staff-login-title', text: 'Your operations workspace.' });
+    pageEl.replaceChildren(el('section', { class: 'staff-login-shell' }, [
+      el('div', { class: 'staff-login-intro' }, [
+        el('span', { class: 'staff-login-kicker', text: 'Rider Comms / Staff' }),
+        heading,
+        el('p', { class: 'staff-login-description',
+          text: 'One secure workspace for rider support, trust and safety, and live operations. Access is based on your existing Rider Comms staff role.' }),
+        IS_STAFF_PWA ? guide : el('a', { class: 'staff-install-link', href: './staff/',
+          text: 'Open the installable Staff app' }),
+        el('div', { class: 'staff-login-capabilities' }, [
+          el('span', { class: 'staff-login-capabilities-title', text: 'Your workspace includes' }),
+          el('ul', { class: 'staff-login-capabilities-list' }, [
+            el('li', { text: 'Rider accounts and ride operations' }),
+            el('li', { text: 'Rider Social trust and safety reviews' }),
+            el('li', { text: 'Role-based staff access and platform diagnostics' }),
+          ]),
+        ]),
+      ]),
+      el('div', { class: 'card staff-login-card' }, [
+        el('h2', { class: 'card-title', text: 'Staff sign in' }),
+        el('p', { class: 'card-description', text: 'Use your existing Rider Comms username and password.' }),
+        form,
+        IS_STAFF_PWA ? installButton() : null,
+      ]),
+    ]));
+    username.focus();
+  }
+  const footerRole = el('span', { class: 'footer-role' });
+  const footerInstall = installButton();
+  const legacyInstallLink = el('a', { class: 'staff-footer-install-link', href: './staff/',
+    text: 'Open installable Staff app' });
+  const signOutButton = el('button', { type: 'button', class: 'staff-signout', text: 'Sign out of Staff' });
+  const footerIdentity = (label) => footerEl.replaceChildren(
+    el('div', { class: 'staff-footer-account' }, [label, footerRole]),
+    IS_STAFF_PWA ? footerInstall : legacyInstallLink, signOutButton,
+  );
+  signOutButton.addEventListener('click', async () => {
+    signOutButton.disabled = true;
+    const active = session;
+    clearStaffSession();
+    // Remove sensitive records from the screen immediately, even if server
+    // sign-out is slow or the device loses connectivity.
+    navEl.hidden = true;
+    footerEl.replaceChildren();
+    pageEl.replaceChildren(el('div', { class: 'card notice' }, [
+      emptyState('lock', 'Signing out', 'Closing the staff workspace on this device.'),
+    ]));
+    // Signing out of this admin view must not revoke a separate rider-app
+    // session used for navigation. Revoke only tokens issued for Staff.
+    if (active?.source === 'staff') {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+          method: 'POST', headers: { Authorization: `Bearer ${active.token}` },
+          credentials: 'omit', redirect: 'error', cache: 'no-store',
+          signal: controller.signal,
+        });
+      } catch { /* Local sign-out still removes the bearer token. */ }
+      finally { clearTimeout(timeout); }
+    }
+    location.reload();
+  });
+  setupStaffAutoUpdates();
   if (!session) {
-    notice('lock', 'Sign in to continue', 'Sign in to the Rider Comms app in this browser (on this same site), then reload this page.');
+    renderStaffSignIn();
     return;
   }
-  footerEl.textContent = `Signed in as ${session.riderId}`;
-  const footerRole = el('span', { class: 'footer-role' });
+  footerIdentity(`Signed in as ${session.riderId}`);
   api('GET', `/riders/${encodeURIComponent(session.riderId)}/profile`).then((profile) => {
     const name = profile?.displayName || profile?.handle;
-    if (name) footerEl.replaceChildren(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`, footerRole);
+    if (name && session) footerIdentity(`Signed in as ${name}${profile.handle && profile.displayName ? ` · ${profile.handle}` : ''}`);
   }).catch(() => {});
 
   // The role decides which pages appear; the backend enforces it either way.
@@ -2320,8 +3239,13 @@
     try {
       me = await api('GET', '/admin/me');
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) notice('lock', 'This account is not staff', 'Ask an admin to give your account a staff role, then reload.');
-      else if (error instanceof ApiError && error.status === 401) notice('lock', 'Your session has expired', 'Sign in to the Rider Comms app in this browser, then reload this page.');
+      if (error instanceof ApiError && error.status === 403) {
+        clearStaffSession();
+        renderStaffSignIn('This account does not have staff access.');
+      } else if (error instanceof ApiError && error.status === 401) {
+        clearStaffSession();
+        renderStaffSignIn('Your session has expired. Please sign in again.');
+      }
       else {
         const retry = el('button', { type: 'button', class: 'button button-primary', text: 'Try again' });
         retry.addEventListener('click', () => void start());
@@ -2332,6 +3256,9 @@
       }
       return;
     }
+    document.getElementById('menuToggle').hidden = false;
+    refreshMobile.hidden = false;
+    document.querySelector('.workspace-toolbar').hidden = false;
     for (const button of navEl.querySelectorAll('[data-view]')) button.hidden = !allowed(button.dataset.permission);
     for (const group of navEl.querySelectorAll('[data-nav-group]')) {
       group.hidden = ![...group.querySelectorAll('[data-view]')].some((button) => !button.hidden);
@@ -2341,10 +3268,11 @@
     document.getElementById('globalSearchMobile').hidden = false;
     workspaceSearchTrigger.hidden = false;
     footerRole.replaceChildren(roleBadge(me.role));
-    if (!footerEl.contains(footerRole)) footerEl.append(footerRole);
+    if (!footerEl.contains(footerRole)) footerIdentity(`Signed in as ${session.riderId}`);
     if (!allowed(VIEW_PERMISSIONS[view])) {
       view = VIEWS.find((candidate) => allowed(VIEW_PERMISSIONS[candidate])) ?? 'system';
       detailRiderId = null;
+      detailCaseId = null;
       history.replaceState(null, '', `#${view}`);
     }
     navEl.hidden = false;

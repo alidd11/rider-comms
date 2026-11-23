@@ -56,6 +56,41 @@ describe('offline M6 Toll: count a reviewed candidate trip, NOT its toll plazas'
     assert.equal(reviewM6TollJourney({ ...trip, journeyId: '' }).reason, 'invalid_journey');
     assert.equal(reviewM6TollJourney(null as unknown as typeof trip).reason, 'invalid_journey');
   });
+  it('rejects clock rollover, bad UTC offsets and malformed motorway passage times', () => {
+    // Native Date.parse silently normalises 24:00, so these cases used to
+    // change a journey's calendar day without rejecting untrusted evidence.
+    for (const bad of [
+      { enteredAt: '2026-11-20T24:00:00Z' },
+      { exitedAt: '2026-11-21T24:00:00Z' },
+      { enteredAt: '2026-11-21T10:00:00+14:30' },
+      { enteredAt: '2026-11-21T10:00:00+15:00' },
+      { exitedAt: '2026-11-21T11:60:00Z' },
+      { enteredAt: '2026-11-21T11:00:00' },
+      { exitedAt: '2026-11-21T11:30:00.1234Z' },
+    ]) {
+      assert.equal(reviewM6TollJourney({ ...trip, ...bad }).reason, 'invalid_journey',
+        JSON.stringify(bad));
+    }
+  });
+  it('preserves valid BST, leap-day and cross-midnight motorway journeys', () => {
+    assert.equal(reviewM6TollJourney({
+      ...trip, enteredAt: '2026-07-01T12:00:00+01:00',
+      exitedAt: '2026-07-01T11:30:00Z',
+    }).status, 'possible_toll_journey');
+    assert.equal(reviewM6TollJourney({
+      ...trip, enteredAt: '2028-02-29T23:30:00Z',
+      exitedAt: '2028-03-01T00:00:00Z',
+    }).status, 'possible_toll_journey');
+    assert.equal(reviewM6TollJourney({
+      ...trip, enteredAt: '2026-11-21T23:45:00Z',
+      exitedAt: '2026-11-22T00:15:00Z',
+    }).status, 'possible_toll_journey');
+    // Same instant in different offsets is not a completed journey.
+    assert.equal(reviewM6TollJourney({
+      ...trip, enteredAt: '2026-07-01T12:00:00+01:00',
+      exitedAt: '2026-07-01T11:00:00Z',
+    }).reason, 'invalid_journey');
+  });
   it('treats two actual journeys as two candidates, never counting an observed plaza twice', () => {
     const second = { ...trip, journeyId: 'm6-second-trip',
       enteredAt: '2026-11-21T15:00:00Z', exitedAt: '2026-11-21T15:45:00Z' };
