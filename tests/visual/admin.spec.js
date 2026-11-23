@@ -2586,3 +2586,21 @@ test('email alerts: staff turn on their own morning summary and urgent-case emai
   await alerts.getByRole('checkbox', { name: /Urgent cases/ }).check();
   await expect.poll(() => state.alertPrefs).toEqual({ dailyDigest: true, urgentAlerts: true });
 });
+
+test('the installed Staff app opens on Overview, and a reload keeps the current page', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  // Launched from the Home Screen icon (iOS sets navigator.standalone).
+  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
+  // iOS keeps the address a Home Screen app was added from, such as #inbox.
+  await page.goto('/staff/#inbox');
+  await page.getByRole('textbox', { name: 'Rider Comms username' }).fill('ali');
+  await page.getByLabel('Password', { exact: true }).fill('right-password');
+  await page.getByRole('button', { name: 'Sign in to Operations Hub' }).click();
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+  expect(new URL(page.url()).hash).not.toBe('#inbox');
+  await page.evaluate(() => { location.hash = 'riders'; });
+  await expect(page.locator('.page-title')).toHaveText('Riders');
+  await page.reload();
+  await expect(page.locator('.page-title')).toHaveText('Riders');
+});
