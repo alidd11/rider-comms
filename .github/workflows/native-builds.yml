@@ -138,6 +138,24 @@ jobs:
         run: |
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
+          # Maestro's underlying debug log includes typed input, including
+          # the disposable test password. Redact before printing or uploading
+          # XML/JSON/log artifacts; GitHub's console masking does not sanitize
+          # files inside uploaded ZIP archives.
+          redact_test_password() {
+            python3 - "$@" <<'PY'
+          import os, sys
+          from pathlib import Path
+          password = os.environ.get('TEST_PASSWORD')
+          if not password:
+              raise SystemExit('Cannot archive Maestro logs without the masked test password')
+          for arg in sys.argv[1:]:
+              path = Path(arg)
+              if path.is_file() and path.suffix in {'.xml', '.json', '.log'}:
+                  data = path.read_text(encoding='utf-8', errors='replace')
+                  path.write_text(data.replace(password, '[REDACTED TEST PASSWORD]'), encoding='utf-8')
+          PY
+          }
           set +e
           # Only Maestro's XCTest transport failure may get a second attempt.
           # Never retry a normal UI assertion or product regression: they
@@ -149,6 +167,7 @@ jobs:
             # Maestro fills ${…} in a flow from -e values, not the shell environment.
             maestro test -e TEST_USERNAME="$TEST_USERNAME" -e TEST_PASSWORD="$TEST_PASSWORD" mobile/maestro/authenticated-smoke.yaml --format junit --output "$report" > "$output" 2>&1
             test_status=$?
+            redact_test_password "$output" "$report" || { test_status=1; break; }
             cat "$output"
             [ -f "$report" ] && cp "$report" maestro-ios.xml
             [ "$test_status" -eq 0 ] && break
@@ -179,6 +198,11 @@ jobs:
           find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
           # Each command's outcome and Maestro's log, to see which step went wrong.
           find "$HOME/.maestro/tests" -type f \( -name 'commands-*.json' -o -name 'maestro.log' \) -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
+          if ! redact_test_password maestro-ios-artifacts/* maestro-ios.xml maestro-ios-attempt-*.xml maestro-ios-attempt-*.log; then
+            # Fail closed: never upload raw typed credentials if redaction fails.
+            rm -rf maestro-ios-artifacts maestro-ios.xml maestro-ios-attempt-*.xml maestro-ios-attempt-*.log
+            test_status=1
+          fi
           exit "$test_status"
       - name: Delete the disposable test account
         if: always() && steps.test-account.outputs.token != ''
