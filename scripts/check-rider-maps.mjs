@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './check-map-lanes.mjs';
 import {
   VALHALLA_MOTORCYCLE_ROUTING_ENABLED, MAX_RESEARCH_ROUTE_LOCATIONS,
   draftValhallaMotorcycleRequest,
@@ -233,6 +234,14 @@ assert.match(betaHtml, /mapFrame\.srcdoc = mapFrame\.srcdoc/, 'Retry must reuse 
 assert.match(betaHtml, /getAttribute\('sandbox'\) === 'allow-scripts'/, 'Retry must keep opaque-origin sandbox');
 assert.match(betaHtml, /noindex,nofollow/);
 assert.equal(read('../docs/map-beta/preview.mjs'), js);
+assert.equal(read('../docs/map-beta/lane-access.mjs'), read('../map-lab/lane-access.mjs'));
+assert.match(read('../docs/map-beta/preview.css'), /lane-demo-status/);
+assert.match(css, /lane-demo-status/);
+assert.match(html, /id="laneGuidanceDemo"/);
+assert.match(html, /NOT A REAL ROAD/);
+assert.match(js, /RIDER_LANE_GUIDANCE_RELEASED !== false/);
+assert.match(js, /syntheticBusLaneScenario/);
+assert.doesNotMatch(js + html, /officially allowed|legally permitted in London/i);
 assert.equal(read('../docs/map-beta/config.mjs'), read('../map-lab/config.mjs'));
 assert.equal(read('../docs/map-beta/open-route.mjs'), read('../map-lab/open-route.mjs'));
 assert.match(html, /Content-Security-Policy/);

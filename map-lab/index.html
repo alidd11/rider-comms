@@ -29,6 +29,23 @@
       </div>
       <button type="button" id="demoOverlay" class="reset" aria-pressed="false">Show illustrative route overlay</button>
       <button type="button" id="resetCamera" class="reset">Return to sample area</button>
+      <details id="laneGuidanceDemo" class="lane-demo">
+        <summary>Lane guidance experiment</summary>
+        <div class="lane-demo-content">
+          <strong>Illustrative junction · NOT A REAL ROAD</strong>
+          <div class="lane-demo-diagram" role="img" aria-label="Synthetic three-lane junction: first lane straight, second lane left, third lane bus lane left">
+            <span aria-hidden="true">↑<small>General</small></span>
+            <span aria-hidden="true">↰<small>Left</small></span>
+            <span class="lane-demo-bus" aria-hidden="true">↰<small>Bus</small></span>
+          </div>
+          <div class="segmented lane-demo-hours" role="group" aria-label="Example passage hour in London">
+            <button type="button" id="laneMorning" aria-pressed="true">08:30</button>
+            <button type="button" id="laneEvening" aria-pressed="false">20:30</button>
+          </div>
+          <output id="laneAccessStatus" class="lane-demo-status" role="status" aria-live="polite" data-example-access="unknown">Checking synthetic lane timetable…</output>
+          <p>Made-up road, timetable and graph. Green is for this illustration ONLY. Never use it to choose a real bus lane; always follow signs.</p>
+        </div>
+      </details>
       <p>The overlay is synthetic, not road-matched and never navigation advice. No real location, traffic, routing, search or hazard data is accessed.</p>
     </section>
     <div class="bottom-bar">

@@ -35,3 +35,20 @@ button[aria-pressed="true"] { background: #1da2cb; color: #071720; border-color:
 
 #demoOverlay[aria-pressed="true"] { background: #144959; border-color: #40bbdb; }
 #demoOverlay { font-size: 13px; }
+
+/* Collapsed synthetic-only lane/header research: no real legal guidance. */
+.controls { max-height: calc(100dvh - 168px); overflow-y: auto; overscroll-behavior: contain; }
+.lane-demo { margin-top: 12px; border-top: 1px solid rgba(141,181,197,.30); }
+.lane-demo summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: #e7f7fd; font-weight: 750; font-size: 13px; }
+.lane-demo summary:focus-visible { outline: 3px solid #58ccf3; outline-offset: 2px; }
+.lane-demo-content { padding-top: 4px; }
+.lane-demo-content strong { display: block; font-size: 10px; letter-spacing: .02em; color: #cfe9f4; }
+.lane-demo-diagram { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 10px 0; }
+.lane-demo-diagram > span { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #507b8a; border-radius: 10px; min-height: 56px; font-size: 25px; background: #133440; }
+.lane-demo-diagram small { font-size: 10px; line-height: 1.3; }
+.lane-demo-diagram .lane-demo-bus { border-style: dashed; }
+.lane-demo-hours button { min-height: 44px; }
+.lane-demo-status { display: block; margin-top: 10px; min-height: 44px; padding: 10px; border: 1px solid #466a79; border-radius: 10px; font-weight: 750; font-size: 12px; }
+.lane-demo-status[data-example-access="illustrative_permitted"] { border-color: #3cce98; color: #c6ffeb; background: #083c30; }
+.lane-demo-status[data-example-access="illustrative_prohibited"] { border-color: #e6ae65; color: #ffe1b5; background: #4b3219; }
+.lane-demo-status[data-example-access="unknown"] { border-color: #8299a8; color: #e2edf2; background: #17313f; }

@@ -1,6 +1,7 @@
 /* global document, window */
 import { RIDER_MAPS_RELEASED, DEMO_CAMERA, assertMapDataCompatibility, openMapStyle } from './config.mjs';
 import { illustrativeLine } from './open-route.mjs';
+import { RIDER_LANE_GUIDANCE_RELEASED, evaluateSyntheticLaneAccess, syntheticBusLaneScenario } from './lane-access.mjs';
 
 const returnClassic = document.querySelector('.return-classic');
 if (returnClassic && window.parent !== window) {
@@ -26,6 +27,31 @@ const dayButton = document.getElementById('dayStyle');
 const nightButton = document.getElementById('nightStyle');
 const resetButton = document.getElementById('resetCamera');
 const demoOverlayButton = document.getElementById('demoOverlay');
+
+// This UI is a fixed, synthetic lane diagram. It is deliberately independent
+// from the real map and cannot provide legal permission or navigation advice.
+function renderSyntheticLaneExample(time, activeButton) {
+  if (RIDER_LANE_GUIDANCE_RELEASED !== false) return;
+  const sample = syntheticBusLaneScenario(time);
+  const result = evaluateSyntheticLaneAccess(sample);
+  const output = document.getElementById('laneAccessStatus');
+  const laneMorning = document.getElementById('laneMorning');
+  const laneEvening = document.getElementById('laneEvening');
+  if (!output || !laneMorning || !laneEvening) return;
+  laneMorning.setAttribute('aria-pressed', String(activeButton === 'morning'));
+  laneEvening.setAttribute('aria-pressed', String(activeButton === 'evening'));
+  output.dataset.exampleAccess = result.status;
+  output.textContent = result.status === 'illustrative_permitted'
+    ? 'Green example: motorcycle permitted by the synthetic timetable'
+    : result.status === 'illustrative_prohibited'
+      ? 'Restricted example: this synthetic motorcycle lane is not permitted'
+      : 'Uncertain example: cannot confirm lane permission';
+}
+document.getElementById('laneMorning')?.addEventListener('click', () =>
+  renderSyntheticLaneExample('2026-11-23T08:30:00Z', 'morning'));
+document.getElementById('laneEvening')?.addEventListener('click', () =>
+  renderSyntheticLaneExample('2026-11-23T20:30:00Z', 'evening'));
+renderSyntheticLaneExample('2026-11-23T08:30:00Z', 'morning');
 
 function updateStatus(message) { status.textContent = message; }
 // Map controls can be used during a style reload or after a tile failure.

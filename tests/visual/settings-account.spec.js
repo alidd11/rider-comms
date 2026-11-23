@@ -124,6 +124,14 @@ test('standalone map sandbox reports blocked MapLibre CDN instead of infinite lo
     await expect(map.locator(id)).toBeDisabled();
   }
   await expect(page.locator('#map')).toHaveCount(0);
+  // Synthetic lane guidance is fully offline and is NOT legal permission.
+  await map.locator('#laneGuidanceDemo summary').click();
+  await expect(map.locator('#laneAccessStatus')).toHaveAttribute('data-example-access', 'illustrative_permitted');
+  await expect(map.locator('#laneAccessStatus')).toContainText('synthetic timetable');
+  await map.locator('#laneEvening').click();
+  await expect(map.locator('#laneAccessStatus')).toHaveAttribute('data-example-access', 'illustrative_prohibited');
+  await expect(map.locator('#laneAccessStatus')).toContainText('not permitted');
+  await expect(map.locator('#laneGuidanceDemo')).toContainText('always follow signs');
   // The explicit retry reconstructs the same opaque document. No new
   // permission, third-party top-level script or PWA session is introduced.
   await map.locator('body').evaluate(() => { window.__retrySentinel = true; });
