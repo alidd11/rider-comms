@@ -98,6 +98,21 @@ describe('RiderCommsClient authentication', () => {
     assert.deepEqual(await client.reauthenticate('rider-password'), { reauthenticated: true, validForMs: 900000 });
   });
 
+  it('downloads only the current rider export through an authenticated, uncached GET', async () => {
+    const data = { account: { rider_id: 'my-rider' }, messages: [{ id: 'private-message' }] };
+    const client = new RiderCommsClient('https://example.test', fakeFetch((url, init) => {
+      assert.equal(url, 'https://example.test/auth/export');
+      assert.equal(init.method, 'GET');
+      assert.equal(init.body, undefined);
+      assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer my-session');
+      assert.equal(init.redirect, 'error');
+      assert.equal(init.credentials, 'omit');
+      assert.equal(init.cache, 'no-store');
+      return { status: 200, body: data };
+    }), 'my-session');
+    assert.deepEqual(await client.exportAccountData(), data);
+  });
+
   it('requests and confirms password recovery without authentication', async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     const client = new RiderCommsClient('http://example.test', fakeFetch((url, init) => {

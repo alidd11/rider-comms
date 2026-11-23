@@ -53,3 +53,24 @@ test('rider menu profile remains a direct, accessible destination', async ({ pag
   await expect(page.locator('#appMenu')).toBeHidden();
   await expect(page.locator('#sheetTitle')).toHaveText('Profile');
 });
+
+test('touch-first menu rows do not retain a sticky hover highlight', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+  const touchOnly = await page.evaluate(() => matchMedia('(hover: none)').matches);
+  test.skip(!touchOnly, 'Only touch-first devices can reproduce sticky iOS hover');
+  await page.locator('#mapAvatarButton').click();
+  const row = page.locator('#appMenu [data-menu-nav="settings"]');
+  await row.scrollIntoViewIfNeeded();
+  // Exercise a real tap while keeping this menu open to inspect its released
+  // background. The capture listener affects the fixture only, never the app.
+  await row.evaluate((element) => {
+    element.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, { capture: true, once: true });
+  });
+  await row.tap();
+  await expect(page.locator('#appMenu')).toBeVisible();
+  await expect(row).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+});
