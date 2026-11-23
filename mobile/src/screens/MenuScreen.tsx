@@ -48,10 +48,15 @@ function MenuRow({ icon, label, detail, onPress }: {
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
       <View style={styles.rowIcon}>
-        <Ionicons name={icon} size={22} color={colors.accentInk} />
+        <Ionicons name={icon} size={21} color={colors.accentInk} />
       </View>
-      <Text style={styles.rowLabel}>{label}</Text>
-      {detail ? <Text style={styles.rowDetail}>{detail}</Text> : null}
+      <Text style={styles.rowLabel} numberOfLines={1}>{label}</Text>
+      {detail ? (
+        <Text style={[styles.rowDetail, label === 'Ride' && detail === 'Live' && styles.liveDetail]} numberOfLines={1}>
+          {detail}
+        </Text>
+      ) : null}
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} accessible={false} />
     </Pressable>
   );
 }
@@ -89,8 +94,9 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
   }, [client]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
-      <View style={styles.topBar}>
+    <View style={styles.container}>
+      <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
+        <Text style={styles.pageTitle} accessibilityRole="header">Menu</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close menu"
@@ -98,13 +104,16 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
           style={({ pressed }) => [styles.close, pressed && styles.rowPressed]}
           testID="close-menu"
         >
-          <Ionicons name="close" size={26} color={colors.textPrimary} />
+          <Ionicons name="close" size={24} color={colors.textPrimary} />
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.lg }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + spacing.lg }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.profile}>
-          <RiderAvatar avatarId={avatarId} size={84} />
+          <RiderAvatar avatarId={avatarId} size={74} />
           <View style={styles.profileCopy}>
             <Text numberOfLines={1} style={styles.name}>{displayName}</Text>
             <Text numberOfLines={1} style={styles.handle}>{handle}</Text>
@@ -115,53 +124,76 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
               style={({ pressed }) => [styles.profileButton, pressed && styles.rowPressed]}
             >
               <Text style={styles.profileButtonText}>View profile</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.accentInk} />
             </Pressable>
           </View>
         </View>
 
-        <View style={styles.stats} accessibilityLabel="Your recent rides" testID="menu-ride-stats">
-          {[[stats.rides, 'Rides'], [stats.time, 'Ride time'], [stats.distance, stats.distanceLabel]].map(([value, label]) => (
-            <View key={label} style={styles.stat} accessible accessibilityLabel={`${label}: ${value}`}>
+        <View style={styles.sectionHeading}>
+          <Text style={styles.sectionTitle} accessibilityRole="header">Your rides</Text>
+          <Text style={styles.sectionCaption}>On this device</Text>
+        </View>
+        <View style={styles.stats} accessibilityLabel="Ride totals on this device" testID="menu-ride-stats">
+          {[[stats.rides, 'Rides'], [stats.time, 'Ride time'], [stats.distance, stats.distanceLabel]].map(([value, label], index) => (
+            <View key={label} style={[styles.stat, index > 0 && styles.statDivider]} accessible accessibilityLabel={`${label}: ${value}`}>
               <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
               <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
             </View>
           ))}
         </View>
 
-        <MenuRow icon="bicycle-outline" label="Ride" detail={activeRide ? 'Live' : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Map', params: { segment: 'host', at: Date.now() } })} />
-        <MenuRow icon="people-outline" label="Friends" detail={friendsCount > 0 ? `${friendsCount > 99 ? '99+' : friendsCount} new` : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Friends' })} />
-        <MenuRow icon="flag-outline" label="Routes" onPress={() => navigation.replace('Routes')} />
-        {socialAllowed ? <MenuRow icon="camera-outline" label="Rider Social" detail="Beta" onPress={() => void Linking.openURL(RIDER_SOCIAL_URL)} /> : null}
-        <MenuRow icon="card-outline" label="Your plan" detail={PLAN_INFO[zoneTier].name} onPress={() => navigation.replace('Billing')} />
-        <MenuRow icon="settings-outline" label="Settings" onPress={() => navigation.replace('Settings')} />
-        <MenuRow icon="help-circle-outline" label="Help & Support" onPress={() => navigation.replace('SettingsPage', { page: 'help' })} />
+        <View style={styles.navigationSections}>
+          <View>
+            <Text style={styles.groupTitle} accessibilityRole="header">Ride &amp; explore</Text>
+            <MenuRow icon="bicycle-outline" label="Ride" detail={activeRide ? 'Live' : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Map', params: { segment: 'host', at: Date.now() } })} />
+            <MenuRow icon="people-outline" label="Friends" detail={friendsCount > 0 ? `${friendsCount > 99 ? '99+' : friendsCount} new` : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Friends' })} />
+            <MenuRow icon="flag-outline" label="Routes" onPress={() => navigation.replace('Routes')} />
+            {socialAllowed ? <MenuRow icon="camera-outline" label="Rider Social" detail="Beta" onPress={() => void Linking.openURL(RIDER_SOCIAL_URL)} /> : null}
+          </View>
+
+          <View style={styles.accountGroup}>
+            <Text style={styles.groupTitle} accessibilityRole="header">Account &amp; support</Text>
+            <MenuRow icon="card-outline" label="Your plan" detail={PLAN_INFO[zoneTier].name} onPress={() => navigation.replace('Billing')} />
+            <MenuRow icon="settings-outline" label="Settings" onPress={() => navigation.replace('Settings')} />
+            <MenuRow icon="help-circle-outline" label="Help & Support" onPress={() => navigation.replace('SettingsPage', { page: 'help' })} />
+          </View>
+        </View>
 
         <Text style={styles.version}>Rider Comms v{appVersion}</Text>
       </ScrollView>
     </View>
   );
+
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  topBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.md },
-  close: { width: MIN_TOUCH_TARGET + 4, height: MIN_TOUCH_TARGET + 4, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
-  scroll: { flexGrow: 1, paddingHorizontal: spacing.lg },
-  profile: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md },
-  profileCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
-  name: { ...type.title, color: colors.textPrimary, fontSize: 26, lineHeight: 30 },
-  handle: { ...type.body, color: colors.textSecondary, marginTop: 2 },
-  profileButton: { marginTop: spacing.sm, minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radii.pill, justifyContent: 'center', backgroundColor: colors.surfaceRaised },
-  profileButtonText: { ...type.button, color: colors.accentInk, fontSize: 16 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: spacing.md },
-  stats: { flexDirection: 'row', gap: 10, marginTop: spacing.sm, marginBottom: spacing.md },
-  stat: { flex: 1, minWidth: 0, paddingVertical: 12, paddingHorizontal: 12, borderRadius: radii.lg, backgroundColor: colors.surface, ...elevation.raised },
+  topBar: { width: '100%', maxWidth: 628, alignSelf: 'center', minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg },
+  pageTitle: { ...type.title, fontSize: 26, lineHeight: 32, color: colors.textPrimary },
+  close: { width: MIN_TOUCH_TARGET + 4, height: MIN_TOUCH_TARGET + 4, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth },
+  scroll: { width: '100%', maxWidth: 628, alignSelf: 'center', flexGrow: 1, paddingHorizontal: spacing.lg },
+  profile: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingTop: 18, paddingBottom: 22, paddingHorizontal: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  profileCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start', gap: 3 },
+  name: { ...type.title, color: colors.textPrimary, fontSize: 23, lineHeight: 28 },
+  handle: { ...type.body, color: colors.textSecondary, fontSize: 14, lineHeight: 19 },
+  profileButton: { marginTop: 6, minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
+  profileButtonText: { ...type.button, color: colors.accentInk, fontSize: 15 },
+  sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: spacing.sm, marginTop: 20, marginBottom: 10, paddingHorizontal: 2 },
+  sectionTitle: { ...type.caption, color: colors.textSecondary, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', fontWeight: '800' },
+  sectionCaption: { ...type.caption, color: colors.textMuted, fontSize: 12 },
+  stats: { flexDirection: 'row', minHeight: 75, borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: 'hidden' },
+  stat: { flex: 1, minWidth: 0, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 10 },
+  statDivider: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border },
   statValue: { ...type.heading, color: colors.textPrimary, fontSize: 22, lineHeight: 26, fontWeight: '800' },
-  statLabel: { ...type.caption, color: colors.textMuted, marginTop: 2 },
-  rowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
-  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radii.md, paddingHorizontal: spacing.sm },
-  rowPressed: { opacity: 0.7 },
-  rowLabel: { ...type.body, flex: 1, color: colors.textPrimary, fontSize: 18, lineHeight: 23, fontWeight: '600' },
-  rowDetail: { ...type.caption, color: colors.textSecondary, fontSize: 14 },
-  version: { ...type.caption, color: colors.textMuted, textAlign: 'center', marginTop: 'auto', paddingTop: spacing.xl },
+  statLabel: { ...type.caption, color: colors.textSecondary, marginTop: 4, fontSize: 12 },
+  navigationSections: { gap: 17, marginTop: 25 },
+  groupTitle: { ...type.caption, color: colors.textSecondary, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', fontWeight: '800', marginBottom: 6, marginHorizontal: 5 },
+  accountGroup: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 17 },
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radii.md, paddingHorizontal: spacing.sm, paddingVertical: 5 },
+  rowPressed: { backgroundColor: colors.surface },
+  rowIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised },
+  rowLabel: { ...type.body, flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: 16, lineHeight: 22, fontWeight: '650' },
+  rowDetail: { ...type.caption, color: colors.textSecondary, fontSize: 13, maxWidth: '40%' },
+  liveDetail: { color: colors.success },
+  version: { ...type.caption, color: colors.textMuted, textAlign: 'center', marginTop: 'auto', paddingTop: spacing.lg, fontSize: 12 },
 });
