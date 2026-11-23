@@ -2560,3 +2560,14 @@ select.input, .case-field .input { padding-left: 12px; }
 .alert-pref-title { font-size: 14px; }
 .alert-pref-detail, .alert-prefs-state { font-size: 12.5px; color: var(--muted-fg); margin: 0; }
 .alert-prefs-state:empty { display: none; }
+
+/* Phone menu: the account row sits right above the home indicator. The panel
+   and the row both used to add the safe-area inset, leaving a dead band. */
+@media (max-width: 899px) {
+  .app .sidebar-panel { padding-bottom: 0; }
+  .app .sidebar-panel .sidebar-footer { padding: 8px 10px max(8px, env(safe-area-inset-bottom)) 14px; gap: 4px; }
+  .app .sidebar-panel .staff-footer-avatar { width: 32px; height: 32px; font-size: 12px; }
+  .app .sidebar-panel .staff-footer-actions { gap: 0; }
+  .app .sidebar-panel .staff-footer-icon-action { width: 40px; height: 40px; }
+  .app .sidebar-panel .nav { padding-bottom: 12px; }
+}
