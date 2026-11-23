@@ -4,6 +4,7 @@
  * A matching route/graph identity proves only internal consistency of caller-
  * supplied fields, NOT authenticity of any map, road match or charge source.
  */
+import { parseChargeInstant } from './chargeInstant.ts';
 import { summarizeRouteChargeWindows, type RouteChargeWindowPassage,
   type RouteChargeWindowSummary } from './routeChargeWindowSummary.ts';
 import type { ChargeVehicleClass } from './chargingRules.ts';
@@ -39,7 +40,8 @@ export interface ChargeRouteSnapshotReview {
   reason: 'coherent_observations' | 'invalid_expected_route'
     | 'invalid_snapshot' | 'stale_route_revision' | 'graph_mismatch'
     | 'vehicle_or_profile_mismatch' | 'invalid_observation'
-    | 'duplicate_observation' | 'invalid_charge_event_list';
+    | 'duplicate_observation' | 'invalid_charge_event_list'
+    | 'non_monotonic_passage_time';
   /** Present only if all identifiers match. Even here, routes are NOT cleared. */
   summary?: RouteChargeWindowSummary;
   routeCoverageComplete: false;
@@ -94,6 +96,7 @@ export function reviewChargeRouteSnapshot(
 
   const seen = new Set<string>();
   const passages: RouteChargeWindowPassage[] = [];
+  let precedingPredictedAt: number | null = null;
   for (const observation of candidate.observations as unknown[]) {
     if (!record(observation)
       || typeof observation.occurrenceId !== 'string' || !TOKEN.test(observation.occurrenceId)
@@ -108,6 +111,14 @@ export function reviewChargeRouteSnapshot(
     if (observation.graphBuildSha256 !== candidate.graphBuildSha256)
       return blocked('graph_mismatch');
     if (seen.has(observation.occurrenceId)) return blocked('duplicate_observation');
+    // Array order must represent consecutive crossings on this route. Compare
+    // UTC instants rather than the lexical text of ISO offset timestamps.
+    // Independent earliest/latest estimates MAY overlap; do not reject them.
+    const predicted = parseChargeInstant(observation.passage.predictedPassageAt);
+    if (predicted === null) return blocked('invalid_observation');
+    if (precedingPredictedAt !== null && predicted < precedingPredictedAt)
+      return blocked('non_monotonic_passage_time');
+    precedingPredictedAt = predicted;
     seen.add(observation.occurrenceId);
     passages.push(observation.passage as unknown as RouteChargeWindowPassage);
   }

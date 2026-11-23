@@ -83,6 +83,26 @@ describe('offline route snapshot coherence fencing (not authenticating graph)', 
     assert.equal(out.summary?.possibleCrossingCharges, 2);
     assert.equal(out.summary?.routeCoverageComplete, false);
   });
+  it('rejects out-of-order crossings by UTC instant, not lexical offset text', () => {
+    const first = observed('first');
+    const wrongOrder = observed('second', { passage: { ...observed('second').passage,
+      predictedPassageAt: '2026-11-23T12:30:00+01:00' } });
+    assert.equal(check(snapshot([first, wrongOrder])).reason, 'non_monotonic_passage_time');
+    assert.equal(check(snapshot([wrongOrder, first])).status, 'internally_consistent');
+  });
+  it('allows equal ETA estimates for distinct road crossings and overlapping uncertainty', () => {
+    const first = observed('first');
+    const second = observed('second', { passage: { ...observed('second').passage,
+      predictedPassageAt: '2026-11-23T13:01:00+01:00' } });
+    const out = check(snapshot([first, second]));
+    assert.equal(out.status, 'internally_consistent');
+    assert.equal(out.summary?.possibleCrossingCharges, 2);
+  });
+  it('rejects a missing or malformed crossing ETA instead of claiming chronological coherence', () => {
+    const bad = observed('bad', { passage: { ...observed('bad').passage,
+      predictedPassageAt: '2026-11-23T12:01:00' } });
+    assert.equal(check(snapshot([bad])).reason, 'invalid_observation');
+  });
   it('rejects an occurrence listed twice rather than silently deduplicating it', () => {
     assert.equal(check(snapshot([observed('same'), observed('same')])).reason, 'duplicate_observation');
   });
@@ -98,10 +118,8 @@ describe('offline route snapshot coherence fencing (not authenticating graph)', 
   it('does not accept an event list containing malformed passages', () => {
     assert.equal(check(snapshot([observed('x', { passage: null as unknown as ChargeRouteObservedPassage['passage'] })])).reason,
       'invalid_observation');
-    assert.equal(check(snapshot([observed('x', { passage: { eventId: 'x' } as ChargeRouteObservedPassage['passage'] })])).status,
-      'internally_consistent');
-    assert.equal(check(snapshot([observed('x', { passage: { eventId: 'x' } as ChargeRouteObservedPassage['passage'] })])).summary?.unknownEventCount,
-      1);
+    assert.equal(check(snapshot([observed('x', { passage: { eventId: 'x' } as ChargeRouteObservedPassage['passage'] })])).reason,
+      'invalid_observation');
   });
   it('treats an empty but well-identified route as no evidence, never a verified free route', () => {
     const out = check(snapshot([]));
