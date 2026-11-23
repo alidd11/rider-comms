@@ -4,7 +4,7 @@
 
 Every push to a PR starts CI again. `native-builds` (iOS on macOS plus
 Android, about 35 minutes) runs whenever `mobile/**`, `shared/**`,
-`package-lock.json` or that workflow changes; `CI` (about 13 minutes) runs on
+`package-lock.json` or that workflow changes; `CI` (parallel jobs, about 7 minutes) runs on
 every PR push and again on `main` after each merge. Lessons from earlier PRs:
 
 - **Push once per round, not once per fix.** Commit locally and push when the
