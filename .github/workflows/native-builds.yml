@@ -142,6 +142,24 @@ jobs:
           # Maestro fills ${…} in a flow from -e values, not the shell environment.
           maestro test -e TEST_USERNAME="$TEST_USERNAME" -e TEST_PASSWORD="$TEST_PASSWORD" mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
           test_status=$?
+          # Only an actual XCUITest transport crash justifies a recovery run.
+          # Restart the simulator once, then repeat ALL authenticated checks.
+          # Genuine app assertions never retry here and no second error passes.
+          if [ "$test_status" -ne 0 ] && [ -f maestro-ios.xml ] \
+            && grep -Eq 'maestro.DeviceUnreachableException|XCUITestServerError\\$Unreachable' maestro-ios.xml; then
+            echo "::warning title=Maestro XCTest transport::Driver unreachable; restarting simulator once."
+            cp maestro-ios.xml maestro-ios-first-attempt.xml
+            udid="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys;print(next((d["udid"] for ds in json.load(sys.stdin)["devices"].values() for d in ds if d["state"] == "Booted" and "iPhone" in d["name"]), ""))')"
+            if [ -n "$udid" ]; then
+              xcrun simctl shutdown "$udid" || true
+              sleep 3
+              if xcrun simctl boot "$udid" && xcrun simctl bootstatus "$udid" -b; then
+                xcrun simctl launch "$udid" com.ridercomms.app >/dev/null || true
+                maestro test -e TEST_USERNAME="$TEST_USERNAME" -e TEST_PASSWORD="$TEST_PASSWORD" mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
+                test_status=$?
+              fi
+            fi
+          fi
           if [ "$test_status" -ne 0 ]; then
             # What was on screen when the flow failed, readable in the job log.
             echo "::group::Screen at failure"
@@ -170,6 +188,7 @@ jobs:
           path: |
             maestro-ios-artifacts
             maestro-ios.xml
+            maestro-ios-first-attempt.xml
           if-no-files-found: ignore
       - name: Upload the launch screenshot
         if: always()
