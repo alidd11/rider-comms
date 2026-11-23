@@ -2,7 +2,8 @@ import { providerHealthSnapshot } from '../providerHealth.ts';
 import { buildActionInbox, INBOX_FILTERS, INBOX_SAMPLE_SIZE, MAX_INBOX_PAGE_SIZE } from '../actionInbox.ts';
 import type { InboxFilter } from '../actionInbox.ts';
 import { exportRiderData } from '../accountExport.ts';
-import { MAX_RIDER_SEARCH_RESULTS } from '../adminStatsStore.ts';
+import { MAX_RIDER_OFFSET, MAX_RIDER_SEARCH_RESULTS, RIDER_FILTERS } from '../adminStatsStore.ts';
+import type { RiderFilter } from '../adminStatsStore.ts';
 import { getPool } from '../db.ts';
 import { emailDeliveryStatus } from '../email.ts';
 import { MAX_MODERATION_NOTE_LENGTH } from '../moderationStore.ts';
@@ -11,6 +12,7 @@ import { GRANTABLE_STAFF_ROLES, isGrantableStaffRole, permissionsFor, roleCan } 
 import type { StaffPermission } from '../staffRoles.ts';
 import { NOT_HANDLED, refuseWithoutRecentReauth, refuseWithoutStaffCode } from './context.ts';
 import { staffMfa } from '../staffMfa.ts';
+import { getStaffAlertPrefs, setStaffAlertPrefs } from '../staffAlerts.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
 import { handlePartnerRoutes } from './adminPartners.ts';
 import { parseOperationsWindow, socialSafetyActivityReport } from '../operationsReports.ts';
@@ -66,6 +68,16 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
 
   if (req.method === 'GET' && url.pathname === '/admin/me') {
     return sendJson(res, 200, { riderId: actorId, role, permissions: permissionsFor(role) });
+  }
+  // Each staff member's own email alert choices; no other staff member can change them.
+  if (url.pathname === '/admin/alerts') {
+    if (req.method === 'GET') return sendJson(res, 200, await getStaffAlertPrefs(actorId));
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'method_not_allowed' });
+    const body = await readJsonBody(req);
+    if (typeof body.dailyDigest !== 'boolean' || typeof body.urgentAlerts !== 'boolean') {
+      return sendJson(res, 400, { error: 'dailyDigest and urgentAlerts must be true or false' });
+    }
+    return sendJson(res, 200, await setStaffAlertPrefs(actorId, { dailyDigest: body.dailyDigest, urgentAlerts: body.urgentAlerts }));
   }
   if (req.method === 'GET' && url.pathname === '/admin/overview') {
     if (lacks('view_overview')) return refuse('view_overview');
@@ -127,7 +139,14 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_RIDER_SEARCH_RESULTS) {
       return sendJson(res, 400, { error: `limit must be an integer from 1 to ${MAX_RIDER_SEARCH_RESULTS}` });
     }
-    return sendJson(res, 200, { riders: await adminStatsStore.searchRiders(query, limit) });
+    const filter = url.searchParams.get('filter') ?? 'all';
+    if (!(RIDER_FILTERS as readonly string[]).includes(filter)) return sendJson(res, 400, { error: 'invalid_filter', values: RIDER_FILTERS });
+    const offset = Number(url.searchParams.get('offset') ?? 0);
+    if (!Number.isInteger(offset) || offset < 0 || offset > MAX_RIDER_OFFSET) {
+      return sendJson(res, 400, { error: `offset must be an integer from 0 to ${MAX_RIDER_OFFSET}` });
+    }
+    const riders = await adminStatsStore.searchRiders(query, limit, { filter: filter as RiderFilter, offset });
+    return sendJson(res, 200, { riders, nextOffset: riders.length === limit ? offset + limit : null });
   }
 
   // Sign-ins, failed passwords, resets and revoked devices; staff only, or one rider.

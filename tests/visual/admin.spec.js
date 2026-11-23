@@ -106,6 +106,8 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
         createdAt: Date.now() - 7_200_000, updatedAt: Date.now() - 7_200_000, version: 1 },
     ],
     riderQueries: [],
+    riderFilters: [],
+    alertPrefs: { dailyDigest: false, urgentAlerts: false },
     reauthenticated: !reauth,
     // Each test gets its own riders, so verifying one doesn't leak into the next.
     riders: RIDERS.map((rider) => ({ ...rider })),
@@ -150,6 +152,13 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       return json(200, { verified: true });
     }
     if (url.pathname === '/admin/mfa') return json(200, { enabled: mfa, recoveryCodesLeft: mfa ? 10 : 0 });
+    if (url.pathname === '/admin/alerts') {
+      if (request.method() === 'POST') {
+        state.alertPrefs = request.postDataJSON();
+        state.posts.push({ path: url.pathname, body: state.alertPrefs });
+      }
+      return json(200, state.alertPrefs);
+    }
     if (url.pathname === '/admin/mfa/setup') return json(200, { secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', uri: 'otpauth://totp/Rider%20Comms%20Staff%3Arider_admin01?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' });
     if (url.pathname === '/admin/mfa/confirm') {
       if (request.postDataJSON().code !== '123456') return json(401, { error: 'invalid_code' });
@@ -426,7 +435,14 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       const matches = state.riders.filter((rider) => [
         rider.displayName, rider.username, rider.handle, rider.email, rider.riderId,
       ].some((value) => String(value ?? '').toLowerCase().includes(query)));
-      return json(200, { riders: matches });
+      const filter = url.searchParams.get('filter') || 'all';
+      state.riderFilters.push(filter);
+      const filtered = matches.filter((rider) => filter === 'all' || (filter === 'suspended' && rider.suspended)
+        || (filter === 'unverified' && !rider.emailVerified) || (filter === 'reported' && rider.reportsAgainst > 0));
+      const limit = Number(url.searchParams.get('limit') || 50);
+      const offset = Number(url.searchParams.get('offset') || 0);
+      const riders = filtered.slice(offset, offset + limit);
+      return json(200, { riders, nextOffset: riders.length === limit ? offset + limit : null });
     }
     if (url.pathname === '/admin/system') {
       return json(200, { socialMediaStorage: false, socialMediaScanning: true, socialPosting: true, contentCheck: { allowed: 7, rejected: 1, unavailable: 2 }, providers: { google_places: { lastOkAt: null, lastErrorAt: Date.now(), lastError: '403 · PERMISSION_DENIED' }, google_routes: { lastOkAt: Date.now(), lastErrorAt: null, lastError: null } }, email: { configured: true, lastSentAt: Date.now() - 60_000, lastRefusedAt: Date.now(), lastRefusal: 'validation_error: You can only send testing emails to your own email address ([email]). Please verify a domain.' } });
@@ -482,6 +498,19 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       if (body.resolution === 'suspend') report.reportedRiderSuspended = true;
       state.actions.unshift({ id: `a${state.actions.length}`, moderatorId: ADMIN_ID, targetRiderId: report.reportedRiderId, reportId: report.id, action: body.resolution, note: body.note, createdAt: Date.now() });
       return json(200, { ok: true });
+    }
+    if (url.pathname === '/moderation/reports/dismiss-many') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      const dismissed = [];
+      const skipped = [];
+      for (const reportId of body.reportIds) {
+        const report = state.reports.find((candidate) => candidate.id === reportId && candidate.status === 'open');
+        if (!report) { skipped.push({ reportId, error: 'already_resolved' }); continue; }
+        Object.assign(report, { status: 'dismissed', resolvedAt: Date.now(), resolvedBy: ADMIN_ID });
+        dismissed.push(reportId);
+      }
+      return json(200, { dismissed, skipped });
     }
     const exportMatch = url.pathname.match(/^\/admin\/riders\/([^/]+)\/export$/);
     if (exportMatch) {
@@ -1473,6 +1502,28 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.list-row .person-name')).toHaveText('Removed a Social post: Rex');
   });
 
+  test('staff select several open reports and dismiss them with one note', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.reports.push({ ...state.reports[0], id: 'report-2' }, { ...state.reports[0], id: 'report-3' });
+    await page.goto('/admin.html#moderation');
+    const bar = page.getByRole('group', { name: 'Bulk actions' });
+    await expect(bar.getByRole('button', { name: 'Dismiss selected' })).toBeDisabled();
+    await page.getByRole('checkbox', { name: 'Select report report-1' }).check();
+    await page.getByRole('checkbox', { name: 'Select report report-3' }).check();
+    await expect(bar).toContainText('2 selected');
+    await expect(bar.getByRole('checkbox', { name: 'Select all open reports' })).not.toBeChecked();
+    await bar.getByRole('button', { name: 'Dismiss selected' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Dismiss 2 reports?' });
+    await dialog.getByRole('button', { name: 'Duplicate reports of the same incident.' }).click();
+    await dialog.getByRole('button', { name: 'Dismiss reports' }).click();
+    await expect(page.locator('.flash')).toHaveText('2 dismissed.');
+    await expect(page.locator('.report[data-report-id]')).toHaveCount(1);
+    await expect(page.locator('.report[data-report-id="report-2"]')).toBeVisible();
+    await expect(bar).toHaveCount(0); // a single report has no bulk bar
+    expect(state.posts.at(-1)).toEqual({ path: '/moderation/reports/dismiss-many', body: { reportIds: ['report-1', 'report-3'], note: 'Duplicate reports of the same incident.' } });
+  });
+
   test('shows the open queue safely and dismisses a report with a required note', async ({ page }) => {
     await signIn(page);
     const state = await mockModerationApi(page);
@@ -1745,6 +1796,31 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.empty-title')).toHaveText('No riders found');
     await expect(page.getByRole('searchbox', { name: 'Search riders' })).toBeFocused();
     expect(state.riderQueries).toEqual(['', 'nobody']);
+  });
+
+  test('rider filters narrow the list and more riders load past the first page', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    for (let index = 0; index < 55; index += 1) {
+      state.riders.push({ ...RIDERS[0], riderId: `rider_extra_${index}`, username: `extra${index}`, displayName: `Extra ${index}`, handle: `@extra${index}`, email: `extra${index}@example.com` });
+    }
+    await page.goto('/admin.html#riders');
+    const rows = page.locator('[data-rider-id]:visible');
+    await expect(rows).toHaveCount(50);
+    await expect(page.locator('.page-subtitle')).toContainText('Newest 50+ riders');
+    await page.getByRole('button', { name: 'Load more riders' }).click();
+    await expect(rows).toHaveCount(57);
+    await expect(page.getByRole('button', { name: 'Load more riders' })).toHaveCount(0);
+
+    await page.getByRole('combobox', { name: 'Show riders' }).selectOption('suspended');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('<b>Rex</b>');
+    await expect(page.getByRole('combobox', { name: 'Show riders' })).toBeFocused();
+    await page.getByRole('combobox', { name: 'Show riders' }).selectOption('reported');
+    await page.getByRole('searchbox', { name: 'Search riders' }).fill('maya');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.locator('.empty-title')).toHaveText('No riders found');
+    expect(state.riderFilters).toEqual(['all', 'all', 'suspended', 'reported', 'reported']);
   });
 
   test('staff verify an unverified rider\'s email with a note', async ({ page }) => {
@@ -2492,4 +2568,21 @@ test('two-step sign-in: staff set it up from Account security and see recovery c
   await dialog.getByRole('textbox', { name: 'Code from the app' }).fill('123456');
   await dialog.getByRole('button', { name: 'Turn on' }).click();
   await expect(dialog.getByRole('list', { name: 'Recovery codes' }).locator('li')).toHaveCount(10);
+});
+
+test('email alerts: staff turn on their own morning summary and urgent-case emails', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#overview');
+  await expect(page.locator('.page-title')).toHaveText('Overview');
+  await openMenuIfPhone(page);
+  await page.getByRole('button', { name: 'Account security' }).click();
+  const alerts = page.getByRole('dialog', { name: 'Account security' }).getByRole('group', { name: 'Email alerts' });
+  const digest = alerts.getByRole('checkbox', { name: /Morning summary/ });
+  await expect(digest).toBeEnabled();
+  await expect(digest).not.toBeChecked();
+  await digest.check();
+  await expect(alerts.getByRole('status')).toHaveText('Saved.');
+  await alerts.getByRole('checkbox', { name: /Urgent cases/ }).check();
+  await expect.poll(() => state.alertPrefs).toEqual({ dailyDigest: true, urgentAlerts: true });
 });

@@ -2534,3 +2534,29 @@ select.input, .case-field .input { padding-left: 12px; }
 .setup-key { margin: 0; font-size: 13px; color: var(--muted-fg); overflow-wrap: anywhere; }
 .setup-key code { font-size: 14px; color: var(--fg); letter-spacing: .04em; }
 .recovery-codes { margin: 0; padding-left: 22px; columns: 2; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+
+/* Riders: status filter beside the search, and paging past the first 50. */
+.toolbar .select { flex: 0 0 auto; min-height: 40px; }
+.load-more-row { display: flex; justify-content: center; margin: 12px 0 4px; }
+@media (max-width: 640px) {
+  .toolbar { flex-wrap: wrap; }
+  .toolbar .search { flex-basis: 100%; }
+  .toolbar .select { flex: 1 1 auto; }
+}
+
+/* Report queue: select several and dismiss them with one note. */
+.bulk-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.bulk-bar .bulk-count { flex: 1 1 auto; color: var(--muted-fg); font-size: 13px; }
+.bulk-all { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.bulk-bar input, .bulk-select-label input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+.bulk-select-label { display: inline-flex; align-items: center; padding: 4px; margin: -4px 4px -4px -4px; cursor: pointer; }
+
+/* Account dialog: the staff member's own email alerts. */
+.alert-prefs { border: 0; border-top: 1px solid var(--border); margin: 16px 0 0; padding: 12px 0 0; display: grid; gap: 10px; }
+.alert-prefs legend { font-weight: 600; font-size: 14px; padding: 0; float: left; width: 100%; margin-bottom: 2px; }
+.alert-pref { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.alert-pref input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.alert-pref > span { display: grid; gap: 2px; }
+.alert-pref-title { font-size: 14px; }
+.alert-pref-detail, .alert-prefs-state { font-size: 12.5px; color: var(--muted-fg); margin: 0; }
+.alert-prefs-state:empty { display: none; }

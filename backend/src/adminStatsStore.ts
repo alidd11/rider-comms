@@ -9,6 +9,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const SERIES_DAYS = 60;
 /** A public-presence fix counts as "live now" for this long (the API's own window). */
 const LIVE_PRESENCE_MS = 30_000;
+/** Rider list filters for the staff dashboard. */
+export const RIDER_FILTERS = ['all', 'suspended', 'unverified', 'staff', 'reported', 'new'] as const;
+export type RiderFilter = (typeof RIDER_FILTERS)[number];
+export const MAX_RIDER_OFFSET = 10_000;
 export const MAX_RIDER_SEARCH_RESULTS = 50;
 
 export type DailyMetric = 'active_riders' | 'rides_started' | 'filter_rejections';
@@ -328,9 +332,11 @@ export class AdminStatsStore {
   }
 
   /** Staff rider lookup by username, email, display name or handle (case-insensitive substring) or exact rider ID. */
-  async searchRiders(query: string, limit = 20): Promise<AdminRiderSummary[]> {
+  async searchRiders(query: string, limit = 20, options: { filter?: RiderFilter; offset?: number } = {}): Promise<AdminRiderSummary[]> {
     await ensureMigrated();
     const bounded = Math.min(Math.max(Math.trunc(limit), 1), MAX_RIDER_SEARCH_RESULTS);
+    const filter = options.filter ?? 'all';
+    const offset = Math.max(Math.trunc(options.offset ?? 0), 0);
     const trimmed = query.trim();
     const pattern = `%${trimmed.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
     const { rows } = await getPool().query(
@@ -344,11 +350,17 @@ export class AdminStatsStore {
        LEFT JOIN rider_profiles p ON p.rider_id = u.id
        LEFT JOIN rider_activity act ON act.rider_id = u.id
        LEFT JOIN staff_roles sr_role ON sr_role.rider_id = u.id
-       WHERE $1 = '' OR u.id = $2
-          OR u.username ILIKE $3 OR u.email ILIKE $3 OR p.display_name ILIKE $3 OR p.handle ILIKE $3
-       ORDER BY u.created_at DESC
-       LIMIT $4`,
-      [trimmed, trimmed, pattern, bounded],
+       WHERE ($1 = '' OR u.id = $2
+          OR u.username ILIKE $3 OR u.email ILIKE $3 OR p.display_name ILIKE $3 OR p.handle ILIKE $3)
+         AND ($5 = 'all'
+          OR ($5 = 'suspended' AND u.suspended_at IS NOT NULL)
+          OR ($5 = 'unverified' AND u.email_verified_at IS NULL)
+          OR ($5 = 'staff' AND (u.is_admin OR sr_role.role IS NOT NULL))
+          OR ($5 = 'reported' AND EXISTS (SELECT 1 FROM safety_reports r WHERE r.reported_rider_id = u.id AND r.status = 'open'))
+          OR ($5 = 'new' AND u.created_at > now() - interval '7 days'))
+       ORDER BY u.created_at DESC, u.id
+       LIMIT $4 OFFSET $6`,
+      [trimmed, trimmed, pattern, bounded, filter, offset],
     );
     return rows.map((row) => ({
       riderId: row.id,

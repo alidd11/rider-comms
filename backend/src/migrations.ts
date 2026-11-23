@@ -1263,4 +1263,20 @@ export const MIGRATIONS: Migration[] = [
           'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset'));
     `,
   },
+  {
+    // Staff email alerts: each staff member opts in to a morning summary of
+    // waiting work and to prompt emails about new urgent cases. Both are off
+    // until they turn them on; the last-sent markers stop repeats.
+    name: '0068_staff_email_alerts',
+    sql: `
+      CREATE TABLE IF NOT EXISTS staff_alert_prefs (
+        rider_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        daily_digest BOOLEAN NOT NULL DEFAULT false,
+        urgent_alerts BOOLEAN NOT NULL DEFAULT false,
+        last_digest_day TEXT,
+        last_urgent_at BIGINT,
+        updated_at BIGINT NOT NULL
+      );
+    `,
+  },
 ];

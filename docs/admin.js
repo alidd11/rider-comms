@@ -102,6 +102,7 @@
   const viewHash = () => view === 'rider' ? `rider/${detailRiderId}`
     : view === 'case' || view === 'partner' ? `${view}/${detailCaseId}` : view;
   let riderQuery = '';
+  let riderFilter = 'all';
   let auditGroup = 'all';
   let auditRider = '';
   let me = null;
@@ -118,7 +119,7 @@
     view === 'cases' ? caseKind : null, view === 'cases' ? caseStatus : null,
     view === 'cases' ? caseOwner : null,
     view === 'partners' ? partnerStatus : null, view === 'partners' ? partnerKind : null,
-    view === 'riders' ? riderQuery : null,
+    view === 'riders' ? riderQuery : null, view === 'riders' ? riderFilter : null,
     view === 'moderation' ? moderationView : null,
     view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
     view === 'inbox' ? inboxFilter : null,
@@ -242,6 +243,41 @@
     return pendingCode;
   }
 
+  /** Your own email alerts: a morning summary of waiting work, and new urgent cases. */
+  function emailAlertsSection() {
+    const digest = el('input', { type: 'checkbox', disabled: true });
+    const urgent = el('input', { type: 'checkbox', disabled: true });
+    const state = el('p', { class: 'alert-prefs-state', role: 'status' });
+    const row = (input, title, detail) => el('label', { class: 'alert-pref' }, [input, el('span', {}, [
+      el('span', { class: 'alert-pref-title', text: title }), el('span', { class: 'alert-pref-detail', text: detail }),
+    ])]);
+    const save = async () => {
+      digest.disabled = urgent.disabled = true;
+      try {
+        await api('POST', '/admin/alerts', { dailyDigest: digest.checked, urgentAlerts: urgent.checked });
+        state.textContent = 'Saved.';
+      } catch {
+        state.textContent = 'Couldn’t save. Try again.';
+      } finally {
+        digest.disabled = urgent.disabled = false;
+      }
+    };
+    digest.addEventListener('change', save);
+    urgent.addEventListener('change', save);
+    void api('GET', '/admin/alerts').then((prefs) => {
+      digest.checked = prefs.dailyDigest;
+      urgent.checked = prefs.urgentAlerts;
+      digest.disabled = urgent.disabled = false;
+    }, () => { state.textContent = 'Email alerts couldn’t be loaded.'; });
+    return el('fieldset', { class: 'alert-prefs' }, [
+      el('legend', { text: 'Email alerts' }),
+      row(digest, 'Morning summary', 'Work waiting for your role, each day from 08:00 UTC.'),
+      allowed('view_cases') ? row(urgent, 'Urgent cases', 'An email when a new urgent case is opened.') : null,
+      el('p', { class: 'alert-pref-detail', text: 'Sent to your verified account email. Counts only, never rider details.' }),
+      state,
+    ]);
+  }
+
   /** Account security: turn two-step sign-in on (with recovery codes) or off. */
   async function openSecurityDialog() {
     const body = el('div', { class: 'dialog-body' }, [el('h2', { class: 'card-title', id: 'securityTitle', text: 'Account security' })]);
@@ -252,7 +288,8 @@
     document.body.append(dialog);
     dialog.showModal();
     const error = el('p', { class: 'error-text', role: 'alert' });
-    const show = (...children) => body.replaceChildren(el('h2', { class: 'card-title', id: 'securityTitle', text: 'Account security' }), ...children, error, el('div', { class: 'actions' }, [close]));
+    const alerts = emailAlertsSection();
+    const show = (...children) => body.replaceChildren(el('h2', { class: 'card-title', id: 'securityTitle', text: 'Account security' }), ...children, error, alerts, el('div', { class: 'actions' }, [close]));
     const fail = (failure) => {
       error.textContent = failure instanceof ApiError && failure.status === 401 ? 'That code isn’t right.'
         : failure instanceof ApiError && failure.code === 'reauth_cancelled' ? 'Your password is needed to change this.'
@@ -1198,11 +1235,27 @@
     return buttons.length ? el('div', { class: 'row-actions' }, buttons) : null;
   }
 
-  function renderRiders(riders) {
+  const RIDER_FILTER_LABELS = {
+    all: 'All riders', suspended: 'Suspended', unverified: 'Email not verified',
+    staff: 'Staff', reported: 'Open reports', new: 'Joined in the last 7 days',
+  };
+  const riderListPath = (offset = 0) => '/admin/riders?' + new URLSearchParams({
+    limit: '50', q: riderQuery, filter: riderFilter, ...(offset ? { offset: String(offset) } : {}),
+  });
+
+  function renderRiders(riders, nextOffset = null) {
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', name: 'q', placeholder: 'Search name, username, email or ID', 'aria-label': 'Search riders', maxlength: 100, autocomplete: 'off' });
     input.value = riderQuery;
-    form.append(el('div', { class: 'search' }, [icon('search'), input]), el('button', { type: 'submit', class: 'button', text: 'Search' }));
+    const filterSelect = el('select', { class: 'select', 'aria-label': 'Show riders' },
+      Object.entries(RIDER_FILTER_LABELS).map(([value, label]) => el('option', { value, text: label })));
+    filterSelect.value = riderFilter;
+    filterSelect.addEventListener('change', () => {
+      riderFilter = filterSelect.value;
+      riderQuery = input.value.trim();
+      renderAndFocus('select[aria-label="Show riders"]');
+    });
+    form.append(el('div', { class: 'search' }, [icon('search'), input]), filterSelect, el('button', { type: 'submit', class: 'button', text: 'Search' }));
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       riderQuery = input.value.trim();
@@ -1211,7 +1264,8 @@
 
     const displayName = (rider) => rider.displayName || rider.username;
     const content = riders.length === 0
-      ? el('div', { class: 'card' }, [emptyState('users', 'No riders found', riderQuery ? `Nothing matches “${riderQuery}”. Try a username, email or rider ID.` : 'Riders appear here once they sign up.')])
+      ? el('div', { class: 'card' }, [emptyState('users', 'No riders found', riderQuery ? `Nothing matches “${riderQuery}”. Try a username, email or rider ID.`
+        : riderFilter !== 'all' ? `No riders in “${RIDER_FILTER_LABELS[riderFilter]}”.` : 'Riders appear here once they sign up.')])
       : [
         el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, riders.map((rider) => el('li', { class: 'list-row', dataset: { riderId: rider.riderId } }, [
           person(displayName(rider), [rider.handle, rider.email].filter(Boolean).join(' · '), rider.riderId),
@@ -1237,10 +1291,34 @@
         ])])]),
       ];
     const recentlyJoined = riders.filter((rider) => inReportingWindow(rider.createdAt, 7)).length;
+    const shown = `${riders.length}${nextOffset !== null ? '+' : ''}`;
+    const subtitle = riderQuery ? `${shown} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”`
+      : riderFilter !== 'all' ? `${shown} ${RIDER_FILTER_LABELS[riderFilter].toLowerCase()}` : `Newest ${shown} riders`;
+    const generation = renderGeneration;
+    const loadMore = nextOffset === null ? null : el('button', { type: 'button', class: 'button load-more', text: 'Load more riders' });
+    loadMore?.addEventListener('click', async () => {
+      loadMore.disabled = true;
+      loadMore.textContent = 'Loading…';
+      try {
+        const page = await api('GET', riderListPath(nextOffset));
+        if (!isCurrentRender(generation)) return;
+        const firstNew = page.riders[0]?.riderId;
+        renderRiders(riders.concat(page.riders), page.nextOffset ?? null);
+        const target = firstNew && [...pageEl.querySelectorAll('[data-rider-id]')]
+          .find((row) => row.dataset.riderId === firstNew && row.offsetParent !== null);
+        (target?.querySelector('a, button') ?? target)?.focus({ preventScroll: false });
+      } catch (error) {
+        if (!isCurrentRender(generation)) return;
+        loadMore.disabled = false;
+        loadMore.textContent = 'Load more riders';
+        flash(error.message || 'Could not load more riders.', 'danger');
+      }
+    });
     pageEl.replaceChildren(
-      pageHeader('Riders', riderQuery ? `${riders.length} ${riders.length === 1 ? 'match' : 'matches'} for “${riderQuery}”` : `Newest ${riders.length} riders`),
+      pageHeader('Riders', subtitle),
       form,
       ...[].concat(content),
+      ...(loadMore ? [el('div', { class: 'load-more-row' }, [loadMore])] : []),
       el('p', { class: 'period-context workspace-notes', text: `${recentlyJoined} of ${riders.length} loaded rider accounts joined in the last 7 days. Search results and existing accounts are never hidden by this range.` }),
     );
   }
@@ -1797,9 +1875,59 @@
     await loadNames(reports.flatMap((report) => [report.reporterId, report.reportedRiderId, report.resolvedBy, report.claimedBy, report.assignedTo]));
     if (!isCurrentRender(generation)) return;
     if (moderationView === 'open') updateReportCount(reports.length);
-    pageEl.replaceChildren(header, tabs, el('div', { class: 'reports' }, reports.length
-      ? reports.map(reportCard)
+    const cards = reports.map(reportCard);
+    pageEl.replaceChildren(header, tabs, ...(moderationView === 'open' && reports.length > 1 ? [bulkReportBar(cards)] : []), el('div', { class: 'reports' }, reports.length
+      ? cards
       : [el('div', { class: 'card' }, [emptyState('inbox', moderationView === 'open' ? 'No open reports' : 'Nothing here yet', moderationView === 'open' ? 'You’re all caught up.' : null)])]));
+  }
+
+  const MAX_BULK_REPORTS = 50;
+
+  /** Select open reports and dismiss them together with one note: for a run of
+   *  duplicates or spam. Each report is still resolved and audited on its own. */
+  function bulkReportBar(cards) {
+    const count = el('span', { class: 'bulk-count', 'aria-live': 'polite' });
+    const selectAll = el('input', { type: 'checkbox', 'aria-label': 'Select all open reports' });
+    const dismiss = el('button', { type: 'button', class: 'button', text: 'Dismiss selected' });
+    const boxes = cards.map((card) => {
+      const box = el('input', { type: 'checkbox', class: 'bulk-select', 'aria-label': `Select report ${card.dataset.reportId}` });
+      card.querySelector('.report-head').prepend(el('label', { class: 'bulk-select-label' }, [box]));
+      return box;
+    });
+    const chosen = () => boxes.filter((box) => box.checked).map((box) => box.closest('[data-report-id]').dataset.reportId);
+    const sync = () => {
+      const picked = chosen().length;
+      count.textContent = picked ? `${picked} selected` : 'Select reports to dismiss together';
+      dismiss.disabled = picked === 0 || picked > MAX_BULK_REPORTS;
+      selectAll.checked = picked === boxes.length;
+      selectAll.indeterminate = picked > 0 && picked < boxes.length;
+    };
+    boxes.forEach((box) => box.addEventListener('change', sync));
+    selectAll.addEventListener('change', () => { boxes.forEach((box) => { box.checked = selectAll.checked; }); sync(); });
+    dismiss.addEventListener('click', async () => {
+      const reportIds = chosen();
+      const choice = await actionDialog({
+        title: `Dismiss ${reportIds.length} ${reportIds.length === 1 ? 'report' : 'reports'}?`,
+        description: 'Each report is closed with this note and recorded in the audit log. Riders are not told.',
+        confirmLabel: 'Dismiss reports',
+        templates: ['Duplicate reports of the same incident.', 'Spam reports; no rule broken.'],
+      });
+      if (!choice) return;
+      dismiss.disabled = true;
+      try {
+        const result = await api('POST', '/moderation/reports/dismiss-many', { reportIds, note: choice.note });
+        const skipped = result.skipped?.length ?? 0;
+        await render();
+        flash(`${result.dismissed.length} dismissed${skipped ? `; ${skipped} already handled by someone else` : ''}.`, skipped ? 'warning' : 'success');
+      } catch (error) {
+        dismiss.disabled = false;
+        flash(error.message || 'Could not dismiss these reports.', 'danger');
+      }
+    });
+    sync();
+    return el('div', { class: 'bulk-bar', role: 'group', 'aria-label': 'Bulk actions' }, [
+      el('label', { class: 'bulk-all' }, [selectAll, el('span', { text: 'All' })]), count, dismiss,
+    ]);
   }
 
   function updateReportCount(count) {
@@ -3068,9 +3196,9 @@
       } else if (view === 'inbox') {
         await renderInbox(generation);
       } else if (view === 'riders') {
-        const { riders } = await api('GET', `/admin/riders?limit=50&q=${encodeURIComponent(riderQuery)}`);
+        const { riders, nextOffset } = await api('GET', riderListPath());
         if (!isCurrentRender(generation)) return;
-        renderRiders(riders);
+        renderRiders(riders, nextOffset ?? null);
       } else if (view === 'moderation') {
         await renderModeration(generation);
       } else if (view === 'cases') {

@@ -6,6 +6,8 @@ import { roleCan } from '../staffRoles.ts';
 import { NOT_HANDLED, ejectFromVoice, refuseWithoutRecentReauth, refuseWithoutStaffCode, voiceMembershipsOf } from './context.ts';
 import type { RouteContext } from './context.ts';
 
+export const MAX_BULK_REPORTS = 50;
+
 export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, actorId, s, authStore, moderationStore } = ctx;
   if (s[0] === 'moderation') {
@@ -67,6 +69,24 @@ export async function handleModerationRoutes(ctx: RouteContext): Promise<unknown
       if (!result.ok) return sendJson(res, result.error === 'not_found' ? 404 :
         result.error === 'invalid_assignee' || result.error === 'permission_required' ? 403 : 409, { error: result.error });
       return sendJson(res, 200, result);
+    }
+    if (req.method === 'POST' && s[1] === 'reports' && s[2] === 'dismiss-many' && s.length === 3) {
+      // Clearing a run of duplicate or spam reports with one note. Each report
+      // is resolved on its own, so a report someone else already closed is
+      // skipped rather than failing the batch, and each gets its own audit row.
+      const ids = body.reportIds;
+      if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_BULK_REPORTS
+        || !ids.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 128)) {
+        return sendJson(res, 400, { error: `reportIds must list 1-${MAX_BULK_REPORTS} report IDs` });
+      }
+      const dismissed: string[] = [];
+      const skipped: { reportId: string; error: string }[] = [];
+      for (const reportId of new Set(ids as string[])) {
+        const result = await moderationStore.resolveReport(reportId, actorId, 'dismiss', note, Date.now(), null);
+        if (result.ok) dismissed.push(reportId);
+        else skipped.push({ reportId, error: result.error });
+      }
+      return sendJson(res, 200, { dismissed, skipped });
     }
     if (req.method === 'POST' && s[1] === 'reports' && s[2] && s[3] === 'resolve' && s.length === 4) {
       if (typeof body.resolution !== 'string' || !REPORT_RESOLUTIONS.includes(body.resolution as ReportResolution)) {

@@ -135,6 +135,7 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('POST', '/moderation/reports/{reportId}/assign', 'Moderation', 'staff', 'Assign, release or reassign an open rider report with a required note', { permission: 'moderate', reauth: true }),
   e('GET', '/moderation/actions', 'Moderation', 'staff', 'The audit log', { permission: 'view_audit' }),
   e('POST', '/moderation/reports/{reportId}/resolve', 'Moderation', 'staff', 'Dismiss a report or suspend the rider', { permission: 'moderate', reauth: true }),
+  e('POST', '/moderation/reports/dismiss-many', 'Moderation', 'staff', 'Dismiss up to 50 open reports with one note, each audited on its own', { permission: 'moderate', reauth: true }),
   e('POST', '/moderation/reports/{reportId}/claim', 'Moderation', 'staff', 'Take a report, or let it go ({ release: true })', { permission: 'moderate' }),
   e('POST', '/moderation/riders/{riderId}/suspend', 'Moderation', 'staff', 'Suspend a rider, for some days or with no end', { permission: 'moderate', reauth: true }),
   e('POST', '/moderation/riders/{riderId}/unsuspend', 'Moderation', 'staff', 'Unsuspend a rider', { permission: 'moderate', reauth: true }),
@@ -147,6 +148,8 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('POST', '/moderation/social-posts/{postId}/remove', 'Moderation', 'staff', 'Remove a hidden post', { permission: 'moderate', reauth: true }),
 
   e('GET', '/admin/me', 'Staff dashboard', 'staff', 'Your staff role and permissions'),
+  e('GET', '/admin/alerts', 'Staff dashboard', 'staff', 'Your own email alert choices'),
+  e('POST', '/admin/alerts', 'Staff dashboard', 'staff', 'Turn your morning summary and urgent-case emails on or off'),
   e('GET', '/admin/overview', 'Staff dashboard', 'staff', 'Business overview', { permission: 'view_overview' }),
   e('GET', '/admin/action-inbox', 'Staff dashboard', 'staff', 'Read the unified pending rider report and hidden Social post queue', { permission: 'moderate' }),
   e('GET', '/admin/social/activity', 'Company operations', 'staff', 'Aggregated Rider Social posting and safety activity for 7 or 30 days, without private content or rider identifiers', { permission: 'moderate' }),
