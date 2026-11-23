@@ -26,6 +26,8 @@ export interface RiderProfile {
   notifyNearby: boolean;
   notifyInvites: boolean;
   notifyChat: boolean;
+  /** Rider Comms updates: notifications staff send to every rider. */
+  notifyUpdates: boolean;
   shareLocation: boolean;
   instagramUsername: string;
   instagramVisibility: SocialVisibility;

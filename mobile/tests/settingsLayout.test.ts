@@ -24,7 +24,7 @@ describe('Settings mockup contract', () => {
     assert.doesNotMatch(root, /Version \{appVersion\}/);
     // The pages, in the same order as the PWA's.
     const pages = settingsSource.slice(settingsSource.indexOf('function GeneralPage('), settingsSource.indexOf('const VISIBILITY_LABELS'));
-    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Route options"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Avoid ferries"', 'title="Spoken directions"', 'title={group}', 'title="Notifications on this device"', 'title="Friend requests"', 'title="Messages"', 'title="Ride Safe auto-lock"', 'title={heading}',
+    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Route options"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Avoid ferries"', 'title="Spoken directions"', 'title={group}', 'title="Notifications on this device"', 'title="Friend requests"', 'title="Messages"', 'title="Rider Comms updates"', 'title="Ride Safe auto-lock"', 'title={heading}',
       'title="Nearby rider visibility"', 'title="Blocked riders"', 'title="Login info"', 'title="Email"', 'title="Signed-in devices"',
       'title="Advanced"', 'title="Sign out"', 'title="Reset settings"', 'title="Delete account"'];
     cursor = -1;
@@ -33,7 +33,7 @@ describe('Settings mockup contract', () => {
       assert.ok(next > cursor, `Expected ${label} after the previous Settings row`);
       cursor = next;
     }
-    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 9);
+    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 10);
     assert.match(pages, /RIDER_VEHICLE_GROUPS\.map[\s\S]*RIDER_VEHICLE_OPTIONS\.filter[\s\S]*<CheckRow /);
     assert.match(pages, /<SegmentedRow first title="Distance units"/);
     assert.match(pages, /title="Navigation app" value=\{navigationAppLabel\}/);

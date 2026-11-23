@@ -27,6 +27,7 @@ function fakeProfile(overrides: Partial<RiderProfile> = {}): RiderProfile {
     notifyNearby: false,
     notifyInvites: false,
     notifyChat: false,
+    notifyUpdates: true,
     shareLocation: false,
     instagramUsername: '',
     instagramVisibility: 'friends',

@@ -5,7 +5,7 @@ import type { PushStore, PushSubscriptionRecord } from './pushStore.ts';
 import { sendWebPush, type FetchLike } from './webPush.ts';
 
 /** What happened, which decides the rider's preference that applies. */
-export type PushEvent = 'friend_request' | 'friend_accepted' | 'message' | 'regroup';
+export type PushEvent = 'friend_request' | 'friend_accepted' | 'message' | 'regroup' | 'announcement';
 
 export interface PushContent {
   title: string;
@@ -31,16 +31,21 @@ export const PUSH_CATEGORY: Partial<Record<PushEvent, string>> = {
 // Settings → Notifications: Friend requests (notifyInvites), Messages (notifyChat).
 // A regroup point goes only to riders in that ride, while they ride, so it
 // isn't behind a preference: it's the group calling them in.
-const PREFERENCE: Record<PushEvent, 'notifyInvites' | 'notifyChat' | null> = {
+// Rider Comms updates (notifyUpdates): notifications staff send to every rider.
+const PREFERENCE: Record<PushEvent, 'notifyInvites' | 'notifyChat' | 'notifyUpdates' | null> = {
   friend_request: 'notifyInvites',
   friend_accepted: 'notifyInvites',
   message: 'notifyChat',
   regroup: null,
+  announcement: 'notifyUpdates',
 };
+
+/** Devices per push-service batch in a broadcast (Expo accepts 100). */
+const BROADCAST_BATCH = 100;
 
 export interface PushNotifierOptions {
   store: PushStore;
-  getProfile: (riderId: string) => Promise<Pick<RiderProfile, 'notifyInvites' | 'notifyChat'>>;
+  getProfile: (riderId: string) => Promise<Partial<Pick<RiderProfile, 'notifyInvites' | 'notifyChat' | 'notifyUpdates'>>>;
   fetchImpl?: FetchLike;
   /** VAPID contact: push services reach out here if this server misbehaves. */
   subject?: string;
@@ -66,7 +71,7 @@ export class PushNotifier {
   async notify(riderId: string, event: PushEvent, content: PushContent): Promise<void> {
     try {
       const preference = PREFERENCE[event];
-      if (preference && !(await this.options.getProfile(riderId))[preference]) return;
+      if (preference && (await this.options.getProfile(riderId))[preference] === false) return;
       const devices = await this.options.store.listForRider(riderId);
       if (devices.length === 0) return;
       const gone = await this.deliver(devices, event, content);
@@ -74,6 +79,27 @@ export class PushNotifier {
     } catch (error) {
       log('error', 'push_failed', { riderId, kind: event, message: error instanceof Error ? error.message : String(error) });
     }
+  }
+
+  /**
+   * A staff push to every rider who allows Rider Comms updates (or only to
+   * `onlyRiderId`, for a test). Sends in batches; returns how many riders
+   * and devices it was sent to and how many devices accepted it.
+   */
+  async broadcast(content: PushContent, onlyRiderId?: string): Promise<{ riders: number; devices: number; delivered: number }> {
+    const audience = await this.options.store.listBroadcastAudience(onlyRiderId);
+    let delivered = 0;
+    for (let start = 0; start < audience.length; start += BROADCAST_BATCH) {
+      const batch = audience.slice(start, start + BROADCAST_BATCH);
+      try {
+        const gone = await this.deliver(batch, 'announcement', content);
+        delivered += batch.length - gone.length;
+        await this.options.store.removeAddresses(gone);
+      } catch (error) {
+        log('error', 'push_broadcast_batch_failed', { message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return { riders: new Set(audience.map((device) => device.riderId)).size, devices: audience.length, delivered };
   }
 
   private async deliver(devices: PushSubscriptionRecord[], event: PushEvent, content: PushContent): Promise<string[]> {

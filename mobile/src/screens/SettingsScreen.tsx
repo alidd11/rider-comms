@@ -479,7 +479,7 @@ function VehiclePage(): React.JSX.Element {
 /** Notifications: this phone on or off, then which kinds (PWA: the same
  * page, with Web Push). */
 function NotificationsPage(): React.JSX.Element {
-  const { notifyInvites, notifyChat, setNotifyInvites, setNotifyChat } = useSettings();
+  const { notifyInvites, notifyChat, notifyUpdates, setNotifyInvites, setNotifyChat, setNotifyUpdates } = useSettings();
   const { client, riderId } = useAuth();
   const [deviceOn, setDeviceOn] = React.useState(false);
   const [permission, setPermission] = React.useState<PushPermission>('undetermined');
@@ -531,9 +531,10 @@ function NotificationsPage(): React.JSX.Element {
       <SettingsGroup note={note}>
         <SwitchRow first title="Notifications on this device" value={deviceOn} onValueChange={(next) => { if (!busy) void changeDevice(next); }} />
       </SettingsGroup>
-      <SettingsGroup title="Notify me about" note="These apply on every device where notifications are on.">
+      <SettingsGroup title="Notify me about" note="These apply on every device where notifications are on. Updates are occasional news from the Rider Comms team.">
         <SwitchRow first title="Friend requests" value={notifyInvites} onValueChange={setNotifyInvites} />
         <SwitchRow title="Messages" value={notifyChat} onValueChange={setNotifyChat} />
+        <SwitchRow title="Rider Comms updates" value={notifyUpdates} onValueChange={setNotifyUpdates} />
       </SettingsGroup>
     </>
   );
