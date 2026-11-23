@@ -1064,6 +1064,52 @@ test.describe('staff dashboard', () => {
     await expect(page.getByRole('combobox', { name: 'Workstream' }).locator('option', { hasText: 'Customer support' })).toHaveCount(0);
   });
 
+  test('Case Desk marks overdue internal targets without treating resolved cases as overdue', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    state.companyCases[0].dueAt = new Date(Date.now() - 3_600_000).toISOString();
+    state.companyCases[1].dueAt = new Date(Date.now() + 86_400_000).toISOString();
+    await page.goto('/admin.html#cases');
+
+    const overdue = page.locator('[data-case-id="11111111-1111-4111-8111-111111111111"]');
+    const scheduled = page.locator('[data-case-id="22222222-2222-4222-8222-222222222222"]');
+    await expect(overdue).toHaveAttribute('data-follow-up', 'overdue');
+    await expect(overdue).toContainText('Internal target overdue');
+    await expect(scheduled).toHaveAttribute('data-follow-up', 'normal');
+    await expect(scheduled).not.toContainText('Internal target overdue');
+
+    await overdue.getByRole('link', { name: 'Account sign-in assistance' }).click();
+    await expect(page.locator('.case-detail-overdue-target')).toContainText('Internal target overdue');
+    state.companyCases[0].status = 'resolved';
+    await page.goto('/admin.html#cases');
+    await expect(page.locator('[data-case-id="11111111-1111-4111-8111-111111111111"]')).toHaveAttribute('data-follow-up', 'normal');
+  });
+
+  test('Case Desk loaded record count updates after another bounded page is fetched', async ({ page }) => {
+    await signIn(page);
+    const state = await mockModerationApi(page);
+    await page.route(/\\/admin\\/cases\\?/, async (route) => {
+      const nextPage = new URL(route.request().url()).searchParams.has('before');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({
+          items: nextPage ? state.companyCases.slice(2, 4) : state.companyCases.slice(0, 2),
+          hasMore: !nextPage,
+          nextCursor: nextPage ? null : 'test-second-page',
+          generatedAt: Date.now(),
+        }),
+      });
+    });
+    await page.goto('/admin.html#cases');
+    await expect(page.locator('.case-item')).toHaveCount(2);
+    await expect(page.locator('.case-page-note')).toContainText('2 of 2 loaded cases');
+    await page.getByRole('button', { name: 'Load older cases' }).click();
+    await expect(page.locator('.case-item')).toHaveCount(4);
+    await expect(page.locator('.case-page-note')).toContainText('4 of 4 loaded cases');
+  });
+
   test('support sees support cases only, while analysts cannot open the case desk', async ({ page }) => {
     await signIn(page);
     await mockModerationApi(page, { role: 'support' });

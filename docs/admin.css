@@ -1975,3 +1975,7 @@ html { scroll-padding-top: 78px; }
 }
 .staff-signin-heading .section-title { margin: 0; }
 .staff-signin-heading .reporting-range { border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); }
+
+/* Internal follow-up highlighting uses a scoped status, never an SLA claim. */
+.case-item[data-follow-up="overdue"] { box-shadow: inset 3px 0 0 var(--danger); }
+.case-detail-overdue-target { color: var(--danger); font-weight: 700; }
