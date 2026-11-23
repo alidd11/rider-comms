@@ -146,7 +146,7 @@ jobs:
           # Restart the simulator once, then repeat ALL authenticated checks.
           # Genuine app assertions never retry here and no second error passes.
           if [ "$test_status" -ne 0 ] && [ -f maestro-ios.xml ] \
-            && grep -Eq 'maestro.DeviceUnreachableException|XCUITestServerError\\$Unreachable' maestro-ios.xml; then
+            && grep -Fq 'maestro.DeviceUnreachableException' maestro-ios.xml; then
             echo "::warning title=Maestro XCTest transport::Driver unreachable; restarting simulator once."
             cp maestro-ios.xml maestro-ios-first-attempt.xml
             udid="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys;print(next((d["udid"] for ds in json.load(sys.stdin)["devices"].values() for d in ds if d["state"] == "Booted" and "iPhone" in d["name"]), ""))')"
