@@ -80,6 +80,43 @@ describe('sensitive account step-up lifetime and revocation', {
     assert.equal((await request(b.token, '/auth/me')).status, 200);
   });
 
+  it('invalidates an earlier sensitive-action proof on incorrect or malformed password retry', async () => {
+    const previous = process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED;
+    process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED = 'true';
+    try {
+      const a = await rider();
+      const b = await rider();
+      const confirm = (token: string, body: unknown) => request(token, '/auth/reauthenticate', 'POST', body);
+
+      assert.equal((await confirm(a.token, { password: PASSWORD })).status, 200);
+      assert.equal((await confirm(b.token, { password: PASSWORD })).status, 200);
+      assert.equal((await request(a.token, '/auth/export')).status, 200);
+      assert.equal((await request(b.token, '/auth/export')).status, 200);
+
+      assert.equal((await confirm(a.token, { password: 'incorrect-password' })).status, 401);
+      assert.equal(await ctx.authStore.recentlyReauthenticated(a.token, WINDOW_MS), false);
+      assert.equal((await request(a.token, '/auth/export')).status, 403,
+        'a failed retry must revoke an older successful proof');
+      assert.equal((await request(a.token, '/auth/me', 'DELETE')).status, 403);
+      assert.equal((await request(a.token, '/auth/me')).status, 200,
+        'a failed retry must not sign out the active rider');
+      assert.equal((await request(b.token, '/auth/export')).status, 200,
+        'a failed retry must not invalidate another session');
+
+      assert.equal((await confirm(a.token, { password: PASSWORD })).status, 200);
+      assert.equal((await request(a.token, '/auth/export')).status, 200);
+
+      assert.equal((await confirm(a.token, { password: null })).status, 401);
+      assert.equal(await ctx.authStore.recentlyReauthenticated(a.token, WINDOW_MS), false,
+        'malformed password input must not preserve earlier proof');
+      assert.equal((await request(a.token, '/auth/export')).status, 403);
+      assert.equal((await request(b.token, '/auth/export')).status, 200);
+    } finally {
+      if (previous === undefined) delete process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED;
+      else process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED = previous;
+    }
+  });
+
   it('enforces the 15-minute window independently of the authenticated session lifetime', async () => {
     const previous = process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED;
     process.env.ACCOUNT_SENSITIVE_REAUTH_ENFORCED = 'true';

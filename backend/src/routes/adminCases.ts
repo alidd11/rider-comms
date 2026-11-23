@@ -6,6 +6,7 @@ import { CompanyCaseStore, CASE_KINDS, CASE_STATUSES, CASE_PRIORITIES,
   canAccessCaseKind, caseKindsForRole, isCaseKind, isCasePriority, isCaseStatus, parseCaseCursor,
 } from '../companyCaseStore.ts';
 import type { StaffRole, StaffPermission } from '../staffRoles.ts';
+import { caseActivityReport, parseOperationsWindow } from '../operationsReports.ts';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const subjectPattern = /^rider_[A-Za-z0-9_-]{1,80}$/;
@@ -23,6 +24,12 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
   if (url.pathname === '/admin/cases/summary' && req.method === 'GET') {
     return sendJson(res, 200, await store.summary(caseKindsForRole(role), actorId));
   }
+  if (url.pathname === '/admin/cases/activity' && req.method === 'GET') {
+    const days = parseOperationsWindow(url.searchParams.get('days'));
+    if (days === null) return sendJson(res, 400, { error: 'invalid_report_window', values: [7, 30] });
+    return sendJson(res, 200, await caseActivityReport(caseKindsForRole(role), days));
+  }
+
   if (url.pathname === '/admin/cases' && req.method === 'GET') {
     const kindRaw = url.searchParams.get('kind');
     const kind = kindRaw === null || kindRaw === 'all' ? undefined : kindRaw;
@@ -84,7 +91,7 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
     return sendJson(res, 200, detail);
   }
   if (req.method !== 'POST' || s.length !== 4 ||
-    !['notes', 'status', 'priority', 'assign'].includes(s[3]!)) {
+    !['notes', 'status', 'priority', 'assign', 'target'].includes(s[3]!)) {
     return sendJson(res, 404, { error: 'not_found' });
   }
   if (await refuseWithoutRecentReauth(ctx)) return;
@@ -102,6 +109,12 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
   } else if (action === 'priority') {
     if (!isCasePriority(body.priority)) return sendJson(res, 400, { error: 'invalid_case_priority' });
     value = body.priority;
+  } else if (action === 'target') {
+    if (body.dueAt !== null && (typeof body.dueAt !== 'number' ||
+      !Number.isSafeInteger(body.dueAt))) {
+      return sendJson(res, 400, { error: 'invalid_internal_target' });
+    }
+    value = body.dueAt === null ? null : String(body.dueAt);
   } else if (action === 'assign') {
     const candidate = body.assigneeId;
     if (candidate !== undefined && candidate !== null &&
@@ -112,7 +125,7 @@ export async function handleCompanyCaseRoutes(ctx: RouteContext, role: StaffRole
   }
   const changed = await store.mutate({
     id, actorId, actorRole: role, expectedVersion,
-    action: action as 'note' | 'status' | 'priority' | 'assign',
+    action: action as 'note' | 'status' | 'priority' | 'assign' | 'target',
     note: (body.note as string).trim(), value,
   });
   if (!changed.ok) {

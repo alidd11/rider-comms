@@ -6,7 +6,7 @@ Work in this branch is isolated from Maps #572, Tolls #566 and Staff PWA #578.
 
 ## 1. Session and sensitive-action hardening
 
-A correct password alone must not reauthenticate a bearer session that was revoked, expired, or belongs to another account. The database update must prove that the same account's session is still live before reporting step-up success. Isolated PostgreSQL regressions cover that boundary, the 15-minute password confirmation window, identity isolation, no-store exports, and denial of deletion/export on stale proof.
+A correct password alone must not reauthenticate a bearer session that was revoked, expired, or belongs to another account. The database update must prove that the same account's session is still live before reporting step-up success. A subsequent incorrect or malformed password challenge **invalidates any earlier step-up proof on that bearer session** instead of preserving the remainder of the prior 15-minute window; this applies to staff changes as well as opt-in account export/deletion. Other sessions and normal sign-in remain unaffected. Isolated PostgreSQL regressions cover that boundary, the 15-minute password confirmation window, identity isolation, no-store exports, and denial of deletion/export on stale proof.
 
 ACCOUNT_SENSITIVE_REAUTH_ENFORCED is off by default. Tests enable it temporarily with disposable accounts. Do not turn it on in Railway yet.
 

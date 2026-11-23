@@ -485,12 +485,33 @@ export class AuthStore {
     return true;
   }
 
+  /** A failed password challenge must also invalidate any earlier successful
+   * proof for this specific bearer session; otherwise an expired/mistyped
+   * retry would leave the previous sensitive-action privilege in place. */
+  private async clearRecentReauthentication(riderId: string, token: string): Promise<void> {
+    if (!riderId || !token) return;
+    const tokenHash = this.digest(token);
+    const cached = this.riderByTokenDigest.get(tokenHash);
+    if (cached?.riderId === riderId) delete cached.reauthenticatedAt;
+    if (!process.env.DATABASE_URL) return;
+    await ensureMigrated();
+    await getPool().query(
+      `UPDATE account_sessions SET reauthenticated_at = NULL
+       WHERE token_hash = $1 AND user_id = $2 AND expires_at > now()
+         AND reauthenticated_at IS NOT NULL`,
+      [tokenHash, riderId],
+    );
+  }
+
   /**
    * Re-checks the rider's password on this session, so staff can make
    * sensitive changes for the next STAFF_REAUTH_WINDOW_MS.
    */
   async reauthenticate(riderId: string, token: string, password: unknown): Promise<boolean> {
-    if (typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) return false;
+    if (typeof password !== 'string' || password.length < 1 || password.length > MAX_PASSWORD_LENGTH) {
+      await this.clearRecentReauthentication(riderId, token);
+      return false;
+    }
     await ensureMigrated();
     const { rows } = await getPool().query<{ password_hash: string; password_algorithm: string }>(
       'SELECT password_hash, password_algorithm FROM users WHERE id = $1',
@@ -500,6 +521,7 @@ export class AuthStore {
     const sessionId = await this.sessionIdForToken(token) ?? null;
     const matches = await verifyPassword(password, row?.password_hash ?? DUMMY_PASSWORD_HASH, row?.password_algorithm ?? PASSWORD_ALGORITHM);
     if (!row || !matches) {
+      await this.clearRecentReauthentication(riderId, token);
       if (row) await this.recordSecurityEvent(riderId, 'reauth_failed', sessionId, null);
       return false;
     }
