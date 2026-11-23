@@ -2419,3 +2419,26 @@ html { scroll-padding-top: 78px; }
 @media (prefers-reduced-motion: reduce) {
   .company-unit, .sidebar .nav-item { transition: none; }
 }
+
+/* Staff Hub polish pass (screenshot audit, 23 Nov 2026). */
+/* The heading takes focus after navigation for screen readers; it isn't a
+   control, so it needs no visible ring (it read as a stray underline). */
+.page-header .page-title:focus-visible { box-shadow: none; }
+/* .input reserves room for a search icon; fields without one sat indented. */
+select.input, .case-field .input { padding-left: 12px; }
+/* One search entry point per layout: the toolbar's on wide screens, the
+   sidebar's inside the phone drawer. */
+@media (min-width: 900px) { .sidebar .sidebar-search-slot { display: none; } }
+.brand-name { white-space: nowrap; }
+/* Rider quick actions: their own column on wide screens, their own line on
+   phones, so badges and names keep their width. */
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.table .actions-col { width: 1%; white-space: nowrap; text-align: right; }
+.table .actions-col .row-actions { justify-content: flex-end; flex-wrap: nowrap; }
+.list-row:has(> .row-actions) { flex-wrap: wrap; }
+.list-row > .row-actions { flex-basis: 100%; padding-left: 44px; }
+.case-empty-history { margin: 0; padding: 14px 0 2px; color: var(--muted-fg); font-size: 13px; }
+.list-row:has(> .row-actions) > :first-child { flex: 1 1 0; min-width: 0; }
+/* Short laptop screens: the section list scrolls so the footer's sign-out
+   stays reachable instead of being cut off below the viewport. */
+@media (min-width: 900px) { .sidebar .nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; } }

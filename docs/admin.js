@@ -769,8 +769,8 @@
           description: 'New sign-ups recorded today.', destination: 'riders', action: 'Find riders' }),
         card({ label: 'Rides in progress', value: formatNumber(activity.activeRides),
           description: 'Active group rides. No private locations are displayed.' }),
-        card({ label: 'Platform diagnostics', value: 'System',
-          description: 'Inspect backend health, integrations and request metrics.', destination: 'system', action: 'View system' }),
+        card({ label: 'Decisions this week', value: formatNumber(safety.moderationActions7d),
+          description: 'Moderation decisions recorded in the audit log over the last 7 days.', destination: 'audit', action: 'Open audit log' }),
       ]),
     ]);
   }
@@ -1056,6 +1056,13 @@
     });
   }
 
+  /** Quick account actions sit apart from the status badges, so a narrow
+   *  row never squeezes the rider's name. Empty when none are permitted. */
+  function riderRowActions(rider) {
+    const buttons = [verifyEmailButton(rider), exportButton(rider)].filter(Boolean);
+    return buttons.length ? el('div', { class: 'row-actions' }, buttons) : null;
+  }
+
   function renderRiders(riders) {
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', name: 'q', placeholder: 'Search name, username, email or ID', 'aria-label': 'Search riders', maxlength: 100, autocomplete: 'off' });
@@ -1073,21 +1080,24 @@
       : [
         el('div', { class: 'card only-mobile' }, [el('ul', { class: 'list' }, riders.map((rider) => el('li', { class: 'list-row', dataset: { riderId: rider.riderId } }, [
           person(displayName(rider), [rider.handle, rider.email].filter(Boolean).join(' · '), rider.riderId),
-          el('div', { class: 'trail' }, [riderBadges(rider), verifyEmailButton(rider), exportButton(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
+          el('div', { class: 'trail' }, [riderBadges(rider), el('div', {}, [timeEl(rider.lastSeenAt, 'Inactive')])]),
+          riderRowActions(rider),
         ])))]),
         el('div', { class: 'card table-card only-desktop' }, [el('div', { class: 'table-scroll' }, [el('table', { class: 'table' }, [
           el('thead', {}, [el('tr', {}, [
-            el('th', { text: 'Rider' }), el('th', { text: 'Email' }), el('th', { text: 'Status' }),
+            el('th', { text: 'Rider' }), el('th', { text: 'Status' }),
             el('th', { text: 'Joined' }), el('th', { text: 'Last active' }), el('th', { class: 'num', text: 'Friends' }), el('th', { class: 'num', text: 'Reports' }),
+            el('th', { class: 'actions-col' }, [el('span', { class: 'visually-hidden', text: 'Actions' })]),
           ])]),
           el('tbody', {}, riders.map((rider) => el('tr', { dataset: { riderId: rider.riderId } }, [
-            el('td', {}, [person(displayName(rider), [rider.handle, rider.riderId].filter(Boolean).join(' · '), rider.riderId)]),
-            el('td', { class: 'muted', text: rider.email || '—' }),
-            el('td', {}, [riderBadges(rider), verifyEmailButton(rider), exportButton(rider)]),
+            // Email sits under the name, as on phones, leaving room for the actions column.
+            el('td', {}, [person(displayName(rider), [rider.handle, rider.email].filter(Boolean).join(' · '), rider.riderId)]),
+            el('td', {}, [riderBadges(rider)]),
             el('td', { class: 'muted' }, [timeEl(rider.createdAt)]),
             el('td', { class: 'muted' }, [timeEl(rider.lastSeenAt, 'Over 30 days')]),
             el('td', { class: 'num', text: numberFormat.format(rider.friends) }),
             el('td', { class: 'num', text: numberFormat.format(rider.reportsAgainst) }),
+            el('td', { class: 'actions-col' }, [riderRowActions(rider)]),
           ]))),
         ])])]),
       ];
@@ -1933,7 +1943,8 @@
       ]),
       el('div', { class: 'case-item-badges' }, [
         caseBadge(item.status, CASE_STATUS_LABELS, statusTone),
-        caseBadge(item.priority, CASE_PRIORITY_LABELS, priorityTone),
+        // Normal is the default: a badge on every row only adds noise.
+        item.priority === 'normal' ? null : caseBadge(item.priority, CASE_PRIORITY_LABELS, priorityTone),
         overdue ? caseBadge('overdue', { overdue: 'Internal target overdue' }, 'danger') : null,
       ]),
     ]);
@@ -2255,7 +2266,7 @@
           el('section', { class: 'card case-history' }, [
             el('h2', { class: 'card-title', text: 'Activity history' }),
             el('p', { class: 'case-help', text: 'Time-ordered staff changes. The latest 200 events are returned; earlier events remain in the database.' }),
-            trail,
+            events.length ? trail : el('p', { class: 'case-empty-history', text: 'No staff changes yet. Updates, notes and ownership changes appear here.' }),
           ]),
         ]),
         controls,

@@ -1132,6 +1132,8 @@ test.describe('staff dashboard', () => {
     await mockModerationApi(page);
     await page.goto('/admin.html');
     await expect(page.locator('.sidebar')).toHaveCSS('position', 'fixed');
+    // Scroll only once the Overview has rendered; an empty page can't scroll.
+    await expect(page.locator('.operation-card').first()).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, 1100));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
     const top = await page.locator('.sidebar').evaluate((node) => node.getBoundingClientRect().top);
