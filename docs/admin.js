@@ -636,7 +636,7 @@
     // Keep that context available, but avoid repeating an eyebrow and several
     // paragraphs above the working area on every screen.
     const context = subtitle ? el('details', { class: 'page-context' }, [
-      el('summary', { text: 'About this view', 'aria-label': 'About ' + title }),
+      el('summary', { text: 'Scope and definitions', 'aria-label': 'About ' + title }),
       el('p', { class: 'page-subtitle', text: subtitle }),
     ]) : null;
     return el('div', { class: 'page-header' }, [
@@ -761,7 +761,7 @@
     };
     return el('section', { class: 'operations-summary', 'aria-label': 'Operations at a glance' }, [
       el('h2', { class: 'section-title', text: 'Operations at a glance' }),
-      el('p', { class: 'operations-lead', text: 'Current activity and next steps, based on the latest dashboard snapshot.' }),
+      el('p', { class: 'operations-lead', text: 'Live work and the latest operational snapshot.' }),
       el('div', { class: 'operations-grid' }, [
         card({ label: 'Reports awaiting review', value: formatNumber(safety.openReports),
           description: 'Open rider reports requiring a moderation decision.', destination: 'moderation', action: 'Review reports', attention: safety.openReports > 0 }),
@@ -880,7 +880,7 @@
     pageEl.replaceChildren(
       pageHeader('Overview', 'Your immediate operational priorities and a short platform snapshot.', [insights]),
       el('p', { class: 'overview-snapshot', text:
-        snapshot + '. Operational work remains visible regardless of the reporting preference.' }),
+        snapshot + ' · Work queues are independent of reporting filters.' }),
       operationsSummary({ riders, activity, safety }),
       el('section', { class: 'overview-highlights', 'aria-label': 'Platform highlights' }, [
         el('div', { class: 'overview-highlights-heading' }, [

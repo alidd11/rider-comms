@@ -94,11 +94,11 @@ export class RiderCommsClient {
   resendVerification(): Promise<{ sent: boolean }> { return this.request('POST', '/auth/resend-verification', {}); }
   logOut(): Promise<void> { return this.request('POST', '/auth/logout', {}); }
   getMe(): Promise<{ riderId: string; username: string | null; emailVerified: boolean; termsAccepted?: boolean; termsVersion?: string }> { return this.request('GET', '/auth/me'); }
-  getStaffAccess(): Promise<{ riderId: string; role: string; permissions: string[] }> { return this.request('GET', '/admin/me'); }
   acceptTerms(version: string): Promise<{ accepted: true }> { return this.request('POST', '/auth/accept-terms', { version }); }
   getSessions(): Promise<{ sessions: AccountSessionSummary[] }> { return this.request('GET', '/auth/sessions'); }
   revokeSession(id: string): Promise<void> { return this.request('DELETE', `/auth/sessions/${encodeURIComponent(id)}`); }
   reauthenticate(password: string): Promise<{ reauthenticated: true; validForMs: number }> { return this.request('POST', '/auth/reauthenticate', { password }); }
+  exportAccountData(): Promise<Record<string, unknown>> { return this.request('GET', '/auth/export'); }
   deleteAccount(): Promise<Record<string, never>> { return this.request('DELETE', '/auth/me'); }
   getBilling(): Promise<BillingStatus> { return this.request('GET', '/billing'); }
   /** The store can be slow to answer the server, so this waits longer. */

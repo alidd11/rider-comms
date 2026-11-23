@@ -2366,7 +2366,7 @@ html[data-active-screen="map"] #app.safety-locked .map-canvas{inset:0}
 .app-menu-profile-button{margin-top:8px;min-height:40px;padding:0 16px;border:0;border-radius:var(--radius-pill);background:var(--surface-raised);color:var(--accent-ink,var(--accent));font-size:.95rem;font-weight:780}
 .app-menu-list{display:grid;gap:2px;padding-top:12px}
 .app-menu-list button{min-height:60px;display:flex;align-items:center;gap:16px;padding:0 6px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--text);font-size:1.12rem;font-weight:560;text-align:left}
-.app-menu-list button:active,.app-menu-list button:hover{background:var(--surface)}.app-menu-list button:active{opacity:1}
+.app-menu-list button:active{opacity:1}
 .app-menu-list svg{width:26px;height:26px;flex:none}
 .app-menu-list span{flex:1}
 .app-menu-list small{color:var(--text-secondary);font-size:.85rem;font-weight:600}
@@ -3124,6 +3124,14 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .account-stepup-actions button[type=submit]{background:var(--accent);color:var(--accent-text)}
 .account-stepup-actions button:disabled{opacity:.6}
 
+/* On touch-first iOS, :hover may remain latched after a tap. Restrict
+   hover shading to devices with actual hover support; keep transient press
+   feedback and keyboard focus on all clients. */
+@media (hover:hover) and (pointer:fine){
+  .app-menu-list button:hover{background:var(--surface)}
+}
+.app-menu-list button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
 /* Premium Rider Cockpit: menu hub v1 (mirrors mobile/src/screens/MenuScreen.tsx).
    Keep shell navigation and Ride Safe in JS; this is presentation only. */
 .app-menu{padding:calc(var(--safe-top) + 10px) max(18px,var(--safe-right)) max(20px,var(--safe-bottom)) max(18px,var(--safe-left));scroll-padding-bottom:calc(var(--safe-bottom) + 20px)}
@@ -3153,7 +3161,7 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .app-menu-group-title{padding:0 5px;margin-bottom:6px}
 .app-menu-list{display:grid;gap:2px;padding-top:0}
 .app-menu-list button{min-height:56px;display:flex;align-items:center;gap:12px;padding:5px 8px;border-radius:var(--radius-md);font-size:1rem;font-weight:650}
-.app-menu-list button:hover,.app-menu-list button:active{background:var(--surface)}
+.app-menu-list button:active{background:var(--surface)}
 .app-menu-list button>.app-menu-row-icon{flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:var(--surface-raised);color:var(--accent-ink,var(--accent))}
 .app-menu-list button>.app-menu-row-icon svg{width:21px;height:21px;padding:0;box-sizing:border-box;border-radius:0;background:transparent;color:inherit}
 .app-menu-list button>.app-menu-row-label{min-width:0;flex:1;font-size:1rem;font-weight:650}
@@ -3165,15 +3173,3 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 @media (max-width:360px){.app-menu-profile{gap:12px}.app-menu-stats>div{padding-inline:8px}.app-menu-stats strong{font-size:1.2rem}.app-menu-list button{gap:10px}}
 @media (max-height:690px){.app-menu-profile{padding-block:12px 16px}.app-menu-ride-summary{margin-top:12px}.app-menu-navigation{margin-top:16px;gap:12px}.app-menu-group+.app-menu-group{padding-top:12px}}
 @media (prefers-reduced-motion:reduce){.app-menu{animation:none}.app-menu-list button{animation:none}}
-
-/* Experimental Rider Comms Maps: admin-only launch, no navigation data. */
-.rider-map-beta-dialog{position:fixed;inset:0;margin:0;padding:0;border:0;width:100%;max-width:none;height:var(--app-vh,100dvh);max-height:var(--app-vh,100dvh);background:#07141b;color:#f4fbff;overflow:hidden}
-.rider-map-beta-dialog::backdrop{background:rgb(0 0 0/.9)}
-.rider-map-beta-frame-shell{display:flex;flex-direction:column;width:100%;height:100%}
-.rider-map-beta-header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:68px;padding:calc(var(--safe-top) + 9px) max(14px,var(--safe-right)) 9px max(14px,var(--safe-left));background:#0e2029;border-bottom:1px solid #315163}
-.rider-map-beta-header>div{display:flex;flex-direction:column;gap:3px;min-width:0}
-.rider-map-beta-header strong{font-size:14px;line-height:1.2}
-.rider-map-beta-header small{color:#b8d1db;font-size:11px;line-height:1.2}
-.rider-map-beta-return{flex:none;border:1px solid #458caa;border-radius:12px;background:#183a47;color:#fff;font-weight:700;padding:12px 14px;min-height:44px}
-#riderMapBetaFrame{display:block;border:0;width:100%;min-height:0;flex:1;background:#07141b}
-@media (max-width:370px){.rider-map-beta-return{font-size:12px;padding-inline:10px}}

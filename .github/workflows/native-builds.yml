@@ -138,28 +138,55 @@ jobs:
         run: |
           curl -Ls https://get.maestro.mobile.dev | bash
           export PATH="$HOME/.maestro/bin:$PATH"
+          # Maestro's underlying debug log includes typed input, including
+          # the disposable test password. Redact before printing or uploading
+          # XML/JSON/log artifacts; GitHub's console masking does not sanitize
+          # files inside uploaded ZIP archives.
+          redact_test_password() {
+            python3 - "$@" <<'PY'
+          import os, sys
+          from pathlib import Path
+          password = os.environ.get('TEST_PASSWORD')
+          if not password:
+              raise SystemExit('Cannot archive Maestro logs without the masked test password')
+          for arg in sys.argv[1:]:
+              path = Path(arg)
+              if path.is_file() and path.suffix in {'.xml', '.json', '.log'}:
+                  data = path.read_text(encoding='utf-8', errors='replace')
+                  path.write_text(data.replace(password, '[REDACTED TEST PASSWORD]'), encoding='utf-8')
+          PY
+          }
           set +e
-          # Maestro fills ${…} in a flow from -e values, not the shell environment.
-          maestro test -e TEST_USERNAME="$TEST_USERNAME" -e TEST_PASSWORD="$TEST_PASSWORD" mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
-          test_status=$?
-          # Only an actual XCUITest transport crash justifies a recovery run.
-          # Restart the simulator once, then repeat ALL authenticated checks.
-          # Genuine app assertions never retry here and no second error passes.
-          if [ "$test_status" -ne 0 ] && [ -f maestro-ios.xml ] \
-            && grep -Fq 'maestro.DeviceUnreachableException' maestro-ios.xml; then
-            echo "::warning title=Maestro XCTest transport::Driver unreachable; restarting simulator once."
-            cp maestro-ios.xml maestro-ios-first-attempt.xml
-            udid="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys;print(next((d["udid"] for ds in json.load(sys.stdin)["devices"].values() for d in ds if d["state"] == "Booted" and "iPhone" in d["name"]), ""))')"
-            if [ -n "$udid" ]; then
-              xcrun simctl shutdown "$udid" || true
-              sleep 3
-              if xcrun simctl boot "$udid" && xcrun simctl bootstatus "$udid" -b; then
-                xcrun simctl launch "$udid" com.ridercomms.app >/dev/null || true
-                maestro test -e TEST_USERNAME="$TEST_USERNAME" -e TEST_PASSWORD="$TEST_PASSWORD" mobile/maestro/authenticated-smoke.yaml --format junit --output maestro-ios.xml
-                test_status=$?
-              fi
+          # Only Maestro's XCTest transport failure may get a second attempt.
+          # Never retry a normal UI assertion or product regression: they
+          # must remain red with their screenshots and JUnit failure intact.
+          test_status=1
+          for attempt in 1 2; do
+            report="maestro-ios-attempt-${attempt}.xml"
+            output="maestro-ios-attempt-${attempt}.log"
+            # Maestro fills ${…} in a flow from -e values, not the shell environment.
+            maestro test -e TEST_USERNAME="$TEST_USERNAME" -e TEST_PASSWORD="$TEST_PASSWORD" mobile/maestro/authenticated-smoke.yaml --format junit --output "$report" > "$output" 2>&1
+            test_status=$?
+            redact_test_password "$output" "$report" || { test_status=1; break; }
+            cat "$output"
+            [ -f "$report" ] && cp "$report" maestro-ios.xml
+            [ "$test_status" -eq 0 ] && break
+            if [ "$attempt" -eq 2 ] || ! grep -Eq 'DeviceUnreachableException|Transport unreachable|Unreachable while processing deviceInfo' "$report" "$output" 2>/dev/null; then
+              break
             fi
-          fi
+            echo "::warning title=iOS Maestro transport::XCTest driver disconnected; restarting the simulator and retrying the full authenticated flow once"
+            booted="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; print(next((d["udid"] for devices in json.load(sys.stdin)["devices"].values() for d in devices if d["state"] == "Booted" and d["name"].startswith("iPhone")), ""))')"
+            if [ -z "$booted" ]; then
+              echo "::error title=iOS simulator::Cannot recover Maestro transport without a booted iPhone simulator"
+              break
+            fi
+            xcrun simctl shutdown "$booted" || true
+            sleep 3
+            xcrun simctl boot "$booted" || break
+            xcrun simctl bootstatus "$booted" -b || break
+            xcrun simctl launch "$booted" com.ridercomms.app || true
+            sleep 10
+          done
           if [ "$test_status" -ne 0 ]; then
             # What was on screen when the flow failed, readable in the job log.
             echo "::group::Screen at failure"
@@ -171,6 +198,11 @@ jobs:
           find "$HOME/.maestro" -type f -name '*.png' -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
           # Each command's outcome and Maestro's log, to see which step went wrong.
           find "$HOME/.maestro/tests" -type f \( -name 'commands-*.json' -o -name 'maestro.log' \) -exec cp {} maestro-ios-artifacts/ \; 2>/dev/null || true
+          if ! redact_test_password maestro-ios-artifacts/* maestro-ios.xml maestro-ios-attempt-*.xml maestro-ios-attempt-*.log; then
+            # Fail closed: never upload raw typed credentials if redaction fails.
+            rm -rf maestro-ios-artifacts maestro-ios.xml maestro-ios-attempt-*.xml maestro-ios-attempt-*.log
+            test_status=1
+          fi
           exit "$test_status"
       - name: Delete the disposable test account
         if: always() && steps.test-account.outputs.token != ''
@@ -188,7 +220,8 @@ jobs:
           path: |
             maestro-ios-artifacts
             maestro-ios.xml
-            maestro-ios-first-attempt.xml
+            maestro-ios-attempt-*.xml
+            maestro-ios-attempt-*.log
           if-no-files-found: ignore
       - name: Upload the launch screenshot
         if: always()

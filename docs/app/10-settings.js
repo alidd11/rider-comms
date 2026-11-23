@@ -55,137 +55,6 @@
     ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away.'],
   ];
 
-  // Server-validated admin map beta entry. The standalone map reads no
-  // session token, private position, Google route or Place data.
-  // A map-only experiment for server-confirmed admins, inside the installed
-  // PWA. The live Google map, routing, voice and rider location remain intact
-  // behind this dialog and are never copied into the MapLibre document.
-  function openEmbeddedMapBeta(trigger) {
-    if (document.getElementById('riderMapBetaDialog')) return;
-    const dialog = document.createElement('dialog');
-    dialog.id = 'riderMapBetaDialog';
-    dialog.className = 'rider-map-beta-dialog';
-    dialog.setAttribute('aria-label', 'Rider Comms Maps beta preview');
-    dialog.innerHTML = `<div class="rider-map-beta-frame-shell">
-      <header class="rider-map-beta-header">
-        <div><strong>Rider Comms Maps</strong><small>Admin beta · map only · not for navigation</small></div>
-        <button type="button" class="rider-map-beta-return">Use classic map</button>
-      </header>
-      <iframe id="riderMapBetaFrame" title="Rider Comms Maps beta"
-        sandbox="allow-scripts" referrerpolicy="no-referrer"
-        allow="geolocation 'none'; microphone 'none'; camera 'none'"></iframe>
-    </div>`;
-    const frame = dialog.querySelector('#riderMapBetaFrame');
-    const closeButton = dialog.querySelector('.rider-map-beta-return');
-    const close = () => { if (dialog.open) dialog.close(); };
-    // This is the topmost native modal. Settings must not treat its Escape
-    // as a request to navigate the underlying sheet.
-    dialog.addEventListener('keydown', (event) => {
-      // In Chromium, reverse-tab from the first button can otherwise move
-      // focus to <body> before the frame receives it. Keep it in the dialog.
-      if (event.key === 'Tab' && event.shiftKey && document.activeElement === closeButton) {
-        event.preventDefault();
-        frame.focus();
-        return;
-      }
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      close();
-    });
-    dialog.addEventListener('cancel', (event) => {
-      event.preventDefault();
-      close(); // triggers the one-time cleanup + focus restoration
-    });
-    const onMessage = (event) => {
-      if (event.origin === 'null'
-          && event.source === frame.contentWindow
-          && event.data?.type === 'rider-comms-close-map-beta') close();
-    };
-    window.addEventListener('message', onMessage);
-    closeButton.addEventListener('click', close);
-    const tokenAtOpen = session?.token;
-    // Across browser tabs the in-memory session may not update promptly.
-    // A changed persisted session is sufficient reason to close the beta.
-    const onStorage = (event) => {
-      if (event.key === SESSION_KEY || event.key === null) close();
-    };
-    window.addEventListener('storage', onStorage);
-    const safetyTimer = window.setInterval(() => {
-      if (!tokenAtOpen || session?.token !== tokenAtOpen
-          || window.RiderMovementSafety.isLockedForSafety(movementState)) close();
-    }, 1000);
-    // Reconfirm access during longer test sessions; fail closed if revoked.
-    let verifyingRole = false;
-    const roleTimer = window.setInterval(() => {
-      if (!dialog.open || verifyingRole) return;
-      verifyingRole = true;
-      void apiFetch('GET', '/admin/me').then((access) => {
-        if (access?.role !== 'admin' || session?.token !== tokenAtOpen) close();
-      }).catch(close).finally(() => { verifyingRole = false; });
-    }, 30000);
-    dialog.addEventListener('close', () => {
-      window.clearInterval(safetyTimer);
-      window.clearInterval(roleTimer);
-      window.removeEventListener('message', onMessage);
-      window.removeEventListener('storage', onStorage);
-      frame.removeAttribute('src'); // stop tile requests on return to classic
-      dialog.remove();
-      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
-    }, { once: true });
-    document.body.append(dialog);
-    dialog.showModal();
-    // Fetch nothing from the map preview until the admin explicitly opts in.
-    frame.src = './map-beta/';
-    closeButton.focus({ preventScroll: true });
-  }
-
-  async function revealAdminMapBeta() {
-    const entry = $('#mapBetaAdminEntry');
-    if (!entry) return;
-    entry.hidden = true;
-    entry.replaceChildren();
-    const tokenAtStart = session?.token;
-    if (!tokenAtStart) return;
-    try {
-      const access = await apiFetch('GET', '/admin/me');
-      if (!entry.isConnected || tokenAtStart !== session?.token || access?.role !== 'admin') return;
-      // Only construct the privileged settings UI after the server says admin.
-      // A hidden section with headings would still enter DOM-based settings
-      // tests and could expose a misleading control to assistive technology.
-      entry.innerHTML = `<h3 class="settings-page-heading">Admin beta</h3>${settingsRowsMarkup([
-        '<button type="button" class="settings-row" id="openMapBetaPreview"><span class="settings-row-label">Rider Comms Maps (beta)</span><span class="settings-row-chevron">' + icon('chevron') + '</span></button>',
-      ], 'Experimental map-only preview. Navigation, search and rider locations remain on the classic map.')}`;
-      entry.hidden = false;
-      entry.querySelector('#openMapBetaPreview')?.addEventListener('click', async (event) => {
-        const button = event.currentTarget;
-        if (window.RiderMovementSafety.isLockedForSafety(movementState)) {
-          showToast('Map beta testing is only available while stationary.');
-          return;
-        }
-        button.disabled = true;
-        try {
-          const fresh = await apiFetch('GET', '/admin/me');
-          if (fresh?.role !== 'admin' || tokenAtStart !== session?.token) {
-            entry.hidden = true;
-            entry.replaceChildren();
-            showToast('Admin access is required to open Rider Comms Maps beta.');
-            return;
-          }
-          openEmbeddedMapBeta(button);
-        } catch {
-          entry.hidden = true;
-          entry.replaceChildren();
-          showToast('Couldn’t verify admin access. Try again when connected.');
-        } finally {
-          if (button.isConnected) button.disabled = false;
-        }
-      });
-    } catch {
-      entry.hidden = true;
-    }
-  }
-
   function openSheet(type) {
     const templates = {
       blocked: () => ({
@@ -271,9 +140,10 @@
       }),
       account: () => ({
         title: 'Account and data',
-        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This can’t be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
+        body: `<div class="settings-note"><strong>Reset settings</strong><p>Reset your Rider Comms profile and synced preferences to their defaults, and restore Google Maps as the device navigation provider.</p></div><button class="button secondary wide" id="resetSettingsBtn">Reset settings</button><div class="settings-note"><strong>Delete Rider Comms account</strong><p>This permanently deletes your Rider Comms account and associated data. This can’t be undone. It doesn’t cancel a Premium subscription bought in the app: cancel that in your App Store or Google Play subscription settings.</p></div><button class="button secondary wide" id="exportAccountBtn">Download my data</button><button class="button danger wide" id="deleteAccountBtn">Delete account</button><p id="deleteAccountError" class="inline-error" hidden></p>`,
         ready: () => {
           $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
+          $('#exportAccountBtn').addEventListener('click', () => void exportCurrentAccount());
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
         },
       }),
@@ -337,8 +207,8 @@
           settingsToggle('avoidHighways', 'Avoid motorways', state.avoidHighways),
           settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
           settingsToggle('avoidFerries', 'Avoid ferries', state.avoidFerries),
-        ], 'Route options apply to routes Rider Comms plans.')}<section id="mapBetaAdminEntry" hidden></section>`,
-        ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); void revealAdminMapBeta(); },
+        ], 'Route options apply to routes Rider Comms plans.')}`,
+        ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
       }),
       savedPlacesSettings: () => {
         const saved = loadSavedPlaces();
@@ -412,11 +282,13 @@
         body: settingsRowsMarkup([
           settingsAction('logoutBtn', 'Sign out'),
           settingsAction('resetSettingsBtn', 'Reset settings'),
+          settingsAction('exportAccountBtn', 'Download my data'),
           settingsAction('deleteAccountBtn', 'Delete account', true),
-        ], 'Deleting your account permanently removes it and its data straight away.'),
+        ], 'Your download includes private information. Store it securely. Deleting your account permanently removes it and its data.'),
         ready: () => {
           $('#logoutBtn').addEventListener('click', () => void signOut());
           $('#resetSettingsBtn').addEventListener('click', () => void resetSettings());
+          $('#exportAccountBtn').addEventListener('click', () => void exportCurrentAccount());
           $('#deleteAccountBtn').addEventListener('click', () => void deleteCurrentAccount());
         },
       }),
@@ -612,7 +484,7 @@
   }
 
   // Masked password confirmation is never saved in browser storage or app state.
-  function confirmAccountPassword() {
+  function confirmAccountPassword(action = 'delete') {
     const tokenAtOpen = session?.token;
     if (!tokenAtOpen || document.getElementById('accountStepupDialog')) return Promise.resolve(false);
     return new Promise((resolve) => {
@@ -621,7 +493,9 @@
       dialog.className = 'account-stepup-dialog';
       dialog.setAttribute('aria-labelledby', 'accountStepupTitle');
       dialog.innerHTML = '<form class="account-stepup-form"><h2 id="accountStepupTitle">Confirm your password</h2>'
-        + '<p>Enter your account password before permanently deleting your account.</p>'
+        + (action === 'export'
+          ? '<p>Enter your account password before downloading a copy of your private data.</p>'
+          : '<p>Enter your account password before permanently deleting your account.</p>')
         + '<label for="accountStepupPassword">Account password</label>'
         + '<input id="accountStepupPassword" type="password" autocomplete="current-password" maxlength="128" required>'
         + '<p id="accountStepupError" role="alert" hidden></p>'
@@ -690,6 +564,37 @@
       dialog.showModal();
       input.focus({ preventScroll: true });
     });
+  }
+
+  async function exportCurrentAccount() {
+    if (!(await confirmAccountPassword('export'))) return;
+    const button = $('#exportAccountBtn');
+    if (button) button.disabled = true;
+    try {
+      const tokenAtRequest = session?.token;
+      const data = await apiFetch('GET', '/auth/export');
+      if (!tokenAtRequest || session?.token !== tokenAtRequest) throw new Error('session_changed');
+      const blob = new Blob([JSON.stringify(data, null, 2) + '\n'], { type: 'application/json' });
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = `rider-comms-data-${new Date().toISOString().slice(0, 10)}.json`;
+        link.hidden = true;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        showToast('Download requested. Keep the account-data file somewhere private.');
+      } finally {
+        // Delay revocation long enough for WebKit and installed-PWA downloads
+        // to consume the temporary URL. Nothing is persisted in app storage.
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch {
+      showToast('Couldn’t download your account data. Try again.');
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   async function deleteCurrentAccount() {
