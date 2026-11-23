@@ -96,13 +96,18 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
           source={RIDE_HERO_IMAGE}
           style={[styles.hero, { height: heroHeight }]}
           imageStyle={styles.heroImage}
-          accessibilityRole="image"
-          accessibilityLabel="Motorcyclists riding together on a winding mountain road"
         >
+          <View style={styles.heroTint} pointerEvents="none" />
+          <View style={styles.heroCopy}>
+            <Text style={styles.heroEyebrow}>PRIVATE GROUP RIDES</Text>
+            <Text style={styles.heroTitle}>Ride with your crew.</Text>
+            <Text style={styles.heroDescription}>One code to bring everyone together.</Text>
+          </View>
         </ImageBackground>
 
         <View style={styles.joinBody}>
           <View style={styles.card}>
+            <Text style={styles.cardKicker}>01 / JOIN</Text>
             <Text style={styles.cardTitle} accessibilityRole="header">Join a ride</Text>
             <Text style={styles.cardBody}>Enter the six-character code from your host.</Text>
             <Pressable
@@ -177,6 +182,7 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
           </View>
 
           <View style={styles.card}>
+            <Text style={styles.cardKicker}>02 / HOST</Text>
             <Text style={styles.cardTitle} accessibilityRole="header">Start a ride</Text>
             <Text style={styles.cardBody}>Create a group and invite your friends with a code.</Text>
             <Pressable accessibilityRole="button"
@@ -216,7 +222,12 @@ function RideLocationSharing(): React.JSX.Element {
     <View style={styles.card}>
       <View style={styles.locationRow}>
         <View style={styles.locationCopy}>
-          <Text style={styles.locationTitle}>Share my location</Text>
+          <View style={styles.locationTitleRow}>
+            <Text style={styles.locationTitle}>Share my location</Text>
+            <Text style={[styles.locationBadge, shareRideLocation && styles.locationBadgeOn]}>
+              {shareRideLocation ? 'On' : 'Off'}
+            </Text>
+          </View>
           <Text style={styles.cardBody}>
             {shareRideLocation
               ? 'On. Riders in this ride can see where you are. It stops when you switch it off, leave the ride or the ride ends.'
@@ -307,6 +318,7 @@ function RideTicket(): React.JSX.Element {
           <Text style={styles.primaryButtonText}>Share invite</Text>
         </Pressable>
       </View>
+      <Text style={styles.ticketNote}>Only share this invite with riders you want in your group.</Text>
     </View>
   );
 }
@@ -367,7 +379,13 @@ const styles = StyleSheet.create({
   screenTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 30, letterSpacing: -0.9, marginHorizontal: 20, marginBottom: 12 },
   hero: { marginHorizontal: 20, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
   heroImage: { borderRadius: radii.lg },
+  heroTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,11,16,0.48)' },
+  heroCopy: { paddingHorizontal: spacing.md, paddingVertical: 12, gap: 2 },
+  heroEyebrow: { fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 1.2, color: '#BFEFFF' },
+  heroTitle: { fontSize: 22, lineHeight: 27, fontWeight: '800', letterSpacing: -0.5, color: '#FFFFFF' },
+  heroDescription: { fontSize: 12, lineHeight: 16, fontWeight: '600', color: '#F0F7FA' },
   card: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surface },
+  cardKicker: { ...type.caption, color: colors.accentInk, fontSize: 11, lineHeight: 15, letterSpacing: 1.1, fontWeight: '800' },
   cardTitle: { ...type.subheading, color: colors.textPrimary, fontSize: 18, lineHeight: 22, fontWeight: '800' },
   cardBody: { ...type.body, color: colors.textSecondary, fontSize: 14, lineHeight: 19 },
   codeSlots: { position: 'relative', minHeight: 56, flexDirection: 'row', gap: 6, marginTop: spacing.xs, padding: 4, borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.lg, backgroundColor: colors.surfaceRaised },
@@ -390,6 +408,9 @@ const styles = StyleSheet.create({
   buttonWithIcon: { flexDirection: 'row', gap: spacing.sm },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   locationCopy: { flex: 1, gap: 4 },
+  locationTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
+  locationBadge: { ...type.caption, fontSize: 11, color: colors.textSecondary, backgroundColor: colors.surfaceRaised, borderRadius: radii.pill, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 3 },
+  locationBadgeOn: { color: colors.success },
   locationTitle: { ...type.body, color: colors.textPrimary, fontSize: 15, lineHeight: 20, fontWeight: '700' },
   ticket: { gap: 14, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface, ...elevation.raised },
   ticketStatus: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
@@ -400,6 +421,7 @@ const styles = StyleSheet.create({
   codeCard: { alignItems: 'center', gap: 4, paddingVertical: 14, paddingHorizontal: spacing.sm, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, borderRadius: 12, backgroundColor: colors.background },
   codeLabel: { ...type.label },
   codeValue: { fontSize: 34, lineHeight: 40, fontWeight: '800', letterSpacing: 6, color: colors.accentInk, fontVariant: ['tabular-nums'] },
+  ticketNote: { ...type.caption, color: colors.textSecondary, fontSize: 12, lineHeight: 17 },
   ticketActions: { flexDirection: 'row', gap: 10 },
   ticketButton: { flex: 1, minHeight: MIN_TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radii.lg },
   ticketButtonPrimary: { backgroundColor: colors.accent },
