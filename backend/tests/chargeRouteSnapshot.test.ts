@@ -8,6 +8,7 @@ import type { ChargingRule } from '../src/chargingRules.ts';
 const graph = 'a'.repeat(64);
 const newerGraph = 'b'.repeat(64);
 const active: ChargeRouteSnapshotIdentity = {
+  schemaVersion: 1,
   routeId: 'synthetic-plan-a', revision: 4, graphBuildSha256: graph,
   profileRevision: 'motorcycle-test-v1', vehicleClass: 'motorcycle',
 };
@@ -45,6 +46,12 @@ describe('offline route snapshot coherence fencing (not authenticating graph)', 
     assert.equal(out.summary?.routeCoverageComplete, false);
     assert.equal(out.routeCoverageComplete, false);
     assert.equal(out.productionApproved, false);
+  });
+  it('rejects incompatible or missing envelope versions before aggregating', () => {
+    assert.equal(check({ ...snapshot(), schemaVersion: 2 }).reason, 'invalid_snapshot');
+    assert.equal(check({ ...snapshot(), schemaVersion: undefined }).reason, 'invalid_snapshot');
+    assert.equal(check(snapshot(), { ...active, schemaVersion: 2 }).reason,
+      'invalid_expected_route');
   });
   it('rejects old route identity and stale plan revision on reroute', () => {
     assert.equal(check(snapshot(), { ...active, routeId: 'synthetic-plan-b' }).reason, 'stale_route_revision');

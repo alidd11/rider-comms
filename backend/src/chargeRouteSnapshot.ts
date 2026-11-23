@@ -9,6 +9,8 @@ import { summarizeRouteChargeWindows, type RouteChargeWindowPassage,
 import type { ChargeVehicleClass } from './chargingRules.ts';
 
 export interface ChargeRouteSnapshotIdentity {
+  /** Version of this experimental coherence envelope, not a Maps contract. */
+  schemaVersion: 1;
   /** Identifier for one route plan; alternatives must not share one identity. */
   routeId: string;
   /** Monotonically increasing plan revision maintained by the caller. */
@@ -55,7 +57,8 @@ function record(value: unknown): value is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 function identity(value: unknown): value is ChargeRouteSnapshotIdentity {
-  return record(value) && typeof value.routeId === 'string' && TOKEN.test(value.routeId)
+  return record(value) && value.schemaVersion === 1
+    && typeof value.routeId === 'string' && TOKEN.test(value.routeId)
     && Number.isSafeInteger(value.revision) && (value.revision as number) >= 0
     && typeof value.graphBuildSha256 === 'string' && SHA256.test(value.graphBuildSha256)
     && typeof value.profileRevision === 'string' && TOKEN.test(value.profileRevision)
