@@ -23,14 +23,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify:
-    # Pinned rather than ubuntu-latest: Playwright's WebKit system deps are
-    # tied to the OS release, and ubuntu-latest moves to 26.04 from 2026-10-19.
+  # The work is split into parallel jobs (it used to be one ~20 minute job,
+  # 14 minutes of it Playwright). `verify` at the end keeps the check name
+  # that PRs and branch settings already know, and fails if any job did.
+  checks:
     runs-on: ubuntu-24.04
-    # A full run takes ~12 minutes. 35 leaves room for one run that has to
-    # fill the apt package cache from a slow mirror (125 MB took 20 minutes on
-    # 18 November), without letting a hung job run for GitHub's 6 hours.
-    timeout-minutes: 35
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -101,10 +99,52 @@ jobs:
           name: coverage
           path: coverage/
           if-no-files-found: warn
+
+  native-bundles:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm ci
       - name: Verify native Expo config
         working-directory: mobile
         run: npx expo prebuild --clean --no-install
-      - run: npm run build:web
+      - name: Verify Android bundle
+        working-directory: mobile
+        run: npx expo export --platform android --output-dir /tmp/rider-comms-android
+      - name: Verify iOS bundle
+        working-directory: mobile
+        run: npx expo export --platform ios --output-dir /tmp/rider-comms-ios
+      - name: Report native export size
+        run: node scripts/report-native-export-sizes.mjs android=/tmp/rider-comms-android ios=/tmp/rider-comms-ios
+      - name: Upload native export size report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-export-size-report
+          path: native-export-size-report.json
+          if-no-files-found: error
+
+  visual:
+    # Pinned rather than ubuntu-latest: Playwright's WebKit system deps are
+    # tied to the OS release, and ubuntu-latest moves to 26.04 from 2026-10-19.
+    runs-on: ubuntu-24.04
+    # 30 leaves room for one run that has to fill the apt package cache from
+    # a slow mirror (125 MB took 20 minutes on 18 November).
+    timeout-minutes: 30
+    strategy:
+      # Every shard reports, so one failure doesn't hide another.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm ci
       - name: Read Playwright version
         id: playwright
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -158,28 +198,32 @@ jobs:
         with:
           path: ~/apt-archives/*.deb
           key: ${{ steps.apt-cache.outputs.cache-primary-key }}
-      - name: Run PWA visual smoke audit
-        run: npm run test:pwa:visual
-      - name: Verify Android bundle
-        working-directory: mobile
-        run: npx expo export --platform android --output-dir /tmp/rider-comms-android
-      - name: Verify iOS bundle
-        working-directory: mobile
-        run: npx expo export --platform ios --output-dir /tmp/rider-comms-ios
-      - name: Report native export size
-        run: node scripts/report-native-export-sizes.mjs android=/tmp/rider-comms-android ios=/tmp/rider-comms-ios
-      - name: Upload native export size report
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: native-export-size-report
-          path: native-export-size-report.json
-          if-no-files-found: error
+      - name: Run PWA visual smoke audit (shard ${{ matrix.shard }} of 4)
+        run: npm run test:pwa:visual -- --shard=${{ matrix.shard }}/4
       - name: Upload PWA visual audit
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: pwa-visual-audit
+          name: pwa-visual-audit-${{ matrix.shard }}
           path: |
             test-results/playwright
             playwright-report
           if-no-files-found: warn
+
+  verify:
+    needs: [checks, native-bundles, visual]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every CI job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "::error::A CI job did not pass ($result)"
+              exit 1
+            fi
+          done

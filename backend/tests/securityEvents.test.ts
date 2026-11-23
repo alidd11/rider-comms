@@ -134,6 +134,18 @@ describe('security events and staff re-authentication', { skip: !hasDatabase && 
     assert.equal((await change()).status, 404);
     assert.deepEqual((await events(riderId)).slice(0, 2), ['reauthenticated', 'reauth_failed']);
 
+    // A later failed password retry must revoke the previously granted
+    // staff-step-up privilege without signing the staff account out.
+    assert.equal((await call(token, '/auth/reauthenticate', {
+      method: 'POST', body: JSON.stringify({ password: 'wrong-again' }),
+    })).status, 401);
+    assert.equal((await change()).status, 403);
+    assert.equal(await ctx.authStore.recentlyReauthenticated(token, STAFF_REAUTH_WINDOW_MS), false);
+    assert.equal((await call(token, '/auth/reauthenticate', {
+      method: 'POST', body: JSON.stringify({ password: PASSWORD }),
+    })).status, 200);
+    assert.equal((await change()).status, 404);
+
     // The window runs out.
     await getPool().query(`UPDATE account_sessions SET reauthenticated_at = now() - interval '16 minutes' WHERE user_id = $1`, [riderId]);
     assert.equal((await change()).status, 403);

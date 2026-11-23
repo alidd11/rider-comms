@@ -25,6 +25,7 @@ import { LEGAL_LINKS } from '../legalLinks';
 import { AUTH_MUTED, AUTH_TEXT, styles } from './AuthContext.styles';
 import { AUTH_HERO_IMAGE, BRAND_MARK_IMAGE } from '../brandAssets';
 import { ApiError, RiderCommsClient } from '../api/client';
+import { clearTemporaryAccountExports, pruneExpiredAccountExports } from '../security/accountExportFiles';
 import type { LoginSession } from '../api/client';
 import { pressedFeedback } from '../theme';
 
@@ -549,6 +550,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const [termsVersion, setTermsVersion] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    // A file preview resolves on handoff, before the OS viewer closes. Old
+    // private export copies are pruned on app launch, not immediately on handoff.
+    try { pruneExpiredAccountExports(); } catch { /* Cache cleanup must not block sign-in. */ }
     let cancelled = false;
     void (async () => {
       const splashStartedAt = Date.now();
@@ -565,11 +569,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           // Unreadable, not unreachable: on Android, clearing app data can
           // leave a value the keystore can no longer decrypt. There is no
           // session to restore, so start signed out without an error.
+          // Unreadable credentials mean the previous account cannot be
+          // recovered. Do not leave its exported JSON for the next rider.
+          try { clearTemporaryAccountExports(); } catch { /* Non-blocking. */ }
           await savedSession(() => SecureStore.deleteItemAsync(KEY));
           return;
         }
         const cached = parse(stored);
-        if (!cached) return;
+        if (!cached) {
+          // A missing or malformed signed-in session is also an account exit.
+          // Only managed private export files qualify for removal.
+          try { clearTemporaryAccountExports(); } catch { /* Non-blocking. */ }
+          return;
+        }
         const client = new RiderCommsClient(API_BASE_URL, fetch, cached.token);
         const me = await client.getMe();
         if (me.riderId !== cached.riderId) throw new Error('Stored account identity didn’t match the server.');
@@ -579,6 +591,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         if (!cancelled) setSession(refreshed);
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
+          // A definite server-side revocation expires this device's account,
+          // even if the rider never tapped Log out on the previous launch.
+          try { clearTemporaryAccountExports(); } catch { /* Non-blocking. */ }
           await savedSession(() => SecureStore.deleteItemAsync(KEY));
         } else if (!cancelled) {
           setRestoreError('We couldn’t check your saved session. Retry or sign in again.');
@@ -602,6 +617,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     if (!session) return null;
     const client = new RiderCommsClient(API_BASE_URL, fetch, session.token);
     const clearLocalSession = async () => {
+      // Export JSON is private to the rider. Clear locally retained copies
+      // whenever this session exits, even when server logout is offline.
+      // A locked OS viewer must never prevent local sign-out.
+      try { clearTemporaryAccountExports(); } catch { /* Best-effort cleanup. */ }
       await savedSession(() => SecureStore.deleteItemAsync(KEY));
       setSession(null);
     };
