@@ -4,8 +4,20 @@
     if (active instanceof HTMLElement && active !== document.body) active.blur();
   }
 
+  /** The start-up splash covers the page from first paint until there is
+   * something real to show: the sign-in screen, or the Google map's first
+   * tiles, so riders never see the plain fallback map flash past. */
+  function hideLaunchSplash() {
+    clearTimeout(launchSplashTimer);
+    const splash = $('#launchSplash');
+    if (!splash || splash.hidden || splash.classList.contains('leaving')) return;
+    splash.classList.add('leaving');
+    setTimeout(() => { splash.hidden = true; }, 280);
+  }
+
   function showAuthScreen(withSplash = false) {
     clearAuthFocus();
+    hideLaunchSplash();
     $('#app').hidden = true;
     $('#authScreen').hidden = false;
     document.documentElement.classList.add('auth-open');

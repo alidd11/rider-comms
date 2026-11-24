@@ -6039,6 +6039,7 @@
   // fallback layers stay hidden) — this is the officially documented hook
   // for exactly that case (window.gm_authFailure).
   function handleGoogleMapsFailure() {
+    hideLaunchSplash();
     usingFallbackMap = true;
     $('#googleMap').hidden = true;
     $('#fallbackMap').hidden = false;
@@ -6078,6 +6079,7 @@
       // env var is unset, not just occasional outages, so it needs to be
       // loud and specific.
       console.warn('[rider-comms] Google Maps API key missing (neither RIDER_COMMS_CONFIG nor the backend /config endpoint has one) — falling back to the offline map.');
+      hideLaunchSplash();
       $('#mapError').hidden = true;
       renderMapStatus();
       disablePlaceSearch();
@@ -9451,6 +9453,9 @@
       });
     }
     usingFallbackMap = false;
+    // Keep the start-up splash up until the first map tiles have drawn.
+    if (google.maps.event?.addListenerOnce) google.maps.event.addListenerOnce(map, 'tilesloaded', hideLaunchSplash);
+    else hideLaunchSplash();
     $('#fallbackMap').hidden = true;
     $('#fallbackMarkers').hidden = true;
     $('#hazardMarkers').hidden = true;
@@ -9832,13 +9837,26 @@
   const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 
   let authSplashTimer;
+  let launchSplashTimer;
   function clearAuthFocus() {
     const active = document.activeElement;
     if (active instanceof HTMLElement && active !== document.body) active.blur();
   }
 
+  /** The start-up splash covers the page from first paint until there is
+   * something real to show: the sign-in screen, or the Google map's first
+   * tiles, so riders never see the plain fallback map flash past. */
+  function hideLaunchSplash() {
+    clearTimeout(launchSplashTimer);
+    const splash = $('#launchSplash');
+    if (!splash || splash.hidden || splash.classList.contains('leaving')) return;
+    splash.classList.add('leaving');
+    setTimeout(() => { splash.hidden = true; }, 280);
+  }
+
   function showAuthScreen(withSplash = false) {
     clearAuthFocus();
+    hideLaunchSplash();
     $('#app').hidden = true;
     $('#authScreen').hidden = false;
     document.documentElement.classList.add('auth-open');
@@ -10282,6 +10300,9 @@
     } else {
       navigate(location.hash.slice(1) || state.screen || 'map', false);
     }
+    // A slow map never holds the rider on the splash for long.
+    clearTimeout(launchSplashTimer);
+    launchSplashTimer = setTimeout(hideLaunchSplash, 4000);
     loadGoogleMaps();
     registerServiceWorker();
     void syncPushSubscription();
@@ -10327,6 +10348,8 @@
   }
 
   async function init() {
+    // Last resort if start-up stalls before it reaches a screen.
+    launchSplashTimer = setTimeout(hideLaunchSplash, 12000);
     const passwordResetToken = consumePasswordResetLink();
     if (passwordResetToken) {
       wireAuthForms(passwordResetToken);
