@@ -1,0 +1,40 @@
+name: PR overlap check
+
+# Comments on open PRs that change the same files as another open PR, add a
+# migration with the same number, or mix native app changes with a lot of
+# backend/web work. One comment per PR, edited in place, so agents working in
+# parallel see a coming conflict while it is still cheap to avoid. Runs when
+# any PR is pushed, opened or closed, and rechecks every open PR each time.
+# Logic and self-test: scripts/pr-overlap.mjs.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-overlap
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # A fork's token can't comment; its overlaps show up on the next same-repo run.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The script from main, so a PR can't change what checks it.
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Compare open PRs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Until this check is on main there is nothing to run yet.
+          if [ -f scripts/pr-overlap.mjs ]; then node scripts/pr-overlap.mjs; else echo "scripts/pr-overlap.mjs is not on main yet"; fi
