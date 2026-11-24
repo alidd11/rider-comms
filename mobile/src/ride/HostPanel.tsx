@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   screenTitle: { ...type.title, color: colors.textPrimary, fontSize: 28, lineHeight: 30, letterSpacing: -0.9, marginHorizontal: 20, marginBottom: 12 },
   hero: { marginHorizontal: 20, justifyContent: 'flex-end', overflow: 'hidden', borderRadius: radii.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.surface },
   heroImage: { borderRadius: radii.lg },
-  heroTint: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,11,16,0.48)' },
+  heroTint: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(4,11,16,0.48)' },
   heroCopy: { paddingHorizontal: spacing.md, paddingVertical: 12, gap: 2 },
   heroEyebrow: { fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 1.2, color: '#BFEFFF' },
   heroTitle: { fontSize: 22, lineHeight: 27, fontWeight: '800', letterSpacing: -0.5, color: '#FFFFFF' },

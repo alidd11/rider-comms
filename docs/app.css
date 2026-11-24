@@ -3237,8 +3237,9 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 #rideJoinState .ride-entry-heading{display:grid;gap:3px}
 #rideJoinState .ride-entry-kicker{color:var(--accent-ink);font-size:.7rem;letter-spacing:.1em;font-weight:850}
 #rideJoinState .ride-entry-heading h2{line-height:1.2}
-#rideJoinState .ride-code-slots span{min-height:46px}
-#rideJoinState .ride-join-button{min-height:48px}
+/* Preserve the approved compact six-character rail and 44px Join control. */
+#rideJoinState .ride-code-slots span{min-height:38px}
+#rideJoinState .ride-join-button{min-height:44px}
 .ride-ticket{gap:12px;background:linear-gradient(155deg,color-mix(in srgb,var(--surface-raised) 38%,var(--surface)),var(--surface))}
 .ride-ticket .ride-code-card{border-style:solid;background:var(--bg-elevated)}
 .ride-ticket-note{margin:0;color:var(--text-secondary);font-size:.8rem;line-height:1.45}
