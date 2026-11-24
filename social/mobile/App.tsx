@@ -1,5 +1,5 @@
 import '@expo/metro-runtime';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, ScrollView, StatusBar, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import { clearLocalDemo } from './src/demoStorage';
 import { clearAccountTextDraft } from './src/textDraftStorage';
 import { CreateComposer } from './src/CreateComposer';
 import { LiveFeed, OwnPosts, useLiveReels } from './src/LiveFeed';
+import type { PostAction } from './src/PostActions';
 import { IdentityAvatar } from './src/IdentityAvatar';
 import { publishDraft } from './src/publishPost';
 import { prepareMediaForUpload } from './src/prepareMedia';
@@ -291,12 +292,17 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [profileTab, setProfileTab] = useState<ProfileContentTab>('Posts');
   const [reelStartId, setReelStartId] = useState<string | null>(null);
   const access = useSocialAccess();
-  // Real posts once the server has media storage; the screenshot build keeps its fixtures.
-  const liveSocial = !socialFixturesEnabled && access.mediaUpload;
+  const publishingAllowed = !socialFixturesEnabled && canPublish(access);
+  const [removedPosts, setRemovedPosts] = useState<ReadonlySet<string>>(() => new Set());
+  const [blockedAuthors, setBlockedAuthors] = useState<ReadonlySet<string>>(() => new Set());
+  // A completed action takes effect even if a feed or inbox request was
+  // already in flight and returns an older result.
+  const isVisible = useCallback(({ id, authorId }: { id: string; authorId: string }) =>
+    !removedPosts.has(id) && !blockedAuthors.has(authorId), [removedPosts, blockedAuthors]);
   const [feedRefresh, setFeedRefresh] = useState(0);
   const publishedNotice = useRef<string | null>(null);
   // Existing Reels remain readable when new uploads are paused.
-  const liveReels = useLiveReels(client, !socialFixturesEnabled && (liveSocial || screen === 'Reels'), feedRefresh);
+  const liveReels = useLiveReels(client, !socialFixturesEnabled && (publishingAllowed || screen === 'Reels' || (screen === 'Profile' && profileTab === 'Saved')), feedRefresh);
   const [connectionSheet, setConnectionSheet] = useState<ConnectionKind | null>(null);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [marketFilter, setMarketFilter] = useState('All');
@@ -306,9 +312,11 @@ function AuthenticatedSocialApp(): React.JSX.Element {
   const [brandPageOpen, setBrandPageOpen] = useState(false);
   const [commentsFor, setCommentsFor] = useState<{ id: string; title: string } | null>(null);
   const [localComments, setLocalComments] = useState<Record<string, CommentPreview[]>>({});
-  const [sharedFriends, setSharedFriends] = useState<SharedFriend[]>([]);
-  const [sharedConversations, setSharedConversations] = useState<SharedConversation[]>([]);
+  const [loadedFriends, setSharedFriends] = useState<SharedFriend[]>([]);
+  const [loadedConversations, setSharedConversations] = useState<SharedConversation[]>([]);
   const [ownProfile, setOwnProfile] = useState<RiderProfile | null>(null);
+  const sharedFriends = loadedFriends.filter(friend => !blockedAuthors.has(friend.riderId));
+  const sharedConversations = loadedConversations.filter(item => !blockedAuthors.has(item.friend.riderId));
   const [sharedProfiles, setSharedProfiles] = useState<Record<string, RiderProfile>>({});
   const [sharedLoading, setSharedLoading] = useState(false);
   const sharedRefreshInFlight = useRef(false);
@@ -384,25 +392,25 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       }), [viewer]);
   const savedReelPreviews = useMemo(() => {
     const available = new Map(
-      [...reelPreviews, ...liveReels.following, ...liveReels.forYou].map(reel => [reel.id, reel]),
+      [...reelPreviews, ...liveReels.following, ...liveReels.forYou].filter(isVisible).map(reel => [reel.id, reel]),
     );
     return [...savedReelIds].reverse().flatMap(id => {
       const reel = available.get(id);
       return reel ? [reel] : [];
     });
-  }, [liveReels.following, liveReels.forYou, reelPreviews, savedReelIds]);
+  }, [liveReels.following, liveReels.forYou, reelPreviews, savedReelIds, isVisible]);
   // Deep-linking from Saved puts the selected eligible Reel first for that
   // viewing session. A pixel scroll on the first WebKit layout is unreliable
   // and can clamp to zero before the virtualised content has sized itself.
   const viewingReelPreviews = useMemo(() => {
-    const all = [...liveReels.forYou, ...reelPreviews];
+    const all = [...liveReels.forYou, ...reelPreviews].filter(isVisible);
     if (!reelStartId) return all;
     const selected = all.find(reel => reel.id === reelStartId) ??
-      liveReels.following.find(reel => reel.id === reelStartId);
+      liveReels.following.find(reel => reel.id === reelStartId && isVisible(reel));
     return selected
       ? [selected, ...all.filter(reel => reel.id !== reelStartId)]
       : all;
-  }, [liveReels.following, liveReels.forYou, reelPreviews, reelStartId]);
+  }, [liveReels.following, liveReels.forYou, reelPreviews, reelStartId, isVisible]);
   const recommendedClubs = useMemo(() =>
     rankClubs(clubCandidates, viewer).flatMap(({item}) => {
       const club = demoClubs.find((c) => c.id === item.id);
@@ -517,6 +525,19 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     setNotice(null);
   }
 
+
+  function removeFromSocial(postId: string, authorId: string, why: PostAction) {
+    setRemovedPosts(current => new Set(current).add(postId));
+    if (why === 'blocked') setBlockedAuthors(current => new Set(current).add(authorId));
+    setSavedReelIds(current => {
+      const next = new Set(current);
+      next.delete(postId);
+      return next;
+    });
+    if (why === 'deleted' && screen !== 'Profile') {
+      setOwnPostCount(count => count === null ? null : Math.max(0, count - 1));
+    }
+  }
 
   function banner(message: string) {
     setNotice(message);
@@ -663,9 +684,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       {!socialFixturesEnabled ? <>
         <LiveFeed client={client} riderId={identity.riderId} scope="for-you" refreshKey={feedRefresh}
           onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }} onNotice={banner}
+          onRemoved={removeFromSocial} isVisible={isVisible}
           empty={<>
             <RiderBrandFeed onOpen={() => setBrandPageOpen(true)} />
-            <HomeEmpty live={liveSocial}
+            <HomeEmpty live={publishingAllowed}
               onCreate={() => { setCreateMode('Post'); navigate('Create'); }}
               onReels={() => navigate('Reels')}
               onMessages={() => navigate('Messages')}/>
@@ -850,15 +872,15 @@ function AuthenticatedSocialApp(): React.JSX.Element {
     return (
       <View style={{ gap: 16 }}>
         <ProfileSummary accountProfile={ownProfile} tab={profileTab} username={identity.username}
-          postCount={liveSocial ? ownPostCount : 0}
+          postCount={socialFixturesEnabled ? 0 : ownPostCount}
           friendCount={sharedFriends.length}
           followingCount={socialFixturesEnabled ? [...followed].filter(id => Boolean(demoCreators[id])).length : undefined}
           onTab={setProfileTab} onConnections={setConnectionSheet} onEdit={() => setProfileEditor(true)}
           onSettings={() => { setNotice(null); setSettingsPage('overview'); }}/>
-        {profileTab === 'Posts' && liveSocial ? <OwnPosts client={client} riderId={identity.riderId} refreshKey={feedRefresh}
-          onCount={setOwnPostCount} onNotice={banner} onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }}
+        {profileTab === 'Posts' && !socialFixturesEnabled ? <OwnPosts client={client} riderId={identity.riderId} refreshKey={feedRefresh}
+          canPublish={publishingAllowed} onDeleted={removeFromSocial} onCount={setOwnPostCount} onNotice={banner} onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }}
           onCreate={() => { navigate('Create'); setCreateMode('Post'); }}/> : null}
-        {profileTab === 'Posts' && !liveSocial ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
+        {profileTab === 'Posts' && socialFixturesEnabled ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
           <Ionicons name="images-outline" size={33} color={C.accent}/>
           <Text style={s.cardHeading}>Your posts will appear here</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Create first post" style={s.cta}
@@ -866,10 +888,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Text style={s.ctaText}>Create post</Text>
           </Pressable>
         </View> : null}
-        {profileTab === 'Reels' && liveSocial ? <OwnPosts client={client} riderId={identity.riderId} refreshKey={feedRefresh}
-          only="reel" onNotice={banner} onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }}
+        {profileTab === 'Reels' && !socialFixturesEnabled ? <OwnPosts client={client} riderId={identity.riderId} refreshKey={feedRefresh}
+          canPublish={publishingAllowed} onDeleted={removeFromSocial} onCount={setOwnPostCount} only="reel" onNotice={banner} onOpenReel={(id) => { setReelStartId(id); navigate('Reels'); }}
           onCreate={() => { navigate('Create'); setCreateMode('Reel'); }}/> : null}
-        {profileTab === 'Reels' && !liveSocial ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
+        {profileTab === 'Reels' && socialFixturesEnabled ? <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
           <Ionicons name="play-circle-outline" size={33} color={C.accent}/>
           <Text style={s.cardHeading}>Your Reels will appear here</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Create first Reel" style={s.cta}
@@ -960,7 +982,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <IconButton name="person-circle-outline" label="Open profile" onPress={() => navigate('Profile')} />
           </View>
         </View> : null}
-        {notice && screen !== 'Reels' ? (
+        {notice ? (
           <Pressable style={s.notice} accessibilityRole="button" accessibilityLabel="Dismiss notice" onPress={() => setNotice(null)}>
             <View style={s.rowBetween}><Text style={[s.body, { color: C.ink, flex: 1 }]}>{notice}</Text><Ionicons name="close" size={17} color={C.accent} /></View>
           </Pressable>
@@ -991,7 +1013,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
                     if (publishedNotice.current) banner(publishedNotice.current);
                     publishedNotice.current = null;
                   }}
-                  onPublish={liveSocial && canPublish(access) ? async (draft, progress) => {
+                  onPublish={publishingAllowed ? async (draft, progress) => {
                     await publishDraft(client, draft, prepareMediaForUpload, progress);
                     setFeedRefresh(n => n + 1);
                     publishedNotice.current = draft.mode === 'Reel' ? 'Your Reel is live.' : 'Your post is live.';
@@ -1001,7 +1023,8 @@ function AuthenticatedSocialApp(): React.JSX.Element {
               <View testID="fixed-reels-screen" style={{ flex: 1, minHeight: 0, width: '100%', backgroundColor: '#020406' }}>
                 {liveReels.loading && !reelStartId ?
                   <ActivityIndicator accessibilityLabel="Loading Reels" color={C.accent}
-                    style={{ flex: 1 }}/> : <ReelsScreen items={viewingReelPreviews} followingItems={[...liveReels.following, ...followingReelPreviews]}
+                    style={{ flex: 1 }}/> : <ReelsScreen items={viewingReelPreviews} followingItems={[...liveReels.following, ...followingReelPreviews].filter(isVisible)}
+                  riderId={identity.riderId} client={client} onRemoved={removeFromSocial} onNotice={banner}
                   initialReelId={reelStartId} followedAuthors={followed}
                   savedReelIds={savedReelIds} onToggleSavedReel={(id) => toggle(setSavedReelIds, id)}
                   onToggleFollow={toggleFollow}
