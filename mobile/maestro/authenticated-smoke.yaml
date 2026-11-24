@@ -107,7 +107,7 @@ appId: com.ridercomms.app
           timeout: 10000
 # No tab bar: the map's Where to drawer holds search and Home, Work and
 # Petrol; Ride, Friends, Routes and Settings are in the menu behind the
-# rider's avatar, and each page has a back arrow to the map.
+# rider's avatar. A page opened from the menu goes back to the menu.
 - extendedWaitUntil:
     visible:
       id: drawer-home
@@ -163,28 +163,34 @@ appId: com.ridercomms.app
           optional: true
       - extendedWaitUntil:
           visible:
-            id: open-menu
+            id: close-menu
           timeout: 8000
+- waitForAnimationToEnd
+# The menu is open again: Friends is one tap away.
 - retry:
     maxRetries: 3
     commands:
-      - tapOn:
-          id: open-menu
-          optional: true
+      - runFlow:
+          when:
+            visible:
+              id: open-menu
+          commands:
+            - tapOn:
+                id: open-menu
       - tapOn: "Friends(,.*)?"
       - extendedWaitUntil:
-          visible: "Back to map"
+          visible: "Back to menu(,.*)?"
           timeout: 8000
 - takeScreenshot: authenticated-friends
 - retry:
     maxRetries: 3
     commands:
       - tapOn:
-          text: "Back to map"
+          text: "Back to menu(,.*)?"
           optional: true
       - extendedWaitUntil:
           visible:
-            id: open-menu
+            id: close-menu
           timeout: 8000
 # The premium menu scrolls on small phones. "Settings" can be below the
 # fold even while the Menu is fully open. Check the stable close control as
@@ -236,18 +242,25 @@ appId: com.ridercomms.app
 - tapOn: "Signed-in devices(,.*)?"
 - waitForAnimationToEnd
 - takeScreenshot: authenticated-devices
-# The X closes every Settings level at once; back again returns to the map.
-# A tap that lands mid-transition can leave one level open (an iOS run
-# stopped on Account and login), so go back until the map's menu shows.
+# The X closes every Settings level at once; back again returns to the menu
+# Settings was opened from, and closing that shows the map. A tap that lands
+# mid-transition can leave one level open (an iOS run stopped on Account and
+# login), so go back, or close the menu, until the map's menu button shows.
 - tapOn: "Close settings"
 - waitForAnimationToEnd
 - repeat:
     while:
       notVisible:
         id: open-menu
-    times: 4
+    times: 5
     commands:
-      - tapOn: "Go back"
+      - tapOn:
+          text: "Go back"
+          optional: true
+      - waitForAnimationToEnd
+      - tapOn:
+          id: close-menu
+          optional: true
       - waitForAnimationToEnd
 # The profile and the plan each have one home in the menu.
 - retry:
@@ -270,7 +283,7 @@ appId: com.ridercomms.app
           optional: true
       - extendedWaitUntil:
           visible:
-            id: open-menu
+            id: close-menu
           timeout: 10000
 # "Your plan" is in the second group of the premium menu. On short
 # Android/iOS viewports it is below the fold, so opening the menu is not

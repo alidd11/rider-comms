@@ -42,9 +42,11 @@ export type TabParamList = {
     label?: string;
     /** Select a complete editorial itinerary for Rider Comms turn-by-turn. */
     curatedRouteId?: string;
+    /** Opened from the menu: back goes to the menu, not the bare map. */
+    fromMenu?: boolean;
   } | undefined;
   GroupRide: undefined;
-  Friends: undefined;
+  Friends: { fromMenu?: boolean } | undefined;
 };
 
 export type RootStackParamList = {

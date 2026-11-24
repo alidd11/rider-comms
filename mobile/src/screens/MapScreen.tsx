@@ -944,7 +944,16 @@ export function MapScreen(): React.JSX.Element {
         </View>
       ) : (
         <View style={styles.hostFill}>
-          <HostPanel inviteCode={inviteCode} onBack={() => navigation.setParams({ segment: 'public', at: Date.now() })} />
+          <HostPanel
+            inviteCode={inviteCode}
+            backToMenu={route.params?.fromMenu === true}
+            onBack={() => {
+              const toMenu = route.params?.fromMenu === true;
+              navigation.setParams({ segment: 'public', at: Date.now(), fromMenu: undefined });
+              // Opened from the menu: go back to it, over the map.
+              if (toMenu) rootNavigation?.navigate('Menu');
+            }}
+          />
         </View>
       )}
 
