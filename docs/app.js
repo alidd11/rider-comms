@@ -9565,7 +9565,7 @@
       $('#appMenu > *').forEach((child) => observer.observe(child));
     }
     $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('myProfile'); });
-    $('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
+    $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       navigate(button.dataset.menuNav);
     }));
@@ -9573,11 +9573,11 @@
       closeAppMenu({ restoreFocus: false });
       window.open(RIDER_SOCIAL_URL, '_blank', 'noopener');
     });
-    $('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
+    $$('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       openSheet(button.dataset.menuSheet);
     }));
-    $('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
+    $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
     initMapDrawer();
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
@@ -9622,7 +9622,7 @@
     });
     const syncRideCodeSlots = () => {
       const code = $('#rideCode').value;
-      $('#rideCodeSlots span').forEach((slot, index) => {
+      $$('#rideCodeSlots span').forEach((slot, index) => {
         slot.textContent = code[index] || '·';
         slot.classList.toggle('filled', Boolean(code[index]));
         slot.classList.toggle('active', index === code.length && code.length < 6);
@@ -9762,7 +9762,7 @@
       sendFriendRequest(input);
       $('#friendId').value = '';
     });
-    $('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
+    $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
     const openHazardReport = () => {
       pendingHazardReportPosition = null;
@@ -9785,7 +9785,7 @@
         return;
       }
       if (event.key !== 'Tab') return;
-      const focusable = $('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]', $('.sheet'));
+      const focusable = $$('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]', $('.sheet'));
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
