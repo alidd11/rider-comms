@@ -368,6 +368,8 @@ test('a toll toggle before its saved list loads cannot overwrite stored exemptio
     ? new Promise<string | null>(resolve => { finishRead = resolve; })
     : originalGet(storageKey));
   const writeSpy = jest.spyOn(AsyncStorage, 'setItem');
+  // The storage mock is already a jest.fn, so drop the seeding write above.
+  writeSpy.mockClear();
   try {
     const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile()) });
     await waitFor(() => expect(result.current.loaded).toBe(true));

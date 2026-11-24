@@ -130,7 +130,12 @@ export function screenReviewedRoadGates(
       const gateFrom = orientation(from, to, gate.start);
       const gateTo = orientation(from, to, gate.end);
       // Touching, grazing or collinear geometry is not strong route evidence.
-      if ([sideFrom, sideTo, gateFrom, gateTo].some(value => Math.abs(value) < 1e-12)) {
+      // A point only touches when it is on the other segment itself, not just
+      // on the line through it, which a noncrossing route can easily be.
+      const touches = (value: number, a: RoutePosition, b: RoutePosition, point: RoutePosition) =>
+        Math.abs(value) < 1e-12 && boxesOverlap(a, b, point, point);
+      if (touches(sideFrom, gate.start, gate.end, from) || touches(sideTo, gate.start, gate.end, to)
+        || touches(gateFrom, from, to, gate.start) || touches(gateTo, from, to, gate.end)) {
         ambiguous = true;
         continue;
       }

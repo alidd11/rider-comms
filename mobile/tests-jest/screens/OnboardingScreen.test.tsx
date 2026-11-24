@@ -4,7 +4,6 @@ import * as Location from 'expo-location';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { OnboardingScreen, ONBOARDING_COMPLETED_KEY } from '../../src/screens/OnboardingScreen';
-import { ONBOARDING_LOCATION_PERMISSION_WAIT_MS } from '../../src/screens/onboardingLocationPermission';
 
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(),
