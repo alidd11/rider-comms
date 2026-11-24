@@ -22,6 +22,11 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../map-lab/index.html');
 const js = read('../map-lab/preview.mjs');
 const css = read('../map-lab/preview.css');
+assert.equal(js, read('../docs/map-beta/preview.mjs'), 'Both beta preview renderer sources must stay in sync');
+assert.match(html, /id="retryMapTiles"/, 'The experimental map must offer explicit tile retry');
+assert.match(js, /retryButton\.addEventListener\('click', \(\) => setTheme\(currentTheme\)\)/,
+  'Tile retry must reload the current theme without using rider or Google data');
+assert.match(js, /retryButton\.disabled = true/, 'A failed map engine load must disable its retry control');
 
 assert.equal(RIDER_MAPS_RELEASED, false, 'Map-lab must not be released');
 assert.deepEqual(Object.keys(MAP_STYLE_URLS), ['day', 'night']);

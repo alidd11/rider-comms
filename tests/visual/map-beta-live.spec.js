@@ -25,6 +25,7 @@ test('Rider Comms Maps beta renders real tiles and captures day/night screenshot
 
   await expect(status).toHaveAttribute('data-load-state', 'loaded', { timeout: 45000 });
   await expect(canvas).toBeVisible();
+  await expect(map.locator('#retryMapTiles')).toBeVisible();
   expect(tileResponses.length).toBeGreaterThan(0);
   const geometry = await canvas.evaluate((el) => ({ width: el.width, height: el.height }));
   expect(geometry.width).toBeGreaterThan(0);

@@ -31,6 +31,7 @@ const dayButton = document.getElementById('dayStyle');
 const nightButton = document.getElementById('nightStyle');
 const resetButton = document.getElementById('resetCamera');
 const demoOverlayButton = document.getElementById('demoOverlay');
+const retryButton = document.getElementById('retryMapTiles');
 
 // This UI is a fixed, synthetic lane diagram. It is deliberately independent
 // from the real map and cannot provide legal permission or navigation advice.
@@ -91,6 +92,7 @@ async function startPreview() {
     const { Map, NavigationControl, ScaleControl } = await import('https://unpkg.com/maplibre-gl@6.17.0/dist/maplibre-gl.mjs');
     let overlayVisible = false;
     let mapHasErrors = false;
+    let currentTheme = 'day';
     const demoSourceId = 'rider-maps-synthetic-line';
     const map = new Map({
       container: 'map',
@@ -130,6 +132,7 @@ async function startPreview() {
       }
     });
     function setTheme(mode) {
+      currentTheme = mode;
       applyButtonState(mode);
       mapHasErrors = false;
       watchForLoading('Loading ' + mode + ' basemap…');
@@ -137,6 +140,9 @@ async function startPreview() {
     }
     dayButton.addEventListener('click', () => setTheme('day'));
     nightButton.addEventListener('click', () => setTheme('night'));
+    // A transient tile/CDN failure can leave the status in error or stalled.
+    // Retrying the selected style is explicit and never requests rider data.
+    retryButton.addEventListener('click', () => setTheme(currentTheme));
     demoOverlayButton.addEventListener('click', () => {
       overlayVisible = !overlayVisible;
       demoOverlayButton.setAttribute('aria-pressed', String(overlayVisible));
@@ -167,6 +173,7 @@ async function startPreview() {
     nightButton.disabled = true;
     resetButton.disabled = true;
     demoOverlayButton.disabled = true;
+    retryButton.disabled = true;
   }
 }
 
