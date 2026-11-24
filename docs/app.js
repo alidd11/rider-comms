@@ -9503,14 +9503,27 @@
       await apiFetch('GET', '/social/bootstrap');
       if (check !== socialAccessCheck || session?.token !== token) return;
       socialAllowedToken = token;
-      if (!$('#appMenu').hidden) entry.hidden = false;
+      if (!$('#appMenu').hidden) {
+        entry.hidden = false;
+        requestAnimationFrame(syncAppMenuScrollability);
+      }
     } catch (error) {
       // A refusal from the server hides it; a lost connection keeps the last answer.
       if (check === socialAccessCheck && error instanceof ApiError && error.status > 0) {
         socialAllowedToken = null;
         entry.hidden = true;
+        requestAnimationFrame(syncAppMenuScrollability);
       }
     }
+  }
+
+  function syncAppMenuScrollability() {
+    const menu = $('#appMenu');
+    if (menu.hidden) return;
+    // Decide from actual content height, never just an assumed device model:
+    // short screens and enlarged text must keep every destination reachable.
+    menu.classList.remove('app-menu-needs-scroll');
+    menu.classList.toggle('app-menu-needs-scroll', menu.scrollHeight > menu.clientHeight + 2);
   }
 
   function openAppMenu() {
@@ -9524,6 +9537,8 @@
     void showSocialEntryIfAllowed();
     pushOverlayGuard();
     $('#appMenu').hidden = false;
+    $('#appMenu').scrollTop = 0;
+    requestAnimationFrame(syncAppMenuScrollability);
     $('#app')?.setAttribute('inert', '');
     document.documentElement.classList.add('app-menu-open');
     $('#closeAppMenu').focus({ preventScroll: true });
@@ -9532,6 +9547,7 @@
   function closeAppMenu({ restoreFocus = true } = {}) {
     if ($('#appMenu').hidden) return;
     $('#appMenu').hidden = true;
+    $('#appMenu').classList.remove('app-menu-needs-scroll');
     $('#app')?.removeAttribute('inert');
     document.documentElement.classList.remove('app-menu-open');
     if (restoreFocus) appMenuTrigger?.focus?.();
@@ -9542,6 +9558,17 @@
     $('#mapAvatarButton').addEventListener('click', openAppMenu);
     $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
     $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
+    window.addEventListener('resize', () => {
+      if (!$('#appMenu').hidden) requestAnimationFrame(syncAppMenuScrollability);
+    });
+    // Account entitlement and dynamic font/layout changes can alter the
+    // number or height of rows without a viewport resize.
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => {
+        if (!$('#appMenu').hidden) requestAnimationFrame(syncAppMenuScrollability);
+      });
+      $$('#appMenu > *').forEach((child) => observer.observe(child));
+    }
     $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('myProfile'); });
     $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
