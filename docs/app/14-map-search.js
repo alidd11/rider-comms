@@ -44,6 +44,7 @@
   // fallback layers stay hidden) — this is the officially documented hook
   // for exactly that case (window.gm_authFailure).
   function handleGoogleMapsFailure() {
+    hideLaunchSplash();
     usingFallbackMap = true;
     $('#googleMap').hidden = true;
     $('#fallbackMap').hidden = false;
@@ -83,6 +84,7 @@
       // env var is unset, not just occasional outages, so it needs to be
       // loud and specific.
       console.warn('[rider-comms] Google Maps API key missing (neither RIDER_COMMS_CONFIG nor the backend /config endpoint has one) — falling back to the offline map.');
+      hideLaunchSplash();
       $('#mapError').hidden = true;
       renderMapStatus();
       disablePlaceSearch();

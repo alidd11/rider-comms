@@ -109,6 +109,9 @@
       });
     }
     usingFallbackMap = false;
+    // Keep the start-up splash up until the first map tiles have drawn.
+    if (google.maps.event?.addListenerOnce) google.maps.event.addListenerOnce(map, 'tilesloaded', hideLaunchSplash);
+    else hideLaunchSplash();
     $('#fallbackMap').hidden = true;
     $('#fallbackMarkers').hidden = true;
     $('#hazardMarkers').hidden = true;
@@ -490,3 +493,4 @@
   const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
 
   let authSplashTimer;
+  let launchSplashTimer;

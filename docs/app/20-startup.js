@@ -22,6 +22,9 @@
     } else {
       navigate(location.hash.slice(1) || state.screen || 'map', false);
     }
+    // A slow map never holds the rider on the splash for long.
+    clearTimeout(launchSplashTimer);
+    launchSplashTimer = setTimeout(hideLaunchSplash, 4000);
     loadGoogleMaps();
     registerServiceWorker();
     void syncPushSubscription();
@@ -67,6 +70,8 @@
   }
 
   async function init() {
+    // Last resort if start-up stalls before it reaches a screen.
+    launchSplashTimer = setTimeout(hideLaunchSplash, 12000);
     const passwordResetToken = consumePasswordResetLink();
     if (passwordResetToken) {
       wireAuthForms(passwordResetToken);
