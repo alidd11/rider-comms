@@ -27,6 +27,7 @@ import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, NAVIGATION_SUMMARY_BASE_HEIGHT, s
 import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
+import { LaunchCover } from './LaunchCover';
 import { HostPanel } from '../ride/HostPanel';
 import { parseRideInviteLink } from '../ride/rideInvite';
 import { useSettings } from '../settings/SettingsContext';
@@ -1278,6 +1279,7 @@ export function MapScreen(): React.JSX.Element {
           </View>
         ) : undefined}
       />
+      <LaunchCover mapReady={mapReady} hasFix={Boolean(currentLocation)} />
     </View>
   );
 }
