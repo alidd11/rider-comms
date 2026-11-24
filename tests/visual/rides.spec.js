@@ -639,3 +639,37 @@ test('PWA sends its low battery with the ride position and says once when anothe
   await expect.poll(() => uploads.length, { timeout: 20_000 }).toBeGreaterThan(1);
   expect((await page.evaluate(() => window.__spoken)).filter((text) => text.includes('battery'))).toHaveLength(1);
 });
+
+test('Ride cockpit keeps join, host and invite-code entry clear on mobile', async ({ page }, testInfo) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => (
+    url.pathname === '/rides/current' ? { body: { ride: null } } : null
+  ));
+  await page.goto('/');
+  await openTab(page, 'ride');
+  await expect(page.locator('#rideJoinState')).toBeVisible();
+  await expect(page.locator('.ride-hero-content')).toContainText('Ride with your crew.');
+  await expect(page.locator('.ride-entry-kicker')).toHaveText(['01 / JOIN', '02 / HOST']);
+  await expect(page.locator('#joinRideForm')).toBeVisible();
+  await expect(page.locator('#createRideBtn')).toBeVisible();
+  await expect(page.locator('#rideCodeSlots span')).toHaveCount(6);
+  await page.locator('#rideCode').fill('ABC234');
+  await expect(page.locator('#joinRideForm button[type="submit"]')).toBeEnabled();
+  if (testInfo.project.name === 'iphone-17-pro-max-webkit') {
+    await page.screenshot({ path: testInfo.outputPath('ride-cockpit-join-host.png'), fullPage: true });
+  }
+});
+
+test('Ride cockpit discloses consent state without implying location is shared', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => (
+    url.pathname === '/rides/current' ? { body: { ride: {
+      rideId: 'ride-cockpit-a', code: 'ABCDEF', createdBy: RIDER_ID,
+      memberIds: [RIDER_ID], shareRideLocation: false,
+    } } } : null
+  ));
+  await page.goto('/#ride');
+  await expect(page.locator('#rideActiveState')).toBeVisible();
+  await expect(page.locator('.ride-location-badge-off')).toBeVisible();
+  await expect(page.locator('.ride-location-badge-on')).toBeHidden();
+  await expect(page.locator('#activeRideLocationConsent')).not.toBeChecked();
+  await expect(page.locator('.ride-ticket-note')).toContainText('Only share this invite');
+});
