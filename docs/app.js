@@ -906,6 +906,9 @@
     if (screen === 'friends') loadFriendsData();
     if (screen === 'ride') refreshActiveRide();
     if (screen === 'settings') renderSettingsList();
+    // Leaving the page another way forgets that it came from the menu.
+    if (screenOpenedFromMenu !== null && screen !== screenOpenedFromMenu) setScreenOpenedFromMenu(null);
+    if (screen === 'map') reopenMenuIfDue();
   }
 
   window.addEventListener('rider-comms:navigate-to', (event) => {
@@ -4140,6 +4143,15 @@
 
   function closeSheet() {
     activeFriendProfileRiderId = null;
+    if (sheetOpenedFromMenu) {
+      sheetOpenedFromMenu = false;
+      // Back on the map, the menu the sheet came from reappears, unless
+      // closing it opened something else.
+      if (state.screen === 'map') {
+        reopenMenuOnMap = true;
+        queueMicrotask(reopenMenuIfDue);
+      }
+    }
     const trigger = lastSheetTrigger;
     $('#sheetBackdrop').hidden = true;
     $('#sheetBackdrop').classList.remove('settings-page-mode', 'settings-full-bleed');
@@ -9522,6 +9534,27 @@
     }
   }
 
+  let screenOpenedFromMenu = null;
+  let reopenMenuOnMap = false;
+  let sheetOpenedFromMenu = false;
+
+  function setScreenOpenedFromMenu(screen) {
+    screenOpenedFromMenu = screen;
+    const label = screen ? 'Back to menu' : 'Back to map';
+    $$('[data-back-to-map]').forEach((button) => button.setAttribute('aria-label', label));
+  }
+
+  /** After going back from a page or sheet opened from the menu, show the menu again. */
+  function reopenMenuIfDue() {
+    if (!reopenMenuOnMap || state.screen !== 'map') return;
+    reopenMenuOnMap = false;
+    requestAnimationFrame(() => {
+      // Never while riding: the menu would only answer with the safety notice.
+      if (window.RiderMovementSafety.isLockedForSafety(movementState)) return;
+      if (state.screen === 'map' && $('#appMenu').hidden && $('#sheetBackdrop').hidden) openAppMenu();
+    });
+  }
+
   function syncAppMenuScrollability() {
     const menu = $('#appMenu');
     if (menu.hidden) return;
@@ -9578,6 +9611,8 @@
     $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       navigate(button.dataset.menuNav);
+      // A page opened from the menu goes back to the menu, not the bare map.
+      if (state.screen === button.dataset.menuNav) setScreenOpenedFromMenu(state.screen);
     }));
     $('#appMenuSocial').addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
@@ -9586,8 +9621,17 @@
     $$('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       openSheet(button.dataset.menuSheet);
+      sheetOpenedFromMenu = true;
     }));
-    $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
+    $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => {
+      const backToMenu = screenOpenedFromMenu !== null && screenOpenedFromMenu === state.screen;
+      setScreenOpenedFromMenu(null);
+      if (!backToMenu) return navigate('map');
+      // navigate() may step back through history; the map's render reopens the menu.
+      reopenMenuOnMap = true;
+      navigate('map');
+      reopenMenuIfDue();
+    }));
     initMapDrawer();
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
