@@ -130,7 +130,7 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="View profile"
-              onPress={() => navigation.replace('SettingsPage', { page: 'myProfile' })}
+              onPress={() => navigation.navigate('SettingsPage', { page: 'myProfile' })}
               style={({ pressed }) => [styles.profileButton, pressed && styles.rowPressed]}
             >
               <Text style={styles.profileButtonText}>View profile</Text>
@@ -155,17 +155,17 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
         <View style={styles.navigationSections}>
           <View>
             <Text style={styles.groupTitle} accessibilityRole="header">Ride &amp; explore</Text>
-            <MenuRow icon="bicycle-outline" label="Ride" detail={activeRide ? 'Live' : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Map', params: { segment: 'host', at: Date.now() } })} />
-            <MenuRow icon="people-outline" label="Friends" detail={friendsCount > 0 ? `${friendsCount > 99 ? '99+' : friendsCount} new` : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Friends' })} />
-            <MenuRow icon="flag-outline" label="Routes" onPress={() => navigation.replace('Routes')} />
+            <MenuRow icon="bicycle-outline" label="Ride" detail={activeRide ? 'Live' : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Map', params: { segment: 'host', at: Date.now(), fromMenu: true } })} />
+            <MenuRow icon="people-outline" label="Friends" detail={friendsCount > 0 ? `${friendsCount > 99 ? '99+' : friendsCount} new` : undefined} onPress={() => navigation.navigate('Tabs', { screen: 'Friends', params: { fromMenu: true } })} />
+            <MenuRow icon="flag-outline" label="Routes" onPress={() => navigation.navigate('Routes')} />
             {socialAllowed ? <MenuRow icon="camera-outline" label="Rider Social" detail="Beta" onPress={() => void Linking.openURL(RIDER_SOCIAL_URL)} /> : null}
           </View>
 
           <View style={styles.accountGroup}>
             <Text style={styles.groupTitle} accessibilityRole="header">Account &amp; support</Text>
-            <MenuRow icon="card-outline" label="Your plan" detail={PLAN_INFO[zoneTier].name} onPress={() => navigation.replace('Billing')} />
-            <MenuRow icon="settings-outline" label="Settings" onPress={() => navigation.replace('Settings')} />
-            <MenuRow icon="help-circle-outline" label="Help & Support" onPress={() => navigation.replace('SettingsPage', { page: 'help' })} />
+            <MenuRow icon="card-outline" label="Your plan" detail={PLAN_INFO[zoneTier].name} onPress={() => navigation.navigate('Billing')} />
+            <MenuRow icon="settings-outline" label="Settings" onPress={() => navigation.navigate('Settings')} />
+            <MenuRow icon="help-circle-outline" label="Help & Support" onPress={() => navigation.navigate('SettingsPage', { page: 'help' })} />
           </View>
         </View>
 

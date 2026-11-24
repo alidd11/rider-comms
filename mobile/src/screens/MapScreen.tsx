@@ -27,6 +27,7 @@ import { BOTTOM_BAR_HEIGHT, HUD_ACTION_HEIGHT, NAVIGATION_SUMMARY_BASE_HEIGHT, s
 import { RideBar } from '../ride/RideBar';
 import { useRide } from '../ride/RideContext';
 import { ProximityVoice } from '../voice/ProximityVoice';
+import { LaunchCover } from './LaunchCover';
 import { HostPanel } from '../ride/HostPanel';
 import { parseRideInviteLink } from '../ride/rideInvite';
 import { useSettings } from '../settings/SettingsContext';
@@ -944,7 +945,16 @@ export function MapScreen(): React.JSX.Element {
         </View>
       ) : (
         <View style={styles.hostFill}>
-          <HostPanel inviteCode={inviteCode} onBack={() => navigation.setParams({ segment: 'public', at: Date.now() })} />
+          <HostPanel
+            inviteCode={inviteCode}
+            backToMenu={route.params?.fromMenu === true}
+            onBack={() => {
+              const toMenu = route.params?.fromMenu === true;
+              navigation.setParams({ segment: 'public', at: Date.now(), fromMenu: undefined });
+              // Opened from the menu: go back to it, over the map.
+              if (toMenu) rootNavigation?.navigate('Menu');
+            }}
+          />
         </View>
       )}
 
@@ -1278,6 +1288,7 @@ export function MapScreen(): React.JSX.Element {
           </View>
         ) : undefined}
       />
+      <LaunchCover mapReady={mapReady} hasFix={Boolean(currentLocation)} />
     </View>
   );
 }
