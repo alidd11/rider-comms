@@ -152,6 +152,8 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('POST', '/admin/alerts', 'Staff dashboard', 'staff', 'Turn your morning summary and urgent-case emails on or off'),
   e('GET', '/admin/broadcasts', 'Staff dashboard', 'staff', 'Push notifications sent to riders, and how many riders one would reach now', { permission: 'send_notifications' }),
   e('POST', '/admin/broadcasts', 'Staff dashboard', 'staff', 'Send a push notification to every rider who allows updates, or a test to yourself', { permission: 'send_notifications', reauth: true }),
+  e('GET', '/admin/switches', 'Staff dashboard', 'staff', 'Whether sign-ups, Social posting and Nearby Voice are on, and who last changed each', { permission: 'manage_switches' }),
+  e('POST', '/admin/switches/{key}', 'Staff dashboard', 'staff', 'Pause or resume sign-ups, Social posting or Nearby Voice for every rider, with a note for the audit log', { permission: 'manage_switches', reauth: true }),
   e('GET', '/admin/content', 'Staff dashboard', 'staff', 'Hazards and rider-made scenic routes, for review', { permission: 'moderate' }),
   e('POST', '/admin/content/{kind}/{id}/remove', 'Staff dashboard', 'staff', 'Remove a hazard or scenic route with a note for the audit log', { permission: 'moderate', reauth: true }),
   e('GET', '/admin/overview', 'Staff dashboard', 'staff', 'Business overview', { permission: 'view_overview' }),

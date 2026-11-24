@@ -738,6 +738,10 @@
       if (currentVoiceTarget() !== requestedTarget) return;
 
       if (kind === 'channel') {
+        // Staff can pause Nearby Voice for everyone; say so once rather than
+        // leave the rider thinking nobody is in range.
+        if (response.paused === true && !nearbyVoicePausedNoticeShown) showToast('Nearby Voice is paused right now. Riders nearby still show on the map.');
+        nearbyVoicePausedNoticeShown = response.paused === true;
         renewPublicVoiceAuthorizationLease(response.authorizationLeaseMs);
         schedulePublicVoiceRefresh(response.refreshAfterMs);
         const enteringChannel = voiceTargetKey !== 'channel';

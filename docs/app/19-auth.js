@@ -104,6 +104,7 @@
     timed_out: 'The request timed out. Check your connection and try again.',
     terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
+    signups_paused: 'New accounts are paused for a short while. Try again later.',
   };
 
   function authErrorMessage(error) {

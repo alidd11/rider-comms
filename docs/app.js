@@ -4557,6 +4557,7 @@
   let publicVoiceAuthorizationLeaseTimer;
   let publicVoiceAuthorizationExpired = false;
   let publicVoiceConnectInFlight = false;
+  let nearbyVoicePausedNoticeShown = false;
   let publicVoiceRefreshPending = false;
   const DEFAULT_PUBLIC_VOICE_AUTHORIZATION_LEASE_MS = 60_000;
   const intentionalVoiceDisconnects = new WeakSet();
@@ -5305,6 +5306,10 @@
       if (currentVoiceTarget() !== requestedTarget) return;
 
       if (kind === 'channel') {
+        // Staff can pause Nearby Voice for everyone; say so once rather than
+        // leave the rider thinking nobody is in range.
+        if (response.paused === true && !nearbyVoicePausedNoticeShown) showToast('Nearby Voice is paused right now. Riders nearby still show on the map.');
+        nearbyVoicePausedNoticeShown = response.paused === true;
         renewPublicVoiceAuthorizationLease(response.authorizationLeaseMs);
         schedulePublicVoiceRefresh(response.refreshAfterMs);
         const enteringChannel = voiceTargetKey !== 'channel';
@@ -10065,6 +10070,7 @@
     timed_out: 'The request timed out. Check your connection and try again.',
     terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
+    signups_paused: 'New accounts are paused for a short while. Try again later.',
   };
 
   function authErrorMessage(error) {
