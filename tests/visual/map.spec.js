@@ -635,3 +635,35 @@ test('PWA sends a road report still waiting from when the app was last closed, t
   expect(await page.evaluate((riderId) => localStorage.getItem(`riderComms.queuedHazardReports.${riderId}`), RIDER_ID)).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem('riderComms.queuedHazardReports.rider_other'))).not.toBeNull();
 });
+
+test('PWA start-up splash covers the fallback map until the Google map has drawn', async ({ page }) => {
+  // Give the stub map Google's event API so the app can wait for tiles.
+  await page.addInitScript(() => {
+    let google;
+    Object.defineProperty(window, 'google', {
+      configurable: true,
+      get: () => google,
+      set(value) {
+        value.maps.event = { addListenerOnce: (_map, name, fn) => { if (name === 'tilesloaded') window.__riderCommsTilesLoaded = fn; } };
+        google = value;
+      },
+    });
+  });
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+  const splash = page.locator('#launchSplash');
+  await expect(splash).toBeVisible();
+  await page.waitForFunction(() => typeof window.__riderCommsTilesLoaded === 'function');
+  await expect(splash).toBeVisible();
+  await page.evaluate(() => window.__riderCommsTilesLoaded());
+  await expect(splash).toBeHidden();
+  await expect(page.locator('#app')).toBeVisible();
+});
+
+test('PWA start-up splash gives way when there is no Google map', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.route('https://maps.googleapis.com/maps/api/js**', (route) => route.abort());
+  await page.goto('/');
+  await expect(page.locator('#launchSplash')).toBeHidden();
+  await expect(page.locator('#fallbackMap')).toBeVisible();
+});
