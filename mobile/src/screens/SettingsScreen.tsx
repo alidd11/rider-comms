@@ -507,7 +507,7 @@ function VehiclePage(): React.JSX.Element {
 /** Notifications: this phone on or off, then which kinds (PWA: the same
  * page, with Web Push). */
 function NotificationsPage(): React.JSX.Element {
-  const { notifyInvites, notifyChat, setNotifyInvites, setNotifyChat } = useSettings();
+  const { notifyInvites, notifyChat, notifyUpdates, setNotifyInvites, setNotifyChat, setNotifyUpdates } = useSettings();
   const { client, riderId } = useAuth();
   const [deviceOn, setDeviceOn] = React.useState(false);
   const [permission, setPermission] = React.useState<PushPermission>('undetermined');
@@ -559,9 +559,10 @@ function NotificationsPage(): React.JSX.Element {
       <SettingsGroup note={note}>
         <SwitchRow first title="Notifications on this device" value={deviceOn} onValueChange={(next) => { if (!busy) void changeDevice(next); }} />
       </SettingsGroup>
-      <SettingsGroup title="Notify me about" note="These apply on every device where notifications are on.">
+      <SettingsGroup title="Notify me about" note="These apply on every device where notifications are on. Updates are occasional news from the Rider Comms team.">
         <SwitchRow first title="Friend requests" value={notifyInvites} onValueChange={setNotifyInvites} />
         <SwitchRow title="Messages" value={notifyChat} onValueChange={setNotifyChat} />
+        <SwitchRow title="Rider Comms updates" value={notifyUpdates} onValueChange={setNotifyUpdates} />
       </SettingsGroup>
     </>
   );
@@ -799,17 +800,31 @@ function MyProfilePage(): React.JSX.Element {
   const socialValue = (username: string, visibility: SocialVisibility) => username ? `@${username} · ${VISIBILITY_LABELS[visibility]}` : 'Add';
   return (
     <>
-      <View style={styles.myProfileHero}>
-        <RiderAvatar avatarId={avatarId} size={112} />
-        <Text numberOfLines={1} style={styles.myProfileName}>{displayName}</Text>
-        <Text numberOfLines={1} style={styles.myProfileHandle}>{handle}</Text>
-        <Text style={styles.myProfilePlan}>{PLAN_INFO[zoneTier].name} plan</Text>
-        {bio ? <Text testID="my-profile-bio" style={styles.myProfileBio}>{bio}</Text> : null}
+      <View style={styles.myProfileHero} accessibilityLabel="Your rider profile">
+        <View style={styles.myProfileIdentity}>
+          <RiderAvatar avatarId={avatarId} size={88} />
+          <View style={styles.myProfileIdentityCopy}>
+            <Text numberOfLines={2} style={styles.myProfileName}>{displayName}</Text>
+            <Text numberOfLines={1} style={styles.myProfileHandle}>{handle}</Text>
+            <Text style={styles.myProfilePlan}>{PLAN_INFO[zoneTier].name} plan</Text>
+          </View>
+        </View>
+        {bio
+          ? <Text testID="my-profile-bio" style={styles.myProfileBio}>{bio}</Text>
+          : <Text style={[styles.myProfileBio, styles.myProfileEmptyBio]}>Add a bio to introduce yourself to other riders.</Text>}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile"
+          onPress={editProfile}
+          testID="edit-profile-action"
+          style={({ pressed }) => [styles.myProfileEditAction, pressed && styles.myProfileEditActionPressed]}
+        >
+          <Ionicons name="person-outline" size={20} color={colors.accentInk} />
+          <Text style={styles.myProfileEditActionText}>Edit profile</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </Pressable>
       </View>
-      <SettingsGroup>
-        <PlainRow first title="Edit profile" onPress={editProfile} />
-      </SettingsGroup>
-      <SettingsGroup title="Connected profiles" note="This is how riders see you. Each connected profile shows only to the people you choose.">
+      <SettingsGroup title="Connected profiles" note="Your connected profiles are shown only to the people you choose.">
         <PlainRow first title="Instagram" value={socialValue(instagramUsername, instagramVisibility)} onPress={editProfile} />
         <PlainRow title="TikTok" value={socialValue(tiktokUsername, tiktokVisibility)} onPress={editProfile} />
       </SettingsGroup>

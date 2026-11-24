@@ -1279,4 +1279,47 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // Staff push notifications to every rider (admins only). Riders can turn
+    // them off in Settings (notify_updates). Each send is kept with who sent
+    // it, why, and how many devices it reached, and is in the audit log.
+    name: '0069_staff_push_broadcasts',
+    sql: `
+      ALTER TABLE rider_profiles ADD COLUMN IF NOT EXISTS notify_updates BOOLEAN NOT NULL DEFAULT TRUE;
+      CREATE TABLE IF NOT EXISTS push_broadcasts (
+        id UUID PRIMARY KEY,
+        title TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 60),
+        body TEXT NOT NULL CHECK (char_length(body) BETWEEN 1 AND 180),
+        route TEXT NOT NULL,
+        sent_by TEXT NOT NULL,
+        note TEXT NOT NULL,
+        test BOOLEAN NOT NULL DEFAULT FALSE,
+        riders INTEGER NOT NULL DEFAULT 0,
+        devices INTEGER NOT NULL DEFAULT 0,
+        delivered INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'sending' CHECK (status IN ('sending', 'sent', 'failed')),
+        created_at BIGINT NOT NULL,
+        finished_at BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS push_broadcasts_created_idx ON push_broadcasts (created_at DESC);
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset',
+          'push_broadcast'));
+    `,
+  },
+  {
+    // Staff take down rider-posted map content (hazards, scenic routes) with a
+    // note. The audit row keeps which item it was, since the item is deleted.
+    name: '0070_staff_content_removal',
+    sql: `
+      ALTER TABLE moderation_actions ADD COLUMN IF NOT EXISTS content_ref TEXT;
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset',
+          'push_broadcast', 'hazard_remove', 'scenic_route_remove'));
+    `,
+  },
 ];

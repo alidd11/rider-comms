@@ -98,17 +98,19 @@ describe('staff two-step sign-in', { skip: !hasDatabase && 'DATABASE_URL not set
     const setup = await (await call(token, '/admin/mfa/setup', {})).json() as { secret: string; uri: string };
     assert.match(setup.uri, /^otpauth:\/\/totp\//);
     assert.equal((await call(token, '/admin/mfa/confirm', { code: '000000' })).status, 401);
-    const confirmed = await call(token, '/admin/mfa/confirm', { code: totpAt(setup.secret, nowStep()) });
+    // Remember the step used: a 30-second window can roll over mid-test.
+    const step = nowStep();
+    const confirmed = await call(token, '/admin/mfa/confirm', { code: totpAt(setup.secret, step) });
     assert.equal(confirmed.status, 200);
     const { recoveryCodes } = await confirmed.json() as { recoveryCodes: string[] };
     assert.equal(recoveryCodes.length, 10);
     assert.equal((await call(token, '/admin/mfa/setup', {})).status, 409);
-    return { token, secret: setup.secret, recoveryCodes };
+    return { token, secret: setup.secret, recoveryCodes, step };
   };
 
   it('enrols, then requires a code at sign-in and on other sessions, refusing replays', async () => {
     const admin = await makeStaff('admin');
-    const { token: enrolledSession, secret, recoveryCodes } = await enrol(admin.username);
+    const { token: enrolledSession, secret, recoveryCodes, step } = await enrol(admin.username);
     // The session that set it up has passed a code already.
     assert.equal((await call(enrolledSession, '/admin/me')).status, 200);
     assert.deepEqual(await (await call(enrolledSession, '/admin/mfa')).json(), { enabled: true, recoveryCodesLeft: 10 });
@@ -118,9 +120,10 @@ describe('staff two-step sign-in', { skip: !hasDatabase && 'DATABASE_URL not set
     assert.equal(noCode.status, 401);
     assert.deepEqual(await noCode.json(), { error: 'mfa_required' });
     assert.equal((await login(admin.username, '123456')).status, 401);
-    // The code used while enrolling cannot be replayed.
-    assert.equal((await login(admin.username, totpAt(secret, nowStep()))).status, 401);
-    const next = await login(admin.username, totpAt(secret, nowStep() + 1));
+    // The code used while enrolling cannot be replayed, even inside its window.
+    assert.equal((await login(admin.username, totpAt(secret, step))).status, 401);
+    // The next step's code is accepted whether or not the window has rolled over.
+    const next = await login(admin.username, totpAt(secret, step + 1));
     assert.equal(next.status, 200);
     const fresh = (await next.json() as { token: string }).token;
     assert.equal((await call(fresh, '/admin/me')).status, 200);

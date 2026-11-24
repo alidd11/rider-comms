@@ -13,6 +13,9 @@ import type { StaffPermission } from '../staffRoles.ts';
 import { NOT_HANDLED, refuseWithoutRecentReauth, refuseWithoutStaffCode } from './context.ts';
 import { staffMfa } from '../staffMfa.ts';
 import { getStaffAlertPrefs, setStaffAlertPrefs } from '../staffAlerts.ts';
+import { BROADCAST_COOLDOWN_MS, broadcastStore, parseBroadcast } from '../staffBroadcasts.ts';
+import { CONTENT_KINDS, staffContentStore } from '../staffContentStore.ts';
+import type { ContentKind } from '../staffContentStore.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
 import { handlePartnerRoutes } from './adminPartners.ts';
 import { parseOperationsWindow, socialSafetyActivityReport } from '../operationsReports.ts';
@@ -69,6 +72,68 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   if (req.method === 'GET' && url.pathname === '/admin/me') {
     return sendJson(res, 200, { riderId: actorId, role, permissions: permissionsFor(role) });
   }
+  // Map content riders post for everyone (hazards, scenic routes). Moderators
+  // can list it and remove an item with a note, recorded in the audit log.
+  if (s[1] === 'content') {
+    if (lacks('moderate')) return refuse('moderate');
+    if (req.method === 'GET' && s.length === 2) {
+      const kind = url.searchParams.get('kind') ?? 'hazards';
+      if (!(CONTENT_KINDS as readonly string[]).includes(kind)) return sendJson(res, 400, { error: 'invalid_kind', values: CONTENT_KINDS });
+      const offset = Number(url.searchParams.get('offset') ?? 0);
+      if (!Number.isInteger(offset) || offset < 0 || offset > MAX_RIDER_OFFSET) return sendJson(res, 400, { error: 'invalid_offset' });
+      const page = kind === 'hazards'
+        ? await staffContentStore.hazards({ includeExpired: url.searchParams.get('include') === 'expired', offset })
+        : await staffContentStore.routes({ q: (url.searchParams.get('q') ?? '').slice(0, 100), offset });
+      return sendJson(res, 200, page);
+    }
+    if (req.method === 'POST' && s.length === 5 && s[4] === 'remove' && (CONTENT_KINDS as readonly string[]).includes(s[2] ?? '')) {
+      const body = await readJsonBody(req);
+      const note = typeof body.note === 'string' ? body.note.trim() : '';
+      if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+        return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+      }
+      if (await refuseWithoutRecentReauth(ctx)) return;
+      const result = await staffContentStore.remove(s[2] as ContentKind, decodeURIComponent(s[3]!), actorId, note);
+      return result.ok ? sendJson(res, 200, result) : sendJson(res, 404, { error: result.error });
+    }
+    return sendJson(res, 404, { error: 'not_found' });
+  }
+
+  // Push notifications to riders (admins only). A test goes to the sender's
+  // own devices; a send to everyone needs a note, a recent password check and
+  // waits out a cooldown, and is recorded in the audit log.
+  if (s[1] === 'broadcasts' && s.length === 2) {
+    if (lacks('send_notifications')) return refuse('send_notifications');
+    if (req.method === 'GET') {
+      const [audience, items] = await Promise.all([broadcastStore.audience(), broadcastStore.list()]);
+      return sendJson(res, 200, { audience, items, cooldownMs: BROADCAST_COOLDOWN_MS });
+    }
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'method_not_allowed' });
+    const body = await readJsonBody(req);
+    const input = parseBroadcast(body);
+    if ('error' in input) return sendJson(res, 400, input);
+    const test = body.test === true;
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!test && (!note || note.length > MAX_MODERATION_NOTE_LENGTH)) {
+      return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    if (!test && (await refuseWithoutRecentReauth(ctx))) return;
+    if (!test) {
+      const last = await broadcastStore.lastFullSendAt();
+      if (last !== null && Date.now() - last < BROADCAST_COOLDOWN_MS) {
+        return sendJson(res, 429, { error: 'broadcast_cooldown', retryAfterMs: BROADCAST_COOLDOWN_MS - (Date.now() - last) });
+      }
+    }
+    const broadcaster = ctx.pushNotifier.broadcast;
+    if (!broadcaster) return sendJson(res, 503, { error: 'push_unavailable' });
+    const record = await broadcastStore.start(input, actorId, test ? 'Test send' : note, test);
+    if (!test) await moderationStore.recordPushBroadcast(actorId, note);
+    // Sending can take a while for many devices; the page polls the list.
+    void broadcaster.call(ctx.pushNotifier, { ...input, tag: 'broadcast:' + record.id }, test ? actorId : undefined)
+      .then((result) => broadcastStore.finish(record.id, result), () => broadcastStore.finish(record.id, null));
+    return sendJson(res, 202, { broadcast: record });
+  }
+
   // Each staff member's own email alert choices; no other staff member can change them.
   if (url.pathname === '/admin/alerts') {
     if (req.method === 'GET') return sendJson(res, 200, await getStaffAlertPrefs(actorId));

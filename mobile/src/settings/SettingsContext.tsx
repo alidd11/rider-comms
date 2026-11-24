@@ -32,7 +32,7 @@ const cacheKey = (riderId: string): string => `@rider-comms/settings/profile/${r
 export type UnitSystem = 'mi' | 'km';
 const DEFAULTS: Omit<RiderProfile, 'riderId' | 'updatedAt'> = {
   zoneTier: 'free', avatarId: DEFAULT_AVATAR_ID, displayName: 'Rider', handle: '@rider', unitSystem: 'mi',
-  notifyNearby: false, notifyInvites: true, notifyChat: true, shareLocation: false,
+  notifyNearby: false, notifyInvites: true, notifyChat: true, notifyUpdates: true, shareLocation: false,
   instagramUsername: '', instagramVisibility: 'friends', tiktokUsername: '', tiktokVisibility: 'friends', bio: '',
 };
 type ProfileState = typeof DEFAULTS;
@@ -54,7 +54,7 @@ interface SettingsContextValue extends ProfileState {
   setInstagramUsername: (v: string) => void; setInstagramVisibility: (v: SocialVisibility) => void;
   setTiktokUsername: (v: string) => void; setTiktokVisibility: (v: SocialVisibility) => void;
   setBio: (v: string) => void;
-  setNotifyInvites: (v: boolean) => void; setNotifyChat: (v: boolean) => void;
+  setNotifyInvites: (v: boolean) => void; setNotifyChat: (v: boolean) => void; setNotifyUpdates: (v: boolean) => void;
   setNavigationProvider: (v: NavigationProvider) => void; setRouteAvoidance: (v: RouteAvoidance) => void; setRideSafeEnabled: (v: boolean) => void; resetAll: () => void;
   refreshProfile: () => Promise<void>;
 }
@@ -182,6 +182,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setTiktokVisibility: (v: SocialVisibility) => update('tiktokVisibility', v),
     setBio: (v: string) => update('bio', v.trim()),
     setNotifyInvites: (v: boolean) => update('notifyInvites', v), setNotifyChat: (v: boolean) => update('notifyChat', v),
+    setNotifyUpdates: (v: boolean) => update('notifyUpdates', v),
   }), [update]);
   const setNavigationProvider = React.useCallback((value: NavigationProvider) => {
     const next = parseNavigationProvider(value);

@@ -58,7 +58,7 @@ async function signIn(page) {
 }
 
 const ROLE_PERMISSIONS = {
-  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners'],
+  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications'],
   moderator: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'view_audit'],
   support: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit'],
   analyst: ['view_overview', 'view_system'],
@@ -108,6 +108,13 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     riderQueries: [],
     riderFilters: [],
     alertPrefs: { dailyDigest: false, urgentAlerts: false },
+    broadcasts: [],
+    contentQueries: [],
+    hazards: [
+      { id: 'hz-1', type: 'road_closure', lat: 51.5012, lon: -0.1419, reportedBy: 'rider_maya', createdAt: Date.now() - 600000, expiresAt: Date.now() + 3600000, confirmations: 0, denials: 3, active: true },
+      { id: 'hz-2', type: 'camera', lat: 51.6, lon: -0.2, reportedBy: 'rider_rex', createdAt: Date.now() - 7200000, expiresAt: Date.now() - 60000, confirmations: 1, denials: 0, active: false },
+    ],
+    routes: [{ id: 'rt-1', name: 'Snake Pass loop', description: '<b>Peak</b> District curves', distanceMiles: 30.4, difficulty: 'moderate', startLat: 53.43, startLon: -1.86, createdBy: 'rider_maya', createdAt: Date.now() - 86400000 }],
     reauthenticated: !reauth,
     // Each test gets its own riders, so verifying one doesn't leak into the next.
     riders: RIDERS.map((rider) => ({ ...rider })),
@@ -152,6 +159,30 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       return json(200, { verified: true });
     }
     if (url.pathname === '/admin/mfa') return json(200, { enabled: mfa, recoveryCodesLeft: mfa ? 10 : 0 });
+    if (url.pathname === '/admin/content') {
+      const kind = url.searchParams.get('kind');
+      state.contentQueries.push(url.search);
+      const items = kind === 'routes' ? state.routes : state.hazards.filter((item) => item.active || url.searchParams.get('include') === 'expired');
+      return json(200, { items, nextOffset: null });
+    }
+    const contentRemove = url.pathname.match(/^\/admin\/content\/(hazards|routes)\/([^/]+)\/remove$/);
+    if (contentRemove) {
+      state.posts.push({ path: url.pathname, body: request.postDataJSON() });
+      const list = contentRemove[1] === 'routes' ? state.routes : state.hazards;
+      list.splice(list.findIndex((item) => item.id === contentRemove[2]), 1);
+      return json(200, { ok: true });
+    }
+    if (url.pathname === '/admin/broadcasts') {
+      if (request.method() === 'POST') {
+        const body = request.postDataJSON();
+        state.posts.push({ path: url.pathname, body });
+        if (!body.test && state.broadcasts.some((item) => !item.test)) return json(429, { error: 'broadcast_cooldown' });
+        const item = { id: 'b' + state.broadcasts.length, ...body, sentBy: ADMIN_ID, note: body.note || 'Test send', test: Boolean(body.test), riders: body.test ? 1 : 12, devices: body.test ? 2 : 15, delivered: body.test ? 2 : 14, status: 'sent', createdAt: Date.now(), finishedAt: Date.now() };
+        state.broadcasts.unshift(item);
+        return json(202, { broadcast: item });
+      }
+      return json(200, { audience: { riders: 12, devices: 15 }, items: state.broadcasts, cooldownMs: 600000 });
+    }
     if (url.pathname === '/admin/alerts') {
       if (request.method() === 'POST') {
         state.alertPrefs = request.postDataJSON();
@@ -1885,7 +1916,7 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.staff-roles-details')).not.toHaveAttribute('open', '');
     await page.locator('.staff-roles-details > summary').click();
     // The Case Desk permission adds an actual row to the staff rights matrix.
-    await expect(page.locator('.matrix tbody tr')).toHaveCount(10);
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(11);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Seller and advertiser applications' })).toHaveCount(1);
     await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
@@ -2615,4 +2646,74 @@ test('a Home Screen icon saved from the dashboard at #inbox opens on Overview', 
   await expect(page.locator('.page-title')).toHaveText('Riders');
   await page.reload();
   await expect(page.locator('.page-title')).toHaveText('Riders');
+});
+
+test('notifications: an admin previews, tests, then sends to riders with a note; moderators don’t see the page', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#notifications');
+  await expect(page.locator('.page-title')).toHaveText('Notifications');
+  await expect(page.locator('.page-subtitle')).toHaveText('Reaches 12 riders on 15 devices');
+  await page.getByRole('button', { name: 'Send test to my devices' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Add a title.');
+  await page.getByLabel('Title').fill('Winter riding');
+  await page.getByLabel('Message').fill('Roads are icy this week.');
+  await page.getByLabel('Opens').selectOption('#friends');
+  const preview = page.getByLabel('Preview');
+  await expect(preview).toContainText('Winter riding');
+  await expect(preview).toContainText('Roads are icy this week.');
+  await page.getByRole('button', { name: 'Send test to my devices' }).click();
+  await expect(page.locator('.flash')).toHaveText('Test sent to your devices.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/broadcasts', body: { title: 'Winter riding', body: 'Roads are icy this week.', route: '#friends', test: true } });
+  // The test send keeps the draft.
+  await expect(page.getByLabel('Title')).toHaveValue('Winter riding');
+  await page.getByRole('button', { name: 'Send to 12 riders' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Send to 12 riders?' });
+  await expect(dialog).toContainText('15 devices');
+  await dialog.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Seasonal safety');
+  await dialog.getByRole('button', { name: 'Send now' }).click();
+  await expect(page.locator('.flash')).toHaveText('Sending to 12 riders.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/broadcasts', body: { title: 'Winter riding', body: 'Roads are icy this week.', route: '#friends', note: 'Seasonal safety' } });
+  const sent = page.locator('.broadcast-row');
+  await expect(sent).toHaveCount(2);
+  await expect(sent.first()).toContainText('14 of 15 devices');
+  await expect(sent.nth(1)).toContainText('Test');
+});
+
+test('notifications: the page and menu item are admin-only', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { role: 'moderator' });
+  await page.goto('/admin.html#notifications');
+  await expect(page.locator('.page-title')).not.toHaveText('Notifications');
+  await expect(page.locator('#nav [data-view="notifications"]')).toBeHidden();
+});
+
+test('map content: moderators review hazards and scenic routes and remove one with a note', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#content');
+  await expect(page.locator('.page-title')).toHaveText('Map content');
+  const rows = page.locator('.content-row');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Road closed');
+  await expect(rows.first()).toContainText('3 said it’s gone');
+  await expect(rows.first().locator('a.content-map-link')).toHaveAttribute('href', 'https://www.google.com/maps?q=51.50120,-0.14190');
+  await page.getByRole('checkbox', { name: 'Include expired' }).check();
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toContainText('Expired');
+  await rows.first().getByRole('button', { name: 'Remove hazard Road closed' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Remove this hazard?' });
+  await dialog.getByRole('button', { name: 'No longer there.' }).click();
+  await dialog.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.locator('.flash')).toHaveText('Hazard removed.');
+  await expect(rows).toHaveCount(1);
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/content/hazards/hz-1/remove', body: { note: 'No longer there.' } });
+
+  await page.getByRole('group', { name: 'Content type' }).getByRole('button', { name: 'Scenic routes' }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('<b>Peak</b> District curves');
+  await expect(rows.first().locator('b')).toHaveCount(0);
+  await page.getByRole('searchbox', { name: 'Search scenic routes' }).fill('snake');
+  await page.getByRole('searchbox', { name: 'Search scenic routes' }).press('Enter');
+  await expect.poll(() => state.contentQueries.at(-1)).toBe('?kind=routes&q=snake');
 });

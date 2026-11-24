@@ -116,7 +116,7 @@ for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#EF4444', '#F2802A', '#8E5
   }
 }
 assertSameOrder(
-  ['Distance units', 'Navigation app', 'Avoid motorways', 'Avoid tolls', 'Avoid ferries', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Ride Safe auto-lock',
+  ['Distance units', 'Navigation app', 'Avoid motorways', 'Avoid tolls', 'Avoid ferries', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Rider Comms updates', 'Ride Safe auto-lock',
     'Nearby rider visibility', 'Blocked riders', 'Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account'],
   pwaMapSource.slice(pwaMapSource.indexOf('generalSettings: () =>')),
   nativeSettingsSource.slice(nativeSettingsSource.indexOf('function GeneralPage(')),
