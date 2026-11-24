@@ -109,6 +109,12 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     riderFilters: [],
     alertPrefs: { dailyDigest: false, urgentAlerts: false },
     broadcasts: [],
+    contentQueries: [],
+    hazards: [
+      { id: 'hz-1', type: 'road_closure', lat: 51.5012, lon: -0.1419, reportedBy: 'rider_maya', createdAt: Date.now() - 600000, expiresAt: Date.now() + 3600000, confirmations: 0, denials: 3, active: true },
+      { id: 'hz-2', type: 'camera', lat: 51.6, lon: -0.2, reportedBy: 'rider_rex', createdAt: Date.now() - 7200000, expiresAt: Date.now() - 60000, confirmations: 1, denials: 0, active: false },
+    ],
+    routes: [{ id: 'rt-1', name: 'Snake Pass loop', description: '<b>Peak</b> District curves', distanceMiles: 30.4, difficulty: 'moderate', startLat: 53.43, startLon: -1.86, createdBy: 'rider_maya', createdAt: Date.now() - 86400000 }],
     reauthenticated: !reauth,
     // Each test gets its own riders, so verifying one doesn't leak into the next.
     riders: RIDERS.map((rider) => ({ ...rider })),
@@ -153,6 +159,19 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       return json(200, { verified: true });
     }
     if (url.pathname === '/admin/mfa') return json(200, { enabled: mfa, recoveryCodesLeft: mfa ? 10 : 0 });
+    if (url.pathname === '/admin/content') {
+      const kind = url.searchParams.get('kind');
+      state.contentQueries.push(url.search);
+      const items = kind === 'routes' ? state.routes : state.hazards.filter((item) => item.active || url.searchParams.get('include') === 'expired');
+      return json(200, { items, nextOffset: null });
+    }
+    const contentRemove = url.pathname.match(/^\/admin\/content\/(hazards|routes)\/([^/]+)\/remove$/);
+    if (contentRemove) {
+      state.posts.push({ path: url.pathname, body: request.postDataJSON() });
+      const list = contentRemove[1] === 'routes' ? state.routes : state.hazards;
+      list.splice(list.findIndex((item) => item.id === contentRemove[2]), 1);
+      return json(200, { ok: true });
+    }
     if (url.pathname === '/admin/broadcasts') {
       if (request.method() === 'POST') {
         const body = request.postDataJSON();
@@ -2667,4 +2686,34 @@ test('notifications: the page and menu item are admin-only', async ({ page }) =>
   await page.goto('/admin.html#notifications');
   await expect(page.locator('.page-title')).not.toHaveText('Notifications');
   await expect(page.locator('#nav [data-view="notifications"]')).toBeHidden();
+});
+
+test('map content: moderators review hazards and scenic routes and remove one with a note', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#content');
+  await expect(page.locator('.page-title')).toHaveText('Map content');
+  const rows = page.locator('.content-row');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('Road closed');
+  await expect(rows.first()).toContainText('3 said it’s gone');
+  await expect(rows.first().locator('a.content-map-link')).toHaveAttribute('href', 'https://www.google.com/maps?q=51.50120,-0.14190');
+  await page.getByRole('checkbox', { name: 'Include expired' }).check();
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toContainText('Expired');
+  await rows.first().getByRole('button', { name: 'Remove hazard Road closed' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Remove this hazard?' });
+  await dialog.getByRole('button', { name: 'No longer there.' }).click();
+  await dialog.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.locator('.flash')).toHaveText('Hazard removed.');
+  await expect(rows).toHaveCount(1);
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/content/hazards/hz-1/remove', body: { note: 'No longer there.' } });
+
+  await page.getByRole('group', { name: 'Content type' }).getByRole('button', { name: 'Scenic routes' }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('<b>Peak</b> District curves');
+  await expect(rows.first().locator('b')).toHaveCount(0);
+  await page.getByRole('searchbox', { name: 'Search scenic routes' }).fill('snake');
+  await page.getByRole('searchbox', { name: 'Search scenic routes' }).press('Enter');
+  await expect.poll(() => state.contentQueries.at(-1)).toBe('?kind=routes&q=snake');
 });
