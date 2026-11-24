@@ -14,9 +14,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'audit', 'notifications', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', audit: 'Audit log', notifications: 'Notifications', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', audit: 'view_audit', notifications: 'send_notifications', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'content', 'audit', 'notifications', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', content: 'Map content', audit: 'Audit log', notifications: 'Notifications', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', content: 'moderate', audit: 'view_audit', notifications: 'send_notifications', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -57,7 +57,7 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
@@ -117,6 +117,9 @@
     : view === 'case' || view === 'partner' ? `${view}/${detailCaseId}` : view;
   let riderQuery = '';
   let riderFilter = 'all';
+  let contentKind = 'hazards';
+  let contentIncludeExpired = false;
+  let contentQuery = '';
   let auditGroup = 'all';
   let auditRider = '';
   let me = null;
@@ -134,6 +137,7 @@
     view === 'cases' ? caseOwner : null,
     view === 'partners' ? partnerStatus : null, view === 'partners' ? partnerKind : null,
     view === 'riders' ? riderQuery : null, view === 'riders' ? riderFilter : null,
+    view === 'content' ? contentKind : null, view === 'content' ? contentIncludeExpired : null, view === 'content' ? contentQuery : null,
     view === 'moderation' ? moderationView : null,
     view === 'moderation' ? inboxFocusTarget?.id ?? null : null,
     view === 'inbox' ? inboxFilter : null,
@@ -1959,6 +1963,114 @@
     reportCountEl.textContent = count > 99 ? '99+' : String(count);
   }
 
+  // ------------------------------------------------------------ Map content
+
+  const HAZARD_LABELS = { police: 'Police', accident: 'Accident', road_closure: 'Road closed', camera: 'Speed camera', hidden_police: 'Hidden police', police_checkpoint: 'Police checkpoint' };
+  const contentPath = (offset = 0) => '/admin/content?' + new URLSearchParams({
+    kind: contentKind,
+    ...(contentKind === 'hazards' && contentIncludeExpired ? { include: 'expired' } : {}),
+    ...(contentKind === 'routes' && contentQuery ? { q: contentQuery } : {}),
+    ...(offset ? { offset: String(offset) } : {}),
+  });
+
+  /** Hazards and rider-made scenic routes every rider can see. Moderators
+   *  remove an item with a note; the audit log keeps what it was. */
+  async function renderContent(generation) {
+    const page = await api('GET', contentPath());
+    if (!isCurrentRender(generation)) return;
+    await loadNames(page.items.map((item) => item.reportedBy || item.createdBy));
+    if (!isCurrentRender(generation)) return;
+    drawContent(page.items, page.nextOffset ?? null, generation);
+  }
+
+  function drawContent(items, nextOffset, generation) {
+    const tabs = segmented([['hazards', 'Hazards'], ['routes', 'Scenic routes']], contentKind, (next) => {
+      contentKind = next;
+      renderAndFocus('[aria-label="Content type"] [aria-pressed="true"]');
+    }, 'Content type');
+    const toolbar = el('div', { class: 'toolbar content-toolbar' }, [tabs]);
+    if (contentKind === 'hazards') {
+      const expired = el('input', { type: 'checkbox', checked: contentIncludeExpired });
+      expired.addEventListener('change', () => { contentIncludeExpired = expired.checked; void render(); });
+      toolbar.append(el('label', { class: 'inline-check' }, [expired, el('span', { text: 'Include expired' })]));
+    } else {
+      const form = el('form', { class: 'search content-search', role: 'search' });
+      const input = el('input', { class: 'input', type: 'search', placeholder: 'Search route names', 'aria-label': 'Search scenic routes', maxlength: 100, value: contentQuery });
+      form.append(icon('search'), input);
+      form.addEventListener('submit', (event) => { event.preventDefault(); contentQuery = input.value.trim(); renderAndFocus('input[aria-label="Search scenic routes"]'); });
+      toolbar.append(form);
+    }
+    const mapLink = (lat, lon) => el('a', { class: 'content-map-link', href: `https://www.google.com/maps?q=${lat.toFixed(5)},${lon.toFixed(5)}`, target: '_blank', rel: 'noopener noreferrer', text: `${lat.toFixed(4)}, ${lon.toFixed(4)}` });
+    const removeButton = (item) => {
+      const kindLabel = contentKind === 'hazards' ? 'hazard' : 'scenic route';
+      const name = contentKind === 'hazards' ? (HAZARD_LABELS[item.type] || item.type) : item.name;
+      const button = el('button', { type: 'button', class: 'button button-small', text: 'Remove', 'aria-label': `Remove ${kindLabel} ${name}` });
+      button.addEventListener('click', async () => {
+        const choice = await actionDialog({
+          title: `Remove this ${kindLabel}?`,
+          description: `“${name}” disappears for every rider. The poster isn’t told. This can’t be undone.`,
+          confirmLabel: 'Remove', danger: true,
+          templates: contentKind === 'hazards'
+            ? ['No longer there.', 'False or joke report.', 'Duplicate of another report.']
+            : ['Private land or unsafe road.', 'Spam or advertising.', 'Duplicate route.'],
+        });
+        if (!choice) return;
+        button.disabled = true;
+        try {
+          await api('POST', `/admin/content/${contentKind}/${encodeURIComponent(item.id)}/remove`, { note: choice.note });
+          await render();
+          flash(`${kindLabel[0].toUpperCase() + kindLabel.slice(1)} removed.`);
+        } catch (error) {
+          button.disabled = false;
+          flash(error.message || 'Couldn’t remove it.', 'danger');
+        }
+      });
+      return button;
+    };
+    const row = (item) => contentKind === 'hazards'
+      ? el('li', { class: 'list-row content-row', dataset: { contentId: item.id } }, [
+        el('div', { class: 'content-copy' }, [
+          el('div', { class: 'content-title' }, [el('strong', { text: HAZARD_LABELS[item.type] || item.type }),
+            item.active ? null : badge('Expired', null, true),
+            item.denials > 0 ? badge(`${item.denials} said it’s gone`, 'warning') : null]),
+          el('span', { class: 'content-meta' }, [mapLink(item.lat, item.lon), ' · ', timeEl(item.createdAt), ` · ${item.confirmations} confirmed`]),
+          person(riderLabel(item.reportedBy).name, riderLabel(item.reportedBy).sub, item.reportedBy),
+        ]),
+        el('div', { class: 'trail' }, [removeButton(item)]),
+      ])
+      : el('li', { class: 'list-row content-row', dataset: { contentId: item.id } }, [
+        el('div', { class: 'content-copy' }, [
+          el('strong', { class: 'content-title', text: item.name }),
+          el('span', { class: 'muted content-description', text: item.description }),
+          el('span', { class: 'content-meta' }, [`${Math.round(item.distanceMiles)} mi · ${item.difficulty} · starts at `, mapLink(item.startLat, item.startLon), ' · ', timeEl(item.createdAt)]),
+          person(riderLabel(item.createdBy).name, riderLabel(item.createdBy).sub, item.createdBy),
+        ]),
+        el('div', { class: 'trail' }, [removeButton(item)]),
+      ]);
+    const loadMore = nextOffset === null ? null : el('button', { type: 'button', class: 'button load-more', text: 'Load more' });
+    loadMore?.addEventListener('click', async () => {
+      loadMore.disabled = true;
+      try {
+        const next = await api('GET', contentPath(nextOffset));
+        if (!isCurrentRender(generation)) return;
+        await loadNames(next.items.map((item) => item.reportedBy || item.createdBy));
+        drawContent(items.concat(next.items), next.nextOffset ?? null, generation);
+      } catch (error) {
+        loadMore.disabled = false;
+        flash(error.message || 'Couldn’t load more.', 'danger');
+      }
+    });
+    const empty = contentKind === 'hazards'
+      ? emptyState('inbox', 'No hazards on the map', contentIncludeExpired ? null : 'Expired hazards are hidden; tick “Include expired” to see them.')
+      : emptyState('inbox', 'No scenic routes', contentQuery ? `Nothing matches “${contentQuery}”.` : null);
+    pageEl.replaceChildren(
+      pageHeader('Map content', contentKind === 'hazards' ? 'Hazards riders reported, most disputed first' : 'Scenic routes riders made, newest first'),
+      toolbar,
+      el('div', { class: 'card' }, [items.length ? el('ul', { class: 'list' }, items.map(row)) : empty]),
+      ...(loadMore ? [el('div', { class: 'load-more-row' }, [loadMore])] : []),
+    );
+  }
+
   // ------------------------------------------------------------ Notifications
 
   const BROADCAST_ROUTES = [['#map', 'Map'], ['#friends', 'Friends'], ['#settings', 'Settings']];
@@ -3345,6 +3457,8 @@
         await renderCases(generation);
       } else if (view === 'case') {
         await renderCaseDetail(generation);
+      } else if (view === 'content') {
+        await renderContent(generation);
       } else if (view === 'notifications') {
         await renderNotifications(generation);
       } else if (view === 'partners') {
