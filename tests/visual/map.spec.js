@@ -323,12 +323,16 @@ test('PWA back gesture closes overlays first and the map stays one step back', a
   await expect(page.locator('#appMenu')).toBeHidden();
   await onScreen('map');
 
-  // A sheet opened from the menu closes on back.
+  // A sheet opened from the menu closes on back, back to the menu; another
+  // back closes the menu.
   await page.locator('#mapAvatarButton').click();
   await page.locator('[data-menu-sheet="help"]').click();
   await expect(page.locator('#sheetBackdrop')).toBeVisible();
   await page.goBack();
   await expect(page.locator('#sheetBackdrop')).toBeHidden();
+  await expect(page.locator('#appMenu')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#appMenu')).toBeHidden();
   await onScreen('map');
 
   // Search and the expanded drawer close on back too.
@@ -342,13 +346,15 @@ test('PWA back gesture closes overlays first and the map stays one step back', a
   await expect(page.locator('#mapDrawer')).toHaveAttribute('data-state', 'peek');
   await onScreen('map');
 
-  // Back to map steps back, so a later back never returns to Friends.
+  // Back steps back to the map and reopens the menu the page came from, so a
+  // later back never returns to Friends.
   await page.locator('#mapAvatarButton').click();
   await page.locator('[data-menu-nav="friends"]').click();
   await onScreen('friends');
+  await expect(page.locator('.screen.active [data-back-to-map]')).toHaveAttribute('aria-label', 'Back to menu');
   await page.locator('.screen.active [data-back-to-map]').click();
   await onScreen('map');
-  await page.locator('#mapAvatarButton').click();
+  await expect(page.locator('#appMenu')).toBeVisible();
   await page.locator('[data-menu-nav="ride"]').click();
   await onScreen('ride');
   await page.goBack();
