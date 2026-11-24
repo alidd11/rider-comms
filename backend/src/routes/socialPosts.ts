@@ -1,3 +1,4 @@
+import { appSwitches } from '../appSwitches.ts';
 import { noteContentCheck } from '../providerHealth.ts';
 import { Readable } from 'node:stream';
 import { roleCan } from '../staffRoles.ts';
@@ -143,8 +144,9 @@ export async function handleSocialPostRoutes(ctx: SocialPostContext): Promise<un
     return known ? sendJson(res, 503, { error: 'social_media_not_configured' }) : NOT_HANDLED;
   }
 
-  // Posting has its own switch, off unless SOCIAL_POSTING_ENABLED=true.
-  if (req.method === 'POST' && route.length === 1 && (route[0] === 'media' || route[0] === 'posts') && !ctx.socialPostingEnabled) {
+  // Posting has its own switch, off unless SOCIAL_POSTING_ENABLED=true,
+  // and staff can pause it from the Staff Hub.
+  if (req.method === 'POST' && route.length === 1 && (route[0] === 'media' || route[0] === 'posts') && !(ctx.socialPostingEnabled && await appSwitches.isOn('social_posting'))) {
     return sendJson(res, 503, { error: 'social_posting_disabled' });
   }
 

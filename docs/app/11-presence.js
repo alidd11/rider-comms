@@ -265,6 +265,7 @@
   let publicVoiceAuthorizationLeaseTimer;
   let publicVoiceAuthorizationExpired = false;
   let publicVoiceConnectInFlight = false;
+  let nearbyVoicePausedNoticeShown = false;
   let publicVoiceRefreshPending = false;
   const DEFAULT_PUBLIC_VOICE_AUTHORIZATION_LEASE_MS = 60_000;
   const intentionalVoiceDisconnects = new WeakSet();

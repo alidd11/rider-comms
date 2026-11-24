@@ -15,6 +15,7 @@ import { staffMfa } from '../staffMfa.ts';
 import { getStaffAlertPrefs, setStaffAlertPrefs } from '../staffAlerts.ts';
 import { BROADCAST_COOLDOWN_MS, broadcastStore, parseBroadcast } from '../staffBroadcasts.ts';
 import { CONTENT_KINDS, staffContentStore } from '../staffContentStore.ts';
+import { appSwitches, isAppSwitch } from '../appSwitches.ts';
 import type { ContentKind } from '../staffContentStore.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
 import { handlePartnerRoutes } from './adminPartners.ts';
@@ -97,6 +98,23 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       return result.ok ? sendJson(res, 200, result) : sendJson(res, 404, { error: result.error });
     }
     return sendJson(res, 404, { error: 'not_found' });
+  }
+
+  // Switches that pause sign-ups, Social posting or Nearby Voice for every
+  // rider (admins only). A change needs a note and a recent password check.
+  if (s[1] === 'switches') {
+    if (lacks('manage_switches')) return refuse('manage_switches');
+    if (req.method === 'GET' && s.length === 2) return sendJson(res, 200, { switches: await appSwitches.list() });
+    if (req.method !== 'POST' || s.length !== 3) return sendJson(res, s.length === 2 ? 405 : 404, { error: s.length === 2 ? 'method_not_allowed' : 'not_found' });
+    if (!isAppSwitch(s[2])) return sendJson(res, 404, { error: 'not_found' });
+    const body = await readJsonBody(req);
+    if (typeof body.on !== 'boolean') return sendJson(res, 400, { error: 'on must be true or false' });
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+      return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    if (await refuseWithoutRecentReauth(ctx)) return;
+    return sendJson(res, 200, { switch: await appSwitches.set(s[2], body.on, actorId, note) });
   }
 
   // Push notifications to riders (admins only). A test goes to the sender's
@@ -185,7 +203,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     return sendJson(res, 200, {
       socialMediaStorage: ctx.socialMedia !== null,
       socialMediaScanning: Boolean(ctx.socialMedia?.scan),
-      socialPosting: ctx.socialPostingEnabled,
+      socialPosting: ctx.socialPostingEnabled && await appSwitches.isOn('social_posting'),
       email: emailDeliveryStatus(),
       ...providerHealthSnapshot(),
     });
