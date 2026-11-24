@@ -1309,4 +1309,17 @@ export const MIGRATIONS: Migration[] = [
           'push_broadcast'));
     `,
   },
+  {
+    // Staff take down rider-posted map content (hazards, scenic routes) with a
+    // note. The audit row keeps which item it was, since the item is deleted.
+    name: '0070_staff_content_removal',
+    sql: `
+      ALTER TABLE moderation_actions ADD COLUMN IF NOT EXISTS content_ref TEXT;
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset',
+          'push_broadcast', 'hazard_remove', 'scenic_route_remove'));
+    `,
+  },
 ];

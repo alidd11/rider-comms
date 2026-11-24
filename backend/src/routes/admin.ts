@@ -14,6 +14,8 @@ import { NOT_HANDLED, refuseWithoutRecentReauth, refuseWithoutStaffCode } from '
 import { staffMfa } from '../staffMfa.ts';
 import { getStaffAlertPrefs, setStaffAlertPrefs } from '../staffAlerts.ts';
 import { BROADCAST_COOLDOWN_MS, broadcastStore, parseBroadcast } from '../staffBroadcasts.ts';
+import { CONTENT_KINDS, staffContentStore } from '../staffContentStore.ts';
+import type { ContentKind } from '../staffContentStore.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
 import { handlePartnerRoutes } from './adminPartners.ts';
 import { parseOperationsWindow, socialSafetyActivityReport } from '../operationsReports.ts';
@@ -70,6 +72,33 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
   if (req.method === 'GET' && url.pathname === '/admin/me') {
     return sendJson(res, 200, { riderId: actorId, role, permissions: permissionsFor(role) });
   }
+  // Map content riders post for everyone (hazards, scenic routes). Moderators
+  // can list it and remove an item with a note, recorded in the audit log.
+  if (s[1] === 'content') {
+    if (lacks('moderate')) return refuse('moderate');
+    if (req.method === 'GET' && s.length === 2) {
+      const kind = url.searchParams.get('kind') ?? 'hazards';
+      if (!(CONTENT_KINDS as readonly string[]).includes(kind)) return sendJson(res, 400, { error: 'invalid_kind', values: CONTENT_KINDS });
+      const offset = Number(url.searchParams.get('offset') ?? 0);
+      if (!Number.isInteger(offset) || offset < 0 || offset > MAX_RIDER_OFFSET) return sendJson(res, 400, { error: 'invalid_offset' });
+      const page = kind === 'hazards'
+        ? await staffContentStore.hazards({ includeExpired: url.searchParams.get('include') === 'expired', offset })
+        : await staffContentStore.routes({ q: (url.searchParams.get('q') ?? '').slice(0, 100), offset });
+      return sendJson(res, 200, page);
+    }
+    if (req.method === 'POST' && s.length === 5 && s[4] === 'remove' && (CONTENT_KINDS as readonly string[]).includes(s[2] ?? '')) {
+      const body = await readJsonBody(req);
+      const note = typeof body.note === 'string' ? body.note.trim() : '';
+      if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+        return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+      }
+      if (await refuseWithoutRecentReauth(ctx)) return;
+      const result = await staffContentStore.remove(s[2] as ContentKind, decodeURIComponent(s[3]!), actorId, note);
+      return result.ok ? sendJson(res, 200, result) : sendJson(res, 404, { error: result.error });
+    }
+    return sendJson(res, 404, { error: 'not_found' });
+  }
+
   // Push notifications to riders (admins only). A test goes to the sender's
   // own devices; a send to everyone needs a note, a recent password check and
   // waits out a cooldown, and is recorded in the audit log.
