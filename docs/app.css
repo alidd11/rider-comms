@@ -1473,6 +1473,9 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   transition:opacity .28s ease,visibility .28s ease;
 }
 .auth-splash[hidden]{display:none}
+/* Start-up splash: above the app, below the Terms agreement. */
+.launch-splash{z-index:110}
+.launch-splash.leaving{opacity:0;visibility:hidden;pointer-events:none}
 .auth-splash-centre{
   position:absolute;
   top:20%;
