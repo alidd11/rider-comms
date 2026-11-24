@@ -261,6 +261,9 @@
     if (screen === 'friends') loadFriendsData();
     if (screen === 'ride') refreshActiveRide();
     if (screen === 'settings') renderSettingsList();
+    // Leaving the page another way forgets that it came from the menu.
+    if (screenOpenedFromMenu !== null && screen !== screenOpenedFromMenu) setScreenOpenedFromMenu(null);
+    if (screen === 'map') reopenMenuIfDue();
   }
 
   window.addEventListener('rider-comms:navigate-to', (event) => {
