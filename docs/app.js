@@ -9498,14 +9498,27 @@
       await apiFetch('GET', '/social/bootstrap');
       if (check !== socialAccessCheck || session?.token !== token) return;
       socialAllowedToken = token;
-      if (!$('#appMenu').hidden) entry.hidden = false;
+      if (!$('#appMenu').hidden) {
+        entry.hidden = false;
+        requestAnimationFrame(syncAppMenuScrollability);
+      }
     } catch (error) {
       // A refusal from the server hides it; a lost connection keeps the last answer.
       if (check === socialAccessCheck && error instanceof ApiError && error.status > 0) {
         socialAllowedToken = null;
         entry.hidden = true;
+        requestAnimationFrame(syncAppMenuScrollability);
       }
     }
+  }
+
+  function syncAppMenuScrollability() {
+    const menu = $('#appMenu');
+    if (menu.hidden) return;
+    // Decide from actual content height, never just an assumed device model:
+    // short screens and enlarged text must keep every destination reachable.
+    menu.classList.remove('app-menu-needs-scroll');
+    menu.classList.toggle('app-menu-needs-scroll', menu.scrollHeight > menu.clientHeight + 2);
   }
 
   function openAppMenu() {
@@ -9519,6 +9532,8 @@
     void showSocialEntryIfAllowed();
     pushOverlayGuard();
     $('#appMenu').hidden = false;
+    $('#appMenu').scrollTop = 0;
+    requestAnimationFrame(syncAppMenuScrollability);
     $('#app')?.setAttribute('inert', '');
     document.documentElement.classList.add('app-menu-open');
     $('#closeAppMenu').focus({ preventScroll: true });
@@ -9527,6 +9542,7 @@
   function closeAppMenu({ restoreFocus = true } = {}) {
     if ($('#appMenu').hidden) return;
     $('#appMenu').hidden = true;
+    $('#appMenu').classList.remove('app-menu-needs-scroll');
     $('#app')?.removeAttribute('inert');
     document.documentElement.classList.remove('app-menu-open');
     if (restoreFocus) appMenuTrigger?.focus?.();
@@ -9537,8 +9553,19 @@
     $('#mapAvatarButton').addEventListener('click', openAppMenu);
     $('#closeAppMenu').addEventListener('click', () => closeAppMenu());
     $('#appMenu').addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
+    window.addEventListener('resize', () => {
+      if (!$('#appMenu').hidden) requestAnimationFrame(syncAppMenuScrollability);
+    });
+    // Account entitlement and dynamic font/layout changes can alter the
+    // number or height of rows without a viewport resize.
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => {
+        if (!$('#appMenu').hidden) requestAnimationFrame(syncAppMenuScrollability);
+      });
+      $('#appMenu > *').forEach((child) => observer.observe(child));
+    }
     $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('myProfile'); });
-    $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
+    $('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       navigate(button.dataset.menuNav);
     }));
@@ -9546,11 +9573,11 @@
       closeAppMenu({ restoreFocus: false });
       window.open(RIDER_SOCIAL_URL, '_blank', 'noopener');
     });
-    $$('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
+    $('[data-menu-sheet]').forEach((button) => button.addEventListener('click', () => {
       closeAppMenu({ restoreFocus: false });
       openSheet(button.dataset.menuSheet);
     }));
-    $$('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
+    $('[data-back-to-map]').forEach((button) => button.addEventListener('click', () => navigate('map')));
     initMapDrawer();
     $('#navMuteBtn')?.addEventListener('click', () => {
       navMuted = !navMuted;
@@ -9595,7 +9622,7 @@
     });
     const syncRideCodeSlots = () => {
       const code = $('#rideCode').value;
-      $$('#rideCodeSlots span').forEach((slot, index) => {
+      $('#rideCodeSlots span').forEach((slot, index) => {
         slot.textContent = code[index] || '·';
         slot.classList.toggle('filled', Boolean(code[index]));
         slot.classList.toggle('active', index === code.length && code.length < 6);
@@ -9735,7 +9762,7 @@
       sendFriendRequest(input);
       $('#friendId').value = '';
     });
-    $$('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
+    $('[data-sheet]').forEach((button) => button.addEventListener('click', () => openSheet(button.dataset.sheet)));
     $('#completeProfilePrompt')?.addEventListener('click', () => openSheet('profile'));
     const openHazardReport = () => {
       pendingHazardReportPosition = null;
@@ -9758,7 +9785,7 @@
         return;
       }
       if (event.key !== 'Tab') return;
-      const focusable = $$('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]', $('.sheet'));
+      const focusable = $('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]', $('.sheet'));
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
