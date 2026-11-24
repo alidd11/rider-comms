@@ -162,6 +162,7 @@
       notifyNearby: false,
       notifyInvites: true,
       notifyChat: true,
+      notifyUpdates: true,
       instagram: '',
       tiktok: '',
       bio: '',
@@ -3403,7 +3404,7 @@
         ], 'Route options apply to routes Rider Comms plans.')}`,
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
       }),
-      tollsExemptionsSettings: () => ({
+      tollsExemptionsSettings: () => (TOLLS_EXEMPTIONS_RELEASED ? ({
         title: 'Tolls & exemptions',
         body: `<h3 class="settings-page-heading">Routing</h3>${settingsRowsMarkup([
           settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
@@ -3424,7 +3425,7 @@
             button.setAttribute('aria-pressed', String(!previous));
           }));
         },
-      }),
+      }) : ({ title: 'Map & navigation', body: '', ready: () => {} })),
       savedPlacesSettings: () => {
         const saved = loadSavedPlaces();
         return {
@@ -3466,7 +3467,8 @@
         body: settingsRowsMarkup([
           settingsToggle('notifyInvites', 'Friend requests', state.profile.notifyInvites !== false),
           settingsToggle('notifyChat', 'Messages', state.profile.notifyChat !== false),
-        ], 'These apply on every device where notifications are on.'),
+          settingsToggle('notifyUpdates', 'Rider Comms updates', state.profile.notifyUpdates !== false),
+        ], 'These apply on every device where notifications are on. Updates are occasional news from the Rider Comms team.'),
         ready: () => wireToggles(),
       }),
       rideSafeSettings: () => ({
@@ -3676,6 +3678,7 @@
         notifyNearby: false,
         notifyInvites: true,
         notifyChat: true,
+        notifyUpdates: true,
         shareLocation: false,
         instagramUsername: '',
         instagramVisibility: 'friends',
@@ -4049,7 +4052,7 @@
         }
         return;
       }
-      if (key === 'notifyInvites' || key === 'notifyChat') {
+      if (key === 'notifyInvites' || key === 'notifyChat' || key === 'notifyUpdates') {
         button.disabled = true;
         const ok = await patchProfile({ [key]: active });
         button.disabled = false;
@@ -9949,6 +9952,7 @@
     state.profile.notifyNearby = Boolean(profile.notifyNearby);
     state.profile.notifyInvites = Boolean(profile.notifyInvites);
     state.profile.notifyChat = Boolean(profile.notifyChat);
+    state.profile.notifyUpdates = profile.notifyUpdates !== false;
     state.unit = state.profile.unitSystem;
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;

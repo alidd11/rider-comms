@@ -20,7 +20,7 @@ export const REPORT_STATUSES = ['open', 'dismissed', 'actioned'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export const REPORT_RESOLUTIONS = ['dismiss', 'suspend'] as const;
 export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
-export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke' | 'data_export' | 'sign_out_everywhere' | 'password_reset_sent' | 'staff_mfa_reset';
+export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke' | 'data_export' | 'sign_out_everywhere' | 'password_reset_sent' | 'staff_mfa_reset' | 'push_broadcast' | 'hazard_remove' | 'scenic_route_remove';
 export const MAX_MODERATION_NOTE_LENGTH = 1000;
 
 export interface QueuedSafetyReport extends SafetyReport {
@@ -580,6 +580,12 @@ export class ModerationStore {
   async recordStaffMfaReset(riderId: string, adminId: string, note: string, now = Date.now()): Promise<ModerationAction> {
     await ensureMigrated();
     return withTransaction((client) => this.recordAction(client, adminId, riderId, null, 'staff_mfa_reset', note, now));
+  }
+
+  /** A staff push to riders; the sender is the target, the note says why. */
+  async recordPushBroadcast(staffId: string, note: string, now = Date.now()): Promise<ModerationAction> {
+    await ensureMigrated();
+    return withTransaction((client) => this.recordAction(client, staffId, staffId, null, 'push_broadcast', note, now));
   }
 
   async recordPasswordResetSent(riderId: string, staffId: string, note: string, now = Date.now()): Promise<ModerationAction> {

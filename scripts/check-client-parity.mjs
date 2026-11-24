@@ -118,7 +118,7 @@ for (const tint of ['#1FB6D9', '#2FB35F', '#3478F6', '#EF4444', '#F2802A', '#8E5
   }
 }
 assertSameOrder(
-  ['Distance units', 'Navigation app', 'Tolls & exemptions', 'Avoid motorways', 'Avoid tolls', 'Avoid ferries', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Ride Safe auto-lock',
+  ['Distance units', 'Navigation app', 'Tolls & exemptions', 'Avoid motorways', 'Avoid tolls', 'Avoid ferries', 'Spoken directions', 'Notifications on this device', 'Friend requests', 'Messages', 'Rider Comms updates', 'Ride Safe auto-lock',
     'Nearby rider visibility', 'Blocked riders', 'Email', 'Signed-in devices', 'Sign out', 'Reset settings', 'Delete account'],
   pwaMapSource.slice(pwaMapSource.indexOf('generalSettings: () =>')),
   nativeSettingsSource.slice(nativeSettingsSource.indexOf('function GeneralPage(')),
@@ -193,6 +193,7 @@ if (!nativeTollExemptionSource.includes('export const TOLLS_EXEMPTIONS_RELEASED 
     || !pwaMapSource.includes('const TOLLS_EXEMPTIONS_RELEASED = false;')
     || !nativeSettingsSource.includes('{!TOLLS_EXEMPTIONS_RELEASED ? <SwitchRow title="Avoid tolls"')
     || !pwaMapSource.includes('...(!TOLLS_EXEMPTIONS_RELEASED ? [settingsToggle(\'avoidTolls\'')
+    || !pwaMapSource.includes('tollsExemptionsSettings: () => (TOLLS_EXEMPTIONS_RELEASED ?')
     || !pwaMapSource.includes("if (type === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED) type = 'mapNavigation';")
     || !nativeSettingsSource.includes("if (page === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED)")) {
   throw new Error('Tolls & exemptions must remain gated while existing toll avoidance is available');

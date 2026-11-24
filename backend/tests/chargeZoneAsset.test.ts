@@ -73,7 +73,10 @@ describe('checksum-pinned, offline zone asset loading', () => {
     }).reason, 'licence_not_approved');
   });
   it('bounds resource use and rejects empty data', () => {
-    assert.equal(loadReviewedChargeZone(new Uint8Array(), manifest).reason, 'too_large');
+    assert.equal(loadReviewedChargeZone(new Uint8Array(), manifest).reason, 'invalid_bytes');
+    assert.equal(loadReviewedChargeZone(null as unknown as Uint8Array, manifest).reason, 'invalid_bytes');
+    assert.equal(loadReviewedChargeZone('not bytes' as unknown as Uint8Array, manifest).reason, 'invalid_bytes');
+    assert.equal(loadReviewedChargeZone([1, 2] as unknown as Uint8Array, manifest).reason, 'invalid_bytes');
     assert.equal(loadReviewedChargeZone(new Uint8Array(5 * 1024 * 1024 + 1), manifest).reason,
       'too_large');
   });

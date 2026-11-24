@@ -105,6 +105,25 @@ export class PushStore {
     await getPool().query('DELETE FROM push_subscriptions WHERE address = ANY($1::text[])', [addresses]);
   }
 
+  /**
+   * Devices for a staff push: riders who haven't turned Rider Comms updates
+   * off and aren't suspended. `onlyRiderId` limits it to one rider (a test
+   * send to the sender's own devices).
+   */
+  async listBroadcastAudience(onlyRiderId?: string): Promise<PushSubscriptionRecord[]> {
+    await ensureMigrated();
+    const { rows } = await getPool().query<SubscriptionRow>(
+      `SELECT s.rider_id, s.kind, s.address, s.p256dh, s.auth
+       FROM push_subscriptions s
+       JOIN users u ON u.id = s.rider_id AND u.suspended_at IS NULL
+       LEFT JOIN rider_profiles p ON p.rider_id = s.rider_id
+       WHERE COALESCE(p.notify_updates, TRUE) AND ($1::text IS NULL OR s.rider_id = $1)
+       ORDER BY s.rider_id, s.updated_at DESC`,
+      [onlyRiderId ?? null],
+    );
+    return rows.map((row) => ({ riderId: row.rider_id, kind: row.kind, address: row.address, p256dh: row.p256dh, auth: row.auth }));
+  }
+
   async listForRider(riderId: string): Promise<PushSubscriptionRecord[]> {
     await ensureMigrated();
     const { rows } = await getPool().query<SubscriptionRow>(

@@ -122,6 +122,8 @@ export function screenReviewedRoadGates(
   for (const gate of gates) {
     for (let index = 1; index < route.length; index++) {
       const from = route[index - 1]!, to = route[index]!;
+      // Repeated GPS fixes are not a crossing or an ambiguous touch.
+      if (from.lon === to.lon && from.lat === to.lat) continue;
       if (!boxesOverlap(gate.start, gate.end, from, to)) continue;
       const sideFrom = orientation(gate.start, gate.end, from);
       const sideTo = orientation(gate.start, gate.end, to);

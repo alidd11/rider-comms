@@ -8,6 +8,7 @@ import { ONBOARDING_LOCATION_PERMISSION_WAIT_MS } from '../../src/screens/onboar
 
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(),
+  getForegroundPermissionsAsync: jest.fn(),
 }));
 
 const SAFE_AREA_METRICS = {
@@ -15,6 +16,7 @@ const SAFE_AREA_METRICS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
 };
 const askPermission = Location.requestForegroundPermissionsAsync as jest.Mock;
+const readPermission = Location.getForegroundPermissionsAsync as jest.Mock;
 
 async function openLocationStep(onDone: jest.Mock) {
   await render(
@@ -28,6 +30,8 @@ async function openLocationStep(onDone: jest.Mock) {
 
 beforeEach(async () => {
   askPermission.mockReset();
+  readPermission.mockReset();
+  readPermission.mockResolvedValue({ status: 'undetermined', granted: false });
   await AsyncStorage.clear();
 });
 
@@ -46,20 +50,24 @@ it('requests location on explicit Continue and opens the app when permission res
   expect(await AsyncStorage.getItem(ONBOARDING_COMPLETED_KEY)).toBe('true');
 });
 
-it('ignores duplicate taps and eventually opens the app if the iOS request hangs', async () => {
+it('does not advance during a location prompt that takes over ten seconds', async () => {
   const onDone = jest.fn();
-  askPermission.mockImplementation(() => new Promise(() => undefined));
   await openLocationStep(onDone);
   jest.useFakeTimers();
   try {
+    askPermission.mockImplementation(() => new Promise(resolve => {
+      setTimeout(() => resolve({ status: 'granted' }), 10_500);
+    }));
     await act(async () => {
       fireEvent.press(screen.getByTestId('onboarding-continue'));
       fireEvent.press(screen.getByTestId('onboarding-continue'));
       await Promise.resolve();
     });
     expect(askPermission).toHaveBeenCalledTimes(1);
+    await act(async () => { await jest.advanceTimersByTimeAsync(10_000); });
     expect(onDone).not.toHaveBeenCalled();
-    await act(async () => { await jest.advanceTimersByTimeAsync(ONBOARDING_LOCATION_PERMISSION_WAIT_MS); });
+    expect(readPermission).toHaveBeenCalled();
+    await act(async () => { await jest.advanceTimersByTimeAsync(500); });
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(await AsyncStorage.getItem(ONBOARDING_COMPLETED_KEY)).toBe('true');
   } finally {

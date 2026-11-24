@@ -138,10 +138,11 @@ export function CheckRow({ title, selected, first = false, onPress }: {
 }
 
 /** A row with a switch that acts in place. */
-export function SwitchRow({ title, value, first = false, onValueChange }: {
+export function SwitchRow({ title, value, first = false, disabled = false, onValueChange }: {
   title: string;
   value: boolean;
   first?: boolean;
+  disabled?: boolean;
   onValueChange: (next: boolean) => void;
 }): React.JSX.Element {
   return (
@@ -150,6 +151,7 @@ export function SwitchRow({ title, value, first = false, onValueChange }: {
       <Text style={ui.rowTitle}>{title}</Text>
       <Switch
         accessibilityLabel={title}
+        disabled={disabled}
         value={value}
         onValueChange={(next) => {
           haptics.select();

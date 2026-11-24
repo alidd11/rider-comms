@@ -408,7 +408,7 @@ function MapNavigationPage(): React.JSX.Element {
 
 /** Dedicated settings page. Recorded exemptions are not yet enforced by routing. */
 function TollsExemptionsPage(): React.JSX.Element {
-  const { routeAvoidance, setRouteAvoidance, tollExemptions, setTollExemptions } = useSettings();
+  const { routeAvoidance, setRouteAvoidance, tollExemptions, tollExemptionsLoaded, setTollExemptions } = useSettings();
   return (
     <>
       <SettingsGroup title="Routing" note="Avoid tolls prefers toll-free roads where available. It may still include toll roads when no suitable alternative exists.">
@@ -416,7 +416,7 @@ function TollsExemptionsPage(): React.JSX.Element {
       </SettingsGroup>
       <SettingsGroup title="My exemptions" note="Only select charges you’ve confirmed you don’t need to pay. These selections are stored on this device, but they don’t yet change routing, prices or legal eligibility.">
         {TOLL_EXEMPTION_OPTIONS.map(({ id, label }, index) => (
-          <SwitchRow key={id} first={index === 0} title={label} value={tollExemptions.includes(id)}
+          <SwitchRow key={id} first={index === 0} title={label} value={tollExemptions.includes(id)} disabled={!tollExemptionsLoaded}
             onValueChange={(enabled) => setTollExemptions(enabled ? [...tollExemptions, id] : tollExemptions.filter((item) => item !== id))} />
         ))}
       </SettingsGroup>
@@ -503,7 +503,7 @@ function VehiclePage(): React.JSX.Element {
 /** Notifications: this phone on or off, then which kinds (PWA: the same
  * page, with Web Push). */
 function NotificationsPage(): React.JSX.Element {
-  const { notifyInvites, notifyChat, setNotifyInvites, setNotifyChat } = useSettings();
+  const { notifyInvites, notifyChat, notifyUpdates, setNotifyInvites, setNotifyChat, setNotifyUpdates } = useSettings();
   const { client, riderId } = useAuth();
   const [deviceOn, setDeviceOn] = React.useState(false);
   const [permission, setPermission] = React.useState<PushPermission>('undetermined');
@@ -555,9 +555,10 @@ function NotificationsPage(): React.JSX.Element {
       <SettingsGroup note={note}>
         <SwitchRow first title="Notifications on this device" value={deviceOn} onValueChange={(next) => { if (!busy) void changeDevice(next); }} />
       </SettingsGroup>
-      <SettingsGroup title="Notify me about" note="These apply on every device where notifications are on.">
+      <SettingsGroup title="Notify me about" note="These apply on every device where notifications are on. Updates are occasional news from the Rider Comms team.">
         <SwitchRow first title="Friend requests" value={notifyInvites} onValueChange={setNotifyInvites} />
         <SwitchRow title="Messages" value={notifyChat} onValueChange={setNotifyChat} />
+        <SwitchRow title="Rider Comms updates" value={notifyUpdates} onValueChange={setNotifyUpdates} />
       </SettingsGroup>
     </>
   );

@@ -44,7 +44,7 @@ export interface ReviewedChargeZoneAsset {
   licenceReview: ZoneCommercialLicenceReview;
 }
 export type ChargeZoneLoadReason =
-  | 'ok' | 'invalid_manifest' | 'too_large' | 'checksum_mismatch'
+  | 'ok' | 'invalid_manifest' | 'invalid_bytes' | 'too_large' | 'checksum_mismatch'
   | 'invalid_geojson' | 'invalid_zone' | 'licence_not_approved';
 export type ChargeZoneLoadResult =
   | { ok: true; reason: 'ok'; zone: PreparedChargeZone }
@@ -71,8 +71,8 @@ export function loadReviewedChargeZone(
   if (!asset || typeof asset !== 'object'
     || !SHA256.test(asset.sha256) || !asset.provenance) return fail('invalid_manifest');
   if (!hasHumanApprovedCommercialLicence(asset)) return fail('licence_not_approved');
-  if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1
-    || bytes.byteLength > MAX_ZONE_ASSET_BYTES) return fail('too_large');
+  if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) return fail('invalid_bytes');
+  if (bytes.byteLength > MAX_ZONE_ASSET_BYTES) return fail('too_large');
   const digest = createHash('sha256').update(bytes).digest('hex');
   if (digest !== asset.sha256) return fail('checksum_mismatch');
   let data: unknown;

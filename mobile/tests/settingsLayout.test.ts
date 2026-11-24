@@ -24,7 +24,7 @@ describe('Settings mockup contract', () => {
     assert.doesNotMatch(root, /Version \{appVersion\}/);
     // The pages, in the same order as the PWA's.
     const pages = settingsSource.slice(settingsSource.indexOf('function GeneralPage('), settingsSource.indexOf('const VISIBILITY_LABELS'));
-    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Route options"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Avoid ferries"', 'title="Spoken directions"', 'title={group}', 'title="Notifications on this device"', 'title="Friend requests"', 'title="Messages"', 'title="Ride Safe auto-lock"', 'title={heading}',
+    const rows = ['title="Distance units"', 'title="Navigation app"', 'title="Route options"', 'title="Avoid motorways"', 'title="Avoid tolls"', 'title="Avoid ferries"', 'title="Spoken directions"', 'title={group}', 'title="Notifications on this device"', 'title="Friend requests"', 'title="Messages"', 'title="Rider Comms updates"', 'title="Ride Safe auto-lock"', 'title={heading}',
       'title="Nearby rider visibility"', 'title="Blocked riders"', 'title="Login info"', 'title="Email"', 'title="Signed-in devices"',
       'title="Advanced"', 'title="Sign out"', 'title="Reset settings"', 'title="Delete account"'];
     cursor = -1;
@@ -35,7 +35,9 @@ describe('Settings mockup contract', () => {
     }
     // Both clients keep the current Avoid tolls toggle visible while the
     // future tolls page is feature-gated. The draft also has a hidden copy.
-    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 11);
+    assert.equal((pages.match(/<SwitchRow /g) ?? []).length, 12);
+    assert.ok(pages.includes('disabled={!tollExemptionsLoaded}'),
+      'Toll exemption controls must remain disabled until saved preferences finish loading');
     assert.ok(pages.includes('!TOLLS_EXEMPTIONS_RELEASED ? <SwitchRow title="Avoid tolls"'),
       'The original toll avoidance switch must remain available while the new page is gated');
     assert.match(pages, /RIDER_VEHICLE_GROUPS\.map[\s\S]*RIDER_VEHICLE_OPTIONS\.filter[\s\S]*<CheckRow /);

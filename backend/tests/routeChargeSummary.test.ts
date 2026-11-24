@@ -154,8 +154,15 @@ describe('offline future-route charging summary', () => {
     assert.deepEqual(screenChargeAreasForRoute([], '2026-07-06', [zone]).results, []);
     assert.equal(screenChargeAreasForRoute([{ lon: 0, lat: 0 }, { lon: 1, lat: 1 }],
       '2026-07-06T12:00:00Z', Array(65).fill(zone)).requiresReview, true);
-    assert.equal(screenChargeAreasForRoute([{ lon: 0, lat: 0 }, { lon: 1, lat: 1 }],
-      '2026-07-06T12:00:00Z', [null]).results[0]?.status, 'unknown');
+    const missing = screenChargeAreasForRoute([{ lon: 0, lat: 0 }, { lon: 1, lat: 1 }],
+      '2026-07-06T12:00:00Z', [null]);
+    assert.deepEqual(missing.results, []);
+    assert.equal(missing.possibleContacts, 0);
+    assert.equal(missing.requiresReview, true);
+    // In particular, missing identity must not be falsely labelled uk_caz.
+    const mixed = screenChargeAreasForRoute([{ lon: 0, lat: 0 }, { lon: 1, lat: 1 }],
+      '2026-07-06T12:00:00Z', [zone, null]);
+    assert.deepEqual(mixed.results, []);
   });
   it('does not call any network provider to calculate a fee', () => {
     const output = summarizeRouteChargePassages('car', []);

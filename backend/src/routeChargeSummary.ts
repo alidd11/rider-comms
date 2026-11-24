@@ -123,7 +123,8 @@ export function screenChargeAreasForRoute(
 ): RouteZoneScreening {
   // Missing coverage or too many independently supplied zones means we do not
   // know whether charging data covers the journey. Fail closed.
-  if (!Array.isArray(zones) || zones.length === 0 || zones.length > 64) {
+  if (!Array.isArray(zones) || zones.length === 0 || zones.length > 64
+    || zones.some(zone => zone === null)) {
     return { possibleContacts: 0, requiresReview: true, results: [] };
   }
   const londonLocalDate = londonChargingDate(passageAt);

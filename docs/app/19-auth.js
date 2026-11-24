@@ -119,6 +119,7 @@
     state.profile.notifyNearby = Boolean(profile.notifyNearby);
     state.profile.notifyInvites = Boolean(profile.notifyInvites);
     state.profile.notifyChat = Boolean(profile.notifyChat);
+    state.profile.notifyUpdates = profile.notifyUpdates !== false;
     state.unit = state.profile.unitSystem;
     state.profile.instagram = profile.instagramUsername;
     state.profile.tiktok = profile.tiktokUsername;

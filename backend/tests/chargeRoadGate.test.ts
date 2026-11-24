@@ -45,6 +45,16 @@ describe('offline candidate road gate screening', () => {
       [{ lon: -0.5, lat: 0 }, { lon: 0.5, lat: 0 }], date, [gate]);
     assert.equal(collinear.status, 'unknown');
   });
+  it('ignores a repeated point inside a diagonal gate box on a noncrossing route', () => {
+    const diagonal = { ...gate, start: { lon: -1, lat: -1 }, end: { lon: 1, lat: 1 } };
+    const A = { lon: -0.6, lat: 0.5 };
+    const P = { lon: 0, lat: 0.5 }; // Inside bounding box but NOT on the gate.
+    const B = { lon: 0.6, lat: 0.8 };
+    const result = screenReviewedRoadGates([A, P, P, B], date, [diagonal]);
+    assert.equal(result.status, 'screened');
+    assert.equal(result.possibleGateContacts, 0);
+    assert.equal(result.reason, undefined);
+  });
   it('counts repeated candidate crossings separately, without any legal fee estimate', () => {
     const result = screenReviewedRoadGates(
       [{ lon: 0, lat: -1 }, { lon: 0, lat: 1 }, { lon: 0, lat: -1 }], date, [gate]);

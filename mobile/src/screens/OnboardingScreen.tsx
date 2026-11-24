@@ -73,7 +73,10 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }): React.JSX.
     // Repeated taps must not start overlapping native permission dialogs.
     if (continuing.current) return;
     continuing.current = true;
-    await waitForLocationPermissionOrTimeout(() => Location.requestForegroundPermissionsAsync());
+    await waitForLocationPermissionOrTimeout(
+      () => Location.requestForegroundPermissionsAsync(),
+      () => Location.getForegroundPermissionsAsync(),
+    );
     AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true').catch(() => {
       // Best-effort — if this write fails, onboarding just shows again next
       // launch, which is a minor annoyance, not a broken app.

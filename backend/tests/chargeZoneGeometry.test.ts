@@ -94,6 +94,17 @@ describe('offline charge zone GeoJSON screening (not live routing)', () => {
     assert.ok(prepare(geo([ring])));
     assert.equal(prepare({ type: 'MultiPolygon', coordinates: [[ring], [ring]] }), null);
   });
+  it('explicitly caps each ring to the available quadratic intersection budget', () => {
+    const circle = (segments: number) => {
+      const points = Array.from({ length: segments }, (_, index) =>
+        [Math.cos(index * Math.PI * 2 / segments),
+          Math.sin(index * Math.PI * 2 / segments)]);
+      return [...points, [...points[0]!]];
+    };
+    // 2451 segments exceed the 3M topology budget; reject before O(n^2).
+    assert.equal(prepare(geo([circle(2451)])), null);
+    assert.equal(prepare(geo([circle(2500)])), null);
+  });
   it('snapshots supplied geometry and source metadata so callers cannot alter validated zones', () => {
     const sourceRing = square.map(point => [...point]);
     const data = geo([sourceRing]);

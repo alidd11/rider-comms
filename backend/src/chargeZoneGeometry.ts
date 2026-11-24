@@ -39,7 +39,13 @@ export interface ZoneScreenResult {
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_POLYGONS = 128;
+// Total envelope across all polygons. Independent of the topology-work cap.
 const MAX_VERTICES = 150_000;
+// Quadratic self-intersection testing costs n*(n-3)/2 checks for n segments.
+// For n=2450 the cost is 2,997,575; n=2451 exceeds the global 3M budget.
+// Other rings and hole comparisons share the same 3M budget, so datasets
+// with several large rings can have an even smaller per-ring allowance.
+const MAX_RING_SEGMENTS = 2_450;
 const MAX_ROUTE_POINTS = 10_000;
 const MAX_GEOMETRY_COMPARISONS = 3_000_000;
 const SCHEMES = new Set<ChargingSchemeId>([
@@ -81,7 +87,7 @@ function rejectsCoordinateOverride(geojson: unknown): boolean {
 }
 
 function validRing(value: unknown, budget: { remaining: number }): value is Ring {
-  if (!Array.isArray(value) || value.length < 4 || value.length > MAX_VERTICES) return false;
+  if (!Array.isArray(value) || value.length < 4 || value.length > MAX_RING_SEGMENTS + 1) return false;
   if (!value.every(isValidPosition)) return false;
   const first = value[0] as Position, last = value[value.length - 1] as Position;
   if (first[0] !== last[0] || first[1] !== last[1]) return false;

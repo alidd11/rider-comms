@@ -1,41 +1,64 @@
-import { ONBOARDING_LOCATION_PERMISSION_WAIT_MS, waitForLocationPermissionOrTimeout } from '../../src/screens/onboardingLocationPermission';
+import { ONBOARDING_LOCATION_PERMISSION_WAIT_MS,
+  ONBOARDING_LOCATION_PERMISSION_POLL_MS, waitForLocationPermissionOrTimeout } from '../../src/screens/onboardingLocationPermission';
 
 describe('first-launch location permission wait', () => {
   beforeEach(() => { jest.useFakeTimers(); });
   afterEach(() => { jest.clearAllTimers(); jest.useRealTimers(); });
 
-  it('requests permission exactly once and proceeds as soon as it resolves', async () => {
-    const ask = jest.fn().mockResolvedValue({ status: 'granted' });
-    await expect(waitForLocationPermissionOrTimeout(ask)).resolves.toBeUndefined();
-    expect(ask).toHaveBeenCalledTimes(1);
+  it('requests permission once and continues when it resolves promptly', async () => {
+    const request = jest.fn().mockResolvedValue({ status: 'granted' });
+    const read = jest.fn();
+    await expect(waitForLocationPermissionOrTimeout(request, read)).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(read).not.toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
   });
 
-  it('does not strand the rider when native permission prompt never resolves', async () => {
-    const ask = jest.fn(() => new Promise(() => undefined));
+  it('still waits for a rider who answers an iOS prompt after ten seconds', async () => {
+    const request = jest.fn(() => new Promise(resolve => {
+      setTimeout(() => resolve({ status: 'granted' }), 10_000);
+    }));
+    const read = jest.fn().mockResolvedValue({ status: 'undetermined' });
     const finished = jest.fn();
-    const pending = waitForLocationPermissionOrTimeout(ask).then(finished);
-    await jest.advanceTimersByTimeAsync(ONBOARDING_LOCATION_PERMISSION_WAIT_MS - 1);
+    const pending = waitForLocationPermissionOrTimeout(request, read).then(finished);
+    await jest.advanceTimersByTimeAsync(ONBOARDING_LOCATION_PERMISSION_WAIT_MS);
     expect(finished).not.toHaveBeenCalled();
-    await jest.advanceTimersByTimeAsync(1);
+    expect(read).toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(2_000);
     await pending;
     expect(finished).toHaveBeenCalledTimes(1);
-    expect(ask).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
     expect(jest.getTimerCount()).toBe(0);
   });
 
-  it('treats permission refusal as non-blocking, not as permission granted', async () => {
-    const denied = jest.fn().mockResolvedValue({ status: 'denied', granted: false });
-    await expect(waitForLocationPermissionOrTimeout(denied)).resolves.toBeUndefined();
-    expect(denied).toHaveBeenCalledTimes(1);
+  it('does not advance while the iOS permission status remains undetermined', async () => {
+    const request = jest.fn(() => new Promise(() => undefined));
+    const read = jest.fn().mockResolvedValue({ status: 'undetermined' });
+    const finished = jest.fn();
+    void waitForLocationPermissionOrTimeout(request, read).then(finished);
+    await jest.advanceTimersByTimeAsync(ONBOARDING_LOCATION_PERMISSION_WAIT_MS + 2 * ONBOARDING_LOCATION_PERMISSION_POLL_MS);
+    expect(finished).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalled();
   });
 
-  it('also proceeds if the native permission bridge throws or rejects', async () => {
+  it('unblocks a hung Expo bridge when the OS reports a determined status', async () => {
+    const request = jest.fn(() => new Promise(() => undefined));
+    const read = jest.fn().mockResolvedValue({ status: 'denied' });
+    const pending = waitForLocationPermissionOrTimeout(request, read);
+    await jest.advanceTimersByTimeAsync(ONBOARDING_LOCATION_PERMISSION_WAIT_MS);
+    await expect(pending).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('also treats a rejected permission request as optional', async () => {
     for (const request of [
       jest.fn().mockRejectedValue(new Error('unavailable')),
       jest.fn(() => { throw new Error('unavailable'); }),
     ]) {
-      await expect(waitForLocationPermissionOrTimeout(request)).resolves.toBeUndefined();
+      await expect(waitForLocationPermissionOrTimeout(request, jest.fn())).resolves.toBeUndefined();
       expect(request).toHaveBeenCalledTimes(1);
     }
   });

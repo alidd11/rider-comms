@@ -78,7 +78,7 @@ export function countFilterRejection(stats: Pick<AdminStatsStore, 'increment'>):
 export interface RouteDeps {
   rideStore: RideStore;
   pushStore: PushStore;
-  pushNotifier: Pick<PushNotifier, 'notify'>;
+  pushNotifier: Pick<PushNotifier, 'notify'> & Partial<Pick<PushNotifier, 'broadcast'>>;
   presenceStore: PresenceStore;
   profileStore: ProfileStore;
   friendStore: FriendStore;
