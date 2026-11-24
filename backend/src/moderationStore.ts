@@ -20,7 +20,7 @@ export const REPORT_STATUSES = ['open', 'dismissed', 'actioned'] as const;
 export type ReportStatus = (typeof REPORT_STATUSES)[number];
 export const REPORT_RESOLUTIONS = ['dismiss', 'suspend'] as const;
 export type ReportResolution = (typeof REPORT_RESOLUTIONS)[number];
-export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke' | 'data_export' | 'sign_out_everywhere' | 'password_reset_sent' | 'staff_mfa_reset' | 'push_broadcast' | 'hazard_remove' | 'scenic_route_remove';
+export type ModerationActionType = ReportResolution | 'unsuspend' | 'verify_email' | 'social_post_restore' | 'social_post_remove' | 'staff_grant' | 'staff_revoke' | 'data_export' | 'sign_out_everywhere' | 'password_reset_sent' | 'staff_mfa_reset' | 'push_broadcast' | 'hazard_remove' | 'scenic_route_remove' | 'app_switch_on' | 'app_switch_off';
 export const MAX_MODERATION_NOTE_LENGTH = 1000;
 
 export interface QueuedSafetyReport extends SafetyReport {
@@ -78,6 +78,8 @@ export interface ModerationAction {
   action: ModerationActionType;
   note: string;
   createdAt: number;
+  /** What a non-rider action was about, e.g. the switch flipped or the item removed. */
+  detail?: string | null;
 }
 
 export type ResolveReportResult =
@@ -155,6 +157,7 @@ interface ModerationActionRow {
   action: ModerationActionType;
   note: string;
   created_at: string | number;
+  content_ref?: string | null;
 }
 
 function toModerationAction(row: ModerationActionRow): ModerationAction {
@@ -166,6 +169,7 @@ function toModerationAction(row: ModerationActionRow): ModerationAction {
     action: row.action,
     note: row.note,
     createdAt: Number(row.created_at),
+    ...(row.content_ref ? { detail: row.content_ref } : {}),
   };
 }
 
@@ -799,7 +803,7 @@ export class ModerationStore {
   async listActions(targetRiderId?: string, limit = 100): Promise<ModerationAction[]> {
     await ensureMigrated();
     const { rows } = await getPool().query<ModerationActionRow>(
-      `SELECT id, moderator_id, target_rider_id, report_id, action, note, created_at
+      `SELECT id, moderator_id, target_rider_id, report_id, action, note, created_at, content_ref
        FROM moderation_actions
        WHERE $1::text IS NULL OR target_rider_id = $1
        ORDER BY created_at DESC, id

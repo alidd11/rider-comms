@@ -1,3 +1,4 @@
+import { appSwitches } from './appSwitches.ts';
 import http from 'node:http';
 import { errorFields, log } from './log.ts';
 import { RequestMetrics, routeKey } from './requestMetrics.ts';
@@ -344,7 +345,7 @@ export function createApp(options: CreateAppOptions = {}): http.Server {
           return sendJson(res, 200, {
             entitlement: socialOpenBetaEnabled ? 'beta' : 'pilot',
             policyVersion: socialOpenBetaEnabled ? 'social-open-beta-v1' : 'social-pilot-v1',
-            capabilities: socialCapabilities(socialPostingEnabled),
+            capabilities: socialCapabilities(socialPostingEnabled && await appSwitches.isOn('social_posting')),
           });
         }
       }
