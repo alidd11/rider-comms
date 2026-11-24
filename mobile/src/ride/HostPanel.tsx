@@ -26,7 +26,7 @@ import { microphoneErrorMessage, preflightVoiceMicrophone } from '../audio/micro
 import { haptics } from '../haptics';
 
 
-function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; onBack?: () => void }): React.JSX.Element {
+function JoinOrHostForm({ inviteCode, onBack, backToMenu }: { inviteCode?: string | null; onBack?: () => void; backToMenu?: boolean }): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight } = useWindowDimensions();
@@ -89,7 +89,7 @@ function JoinOrHostForm({ inviteCode, onBack }: { inviteCode?: string | null; on
         contentInsetAdjustmentBehavior="never"
       >
         <View style={[styles.titleRow, { marginTop: insets.top + 18 }]}>
-          <BackToMap onBack={onBack} />
+          <BackToMap onBack={onBack} toMenu={backToMenu} />
           <Text style={styles.screenTitle} accessibilityRole="header">Ride</Text>
         </View>
         <ImageBackground
@@ -341,26 +341,26 @@ function ActiveRide({ isHost }: { isHost: boolean }): React.JSX.Element {
 }
 
 /** Back to the map (PWA: the Ride page's back arrow). */
-function BackToMap({ onBack }: { onBack?: () => void }): React.JSX.Element | null {
+function BackToMap({ onBack, toMenu = false }: { onBack?: () => void; toMenu?: boolean }): React.JSX.Element | null {
   if (!onBack) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Back to map" onPress={onBack} hitSlop={8} style={({ pressed }) => [styles.backToMap, pressed && pressedFeedback]} testID="ride-back">
+    <Pressable accessibilityRole="button" accessibilityLabel={toMenu ? 'Back to menu' : 'Back to map'} onPress={onBack} hitSlop={8} style={({ pressed }) => [styles.backToMap, pressed && pressedFeedback]} testID="ride-back">
       <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
     </Pressable>
   );
 }
 
-export function HostPanel({ inviteCode, onBack }: { inviteCode?: string | null; onBack?: () => void } = {}): React.JSX.Element {
+export function HostPanel({ inviteCode, onBack, backToMenu }: { inviteCode?: string | null; onBack?: () => void; backToMenu?: boolean } = {}): React.JSX.Element {
   const { activeRide } = useRide();
   const insets = useSafeAreaInsets();
 
-  if (!activeRide) return <JoinOrHostForm inviteCode={inviteCode} onBack={onBack} />;
+  if (!activeRide) return <JoinOrHostForm inviteCode={inviteCode} onBack={onBack} backToMenu={backToMenu} />;
   return (
     <ScrollView
       style={styles.activeScroll}
       contentContainerStyle={[styles.activePanel, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}
     >
-      <BackToMap onBack={onBack} />
+      <BackToMap onBack={onBack} toMenu={backToMenu} />
       <ActiveRide isHost={activeRide.isHost} />
     </ScrollView>
   );

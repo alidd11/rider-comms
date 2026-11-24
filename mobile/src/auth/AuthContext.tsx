@@ -111,6 +111,7 @@ function authErrorMessage(error: unknown): string {
     rate_limited: 'Too many attempts. Wait a moment and try again.',
     terms_not_accepted: 'Confirm you’re 16 or older and agree to the Terms of Service and Community Guidelines to create an account.',
     objectionable_username: 'That username isn’t allowed. Choose another.',
+    signups_paused: 'New accounts are paused for a short while. Try again later.',
   };
   if (code && messages[code]) return messages[code]!;
   return error.status >= 500
@@ -466,7 +467,8 @@ function AuthScreen({ onAuthenticated, restoreError, onRetryRestore }: {
   );
 }
 
-function AuthSplash(): React.JSX.Element {
+/** The branded start-up screen, also laid over the map until it is ready (LaunchCover). */
+export function AuthSplash(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   return (
     <ImageBackground source={AUTH_HERO_IMAGE} style={styles.splash} imageStyle={styles.backgroundImage}>

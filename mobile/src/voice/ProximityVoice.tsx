@@ -70,6 +70,8 @@ export function ProximityVoice({
   const [localSpeakingPeers, setLocalSpeakingPeers] = React.useState<Set<string>>(new Set());
   const [peerNames, setPeerNames] = React.useState<Map<string, string>>(new Map());
   const [error, setError] = React.useState<string | null>(null);
+  // Staff paused Nearby Voice for everyone: say so instead of looking like nobody is in range.
+  const [paused, setPaused] = React.useState(false);
   const [audioSessionError, setAudioSessionError] = React.useState<string | null>(null);
   const [authorizationExpired, setAuthorizationExpired] = React.useState(false);
   const [refreshVersion, setRefreshVersion] = React.useState(0);
@@ -186,6 +188,7 @@ export function ProximityVoice({
             [...current].filter(([peerId]) => authorisedPeerIds.has(peerId)),
           ));
           hasAuthorizedOnce.current = true;
+          setPaused(response.paused === true);
           setAuthorizationExpired(false);
           setError(null);
           renewAuthorizationLease(timing.authorizationLeaseMs);
@@ -301,7 +304,9 @@ export function ProximityVoice({
   const statusHasIssue = Boolean(error || audioSessionError || authorizationExpired);
   const statusText = partialConnectionIssue
     ? `Nearby Voice · ${connectedPeers.size} connected · Reconnecting`
-    : proximityVoiceStatus({
+    : paused && !statusHasIssue && connectedPeers.size === 0
+      ? 'Nearby Voice is paused right now'
+      : proximityVoiceStatus({
       error: Boolean(error || audioSessionError),
       authorizationExpired,
       manuallyMuted,

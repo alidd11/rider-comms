@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Linking, View, StyleSheet, useColorScheme } from 'react-native';
+import { Linking, useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import type { LinkingOptions, NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -21,7 +21,7 @@ import { RideProvider } from '../ride/RideContext';
 import { SettingsProvider } from '../settings/SettingsContext';
 import { BillingProvider } from '../billing/BillingContext';
 import { FriendsProvider } from '../friends/FriendsContext';
-import { AuthProvider } from '../auth/AuthContext';
+import { AuthProvider, AuthSplash } from '../auth/AuthContext';
 import { parseNavigationLink } from '../navigationLinks';
 import { colors, useConcreteThemeColors } from '../theme';
 import { MovementSafetyProvider, useMovementSafety } from '../safety/MovementSafetyContext';
@@ -42,9 +42,11 @@ export type TabParamList = {
     label?: string;
     /** Select a complete editorial itinerary for Rider Comms turn-by-turn. */
     curatedRouteId?: string;
+    /** Opened from the menu: back goes to the menu, not the bare map. */
+    fromMenu?: boolean;
   } | undefined;
   GroupRide: undefined;
-  Friends: undefined;
+  Friends: { fromMenu?: boolean } | undefined;
 };
 
 export type RootStackParamList = {
@@ -154,7 +156,7 @@ function Tabs(): React.JSX.Element {
 /**
  * Gates the real app behind the first-launch onboarding flow. Checked once
  * on mount with a single AsyncStorage read (kept deliberately simple: no
- * loading spinner, just a blank themed screen for the instant that read
+ * loading spinner, just the start-up splash for the instant that read
  * takes) so a first-time user sees onboarding instead of being dropped
  * straight into MapScreen — whose location polling otherwise surfaces an
  * immediate "no location yet" notice before they've done anything at all.
@@ -169,7 +171,7 @@ function OnboardingGate({ children }: { children: React.ReactNode }): React.JSX.
   }, []);
 
   if (completed === null) {
-    return <View style={styles.blank} />;
+    return <AuthSplash />;
   }
   if (!completed) {
     return <OnboardingScreen onDone={() => setCompleted(true)} />;
@@ -268,7 +270,3 @@ export function AppNavigator(): React.JSX.Element {
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  blank: { flex: 1, backgroundColor: colors.background },
-});

@@ -45,7 +45,8 @@ export interface PlaceSuggestionSummary {
 }
 export interface VoiceTokenResponse { token: string; url: string }
 export interface ProximityVoiceConnection extends VoiceTokenResponse { peerId: string }
-export interface ProximityVoiceResponse { connections: ProximityVoiceConnection[]; refreshAfterMs: number; authorizationLeaseMs: number }
+/** `paused` is set while staff have paused Nearby Voice; connections is then empty. */
+export interface ProximityVoiceResponse { connections: ProximityVoiceConnection[]; refreshAfterMs: number; authorizationLeaseMs: number; paused?: boolean }
 export interface BlockedRider { riderId: string; displayName: string; handle: string; blockedAt: number }
 export interface PublicRiderProfile {
   riderId: string;
