@@ -1102,6 +1102,15 @@
 
   function closeSheet() {
     activeFriendProfileRiderId = null;
+    if (sheetOpenedFromMenu) {
+      sheetOpenedFromMenu = false;
+      // Back on the map, the menu the sheet came from reappears, unless
+      // closing it opened something else.
+      if (state.screen === 'map') {
+        reopenMenuOnMap = true;
+        queueMicrotask(reopenMenuIfDue);
+      }
+    }
     const trigger = lastSheetTrigger;
     $('#sheetBackdrop').hidden = true;
     $('#sheetBackdrop').classList.remove('settings-page-mode', 'settings-full-bleed');
