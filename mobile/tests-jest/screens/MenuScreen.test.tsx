@@ -118,21 +118,23 @@ test('the rows go where they say, with Live and new counts', async () => {
   mockUnread = 98;
   const nav = await renderMenu();
   await fireEvent.press(screen.getByLabelText('Ride, Live'));
-  expect(nav.navigate).toHaveBeenCalledWith('Tabs', expect.objectContaining({ screen: 'Map' }));
+  expect(nav.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Map', params: expect.objectContaining({ segment: 'host', fromMenu: true }) });
   await fireEvent.press(screen.getByLabelText('Friends, 99+ new'));
-  expect(nav.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Friends' });
+  expect(nav.navigate).toHaveBeenCalledWith('Tabs', { screen: 'Friends', params: { fromMenu: true } });
   for (const [label, target] of [['Routes', 'Routes'], ['Settings', 'Settings']] as const) {
     await fireEvent.press(screen.getByLabelText(label));
-    expect(nav.replace).toHaveBeenCalledWith(target);
+    // Pushed over the menu, so their back arrow returns to it.
+    expect(nav.navigate).toHaveBeenCalledWith(target);
   }
   await fireEvent.press(screen.getByLabelText(/^Your plan/));
-  expect(nav.replace).toHaveBeenCalledWith('Billing');
+  expect(nav.navigate).toHaveBeenCalledWith('Billing');
   await fireEvent.press(screen.getByLabelText('Help & Support'));
-  expect(nav.replace).toHaveBeenCalledWith('SettingsPage', { page: 'help' });
+  expect(nav.navigate).toHaveBeenCalledWith('SettingsPage', { page: 'help' });
   await fireEvent.press(screen.getByLabelText('View profile'));
-  expect(nav.replace).toHaveBeenCalledWith('SettingsPage', { page: 'myProfile' });
+  expect(nav.navigate).toHaveBeenCalledWith('SettingsPage', { page: 'myProfile' });
   await fireEvent.press(screen.getByLabelText('Close menu'));
   expect(nav.goBack).toHaveBeenCalled();
+  expect(nav.replace).not.toHaveBeenCalled();
 });
 
 test('the ride stats total the rides kept on this device', () => {

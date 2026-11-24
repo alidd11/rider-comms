@@ -3,11 +3,12 @@ import { listSignature, useListLayoutAnimation } from '../components/useListLayo
 import { View, Text, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Modal, Linking, RefreshControl, Share, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FriendActivity, FriendRequest, FriendSummary } from '@rider-comms/shared';
-import type { RootStackParamList } from '../navigation';
+import type { RootStackParamList, TabParamList } from '../navigation';
 import { colors, spacing, elevation, pressedFeedback } from '../theme';
 import { useSettings } from '../settings/SettingsContext';
 import { FriendInviteCard } from '../components/FriendInviteCard';
@@ -543,6 +544,8 @@ function FriendProfileModal({
 
 export function FriendsScreen(): React.JSX.Element {
   const rootNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<TabParamList, 'Friends'>>();
+  const openedFromMenu = route.params?.fromMenu === true;
   const { friends, incomingRequests, outgoingRequests, requestProfiles, activityByRider, conversations, friendProfileRevision, loading, error, refresh } = useFriends();
   const insets = useSafeAreaInsets();
   const { roster, rideLocations, shareRideLocation, setRideLocationSharing } = useRide();
@@ -592,8 +595,15 @@ export function FriendsScreen(): React.JSX.Element {
       >
         <ScreenHeader
           title="Friends"
-          onBack={() => rootNavigation.navigate('Tabs', { screen: 'Map', params: { segment: 'public', at: Date.now() } })}
-          backLabel="Back to map"
+          onBack={() => {
+            rootNavigation.navigate('Tabs', { screen: 'Map', params: { segment: 'public', at: Date.now() } });
+            // Opened from the menu: go back to it, over the map.
+            if (openedFromMenu) {
+              rootNavigation.dispatch({ ...CommonActions.setParams({ fromMenu: undefined }), source: route.key });
+              rootNavigation.navigate('Menu');
+            }
+          }}
+          backLabel={openedFromMenu ? 'Back to menu' : 'Back to map'}
           action={(
             <Pressable
               style={({ pressed }) => [styles.headerAdd, addOpen && styles.headerAddActive, pressed && styles.headerAddPressed]}
