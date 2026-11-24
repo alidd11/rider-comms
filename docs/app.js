@@ -9562,7 +9562,7 @@
       const observer = new ResizeObserver(() => {
         if (!$('#appMenu').hidden) requestAnimationFrame(syncAppMenuScrollability);
       });
-      $('#appMenu > *').forEach((child) => observer.observe(child));
+      $$('#appMenu > *').forEach((child) => observer.observe(child));
     }
     $('#appMenuViewProfile').addEventListener('click', () => { closeAppMenu({ restoreFocus: false }); openSheet('myProfile'); });
     $$('[data-menu-nav]').forEach((button) => button.addEventListener('click', () => {
