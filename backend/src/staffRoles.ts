@@ -25,6 +25,8 @@ export const STAFF_PERMISSIONS = [
   'review_partners',
   // Push notifications to every rider: admins only.
   'send_notifications',
+  // Pausing sign-ups, Social posting or Nearby Voice for everyone: admins only.
+  'manage_switches',
 ] as const;
 export type StaffPermission = (typeof STAFF_PERMISSIONS)[number];
 

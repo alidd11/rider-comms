@@ -14,9 +14,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'content', 'audit', 'notifications', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', content: 'Map content', audit: 'Audit log', notifications: 'Notifications', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', content: 'moderate', audit: 'view_audit', notifications: 'send_notifications', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'content', 'audit', 'notifications', 'switches', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', content: 'Map content', audit: 'Audit log', notifications: 'Notifications', switches: 'App switches', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', content: 'moderate', audit: 'view_audit', notifications: 'send_notifications', switches: 'manage_switches', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -41,10 +41,10 @@
   ];
   const PERMISSION_LABELS = [
     ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
-    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['send_notifications', 'Push notifications to riders'], ['view_system', 'System'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['send_notifications', 'Push notifications to riders'], ['manage_switches', 'App switches'], ['view_system', 'System'],
   ];
   const ROLE_MATRIX = {
-    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications', 'view_system'],
+    admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications', 'manage_switches', 'view_system'],
     moderator: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'view_audit', 'view_system'],
     support: ['view_overview', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit', 'view_system'],
     analyst: ['view_overview', 'view_system'],
@@ -57,13 +57,14 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route', app_switch_on: 'Turned on', app_switch_off: 'Turned off' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
     ['social', 'Social posts', ['social_post_restore', 'social_post_remove']],
     ['accounts', 'Accounts', ['verify_email', 'data_export', 'sign_out_everywhere', 'password_reset_sent']],
-    ['staff', 'Staff', ['staff_grant', 'staff_revoke']],
+    ['staff', 'Staff', ['staff_grant', 'staff_revoke', 'staff_mfa_reset']],
+    ['app', 'App', ['push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off']],
   ];
 
   const pageEl = document.getElementById('page');
@@ -1651,7 +1652,7 @@
   }
 
   function actionCard(action) {
-    const { name } = riderLabel(action.targetRiderId);
+    const { name } = action.action.startsWith('app_switch_') ? { name: SWITCH_NAMES[action.detail] || action.detail } : riderLabel(action.targetRiderId);
     return el('li', { class: 'list-row' }, [
       person(`${ACTION_LABELS[action.action] || action.action}: ${name}`, `By ${riderLabel(action.moderatorId).name} · “${action.note}”`, action.targetRiderId),
       el('span', { class: 'trail' }, [timeEl(action.createdAt)]),
@@ -2184,6 +2185,63 @@
       el('div', { class: 'card' }, [data.items.length
         ? el('ul', { class: 'list' }, data.items.map(row))
         : emptyState('inbox', 'Nothing sent yet', null)]),
+    );
+  }
+
+  // App switches: pause a feature for every rider without a deploy.
+  const SWITCH_NAMES = { signups: 'New sign-ups', social_posting: 'Social posting', nearby_voice: 'Nearby Voice' };
+  const SWITCH_EFFECTS = {
+    signups: ['People can create accounts.', 'No one can create an account. Riders who already have one still sign in.'],
+    social_posting: ['Riders can post photos and Reels to Rider Social.', 'No new Social posts or uploads. Riders can still view, report and delete posts.'],
+    nearby_voice: ['Riders who go live can talk to riders in range.', 'No Nearby Voice calls. Calls in progress end within a minute; ride voice is not affected.'],
+  };
+
+  async function renderSwitches(generation) {
+    const { switches } = await api('GET', '/admin/switches');
+    if (!isCurrentRender(generation)) return;
+    await loadNames(switches.map((item) => item.changedBy).filter(Boolean));
+    if (!isCurrentRender(generation)) return;
+    const row = (item) => {
+      const [onText, offText] = SWITCH_EFFECTS[item.key];
+      const toggle = el('button', {
+        type: 'button', class: 'switch', role: 'switch', 'aria-checked': String(item.on), 'aria-label': SWITCH_NAMES[item.key],
+      }, [el('span', { class: 'switch-knob', 'aria-hidden': 'true' })]);
+      toggle.addEventListener('click', async () => {
+        const turningOn = !item.on;
+        const choice = await actionDialog({
+          title: `${turningOn ? 'Turn on' : 'Pause'} ${SWITCH_NAMES[item.key].toLowerCase()}?`,
+          description: turningOn ? onText : offText,
+          confirmLabel: turningOn ? 'Turn on' : 'Pause',
+          danger: !turningOn,
+          templates: turningOn ? ['Issue resolved.'] : ['Spam or abuse wave.', 'Provider incident.', 'Planned maintenance.'],
+        });
+        if (!choice) return;
+        toggle.disabled = true;
+        try {
+          await api('POST', `/admin/switches/${item.key}`, { on: turningOn, note: choice.note });
+          await render();
+          flash(`${SWITCH_NAMES[item.key]} ${turningOn ? 'turned on' : 'paused'}.`);
+        } catch (failure) {
+          toggle.disabled = false;
+          flash(failure.message || 'Couldn’t change it. Try again.', 'danger');
+        }
+      });
+      const changed = item.changedAt
+        ? el('span', { class: 'muted switch-meta' }, [`${item.on ? 'Turned on' : 'Paused'} `, timeEl(item.changedAt), ` by ${riderLabel(item.changedBy).name} · “${item.note}”`])
+        : null;
+      return el('li', { class: 'list-row switch-row' }, [
+        el('div', { class: 'switch-copy' }, [
+          el('strong', { text: SWITCH_NAMES[item.key] }),
+          el('span', { class: 'muted', text: item.on ? onText : offText }),
+          changed,
+        ]),
+        el('div', { class: 'trail' }, [item.on ? null : badge('Paused', 'danger'), toggle]),
+      ]);
+    };
+    const paused = switches.filter((item) => !item.on).length;
+    pageEl.replaceChildren(
+      pageHeader('App switches', paused ? `${paused} paused for every rider` : 'Everything is on'),
+      el('div', { class: 'card' }, [el('ul', { class: 'list' }, switches.map(row))]),
     );
   }
 
@@ -3461,6 +3519,8 @@
         await renderContent(generation);
       } else if (view === 'notifications') {
         await renderNotifications(generation);
+      } else if (view === 'switches') {
+        await renderSwitches(generation);
       } else if (view === 'partners') {
         await renderPartners(generation);
       } else if (view === 'partner') {

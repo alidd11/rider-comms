@@ -1,3 +1,4 @@
+import { appSwitches } from '../appSwitches.ts';
 import { reportOperationalError } from '../errorAlerts.ts';
 import { log } from '../log.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
@@ -45,6 +46,8 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
   if (req.method === 'POST' && url.pathname === '/auth/signup') {
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'auth'))) return;
     if (!(await consumeRateLimit(res, rateLimitStore, rateLimitSubject('ip', address), 'signup_ip'))) return;
+    // Staff can pause new accounts from the Staff Hub; existing riders still sign in.
+    if (!(await appSwitches.isOn('signups'))) return sendJson(res, 403, { error: 'signups_paused' });
     const body = await readJsonBody(req);
     // App Store guideline 1.2: no account without agreeing to the Terms and
     // Community Guidelines; the version agreed to is stored with it.
