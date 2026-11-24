@@ -1,3 +1,4 @@
+import { appSwitches } from '../appSwitches.ts';
 import { RIDE_VOICE_TOKEN_TTL_SECONDS, mintVoiceToken, proximityRoomName, rideRoomName } from '../liveKitToken.ts';
 import { PresenceStore, ImplausibleLocationJumpError, StaleLocationFixError } from '../presenceStore.ts';
 import { consumeRateLimit, isCoordinate, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
@@ -127,6 +128,16 @@ export async function handleLiveRoutes(ctx: RouteContext): Promise<unknown> {
       return sendJson(res, 200, voiceToken);
     }
     if (body.target === 'channel') {
+      // Paused from the Staff Hub: no calls, and the app keeps waiting
+      // without the microphone until the next refresh finds it on again.
+      if (!(await appSwitches.isOn('nearby_voice'))) {
+        return sendJson(res, 200, {
+          connections: [],
+          paused: true,
+          refreshAfterMs: PROXIMITY_VOICE_REFRESH_MS,
+          authorizationLeaseMs: PROXIMITY_VOICE_AUTHORIZATION_LEASE_MS,
+        });
+      }
       const peerIds = await presenceStore.getCurrentPeerIds(actorId, Date.now(), MAX_PRESENCE_FIX_AGE_MS);
       // filterAllowedPeerIds keeps the closest-first order.
       const authorisedPeerIds = (await moderationStore.filterAllowedPeerIds(actorId, peerIds)).slice(0, MAX_NEARBY_VOICE_PEERS);

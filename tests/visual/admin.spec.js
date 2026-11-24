@@ -58,7 +58,7 @@ async function signIn(page) {
 }
 
 const ROLE_PERMISSIONS = {
-  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications'],
+  admin: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications', 'manage_switches'],
   moderator: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'moderate', 'view_audit'],
   support: ['view_overview', 'view_system', 'view_riders', 'view_cases', 'verify_email', 'account_help', 'view_audit'],
   analyst: ['view_overview', 'view_system'],
@@ -109,6 +109,11 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     riderFilters: [],
     alertPrefs: { dailyDigest: false, urgentAlerts: false },
     broadcasts: [],
+    switches: [
+      { key: 'signups', on: true, changedBy: null, changedAt: null, note: null },
+      { key: 'social_posting', on: true, changedBy: null, changedAt: null, note: null },
+      { key: 'nearby_voice', on: false, changedBy: 'rider_admin', changedAt: Date.now() - 3_600_000, note: 'Provider incident' },
+    ],
     contentQueries: [],
     hazards: [
       { id: 'hz-1', type: 'road_closure', lat: 51.5012, lon: -0.1419, reportedBy: 'rider_maya', createdAt: Date.now() - 600000, expiresAt: Date.now() + 3600000, confirmations: 0, denials: 3, active: true },
@@ -172,6 +177,15 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       list.splice(list.findIndex((item) => item.id === contentRemove[2]), 1);
       return json(200, { ok: true });
     }
+    const switchChange = url.pathname.match(/^\/admin\/switches\/([a-z_]+)$/);
+    if (switchChange && request.method() === 'POST') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      const item = state.switches.find((candidate) => candidate.key === switchChange[1]);
+      Object.assign(item, { on: body.on, changedBy: ADMIN_ID, changedAt: Date.now(), note: body.note });
+      return json(200, { switch: item });
+    }
+    if (url.pathname === '/admin/switches') return json(200, { switches: state.switches });
     if (url.pathname === '/admin/broadcasts') {
       if (request.method() === 'POST') {
         const body = request.postDataJSON();
@@ -1916,7 +1930,7 @@ test.describe('staff dashboard', () => {
     await expect(page.locator('.staff-roles-details')).not.toHaveAttribute('open', '');
     await page.locator('.staff-roles-details > summary').click();
     // The Case Desk permission adds an actual row to the staff rights matrix.
-    await expect(page.locator('.matrix tbody tr')).toHaveCount(11);
+    await expect(page.locator('.matrix tbody tr')).toHaveCount(12);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Company case desk' })).toHaveCount(1);
     await expect(page.locator('.matrix tbody tr').filter({ hasText: 'Seller and advertiser applications' })).toHaveCount(1);
     await expect(page.locator('.matrix td[aria-label="Analyst: no"]').first()).toBeVisible();
@@ -2678,6 +2692,35 @@ test('notifications: an admin previews, tests, then sends to riders with a note;
   await expect(sent).toHaveCount(2);
   await expect(sent.first()).toContainText('14 of 15 devices');
   await expect(sent.nth(1)).toContainText('Test');
+});
+
+test('app switches: an admin pauses a feature with a note and sees who changed what; moderators don’t see the page', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#switches');
+  await expect(page.locator('.page-title')).toHaveText('App switches');
+  await expect(page.locator('.page-subtitle')).toHaveText('1 paused for every rider');
+  const voice = page.locator('.switch-row', { hasText: 'Nearby Voice' });
+  await expect(voice).toContainText('Paused');
+  await expect(voice).toContainText('Provider incident');
+  await expect(page.getByRole('switch', { name: 'Nearby Voice' })).toHaveAttribute('aria-checked', 'false');
+  await page.getByRole('switch', { name: 'New sign-ups' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Pause new sign-ups?' });
+  await expect(dialog).toContainText('Riders who already have one still sign in.');
+  await dialog.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Bot sign-ups');
+  await dialog.getByRole('button', { name: 'Pause' }).click();
+  await expect(page.locator('.flash')).toHaveText('New sign-ups paused.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/switches/signups', body: { on: false, note: 'Bot sign-ups' } });
+  await expect(page.locator('.page-subtitle')).toHaveText('2 paused for every rider');
+  await expect(page.getByRole('switch', { name: 'New sign-ups' })).toHaveAttribute('aria-checked', 'false');
+});
+
+test('app switches: the page and menu item are admin-only', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { role: 'moderator' });
+  await page.goto('/admin.html#switches');
+  await expect(page.locator('.page-title')).not.toHaveText('App switches');
+  await expect(page.locator('#nav [data-view="switches"]')).toBeHidden();
 });
 
 test('notifications: the page and menu item are admin-only', async ({ page }) => {

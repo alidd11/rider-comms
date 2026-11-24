@@ -1,3 +1,4 @@
+import { appSwitches } from '../src/appSwitches.ts';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { MediaScanUnavailableError } from '../src/socialMediaScanner.ts';
 import assert from 'node:assert/strict';
@@ -106,6 +107,21 @@ describe('Rider Social posts', { skip: !hasDatabase && 'DATABASE_URL not set; sk
     assert.deepEqual(body.capabilities, {
       mediaUpload: true, privatePosting: false, publicPosting: true, liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false,
     });
+  });
+
+  it('stops offering and accepting posts while staff pause Social posting', async () => {
+    await appSwitches.set('social_posting', false, 'social_staff', 'Spam wave');
+    try {
+      const boot = await (await authenticatedFetch(ctx, 'social_a', '/social/bootstrap')).json() as { capabilities: Record<string, boolean> };
+      assert.equal(boot.capabilities.publicPosting, false);
+      assert.equal(boot.capabilities.mediaUpload, false);
+      const post = await postJson(ctx, 'social_a', '/social/posts', { kind: 'photo', caption: '', mediaIds: [] });
+      assert.equal(post.status, 503);
+      assert.equal((await post.json() as { error: string }).error, 'social_posting_disabled');
+    } finally {
+      await appSwitches.set('social_posting', true, 'social_staff', 'Back on');
+      await getPool().query('DELETE FROM app_switches');
+    }
   });
 
   it('processes a photo upload, stores only the processed file, and posts it', async () => {

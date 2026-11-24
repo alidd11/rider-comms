@@ -1322,4 +1322,24 @@ export const MIGRATIONS: Migration[] = [
           'push_broadcast', 'hazard_remove', 'scenic_route_remove'));
     `,
   },
+  {
+    // Staff Hub switches that pause sign-ups, Social posting or Nearby Voice
+    // for everyone. No row means on. Each change is also an audit row whose
+    // content_ref names the switch.
+    name: '0071_app_switches',
+    sql: `
+      CREATE TABLE IF NOT EXISTS app_switches (
+        key TEXT PRIMARY KEY CHECK (key IN ('signups', 'social_posting', 'nearby_voice')),
+        enabled BOOLEAN NOT NULL,
+        changed_by TEXT NOT NULL,
+        changed_at BIGINT NOT NULL,
+        note TEXT NOT NULL
+      );
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset',
+          'push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off'));
+    `,
+  },
 ];
