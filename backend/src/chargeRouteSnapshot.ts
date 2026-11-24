@@ -5,6 +5,7 @@
  * supplied fields, NOT authenticity of any map, road match or charge source.
  */
 import { parseChargeInstant } from './chargeInstant.ts';
+import { MAX_CHARGE_PASSAGE_UNCERTAINTY_MINUTES } from './chargePassageWindow.ts';
 import { summarizeRouteChargeWindows, type RouteChargeWindowPassage,
   type RouteChargeWindowSummary } from './routeChargeWindowSummary.ts';
 import type { ChargeVehicleClass } from './chargingRules.ts';
@@ -114,8 +115,17 @@ export function reviewChargeRouteSnapshot(
     // Array order must represent consecutive crossings on this route. Compare
     // UTC instants rather than the lexical text of ISO offset timestamps.
     // Independent earliest/latest estimates MAY overlap; do not reject them.
+    // Internal snapshot coherence requires a valid full ETA uncertainty
+    // envelope, not merely a parseable predicted time. Otherwise a malformed
+    // crossing could be labelled internally_consistent while its per-event
+    // charging assessment silently falls back to unknown.
+    const earliest = parseChargeInstant(observation.passage.earliestPassageAt);
     const predicted = parseChargeInstant(observation.passage.predictedPassageAt);
-    if (predicted === null) return blocked('invalid_observation');
+    const latest = parseChargeInstant(observation.passage.latestPassageAt);
+    if (earliest === null || predicted === null || latest === null
+      || earliest > predicted || predicted > latest
+      || latest - earliest > MAX_CHARGE_PASSAGE_UNCERTAINTY_MINUTES * 60_000)
+      return blocked('invalid_observation');
     if (precedingPredictedAt !== null && predicted < precedingPredictedAt)
       return blocked('non_monotonic_passage_time');
     precedingPredictedAt = predicted;

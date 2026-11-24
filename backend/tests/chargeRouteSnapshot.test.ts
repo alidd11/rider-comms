@@ -86,7 +86,9 @@ describe('offline route snapshot coherence fencing (not authenticating graph)', 
   it('rejects out-of-order crossings by UTC instant, not lexical offset text', () => {
     const first = observed('first');
     const wrongOrder = observed('second', { passage: { ...observed('second').passage,
-      predictedPassageAt: '2026-11-23T12:30:00+01:00' } });
+      earliestPassageAt: '2026-11-23T12:29:00+01:00',
+      predictedPassageAt: '2026-11-23T12:30:00+01:00',
+      latestPassageAt: '2026-11-23T12:31:00+01:00' } });
     assert.equal(check(snapshot([first, wrongOrder])).reason, 'non_monotonic_passage_time');
     assert.equal(check(snapshot([wrongOrder, first])).status, 'internally_consistent');
   });
@@ -102,6 +104,33 @@ describe('offline route snapshot coherence fencing (not authenticating graph)', 
     const bad = observed('bad', { passage: { ...observed('bad').passage,
       predictedPassageAt: '2026-11-23T12:01:00' } });
     assert.equal(check(snapshot([bad])).reason, 'invalid_observation');
+  });
+  it('blocks malformed, reversed and unbounded passage windows before aggregating', () => {
+    const initial = observed('window');
+    const variants = [
+      { ...initial.passage, earliestPassageAt: '2026-11-23T12:00:00' },
+      { ...initial.passage, latestPassageAt: 'not-an-instant' },
+      { ...initial.passage, earliestPassageAt: '2026-11-23T12:02:00Z' },
+      { ...initial.passage, latestPassageAt: '2026-11-23T12:00:00Z' },
+      { ...initial.passage, latestPassageAt: '2026-11-23T14:01:01Z' },
+    ];
+    for (const passage of variants) {
+      const review = check(snapshot([observed('window', { passage })]));
+      assert.equal(review.status, 'blocked');
+      assert.equal(review.reason, 'invalid_observation');
+      assert.equal(review.routeCoverageComplete, false);
+      assert.equal(review.productionApproved, false);
+      assert.equal(review.summary, undefined);
+    }
+  });
+  it('validates uncertainty envelopes by actual UTC instants despite differing offsets', () => {
+    const passage = { ...observed('offset').passage,
+      earliestPassageAt: '2026-11-23T13:00:00+01:00',
+      predictedPassageAt: '2026-11-23T12:01:00Z',
+      latestPassageAt: '2026-11-23T13:02:00+01:00' };
+    const review = check(snapshot([observed('offset', { passage })]));
+    assert.equal(review.status, 'internally_consistent');
+    assert.equal(review.summary?.possibleCrossingCharges, 1);
   });
   it('rejects an occurrence listed twice rather than silently deduplicating it', () => {
     assert.equal(check(snapshot([observed('same'), observed('same')])).reason, 'duplicate_observation');
