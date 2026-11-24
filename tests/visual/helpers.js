@@ -277,11 +277,19 @@ export async function standaloneGeometry(page) {
 export async function openTab(page, screen) {
   const back = page.locator('.screen.active [data-back-to-map]');
   if (await back.isVisible()) {
+    const toMenu = (await back.getAttribute('aria-label')) === 'Back to menu';
     // Back to map steps back through history; WebKit can leave Playwright
     // waiting for a page load that a same-page history step never fires, so
     // dispatch the click and wait for the map itself.
     await back.dispatchEvent('click');
     await expect(page.locator('.screen[data-screen="map"]')).toHaveClass(/active/);
+    // A page opened from the menu goes back to the menu: close it to reach the map.
+    if (toMenu) {
+      const menu = page.locator('#appMenu');
+      await expect(menu).toBeVisible();
+      await page.locator('#closeAppMenu').click();
+      await expect(menu).toBeHidden();
+    }
     // The map screen slides in (.screen's 160 ms screen-in): measuring before
     // it ends reads its contents a few pixels low, as the WebKit geometry
     // check did on #570 and #588.
