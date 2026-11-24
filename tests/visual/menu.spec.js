@@ -11,9 +11,9 @@ test('rider menu is grouped, legible and keeps every destination reachable', asy
   await expect(menu).toHaveAttribute('aria-labelledby', 'appMenuTitle');
   await expect(page.locator('#appMenuTitle')).toHaveText('Menu');
   await expect(page.locator('.app-menu-group-title')).toHaveText(['Ride & explore', 'Account & support']);
-  await expect(page.locator('#appMenuStatsHeading')).toHaveText('Your rides');
-  await expect(page.locator('.app-menu-section-heading > span')).toHaveText('On this device');
-  await expect(page.locator('#appMenuStats')).toHaveAttribute('aria-label', 'Ride totals on this device');
+  await expect(page.locator('#appMenuStatsHeading')).toHaveText('Recent rides');
+  await expect(page.locator('.app-menu-section-heading > span')).toHaveText('Last 10 · this device');
+  await expect(page.locator('#appMenuStats')).toHaveAttribute('aria-label', 'Recent ride totals on this device');
   // Rider Social may be present only for server-entitled riders. Check the
   // six unconditional destinations by their original route keys instead of
   // assuming a fixed row count in the presence of that optional entry.
@@ -73,4 +73,30 @@ test('touch-first menu rows do not retain a sticky hover highlight', async ({ pa
   await row.tap();
   await expect(page.locator('#appMenu')).toBeVisible();
   await expect(row).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+});
+
+test('menu remains stationary when it fits and scrolls only on genuinely short viewports', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-17-pro-max-webkit', 'Phone-height layout contract');
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+  await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '59px'));
+  await page.setViewportSize({ width: 440, height: 956 });
+  await page.locator('#mapAvatarButton').click();
+  const menu = page.locator('#appMenu');
+  await expect(menu).toBeVisible();
+  await expect.poll(() => menu.evaluate((element) => ({
+    fits: element.scrollHeight <= element.clientHeight + 2,
+    scrollable: element.classList.contains('app-menu-needs-scroll'),
+  }))).toEqual({ fits: true, scrollable: false });
+  await menu.evaluate((element) => { element.scrollTop = 40; });
+  expect(await menu.evaluate((element) => element.scrollTop)).toBe(0);
+  await expect(menu.locator('[data-menu-sheet="help"]')).toBeInViewport();
+
+  // When the window is genuinely too short, keep the bottom actions and
+  // accessibility text reachable rather than trapping them off-screen.
+  await page.setViewportSize({ width: 440, height: 610 });
+  await expect.poll(() => menu.evaluate((element) => element.classList.contains('app-menu-needs-scroll'))).toBe(true);
+  const help = menu.locator('[data-menu-sheet="help"]');
+  await help.scrollIntoViewIfNeeded();
+  await expect(help).toBeInViewport({ ratio: 0.9 });
 });

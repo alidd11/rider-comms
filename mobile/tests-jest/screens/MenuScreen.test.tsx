@@ -150,8 +150,8 @@ test('premium menu groups the full rider journey and labels device-local ride to
   mockSocialBootstrap.mockResolvedValue({ entitlement: 'beta' });
   await renderMenu();
   expect(screen.getByText('Menu')).toBeTruthy();
-  expect(screen.getByText('Your rides')).toBeTruthy();
-  expect(screen.getByText('On this device')).toBeTruthy();
+  expect(screen.getByText('Recent rides')).toBeTruthy();
+  expect(screen.getByText('Last 10 · this device')).toBeTruthy();
   expect(screen.getByText('Ride & explore')).toBeTruthy();
   expect(screen.getByText('Account & support')).toBeTruthy();
   expect(screen.getByTestId('menu-ride-stats')).toBeTruthy();
