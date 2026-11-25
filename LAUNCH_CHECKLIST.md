@@ -128,7 +128,12 @@ nightly GitHub job passes with a warning and takes no copy.
 3. Build and upload:
    `cd mobile && npx eas-cli build --platform ios --profile production`,
    then `npx eas-cli submit --platform ios`. Build numbers increment
-   automatically.
+   automatically. Or from GitHub, without a computer: Actions → **Release
+   apps** → Run workflow (platform `ios`, profile `production`, tick
+   *submit*). It needs the repository secret `EXPO_TOKEN` (an Expo access
+   token) and the repository variable `EAS_PROJECT_ID` (from step 4's
+   `eas init`), and says which is missing if either isn't set. The
+   `preview` profile gives an install link for testing instead.
 4. Push notifications (friend requests and messages). The web app needs
    nothing: the server makes and keeps its own Web Push keys. For the
    iOS and Android apps:
