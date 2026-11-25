@@ -174,6 +174,19 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       const items = kind === 'routes' ? state.routes : state.hazards.filter((item) => item.active || url.searchParams.get('include') === 'expired');
       return json(200, { items, nextOffset: null });
     }
+    const contentEdit = url.pathname.match(/^\/admin\/content\/(hazards\/[^/]+\/expire|routes\/[^/]+\/edit)$/);
+    if (contentEdit && request.method() === 'POST') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      const [, , , kind, id] = url.pathname.split('/');
+      if (kind === 'hazards') {
+        Object.assign(state.hazards.find((item) => item.id === id), { active: false, expiresAt: Date.now() });
+        return json(200, { ok: true });
+      }
+      const route = state.routes.find((item) => item.id === id);
+      Object.assign(route, { name: body.name, description: body.description });
+      return json(200, { route });
+    }
     const contentRemove = url.pathname.match(/^\/admin\/content\/(hazards|routes)\/([^/]+)\/remove$/);
     if (contentRemove) {
       state.posts.push({ path: url.pathname, body: request.postDataJSON() });
@@ -2833,4 +2846,41 @@ test('map content: moderators review hazards and scenic routes and remove one wi
   await page.getByRole('searchbox', { name: 'Search scenic routes' }).fill('snake');
   await page.getByRole('searchbox', { name: 'Search scenic routes' }).press('Enter');
   await expect.poll(() => state.contentQueries.at(-1)).toBe('?kind=routes&q=snake');
+});
+
+test('map content: moderators take a hazard off the map and reword a scenic route, each with a note', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#content');
+  const rows = page.locator('.content-row');
+  await rows.first().getByRole('button', { name: 'Take hazard Road closed off the map' }).click();
+  const expire = page.getByRole('dialog', { name: 'Take this hazard off the map?' });
+  await expect(expire).toContainText('Its record stays here');
+  await expire.getByRole('button', { name: 'Cleared by the council.' }).click();
+  await expire.getByRole('button', { name: 'Take off map' }).click();
+  await expect(page.locator('.flash')).toHaveText('Hazard taken off the map.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/content/hazards/hz-1/expire', body: { note: 'Cleared by the council.' } });
+  await expect(rows).toHaveCount(0);
+  await page.getByRole('checkbox', { name: 'Include expired' }).check();
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /off the map/ })).toHaveCount(0);
+
+  await page.getByRole('group', { name: 'Content type' }).getByRole('button', { name: 'Scenic routes' }).click();
+  await rows.first().getByRole('button', { name: 'Edit scenic route Snake Pass loop' }).click();
+  const edit = page.getByRole('dialog', { name: 'Edit this scenic route' });
+  const name = edit.getByRole('textbox', { name: 'Name' });
+  await expect(name).toHaveValue('Snake Pass loop');
+  await expect(name).toBeFocused();
+  await expect(edit.getByRole('textbox', { name: 'Description' })).toHaveValue('<b>Peak</b> District curves');
+  await name.fill('');
+  await edit.getByRole('button', { name: 'Save' }).click();
+  await expect(edit.locator('.error-text')).toHaveText('Name can’t be empty.');
+  await name.fill('Snake Pass');
+  await edit.getByRole('textbox', { name: 'Description' }).fill('Peak District curves.');
+  await edit.getByRole('button', { name: 'Fixed a typo.' }).click();
+  await edit.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.flash')).toHaveText('Scenic route saved.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/content/routes/rt-1/edit', body: { name: 'Snake Pass', description: 'Peak District curves.', note: 'Fixed a typo.' } });
+  await expect(rows.first()).toContainText('Snake Pass');
+  await expect(rows.first()).toContainText('Peak District curves.');
 });
