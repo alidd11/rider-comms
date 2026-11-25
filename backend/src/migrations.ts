@@ -1369,4 +1369,17 @@ export const MIGRATIONS: Migration[] = [
           'announcement_publish', 'announcement_end'));
     `,
   },
+  {
+    // Staff edit a rider's scenic route or take a hazard off the map without
+    // deleting it, from the Staff Hub's Map content page.
+    name: '0073_content_edit_actions',
+    sql: `
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset',
+          'push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off',
+          'announcement_publish', 'announcement_end', 'scenic_route_edit', 'hazard_expire'));
+    `,
+  },
 ];
