@@ -1,0 +1,97 @@
+name: Release apps
+
+# Builds the store versions of the phone apps on Expo's build service (EAS)
+# and, if asked, sends them to TestFlight or Google Play. Started by hand
+# from the Actions tab ("Run workflow"); nothing here runs on a push.
+#
+# It needs, once:
+# - EXPO_TOKEN (repository secret): an Expo access token for the account
+#   that owns the app (expo.dev → Account settings → Access tokens).
+# - EAS_PROJECT_ID (repository variable): the app's Expo project id, from
+#   `cd mobile && npx eas-cli init` (LAUNCH_CHECKLIST.md, section 3).
+# - To send to TestFlight: Apple Developer Program membership, with the
+#   App Store Connect API key stored in EAS (`npx eas-cli credentials`).
+# - To send to Google Play: a Play Console app and its service account key
+#   stored in EAS, plus GOOGLE_MAPS_ANDROID_API_KEY (LAUNCH_CHECKLIST.md,
+#   section 4).
+# Signing keys and store credentials live in EAS, never in this repository.
+# The build runs on Expo's servers, so this job finishes in a few minutes;
+# follow the build from the link it prints.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Which app to build
+        type: choice
+        options: [ios, android, all]
+        default: ios
+      profile:
+        description: production for the stores, preview for an install link to test
+        type: choice
+        options: [production, preview]
+        default: production
+      submit:
+        description: Send a production build to TestFlight / Google Play when it finishes
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-apps
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check the Expo set-up
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+          SUBMIT: ${{ inputs.submit }}
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          missing=0
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=EXPO_TOKEN missing::Add an Expo access token as the repository secret EXPO_TOKEN (expo.dev → Account settings → Access tokens)."
+            missing=1
+          fi
+          if [ -z "$EAS_PROJECT_ID" ]; then
+            echo "::error title=EAS_PROJECT_ID missing::Link the app to Expo with 'cd mobile && npx eas-cli init', then save the project id as the repository variable EAS_PROJECT_ID."
+            missing=1
+          fi
+          if [ "$SUBMIT" = "true" ] && [ "$PROFILE" != "production" ]; then
+            echo "::error title=Only production builds go to the stores::Choose the production profile to submit, or untick submit for a preview build."
+            missing=1
+          fi
+          exit "$missing"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Build on EAS
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+          PLATFORM: ${{ inputs.platform }}
+          PROFILE: ${{ inputs.profile }}
+          SUBMIT: ${{ inputs.submit }}
+        run: |
+          set -euo pipefail
+          args=(build --platform "$PLATFORM" --profile "$PROFILE" --non-interactive --no-wait)
+          # EAS sends each build to its store as soon as it finishes.
+          if [ "$SUBMIT" = "true" ]; then args+=(--auto-submit); fi
+          npx --yes eas-cli@27.11.0 "${args[@]}" | tee eas-build.log
+          {
+            echo "### Phone app build started"
+            echo
+            echo "Platform: \`$PLATFORM\` · profile: \`$PROFILE\` · send to stores: \`$SUBMIT\`"
+            echo
+            grep -Eo 'https://expo\.dev/[^ ]+' eas-build.log | sort -u | sed 's/^/- /' || true
+          } >> "$GITHUB_STEP_SUMMARY"
