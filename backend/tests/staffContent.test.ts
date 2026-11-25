@@ -78,4 +78,37 @@ describe('staff map content', { skip: !hasDatabase && 'DATABASE_URL not set' }, 
     ]);
     assert.equal((await getPool().query("SELECT 1 FROM scenic_routes WHERE id = 'rt-1'")).rowCount, 0);
   });
+
+  it('rewords a route with a note, keeping the old name in the audit log', async () => {
+    const edit = (body: unknown, id = 'rt-1') => postJson(ctx, ADMIN, `/admin/content/routes/${id}/edit`, body);
+    assert.equal((await postJson(ctx, SUPPORT, '/admin/content/routes/rt-1/edit', { name: 'A', description: 'B', note: 'n' })).status, 403);
+    assert.equal((await edit({ name: 'A', description: 'B' })).status, 400, 'no note');
+    assert.equal((await edit({ name: ' ', description: 'B', note: 'n' })).status, 400);
+    assert.equal((await edit({ name: 'x'.repeat(81), description: 'B', note: 'n' })).status, 400);
+    assert.equal((await edit({ name: 'A', description: '', note: 'n' })).status, 400);
+    assert.equal((await edit({ name: 'A', description: 'x'.repeat(501), note: 'n' })).status, 400);
+    assert.equal((await edit({ name: 'A', description: 'B', note: 'n' }, 'missing')).status, 404);
+    assert.equal((await postJson(ctx, ADMIN, '/admin/content/hazards/hz-calm/edit', { name: 'A', description: 'B', note: 'n' })).status, 404, 'hazards are not edited');
+    const res = await edit({ name: '  Snake   Pass ', description: 'Peak District curves. Watch for sheep.', note: 'Tidied the name' });
+    assert.equal(res.status, 200);
+    const { route } = await res.json() as { route: { name: string; description: string; createdBy: string } };
+    assert.deepEqual([route.name, route.description, route.createdBy], ['Snake Pass', 'Peak District curves. Watch for sheep.', POSTER]);
+    const { rows } = await getPool().query<{ action: string; target_rider_id: string; content_ref: string }>(
+      'SELECT action, target_rider_id, content_ref FROM moderation_actions WHERE moderator_id = $1', [ADMIN]);
+    assert.deepEqual(rows.map((row) => [row.action, row.target_rider_id, row.content_ref]), [['scenic_route_edit', POSTER, 'route:rt-1:Snake Pass loop']]);
+  });
+
+  it('takes a hazard off the map but keeps its record', async () => {
+    assert.equal((await postJson(ctx, ADMIN, '/admin/content/hazards/hz-calm/expire', {})).status, 400, 'no note');
+    assert.equal((await postJson(ctx, ADMIN, '/admin/content/routes/rt-1/expire', { note: 'n' })).status, 404, 'routes do not expire');
+    assert.equal((await postJson(ctx, ADMIN, '/admin/content/hazards/hz-calm/expire', { note: 'Cleared' })).status, 200);
+    assert.equal((await postJson(ctx, ADMIN, '/admin/content/hazards/hz-calm/expire', { note: 'Again' })).status, 404, 'already off the map');
+    assert.equal((await postJson(ctx, ADMIN, '/admin/content/hazards/hz-old/expire', { note: 'Old' })).status, 404);
+    const active = await (await authenticatedFetch(ctx, ADMIN, '/admin/content?kind=hazards')).json() as { items: { id: string }[] };
+    assert.ok(!active.items.some((item) => item.id === 'hz-calm'));
+    const all = await (await authenticatedFetch(ctx, ADMIN, '/admin/content?kind=hazards&include=expired')).json() as { items: { id: string; active: boolean }[] };
+    assert.equal(all.items.find((item) => item.id === 'hz-calm')?.active, false);
+    const { rows } = await getPool().query<{ action: string; content_ref: string }>('SELECT action, content_ref FROM moderation_actions WHERE moderator_id = $1', [ADMIN]);
+    assert.deepEqual(rows.map((row) => [row.action, row.content_ref]), [['hazard_expire', 'hazard:hz-calm:accident']]);
+  });
 });

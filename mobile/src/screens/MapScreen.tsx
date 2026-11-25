@@ -50,6 +50,7 @@ import { formatNavigationDistance } from '../navigationGuidance';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { HazardMarker, NavigationPuckMarker, SmoothSelfMarker, SmoothRideMemberMarker } from './mapMarkers';
 import { RegroupChip, RegroupMarker, isRegroupSpot, regroupTitle } from './RegroupPoint';
+import { AnnouncementBanner, useAnnouncement } from './AnnouncementBanner';
 import { RidingHud } from './RidingHud';
 import { NavigationBanner, NavigationControls, NavigationRecentreButton, NavigationSpeedBadge, NavigationTripSummary } from './NavigationOverlay';
 import { GLANCE_TEXT_MAX_SCALE, NavigationNightContext } from '../navigationTone';
@@ -95,6 +96,7 @@ export function MapScreen(): React.JSX.Element {
   const [regroupSaving, setRegroupSaving] = React.useState(false);
   const { shareLocation, setShareLocation, unitSystem, navigationProvider, routeAvoidance, setRouteAvoidance, spokenDirections, avatarId, displayName } = useSettings();
   const { lockedForSafety, speedMps, refreshTracking } = useMovementSafety();
+  const announcement = useAnnouncement(React.useCallback(() => client.getCurrentAnnouncement(), [client]));
   const { muted: voiceMuted, toggleMuted: toggleVoiceMuted, voiceConnected } = useVoiceMute();
   const [rideBarHeight, setRideBarHeight] = React.useState(0);
   // The Where to drawer (PWA: #mapDrawer) and its resting height.
@@ -1011,6 +1013,16 @@ export function MapScreen(): React.JSX.Element {
           // Under the avatar and menu row.
           top={insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm}
           onPress={showRegroupPoint}
+        />
+      )}
+
+      {/* Staff announcement: only when the rider is not moving or navigating. */}
+      {segment === 'public' && announcement.announcement && !lockedForSafety && !activeRoute && !selectedDestination && !selectedHazard && (
+        <AnnouncementBanner
+          announcement={announcement.announcement}
+          // Under the avatar row, and under the regroup chip when there is one.
+          top={insets.top + spacing.sm + MIN_TOUCH_TARGET + spacing.sm + (regroup ? MIN_TOUCH_TARGET + spacing.sm : 0)}
+          onClose={announcement.close}
         />
       )}
 

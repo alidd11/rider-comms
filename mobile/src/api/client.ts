@@ -24,6 +24,8 @@ export interface ScenicRouteFilters { vehicleCategory?: VehicleCategory; roadTyp
 export type VerifyPurchaseRequest =
   | { platform: 'apple'; transactionId: string }
   | { platform: 'google'; purchaseToken: string; productId: string };
+/** The notice staff scheduled in the Staff Hub (GET /announcements/current). */
+export interface Announcement { id: string; title: string; body: string; tone: 'info' | 'warning'; endsAt: number }
 export interface GuestSession { riderId: string; token: string }
 export interface LoginSession extends GuestSession { emailVerified: boolean; termsAccepted?: boolean }
 export interface SignUpSession extends LoginSession { emailVerificationSent: boolean }
@@ -109,6 +111,7 @@ export class RiderCommsClient {
   joinRide(code: string): Promise<JoinRideResponse> { return this.request('POST', '/rides/join', { code }); }
   getRide(id: string): Promise<RideResponse> { return this.request('GET', `/rides/${encodeURIComponent(id)}`); }
   getCurrentRide(): Promise<{ ride: RideResponse | null }> { return this.request('GET', '/rides/current'); }
+  getCurrentAnnouncement(): Promise<{ announcement: Announcement | null }> { return this.request('GET', '/announcements/current'); }
   leaveRide(id: string): Promise<Record<string, never>> { return this.request('POST', `/rides/${encodeURIComponent(id)}/leave`, {}); }
   endRide(id: string): Promise<Record<string, never>> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}`); }
   removeRideMember(id: string, memberId: string): Promise<RideResponse> { return this.request('DELETE', `/rides/${encodeURIComponent(id)}/members/${encodeURIComponent(memberId)}`); }
