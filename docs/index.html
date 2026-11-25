@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="app.css?v=128">
+  <link rel="stylesheet" href="app.css?v=129">
   <link rel="stylesheet" href="routes.css?v=40">
   <title>Rider Comms</title>
 </head>
@@ -253,7 +253,7 @@
           <div id="googleMap" class="google-map" aria-hidden="true"></div>
           <div class="fallback-map" id="fallbackMap"><div class="road road-a"></div><div class="road road-b"></div><div class="road road-c"></div></div>
           <h1 id="mapTitle" class="sr-only">Rider map</h1>
-          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu"></button><b id="mapAvatarBadge" class="map-avatar-badge" aria-hidden="true" hidden>0</b><span class="map-avatar-menu" aria-hidden="true"><svg><use href="#i-menu"/></svg></span><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="map-regroup-row"><button id="regroupChip" class="regroup-chip" type="button" hidden><span class="regroup-chip-icon" aria-hidden="true"><svg><use href="#i-flag"/></svg></span><span class="regroup-chip-text"><strong>Regroup</strong><span id="regroupChipText"></span></span></button></div></header>
+          <header class="map-header"><div class="map-avatar-wrap"><button class="avatar avatar-sm" id="mapAvatarButton" data-avatar aria-label="Open menu" aria-haspopup="dialog" aria-controls="appMenu"></button><b id="mapAvatarBadge" class="map-avatar-badge" aria-hidden="true" hidden>0</b><span class="map-avatar-menu" aria-hidden="true"><svg><use href="#i-menu"/></svg></span><button id="voiceStatusBtn" class="voice-mute-badge" aria-label="Listening hands-free" hidden><svg><use href="#i-mic"/></svg></button></div><div class="map-regroup-row"><button id="regroupChip" class="regroup-chip" type="button" hidden><span class="regroup-chip-icon" aria-hidden="true"><svg><use href="#i-flag"/></svg></span><span class="regroup-chip-text"><strong>Regroup</strong><span id="regroupChipText"></span></span></button></div><div id="announcementBanner" class="announcement-banner" role="status" hidden><span class="announcement-icon" aria-hidden="true"><svg><use href="#i-info"/></svg></span><div class="announcement-copy"><strong id="announcementTitle"></strong><span id="announcementText"></span></div><button id="announcementClose" class="announcement-close" type="button" aria-label="Close announcement"><svg><use href="#i-close"/></svg></button></div></header>
           <div id="fallbackMarkers" class="fallback-markers"></div>
           <div id="hazardMarkers" class="hazard-markers"></div>
           <div class="map-actions">
@@ -560,6 +560,6 @@
   <script src="navigation-camera.js?v=3" defer></script>
   <script src="navigation-puck.js?v=3" defer></script>
   <script src="voice-activity.js?v=1" defer></script>
-  <script src="app.js?v=132" defer></script>
+  <script src="app.js?v=133" defer></script>
 </body>
 </html>

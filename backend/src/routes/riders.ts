@@ -3,10 +3,15 @@ import { OBJECTIONABLE_CONTENT } from '../profileStore.ts';
 import { readJsonBody, sendJson } from '../serverHttp.ts';
 import { countFilterRejection, NOT_HANDLED } from './context.ts';
 import { goOffline } from './live.ts';
+import { announcementStore } from '../announcements.ts';
 import type { RouteContext } from './context.ts';
 
 export async function handleRiderRoutes(ctx: RouteContext): Promise<unknown> {
   const { req, res, url, actorId, s, profileStore, friendStore, hideoutStore, moderationStore, adminStatsStore } = ctx;
+  // The notice staff scheduled in the Staff Hub, if one is running now.
+  if (req.method === 'GET' && url.pathname === '/announcements/current') {
+    return sendJson(res, 200, { announcement: await announcementStore.current() });
+  }
   if (s[0] === 'riders' && s[2]) {
     if (decodeURIComponent(s[1]) !== actorId) return sendJson(res, 403, { error: 'forbidden' });
     if (s[2] === 'profile') {
