@@ -1342,4 +1342,31 @@ export const MIGRATIONS: Migration[] = [
           'push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off'));
     `,
   },
+  {
+    // In-app announcements staff schedule in the Staff Hub. Publishing and
+    // ending one are audit rows whose content_ref is its title.
+    name: '0072_announcements',
+    sql: `
+      CREATE TABLE IF NOT EXISTS announcements (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        tone TEXT NOT NULL CHECK (tone IN ('info', 'warning')),
+        starts_at BIGINT NOT NULL,
+        ends_at BIGINT NOT NULL CHECK (ends_at > starts_at),
+        created_by TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        note TEXT NOT NULL,
+        ended_by TEXT,
+        ended_at BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS announcements_live_idx ON announcements (starts_at DESC) WHERE ended_at IS NULL;
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset',
+          'push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off',
+          'announcement_publish', 'announcement_end'));
+    `,
+  },
 ];

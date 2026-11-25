@@ -175,6 +175,35 @@ test('PWA recent place history is scoped to the signed-in rider', async ({ page 
   await expect(page.locator('#searchScreenResults')).not.toContainText('My recent place');
 });
 
+test('PWA map shows the staff announcement until the rider closes it, never while moving or navigating', async ({ page }) => {
+  let announcement = { id: 'ann-1', title: 'Winter riding', body: 'Roads are icy this week.', tone: 'warning', endsAt: Date.now() + 3_600_000 };
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => (url.pathname === '/announcements/current' ? { body: { announcement } } : null));
+  await page.goto('/');
+  const banner = page.locator('#announcementBanner');
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveAttribute('data-tone', 'warning');
+  await expect(banner).toContainText('Winter riding');
+  await expect(banner).toContainText('Roads are icy this week.');
+  // Ride Safe locking controls, or turn-by-turn, puts the map first.
+  for (const mode of ['safety-locked', 'nav-mode']) {
+    await page.locator('#app').evaluate((app, name) => app.classList.add(name), mode);
+    await expect(banner).toBeHidden();
+    await page.locator('#app').evaluate((app, name) => app.classList.remove(name), mode);
+    await expect(banner).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'Close announcement' }).click();
+  await expect(banner).toBeHidden();
+  await page.reload();
+  await expect(page.locator('#mapAvatarButton')).toBeVisible();
+  await expect(banner).toBeHidden();
+  // A new announcement shows again.
+  announcement = { ...announcement, id: 'ann-2', tone: 'info', title: 'Meet-up Sunday' };
+  await page.reload();
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveAttribute('data-tone', 'info');
+  await expect(banner).toContainText('Meet-up Sunday');
+});
+
 test('PWA map drawer opens Group Ride and keeps saved-place and petrol shortcuts', async ({ page }) => {
   await mockAuthenticatedApi(page);
   await page.addInitScript(({ riderId }) => {
