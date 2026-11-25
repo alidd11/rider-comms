@@ -10388,8 +10388,11 @@
     startSocialEvents();
     syncFriendActivityPolling();
     void initialiseMovementSafety();
+    $('#announcementClose')?.addEventListener('click', closeAnnouncement);
+    void refreshAnnouncement();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void initialiseMovementSafety();
+      if (document.visibilityState === 'visible') void refreshAnnouncement();
       else stopMovementSafetyTracking();
       if (document.visibilityState === 'visible') {
         void (async () => {
@@ -10399,6 +10402,44 @@
         })();
       } else stopPresenceRefresh();
     });
+  }
+
+  // The notice staff schedule in the Staff Hub. It sits on the map, never
+  // while Ride Safe is locking controls or during navigation (CSS), and once
+  // closed that announcement stays closed on this device.
+  const ANNOUNCEMENT_CLOSED_KEY = 'riderComms.announcementClosed';
+  const ANNOUNCEMENT_REFRESH_MS = 5 * 60 * 1000;
+  let announcementTimer;
+
+  function renderAnnouncement(announcement) {
+    const banner = $('#announcementBanner');
+    if (!banner) return;
+    let closed = '';
+    try { closed = localStorage.getItem(ANNOUNCEMENT_CLOSED_KEY) || ''; } catch { /* storage blocked */ }
+    const show = Boolean(announcement && typeof announcement.id === 'string' && announcement.id !== closed && announcement.endsAt > Date.now());
+    banner.hidden = !show;
+    if (!show) return;
+    banner.dataset.id = announcement.id;
+    banner.dataset.tone = announcement.tone === 'warning' ? 'warning' : 'info';
+    $('#announcementTitle').textContent = announcement.title;
+    $('#announcementText').textContent = announcement.body;
+  }
+
+  async function refreshAnnouncement() {
+    clearTimeout(announcementTimer);
+    announcementTimer = setTimeout(() => void refreshAnnouncement(), ANNOUNCEMENT_REFRESH_MS);
+    if (document.visibilityState === 'hidden') return;
+    try {
+      const data = await apiFetch('GET', '/announcements/current');
+      renderAnnouncement(data?.announcement ?? null);
+    } catch { /* keep what is showing; the next refresh tries again */ }
+  }
+
+  function closeAnnouncement() {
+    const banner = $('#announcementBanner');
+    if (!banner) return;
+    try { localStorage.setItem(ANNOUNCEMENT_CLOSED_KEY, banner.dataset.id || ''); } catch { /* storage blocked */ }
+    banner.hidden = true;
   }
 
   async function loadBillingStatus() {
