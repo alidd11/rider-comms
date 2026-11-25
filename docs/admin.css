@@ -2701,6 +2701,7 @@ select.input, .case-field .input { padding-left: 12px; }
 .switch-copy { display: grid; gap: 2px; min-width: 0; }
 .switch-copy .muted { overflow-wrap: anywhere; }
 .switch-meta { font-size: 12px; }
+.switch-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .switch { position: relative; flex: none; width: 44px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
 .switch-knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .15s ease; }
 .switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
@@ -2709,3 +2710,9 @@ select.input, .case-field .input { padding-left: 12px; }
 .switch:disabled { opacity: .6; cursor: progress; }
 @media (pointer: coarse) { .switch { width: 52px; height: 32px; } .switch-knob { width: 26px; height: 26px; } .switch[aria-checked="true"] .switch-knob { transform: translateX(20px); } }
 @media (prefers-reduced-motion: reduce) { .switch, .switch-knob { transition: none; } }
+/* Small phones: the logo stands for the brand, so the page name fits. */
+@media (max-width: 420px) {
+  .brand:has(.brand-section:not(:empty)) .brand-name { display: none; }
+  .brand-section:not(:empty)::before { content: none; }
+  .brand-section { font-weight: 650; }
+}

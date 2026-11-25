@@ -2396,7 +2396,7 @@ html.app-menu-open .ride-pill{display:none}
 #rideJoinState .ride-entry-heading h2{font-size:1.12rem;font-weight:800}
 .ride-card-copy{margin:0 0 12px!important;color:var(--text-secondary)!important;font-size:.92rem!important;line-height:1.4!important}
 #rideJoinState .ride-code-entry:focus-within .ride-code-slots{box-shadow:0 0 0 2px var(--accent)}
-#rideJoinState .ride-code-slots span:nth-child(4){margin-left:8px}
+#rideJoinState .ride-code-slots span:nth-child(4){border-left:2px solid var(--border)}
 #rideJoinState .ride-join-button{margin-top:12px}
 #rideJoinState .ride-join-button:disabled{opacity:1;background:var(--surface-raised);border-color:var(--border);color:var(--text-muted);box-shadow:none;cursor:not-allowed}
 .ride-start-button{min-height:50px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800}
