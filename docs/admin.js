@@ -1268,7 +1268,7 @@
     const form = el('form', { class: 'toolbar', role: 'search' });
     const input = el('input', { class: 'input', type: 'search', name: 'q', placeholder: 'Search name, username, email or ID', 'aria-label': 'Search riders', maxlength: 100, autocomplete: 'off' });
     input.value = riderQuery;
-    const filterSelect = el('select', { class: 'select', 'aria-label': 'Show riders' },
+    const filterSelect = el('select', { class: 'input select', 'aria-label': 'Show riders' },
       Object.entries(RIDER_FILTER_LABELS).map(([value, label]) => el('option', { value, text: label })));
     filterSelect.value = riderFilter;
     filterSelect.addEventListener('change', () => {
@@ -2231,11 +2231,11 @@
         : null;
       return el('li', { class: 'list-row switch-row' }, [
         el('div', { class: 'switch-copy' }, [
-          el('strong', { text: SWITCH_NAMES[item.key] }),
+          el('span', { class: 'switch-title' }, [el('strong', { text: SWITCH_NAMES[item.key] }), item.on ? null : badge('Paused', 'danger')]),
           el('span', { class: 'muted', text: item.on ? onText : offText }),
           changed,
         ]),
-        el('div', { class: 'trail' }, [item.on ? null : badge('Paused', 'danger'), toggle]),
+        el('div', { class: 'trail' }, [toggle]),
       ]);
     };
     const paused = switches.filter((item) => !item.on).length;
@@ -3163,7 +3163,7 @@
   }
 
   function staffActions(member) {
-    if (member.role === 'admin') return el('div', { class: 'row-actions' }, [el('span', { class: 'muted', text: 'Set on the backend' }), twoStepControl(member)]);
+    if (member.role === 'admin') return el('div', { class: 'row-actions' }, [el('span', { class: 'muted', text: 'Set on the backend ·' }), twoStepControl(member)]);
     const select = roleSelect(member.role, `Role for ${member.displayName || member.riderId}`);
     const remove = el('button', { type: 'button', class: 'button button-small', dataset: { action: 'remove-staff' }, text: 'Remove' });
     select.addEventListener('change', async () => {
