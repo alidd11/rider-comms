@@ -198,7 +198,10 @@ export function MapDrawer({
           <View style={[styles.rideBadge, { width: badgeSize, height: badgeSize }]}>
             <Ionicons name="people" size={18} color="#fff" />
           </View>
-          <Text style={[styles.shortcutText, compact && styles.shortcutTextCompact]}>Group Ride</Text>
+          <View style={styles.shortcutCopy}>
+            <Text style={[styles.shortcutText, compact && styles.shortcutTextCompact]} numberOfLines={1}>Group Ride</Text>
+            <Text style={[styles.shortcutDetail, compact && styles.shortcutTextCompact]} numberOfLines={1}>Join or host</Text>
+          </View>
         </Pressable>
         {SAVED_PLACE_SLOTS.map((slot) => {
           const label = SAVED_PLACE_LABELS[slot];
