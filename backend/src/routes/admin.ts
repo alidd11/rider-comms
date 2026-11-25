@@ -14,7 +14,7 @@ import { NOT_HANDLED, refuseWithoutRecentReauth, refuseWithoutStaffCode } from '
 import { staffMfa } from '../staffMfa.ts';
 import { getStaffAlertPrefs, setStaffAlertPrefs } from '../staffAlerts.ts';
 import { BROADCAST_COOLDOWN_MS, broadcastStore, parseBroadcast } from '../staffBroadcasts.ts';
-import { CONTENT_KINDS, staffContentStore } from '../staffContentStore.ts';
+import { CONTENT_KINDS, ROUTE_DESCRIPTION_MAX, ROUTE_NAME_MAX, staffContentStore } from '../staffContentStore.ts';
 import { appSwitches, isAppSwitch } from '../appSwitches.ts';
 import { announcementStore, parseAnnouncement } from '../announcements.ts';
 import type { ContentKind } from '../staffContentStore.ts';
@@ -88,14 +88,29 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
         : await staffContentStore.routes({ q: (url.searchParams.get('q') ?? '').slice(0, 100), offset });
       return sendJson(res, 200, page);
     }
-    if (req.method === 'POST' && s.length === 5 && s[4] === 'remove' && (CONTENT_KINDS as readonly string[]).includes(s[2] ?? '')) {
+    const action = s[4];
+    const known = (s[2] === 'routes' && (action === 'remove' || action === 'edit')) || (s[2] === 'hazards' && (action === 'remove' || action === 'expire'));
+    if (req.method === 'POST' && s.length === 5 && known) {
       const body = await readJsonBody(req);
       const note = typeof body.note === 'string' ? body.note.trim() : '';
       if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
         return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
       }
+      const id = decodeURIComponent(s[3]!);
+      if (action === 'edit') {
+        const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : '';
+        const description = typeof body.description === 'string' ? body.description.trim() : '';
+        if (!name || name.length > ROUTE_NAME_MAX) return sendJson(res, 400, { error: `name must be 1-${ROUTE_NAME_MAX} characters` });
+        if (!description || description.length > ROUTE_DESCRIPTION_MAX) return sendJson(res, 400, { error: `description must be 1-${ROUTE_DESCRIPTION_MAX} characters` });
+        if (await refuseWithoutRecentReauth(ctx)) return;
+        const route = await staffContentStore.editRoute(id, { name, description }, actorId, note);
+        return route ? sendJson(res, 200, { route }) : sendJson(res, 404, { error: 'not_found' });
+      }
       if (await refuseWithoutRecentReauth(ctx)) return;
-      const result = await staffContentStore.remove(s[2] as ContentKind, decodeURIComponent(s[3]!), actorId, note);
+      if (action === 'expire') {
+        return (await staffContentStore.expireHazard(id, actorId, note)) ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'not_found' });
+      }
+      const result = await staffContentStore.remove(s[2] as ContentKind, id, actorId, note);
       return result.ok ? sendJson(res, 200, result) : sendJson(res, 404, { error: result.error });
     }
     return sendJson(res, 404, { error: 'not_found' });

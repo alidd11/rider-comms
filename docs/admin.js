@@ -57,14 +57,14 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route', app_switch_on: 'Turned on', app_switch_off: 'Turned off', announcement_publish: 'Published an announcement', announcement_end: 'Ended an announcement' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route', app_switch_on: 'Turned on', app_switch_off: 'Turned off', announcement_publish: 'Published an announcement', announcement_end: 'Ended an announcement', scenic_route_edit: 'Edited a scenic route', hazard_expire: 'Took a hazard off the map' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
     ['social', 'Social posts', ['social_post_restore', 'social_post_remove']],
     ['accounts', 'Accounts', ['verify_email', 'data_export', 'sign_out_everywhere', 'password_reset_sent']],
     ['staff', 'Staff', ['staff_grant', 'staff_revoke', 'staff_mfa_reset']],
-    ['app', 'App', ['push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off', 'announcement_publish', 'announcement_end']],
+    ['app', 'App', ['push_broadcast', 'hazard_remove', 'hazard_expire', 'scenic_route_remove', 'scenic_route_edit', 'app_switch_on', 'app_switch_off', 'announcement_publish', 'announcement_end']],
   ];
 
   const pageEl = document.getElementById('page');
@@ -2028,6 +2028,56 @@
       });
       return button;
     };
+    const expireButton = (item) => {
+      if (!item.active) return null;
+      const name = HAZARD_LABELS[item.type] || item.type;
+      const button = el('button', { type: 'button', class: 'button button-small', text: 'Take off map', 'aria-label': `Take hazard ${name} off the map` });
+      button.addEventListener('click', async () => {
+        const choice = await actionDialog({
+          title: 'Take this hazard off the map?',
+          description: `“${name}” stops showing to riders now. Its record stays here under “Include expired”.`,
+          confirmLabel: 'Take off map',
+          templates: ['No longer there.', 'Cleared by the council.', 'Duplicate of another report.'],
+        });
+        if (!choice) return;
+        button.disabled = true;
+        try {
+          await api('POST', `/admin/content/hazards/${encodeURIComponent(item.id)}/expire`, { note: choice.note });
+          await render();
+          flash('Hazard taken off the map.');
+        } catch (error) {
+          button.disabled = false;
+          flash(error.message || 'Couldn’t change it.', 'danger');
+        }
+      });
+      return button;
+    };
+    const editButton = (item) => {
+      const button = el('button', { type: 'button', class: 'button button-small', text: 'Edit', 'aria-label': `Edit scenic route ${item.name}` });
+      button.addEventListener('click', async () => {
+        const choice = await actionDialog({
+          title: 'Edit this scenic route',
+          description: 'Riders see the new name and description straight away. The rider who made it isn’t told.',
+          confirmLabel: 'Save',
+          fields: [
+            { name: 'name', label: 'Name', value: item.name, maxlength: 80 },
+            { name: 'description', label: 'Description', value: item.description, maxlength: 500, multiline: true },
+          ],
+          templates: ['Fixed a typo.', 'Removed unsafe advice.', 'Removed personal details.'],
+        });
+        if (!choice) return;
+        button.disabled = true;
+        try {
+          await api('POST', `/admin/content/routes/${encodeURIComponent(item.id)}/edit`, { ...choice.fields, note: choice.note });
+          await render();
+          flash('Scenic route saved.');
+        } catch (error) {
+          button.disabled = false;
+          flash(error.message || 'Couldn’t save it.', 'danger');
+        }
+      });
+      return button;
+    };
     const row = (item) => contentKind === 'hazards'
       ? el('li', { class: 'list-row content-row', dataset: { contentId: item.id } }, [
         el('div', { class: 'content-copy' }, [
@@ -2037,7 +2087,7 @@
           el('span', { class: 'content-meta' }, [mapLink(item.lat, item.lon), ' · ', timeEl(item.createdAt), ` · ${item.confirmations} confirmed`]),
           person(riderLabel(item.reportedBy).name, riderLabel(item.reportedBy).sub, item.reportedBy),
         ]),
-        el('div', { class: 'trail' }, [removeButton(item)]),
+        el('div', { class: 'trail' }, [expireButton(item), removeButton(item)]),
       ])
       : el('li', { class: 'list-row content-row', dataset: { contentId: item.id } }, [
         el('div', { class: 'content-copy' }, [
@@ -2046,7 +2096,7 @@
           el('span', { class: 'content-meta' }, [`${Math.round(item.distanceMiles)} mi · ${item.difficulty} · starts at `, mapLink(item.startLat, item.startLon), ' · ', timeEl(item.createdAt)]),
           person(riderLabel(item.createdBy).name, riderLabel(item.createdBy).sub, item.createdBy),
         ]),
-        el('div', { class: 'trail' }, [removeButton(item)]),
+        el('div', { class: 'trail' }, [editButton(item), removeButton(item)]),
       ]);
     const loadMore = nextOffset === null ? null : el('button', { type: 'button', class: 'button load-more', text: 'Load more' });
     loadMore?.addEventListener('click', async () => {
@@ -2385,9 +2435,17 @@
    * reason (with ready-made starts), and for suspensions how long. Resolves
    * { note, days } or null when cancelled.
    */
-  function actionDialog({ title, description, confirmLabel, danger = false, templates = [], withLength = false }) {
+  function actionDialog({ title, description, confirmLabel, danger = false, templates = [], withLength = false, fields = [] }) {
     return new Promise((resolve) => {
       const note = el('textarea', { class: 'note', id: 'actionNote', maxlength: MAX_NOTE_LENGTH, 'aria-label': 'Reason for the audit log', placeholder: 'Reason for the audit log (required)' });
+      // Extra text fields the change itself needs (an edit), each required.
+      const inputs = fields.map((field) => {
+        const input = el(field.multiline ? 'textarea' : 'input', {
+          class: field.multiline ? 'note' : 'input', maxlength: field.maxlength, 'aria-label': field.label, rows: field.multiline ? 4 : undefined, autocomplete: 'off',
+        });
+        input.value = field.value ?? '';
+        return { field, input };
+      });
       const length = withLength ? el('select', { class: 'input select', 'aria-label': 'How long' }, SUSPENSION_LENGTHS.map(([value, label]) => el('option', { value, text: label, selected: value === '7' }))) : null;
       const chips = templates.length ? el('div', { class: 'chips', role: 'group', 'aria-label': 'Start from a reason' }, templates.map((text) => {
         const chip = el('button', { type: 'button', class: 'chip', text });
@@ -2401,6 +2459,7 @@
         el('h2', { class: 'card-title', id: 'actionTitle', text: title }),
         description ? el('p', { class: 'card-description', text: description }) : null,
         length ? el('label', { class: 'field-label' }, ['How long', length]) : null,
+        ...inputs.map(({ field, input }) => el('label', { class: 'field-label' }, [field.label, input])),
         chips,
         note,
         error,
@@ -2412,17 +2471,26 @@
       dialog.addEventListener('close', () => { dialog.remove(); resolve(result); });
       form.addEventListener('submit', (event) => {
         event.preventDefault();
+        const empty = inputs.find(({ input }) => !input.value.trim());
+        if (empty) {
+          error.textContent = `${empty.field.label} can’t be empty.`;
+          empty.input.focus();
+          return;
+        }
         if (!note.value.trim()) {
           error.textContent = 'Write a reason first. Every staff change is recorded with it.';
           note.focus();
           return;
         }
-        result = { note: note.value.trim(), days: length && length.value ? Number(length.value) : null };
+        result = {
+          note: note.value.trim(), days: length && length.value ? Number(length.value) : null,
+          fields: Object.fromEntries(inputs.map(({ field, input }) => [field.name, input.value.trim()])),
+        };
         dialog.close();
       });
       document.body.append(dialog);
       dialog.showModal();
-      (chips ? chips.querySelector('button') : note).focus();
+      (inputs[0]?.input ?? (chips ? chips.querySelector('button') : note)).focus();
     });
   }
 
