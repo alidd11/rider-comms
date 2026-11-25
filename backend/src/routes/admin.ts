@@ -16,6 +16,7 @@ import { getStaffAlertPrefs, setStaffAlertPrefs } from '../staffAlerts.ts';
 import { BROADCAST_COOLDOWN_MS, broadcastStore, parseBroadcast } from '../staffBroadcasts.ts';
 import { CONTENT_KINDS, staffContentStore } from '../staffContentStore.ts';
 import { appSwitches, isAppSwitch } from '../appSwitches.ts';
+import { announcementStore, parseAnnouncement } from '../announcements.ts';
 import type { ContentKind } from '../staffContentStore.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
 import { handlePartnerRoutes } from './adminPartners.ts';
@@ -115,6 +116,31 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     }
     if (await refuseWithoutRecentReauth(ctx)) return;
     return sendJson(res, 200, { switch: await appSwitches.set(s[2], body.on, actorId, note) });
+  }
+
+  // In-app announcements riders see on the map (admins only). Publishing or
+  // ending one needs a note and a recent password check.
+  if (s[1] === 'announcements') {
+    if (lacks('send_notifications')) return refuse('send_notifications');
+    if (req.method === 'GET' && s.length === 2) return sendJson(res, 200, { items: await announcementStore.list() });
+    const ending = s.length === 4 && s[3] === 'end';
+    if (req.method !== 'POST' || !(s.length === 2 || ending)) {
+      return sendJson(res, s.length === 2 ? 405 : 404, { error: s.length === 2 ? 'method_not_allowed' : 'not_found' });
+    }
+    const body = await readJsonBody(req);
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+      return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    if (ending) {
+      if (await refuseWithoutRecentReauth(ctx)) return;
+      const ended = await announcementStore.end(decodeURIComponent(s[2]!), actorId, note);
+      return ended ? sendJson(res, 200, { announcement: ended }) : sendJson(res, 404, { error: 'not_found' });
+    }
+    const input = parseAnnouncement(body);
+    if ('error' in input) return sendJson(res, 400, input);
+    if (await refuseWithoutRecentReauth(ctx)) return;
+    return sendJson(res, 201, { announcement: await announcementStore.publish(input, actorId, note) });
   }
 
   // Push notifications to riders (admins only). A test goes to the sender's

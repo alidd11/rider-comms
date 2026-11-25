@@ -109,6 +109,10 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
     riderFilters: [],
     alertPrefs: { dailyDigest: false, urgentAlerts: false },
     broadcasts: [],
+    announcements: [
+      { id: 'ann-old', title: 'Bank holiday', body: 'Busy roads all weekend.', tone: 'info', startsAt: Date.now() - 5 * 86_400_000, endsAt: Date.now() - 4 * 86_400_000,
+        createdBy: 'rider_admin', createdAt: Date.now() - 5 * 86_400_000, note: 'Seasonal', endedBy: null, endedAt: null },
+    ],
     switches: [
       { key: 'signups', on: true, changedBy: null, changedAt: null, note: null },
       { key: 'social_posting', on: true, changedBy: null, changedAt: null, note: null },
@@ -176,6 +180,25 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       const list = contentRemove[1] === 'routes' ? state.routes : state.hazards;
       list.splice(list.findIndex((item) => item.id === contentRemove[2]), 1);
       return json(200, { ok: true });
+    }
+    if (url.pathname === '/admin/announcements') {
+      if (request.method() === 'POST') {
+        const body = request.postDataJSON();
+        state.posts.push({ path: url.pathname, body });
+        const item = { id: `ann-${state.announcements.length + 1}`, title: body.title, body: body.body, tone: body.tone, startsAt: body.startsAt ?? Date.now(),
+          endsAt: body.endsAt, createdBy: ADMIN_ID, createdAt: Date.now(), note: body.note, endedBy: null, endedAt: null };
+        state.announcements.unshift(item);
+        return json(201, { announcement: item });
+      }
+      return json(200, { items: state.announcements });
+    }
+    const announcementEnd = url.pathname.match(/^\/admin\/announcements\/([^/]+)\/end$/);
+    if (announcementEnd && request.method() === 'POST') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      const item = state.announcements.find((candidate) => candidate.id === announcementEnd[1]);
+      Object.assign(item, { endedBy: ADMIN_ID, endedAt: Date.now() });
+      return json(200, { announcement: item });
     }
     const switchChange = url.pathname.match(/^\/admin\/switches\/([a-z_]+)$/);
     if (switchChange && request.method() === 'POST') {
@@ -2713,6 +2736,57 @@ test('app switches: an admin pauses a feature with a note and sees who changed w
   expect(state.posts.at(-1)).toEqual({ path: '/admin/switches/signups', body: { on: false, note: 'Bot sign-ups' } });
   await expect(page.locator('.page-subtitle')).toHaveText('2 paused for every rider');
   await expect(page.getByRole('switch', { name: 'New sign-ups' })).toHaveAttribute('aria-checked', 'false');
+});
+
+test('announcements: an admin writes one, sees the preview, publishes with a note and ends it', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#announcements');
+  await expect(page.locator('.page-title')).toHaveText('Announcements');
+  await expect(page.locator('.page-subtitle')).toHaveText('Nothing showing to riders now');
+  await expect(page.locator('.announcement-row')).toHaveCount(1);
+  await expect(page.locator('.announcement-row').first()).toContainText('Ended');
+  await expect(page.locator('.announcement-row button')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Publish' }).click();
+  await expect(page.locator('.broadcast-compose .error-text')).toHaveText('Add a title.');
+  await page.getByLabel('Title').fill('Winter riding');
+  await page.getByLabel('Message').fill('Roads are icy this week.');
+  await page.getByLabel('Style').selectOption('warning');
+  await page.getByLabel('Runs for').selectOption({ label: '3 days' });
+  await expect(page.locator('.announcement-preview')).toHaveAttribute('data-tone', 'warning');
+  await expect(page.locator('.announcement-preview-title')).toHaveText('Winter riding');
+  await page.getByRole('button', { name: 'Publish' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Publish this announcement?' });
+  await expect(dialog).toContainText('shows to every rider now');
+  await dialog.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Cold snap');
+  await dialog.getByRole('button', { name: 'Publish' }).click();
+  await expect(page.locator('.flash')).toHaveText('Announcement published.');
+  const posted = state.posts.at(-1);
+  expect(posted.path).toBe('/admin/announcements');
+  expect(posted.body).toMatchObject({ title: 'Winter riding', body: 'Roads are icy this week.', tone: 'warning', note: 'Cold snap' });
+  expect(posted.body.startsAt).toBeUndefined();
+  expect(posted.body.endsAt - Date.now()).toBeGreaterThan(3 * 86_400_000 - 60_000);
+  await expect(page.locator('.page-subtitle')).toHaveText('1 showing to riders now');
+  const live = page.locator('.announcement-row').first();
+  await expect(live).toContainText('Live');
+  await expect(page.getByLabel('Title')).toHaveValue('');
+
+  await live.getByRole('button', { name: 'End Winter riding' }).click();
+  const end = page.getByRole('dialog', { name: 'End this announcement?' });
+  await end.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Thaw');
+  await end.getByRole('button', { name: 'End now' }).click();
+  await expect(page.locator('.flash')).toHaveText('Announcement ended.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/announcements/ann-2/end', body: { note: 'Thaw' } });
+  await expect(page.locator('.page-subtitle')).toHaveText('Nothing showing to riders now');
+});
+
+test('announcements: the page and menu item are admin-only', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { role: 'moderator' });
+  await page.goto('/admin.html#announcements');
+  await expect(page.locator('.page-title')).not.toHaveText('Announcements');
+  await expect(page.locator('#nav [data-view="announcements"]')).toBeHidden();
 });
 
 test('app switches: the page and menu item are admin-only', async ({ page }) => {

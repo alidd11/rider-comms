@@ -3284,3 +3284,14 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
   .ride-hero-content h2{font-size:1.25rem}
   .ride-hero-content p{font-size:.75rem}
 }
+/* Staff announcement on the map: not while Ride Safe locks controls or while navigating. */
+.announcement-banner{flex:0 0 100%;display:flex;align-items:flex-start;gap:10px;margin-top:8px;padding:10px 6px 10px 12px;border-radius:var(--radius-lg);background:var(--surface-raised);border:1px solid var(--border-soft);border-left:4px solid var(--accent);box-shadow:0 6px 18px rgb(0 0 0/.22);color:var(--text)}
+.announcement-banner[hidden],.safety-locked .announcement-banner,.nav-mode .announcement-banner{display:none}
+.announcement-banner[data-tone=warning]{border-left-color:var(--warning)}
+.announcement-icon{flex:none;width:22px;height:22px;margin-top:1px;color:var(--accent)}.announcement-banner[data-tone=warning] .announcement-icon{color:var(--warning)}
+.announcement-icon svg{width:22px;height:22px}
+.announcement-copy{flex:1;min-width:0;display:grid;gap:2px;font-size:.88rem;line-height:1.35}
+.announcement-copy strong{font-weight:800}
+.announcement-copy span{color:var(--text-secondary);overflow-wrap:anywhere}
+.announcement-close{flex:none;width:44px;height:44px;margin:-8px -2px -8px 0;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text-muted)}
+.announcement-close svg{width:16px;height:16px}

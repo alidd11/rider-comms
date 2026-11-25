@@ -14,9 +14,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'content', 'audit', 'notifications', 'switches', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', content: 'Map content', audit: 'Audit log', notifications: 'Notifications', switches: 'App switches', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', content: 'moderate', audit: 'view_audit', notifications: 'send_notifications', switches: 'manage_switches', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'content', 'audit', 'notifications', 'announcements', 'switches', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', content: 'Map content', audit: 'Audit log', notifications: 'Notifications', announcements: 'Announcements', switches: 'App switches', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', content: 'moderate', audit: 'view_audit', notifications: 'send_notifications', announcements: 'send_notifications', switches: 'manage_switches', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -41,7 +41,7 @@
   ];
   const PERMISSION_LABELS = [
     ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
-    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['send_notifications', 'Push notifications to riders'], ['manage_switches', 'App switches'], ['view_system', 'System'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['send_notifications', 'Push notifications and announcements'], ['manage_switches', 'App switches'], ['view_system', 'System'],
   ];
   const ROLE_MATRIX = {
     admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications', 'manage_switches', 'view_system'],
@@ -57,14 +57,14 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route', app_switch_on: 'Turned on', app_switch_off: 'Turned off' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route', app_switch_on: 'Turned on', app_switch_off: 'Turned off', announcement_publish: 'Published an announcement', announcement_end: 'Ended an announcement' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
     ['social', 'Social posts', ['social_post_restore', 'social_post_remove']],
     ['accounts', 'Accounts', ['verify_email', 'data_export', 'sign_out_everywhere', 'password_reset_sent']],
     ['staff', 'Staff', ['staff_grant', 'staff_revoke', 'staff_mfa_reset']],
-    ['app', 'App', ['push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off']],
+    ['app', 'App', ['push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off', 'announcement_publish', 'announcement_end']],
   ];
 
   const pageEl = document.getElementById('page');
@@ -2188,6 +2188,139 @@
     );
   }
 
+  // ------------------------------------------------------------ Announcements
+
+  const ANNOUNCEMENT_TITLE_MAX = 60;
+  const ANNOUNCEMENT_BODY_MAX = 240;
+  const ANNOUNCEMENT_DURATIONS = [['21600000', '6 hours'], ['86400000', '1 day'], ['259200000', '3 days'], ['604800000', '1 week'], ['1209600000', '2 weeks'], ['2592000000', '30 days']];
+  const announcementDraft = { title: '', body: '', tone: 'info', start: '', duration: '86400000' };
+
+  /** In-app notices riders see on the map when they are not moving (admins only). */
+  async function renderAnnouncements(generation) {
+    const { items } = await api('GET', '/admin/announcements');
+    if (!isCurrentRender(generation)) return;
+    await loadNames(items.flatMap((item) => [item.createdBy, item.endedBy]).filter(Boolean));
+    if (!isCurrentRender(generation)) return;
+    const now = Date.now();
+    const stateOf = (item) => item.endedAt !== null || item.endsAt <= now ? 'ended' : item.startsAt > now ? 'scheduled' : 'live';
+    const title = el('input', { class: 'input', id: 'announcementTitle', maxlength: ANNOUNCEMENT_TITLE_MAX, autocomplete: 'off', placeholder: 'Winter riding' });
+    const body = el('textarea', { class: 'note', id: 'announcementBody', maxlength: ANNOUNCEMENT_BODY_MAX, rows: 3, placeholder: 'Roads are icy this week. Take it steady and check hazards before you set off.' });
+    const tone = el('select', { class: 'input select', id: 'announcementTone' }, [el('option', { value: 'info', text: 'Information' }), el('option', { value: 'warning', text: 'Warning' })]);
+    const start = el('input', { class: 'input', id: 'announcementStart', type: 'datetime-local' });
+    const duration = el('select', { class: 'input select', id: 'announcementDuration' }, ANNOUNCEMENT_DURATIONS.map(([value, label]) => el('option', { value, text: label })));
+    title.value = announcementDraft.title;
+    body.value = announcementDraft.body;
+    tone.value = announcementDraft.tone;
+    start.value = announcementDraft.start;
+    duration.value = announcementDraft.duration;
+    const counter = (input, max) => {
+      const node = el('span', { class: 'field-count', 'aria-hidden': 'true' });
+      const update = () => { node.textContent = `${input.value.length}/${max}`; };
+      input.addEventListener('input', update);
+      update();
+      return node;
+    };
+    const previewTitle = el('strong', { class: 'announcement-preview-title' });
+    const previewBody = el('span', { class: 'announcement-preview-body' });
+    const preview = el('div', { class: 'announcement-preview', 'aria-label': 'Preview' }, [
+      el('div', { class: 'announcement-preview-banner' }, [previewTitle, previewBody]),
+      el('p', { class: 'muted announcement-preview-note', text: 'Shown on the map, never while a rider is moving. Riders can close it.' }),
+    ]);
+    const sync = () => {
+      Object.assign(announcementDraft, { title: title.value, body: body.value, tone: tone.value, start: start.value, duration: duration.value });
+      previewTitle.textContent = title.value.trim() || 'Title';
+      previewBody.textContent = body.value.trim() || 'Your message';
+      preview.dataset.tone = tone.value;
+    };
+    for (const control of [title, body, tone, start, duration]) control.addEventListener(control.tagName === 'SELECT' ? 'change' : 'input', sync);
+    sync();
+    const error = el('p', { class: 'error-text', role: 'alert' });
+    const publish = el('button', { type: 'button', class: 'button button-primary', text: 'Publish' });
+    publish.addEventListener('click', async () => {
+      const startsAt = start.value ? new Date(start.value).getTime() : Date.now();
+      const endsAt = startsAt + Number(duration.value);
+      error.textContent = !title.value.trim() ? 'Add a title.' : !body.value.trim() ? 'Add a message.'
+        : Number.isNaN(startsAt) ? 'Choose a valid start time.' : endsAt <= Date.now() ? 'That would already be over. Choose a later start.' : '';
+      if (error.textContent) return;
+      const when = start.value && startsAt > Date.now() ? `from ${new Date(startsAt).toLocaleString()}` : 'now';
+      const choice = await actionDialog({
+        title: 'Publish this announcement?',
+        description: `“${title.value.trim()}” shows to every rider ${when} until ${new Date(endsAt).toLocaleString()}. You can end it early.`,
+        confirmLabel: 'Publish',
+        templates: ['Service update for all riders.', 'Safety notice.', 'Planned maintenance.'],
+      });
+      if (!choice) return;
+      publish.disabled = true;
+      try {
+        await api('POST', '/admin/announcements', {
+          title: title.value.trim(), body: body.value.trim(), tone: tone.value,
+          ...(start.value ? { startsAt } : {}), endsAt, note: choice.note,
+        });
+        Object.assign(announcementDraft, { title: '', body: '', tone: 'info', start: '', duration: '86400000' });
+        await render();
+        flash('Announcement published.');
+      } catch (failure) {
+        publish.disabled = false;
+        error.textContent = failure.message || 'Couldn’t publish. Try again.';
+      }
+    });
+    const field = (label, control, extra = null) => el('label', { class: 'case-field' }, [
+      el('span', { class: 'field-label-row' }, [el('span', { text: label }), extra]), control,
+    ]);
+    const compose = el('section', { class: 'card broadcast-compose', 'aria-label': 'New announcement' }, [
+      el('div', { class: 'broadcast-form' }, [
+        field('Title', title, counter(title, ANNOUNCEMENT_TITLE_MAX)),
+        field('Message', body, counter(body, ANNOUNCEMENT_BODY_MAX)),
+        el('div', { class: 'announcement-fields' }, [field('Style', tone), field('Starts (empty for now)', start), field('Runs for', duration)]),
+        error,
+        el('div', { class: 'actions' }, [publish]),
+      ]),
+      preview,
+    ]);
+    const STATE_BADGES = { live: ['Live', 'success'], scheduled: ['Scheduled', 'accent'], ended: ['Ended', null] };
+    const row = (item) => {
+      const state = stateOf(item);
+      const end = state === 'ended' ? null : el('button', { type: 'button', class: 'button button-small', text: state === 'live' ? 'End now' : 'Cancel', 'aria-label': `${state === 'live' ? 'End' : 'Cancel'} ${item.title}` });
+      end?.addEventListener('click', async () => {
+        const choice = await actionDialog({
+          title: state === 'live' ? 'End this announcement?' : 'Cancel this announcement?',
+          description: `“${item.title}” ${state === 'live' ? 'disappears for every rider within a minute' : 'won’t be shown'}.`,
+          confirmLabel: state === 'live' ? 'End now' : 'Cancel it', danger: true,
+          templates: ['No longer needed.', 'Published by mistake.'],
+        });
+        if (!choice) return;
+        end.disabled = true;
+        try {
+          await api('POST', `/admin/announcements/${encodeURIComponent(item.id)}/end`, { note: choice.note });
+          await render();
+          flash(state === 'live' ? 'Announcement ended.' : 'Announcement cancelled.');
+        } catch (failure) {
+          end.disabled = false;
+          flash(failure.message || 'Couldn’t end it. Try again.', 'danger');
+        }
+      });
+      const [label, kind] = STATE_BADGES[state];
+      const span = `${new Date(item.startsAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} – ${new Date(item.endedAt ?? item.endsAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`;
+      return el('li', { class: 'list-row broadcast-row announcement-row', dataset: { announcementId: item.id, state } }, [
+        el('div', { class: 'broadcast-copy' }, [
+          el('span', { class: 'switch-title' }, [el('strong', { text: item.title }), badge(label, kind), item.tone === 'warning' ? badge('Warning', 'warning') : null]),
+          el('span', { class: 'muted', text: item.body }),
+          el('span', { class: 'broadcast-meta', text: `${span} · ${riderLabel(item.createdBy).name} · ${item.note}${item.endedBy ? ` · ended by ${riderLabel(item.endedBy).name}` : ''}` }),
+        ]),
+        el('div', { class: 'trail' }, [end]),
+      ]);
+    };
+    const live = items.filter((item) => stateOf(item) === 'live').length;
+    pageEl.replaceChildren(
+      pageHeader('Announcements', live ? `${live} showing to riders now` : 'Nothing showing to riders now'),
+      compose,
+      el('h2', { class: 'section-title', text: 'Recent' }),
+      el('div', { class: 'card' }, [items.length
+        ? el('ul', { class: 'list' }, items.map(row))
+        : emptyState('inbox', 'No announcements yet', null)]),
+    );
+  }
+
   // App switches: pause a feature for every rider without a deploy.
   const SWITCH_NAMES = { signups: 'New sign-ups', social_posting: 'Social posting', nearby_voice: 'Nearby Voice' };
   const SWITCH_EFFECTS = {
@@ -3519,6 +3652,8 @@
         await renderContent(generation);
       } else if (view === 'notifications') {
         await renderNotifications(generation);
+      } else if (view === 'announcements') {
+        await renderAnnouncements(generation);
       } else if (view === 'switches') {
         await renderSwitches(generation);
       } else if (view === 'partners') {
