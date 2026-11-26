@@ -23,7 +23,13 @@ assert.match(openapi.headers.get('content-type') ?? '', /application\/json/);
 assert.ok(await openapi.json());
 const cfg = await request('/config');
 assert.equal(cfg.status, 200);
-assert.deepEqual(await cfg.json(), { googleMapsApiKey: '' });
+// Public config: an empty maps key on this disposable server, and no phone-app
+// version floor or store links until staff set them.
+assert.deepEqual(await cfg.json(), {
+  googleMapsApiKey: '',
+  minAppVersion: { ios: null, android: null },
+  updateUrl: { ios: null, android: null },
+});
 
 for (const path of [
   '/auth/me', '/admin/me', '/admin/overview', '/admin/security-events',
