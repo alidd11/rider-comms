@@ -86,25 +86,6 @@ export class StaffContentStore {
     });
   }
 
-  /** Takes a hazard off every rider's map now but keeps its record, unlike Remove. */
-  async expireHazard(id: string, staffId: string, note: string, now = Date.now()): Promise<boolean> {
-    await ensureMigrated();
-    return withTransaction(async (client) => {
-      const { rows } = await client.query<{ owner: string; label: string }>(
-        'UPDATE hazard_reports SET expires_at = $2 WHERE id = $1 AND expires_at > $2 RETURNING reported_by AS owner, type AS label',
-        [id, now],
-      );
-      const row = rows[0];
-      if (!row) return false;
-      await client.query(
-        `INSERT INTO moderation_actions (id, moderator_id, target_rider_id, report_id, action, note, created_at, content_ref)
-         VALUES ($1, $2, $3, NULL, 'hazard_expire', $4, $5, $6)`,
-        [randomUUID(), staffId, row.owner, note, now, `hazard:${id}:${row.label}`.slice(0, 200)],
-      );
-      return true;
-    });
-  }
-
   /** Deletes the item and records it in the audit log, in one transaction. */
   async remove(kind: ContentKind, id: string, staffId: string, note: string, now = Date.now()): Promise<{ ok: true } | { ok: false; error: 'not_found' }> {
     await ensureMigrated();

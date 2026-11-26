@@ -2028,30 +2028,6 @@
       });
       return button;
     };
-    const expireButton = (item) => {
-      if (!item.active) return null;
-      const name = HAZARD_LABELS[item.type] || item.type;
-      const button = el('button', { type: 'button', class: 'button button-small', text: 'Take off map', 'aria-label': `Take hazard ${name} off the map` });
-      button.addEventListener('click', async () => {
-        const choice = await actionDialog({
-          title: 'Take this hazard off the map?',
-          description: `“${name}” stops showing to riders now. Its record stays here under “Include expired”.`,
-          confirmLabel: 'Take off map',
-          templates: ['No longer there.', 'Cleared by the council.', 'Duplicate of another report.'],
-        });
-        if (!choice) return;
-        button.disabled = true;
-        try {
-          await api('POST', `/admin/content/hazards/${encodeURIComponent(item.id)}/expire`, { note: choice.note });
-          await render();
-          flash('Hazard taken off the map.');
-        } catch (error) {
-          button.disabled = false;
-          flash(error.message || 'Couldn’t change it.', 'danger');
-        }
-      });
-      return button;
-    };
     const editButton = (item) => {
       const button = el('button', { type: 'button', class: 'button button-small', text: 'Edit', 'aria-label': `Edit scenic route ${item.name}` });
       button.addEventListener('click', async () => {
@@ -2087,7 +2063,7 @@
           el('span', { class: 'content-meta' }, [mapLink(item.lat, item.lon), ' · ', timeEl(item.createdAt), ` · ${item.confirmations} confirmed`]),
           person(riderLabel(item.reportedBy).name, riderLabel(item.reportedBy).sub, item.reportedBy),
         ]),
-        el('div', { class: 'trail' }, [expireButton(item), removeButton(item)]),
+        el('div', { class: 'trail' }, [removeButton(item)]),
       ])
       : el('li', { class: 'list-row content-row', dataset: { contentId: item.id } }, [
         el('div', { class: 'content-copy' }, [
@@ -2304,7 +2280,7 @@
       try {
         await api('POST', '/admin/announcements', {
           title: title.value.trim(), body: body.value.trim(), tone: tone.value,
-          ...(start.value ? { startsAt } : {}), endsAt, note: choice.note,
+          startsAt, endsAt, note: choice.note,
         });
         Object.assign(announcementDraft, { title: '', body: '', tone: 'info', start: '', duration: '86400000' });
         await render();
@@ -2334,7 +2310,7 @@
       end?.addEventListener('click', async () => {
         const choice = await actionDialog({
           title: state === 'live' ? 'End this announcement?' : 'Cancel this announcement?',
-          description: `“${item.title}” ${state === 'live' ? 'disappears for every rider within a minute' : 'won’t be shown'}.`,
+          description: `“${item.title}” ${state === 'live' ? 'disappears for riders within a few minutes' : 'won’t be shown'}.`,
           confirmLabel: state === 'live' ? 'End now' : 'Cancel it', danger: true,
           templates: ['No longer needed.', 'Published by mistake.'],
         });

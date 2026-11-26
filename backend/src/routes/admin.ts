@@ -90,7 +90,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       return sendJson(res, 200, page);
     }
     const action = s[4];
-    const known = (s[2] === 'routes' && (action === 'remove' || action === 'edit')) || (s[2] === 'hazards' && (action === 'remove' || action === 'expire'));
+    const known = (CONTENT_KINDS as readonly string[]).includes(s[2] ?? '') && (action === 'remove' || (s[2] === 'routes' && action === 'edit'));
     if (req.method === 'POST' && s.length === 5 && known) {
       const body = await readJsonBody(req);
       const note = typeof body.note === 'string' ? body.note.trim() : '';
@@ -108,9 +108,6 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
         return route ? sendJson(res, 200, { route }) : sendJson(res, 404, { error: 'not_found' });
       }
       if (await refuseWithoutRecentReauth(ctx)) return;
-      if (action === 'expire') {
-        return (await staffContentStore.expireHazard(id, actorId, note)) ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'not_found' });
-      }
       const result = await staffContentStore.remove(s[2] as ContentKind, id, actorId, note);
       return result.ok ? sendJson(res, 200, result) : sendJson(res, 404, { error: result.error });
     }

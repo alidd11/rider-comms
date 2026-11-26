@@ -182,7 +182,7 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       const items = kind === 'routes' ? state.routes : state.hazards.filter((item) => item.active || url.searchParams.get('include') === 'expired');
       return json(200, { items, nextOffset: null });
     }
-    const contentEdit = url.pathname.match(/^\/admin\/content\/(hazards\/[^/]+\/expire|routes\/[^/]+\/edit)$/);
+    const contentEdit = url.pathname.match(/^\/admin\/content\/routes\/[^/]+\/edit$/);
     if (contentEdit && request.method() === 'POST') {
       const body = request.postDataJSON();
       state.posts.push({ path: url.pathname, body });
@@ -2795,7 +2795,7 @@ test('announcements: an admin writes one, sees the preview, publishes with a not
   const posted = state.posts.at(-1);
   expect(posted.path).toBe('/admin/announcements');
   expect(posted.body).toMatchObject({ title: 'Winter riding', body: 'Roads are icy this week.', tone: 'warning', note: 'Cold snap' });
-  expect(posted.body.startsAt).toBeUndefined();
+  expect(Math.abs(posted.body.startsAt - Date.now())).toBeLessThan(60_000);
   expect(posted.body.endsAt - Date.now()).toBeGreaterThan(3 * 86_400_000 - 60_000);
   await expect(page.locator('.page-subtitle')).toHaveText('1 showing to riders now');
   const live = page.locator('.announcement-row').first();
@@ -2919,23 +2919,11 @@ test('map content: moderators review hazards and scenic routes and remove one wi
   await expect.poll(() => state.contentQueries.at(-1)).toBe('?kind=routes&q=snake');
 });
 
-test('map content: moderators take a hazard off the map and reword a scenic route, each with a note', async ({ page }) => {
+test('map content: moderators reword a scenic route with a note', async ({ page }) => {
   await signIn(page);
   const state = await mockModerationApi(page);
   await page.goto('/admin.html#content');
   const rows = page.locator('.content-row');
-  await rows.first().getByRole('button', { name: 'Take hazard Road closed off the map' }).click();
-  const expire = page.getByRole('dialog', { name: 'Take this hazard off the map?' });
-  await expect(expire).toContainText('Its record stays here');
-  await expire.getByRole('button', { name: 'Cleared by the council.' }).click();
-  await expire.getByRole('button', { name: 'Take off map' }).click();
-  await expect(page.locator('.flash')).toHaveText('Hazard taken off the map.');
-  expect(state.posts.at(-1)).toEqual({ path: '/admin/content/hazards/hz-1/expire', body: { note: 'Cleared by the council.' } });
-  await expect(rows).toHaveCount(0);
-  await page.getByRole('checkbox', { name: 'Include expired' }).check();
-  await expect(rows).toHaveCount(2);
-  await expect(page.getByRole('button', { name: /off the map/ })).toHaveCount(0);
-
   await page.getByRole('group', { name: 'Content type' }).getByRole('button', { name: 'Scenic routes' }).click();
   await rows.first().getByRole('button', { name: 'Edit scenic route Snake Pass loop' }).click();
   const edit = page.getByRole('dialog', { name: 'Edit this scenic route' });

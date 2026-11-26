@@ -163,7 +163,6 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('GET', '/admin/content', 'Staff dashboard', 'staff', 'Hazards and rider-made scenic routes, for review', { permission: 'moderate' }),
   e('POST', '/admin/content/{kind}/{id}/remove', 'Staff dashboard', 'staff', 'Remove a hazard or scenic route with a note for the audit log', { permission: 'moderate', reauth: true }),
   e('POST', '/admin/content/routes/{id}/edit', 'Staff dashboard', 'staff', 'Rename or reword a rider-made scenic route, with a note for the audit log', { permission: 'moderate', reauth: true }),
-  e('POST', '/admin/content/hazards/{id}/expire', 'Staff dashboard', 'staff', 'Take a hazard off the map now but keep its record, with a note for the audit log', { permission: 'moderate', reauth: true }),
   e('GET', '/admin/overview', 'Staff dashboard', 'staff', 'Business overview', { permission: 'view_overview' }),
   e('GET', '/admin/action-inbox', 'Staff dashboard', 'staff', 'Read the unified pending rider report and hidden Social post queue', { permission: 'moderate' }),
   e('GET', '/admin/social/activity', 'Company operations', 'staff', 'Aggregated Rider Social posting and safety activity for 7 or 30 days, without private content or rider identifiers', { permission: 'moderate' }),

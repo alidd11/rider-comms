@@ -119,6 +119,21 @@ describe('staff app settings', { skip: !hasDatabase && 'DATABASE_URL not set' },
     assert.deepEqual(config.updateUrl, { ios, android: null });
   });
 
+  it('keeps answering /config with the maps key and defaults when settings cannot be read', async (t) => {
+    t.mock.method(appSettings, 'current', async () => { throw new Error('database down'); });
+    const res = await fetch(`${ctx.baseUrl()}/config`);
+    assert.equal(res.status, 200);
+    const config = await res.json() as { googleMapsApiKey: string; minAppVersion: unknown };
+    assert.equal(typeof config.googleMapsApiKey, 'string');
+    assert.deepEqual(config.minAppVersion, { ios: null, android: null });
+  });
+
+  it('a hazard type without a saved lifetime gets its built-in one', async (t) => {
+    const { police: _police, ...rest } = defaultAppSettings().hazardMinutes;
+    t.mock.method(appSettings, 'current', async () => ({ ...defaultAppSettings(), hazardMinutes: rest }));
+    assert.equal(await appSettings.hazardTtlMs('police'), 60 * 60_000);
+  });
+
   it('new hazards last as long as staff set', async () => {
     await appSettings.set('hazardMinutes', { ...allMinutes(60), accident: 30 }, ADMIN, 'Shorter accident pins');
     const before = Date.now();

@@ -108,7 +108,9 @@ export class AppSettingsStore {
 
   /** How long a new or re-sighted hazard of this type stays on the map. */
   async hazardTtlMs(type: HazardType): Promise<number> {
-    return (await this.current()).hazardMinutes[type] * 60_000;
+    const minutes = (await this.current()).hazardMinutes[type];
+    // A type added after the setting was saved gets its built-in lifetime.
+    return typeof minutes === 'number' ? minutes * 60_000 : ttlMsForType(type);
   }
 
   /** The settings, and who last changed each, for the Staff Hub. */
