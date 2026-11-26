@@ -1448,6 +1448,9 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   font-size:.75rem;
   line-height:1.35;
 }
+/* The sign-up agreement sits on the dark photo in both schemes: light text, and links in the auth accent. */
+.auth-screen .auth-agree{color:#c3ccd0}
+.auth-screen .auth-agree a{color:var(--auth-accent)}
 .auth-screen .auth-error.auth-error,
 .auth-screen .auth-notice.auth-notice{
   border:1px solid rgb(255 98 104/.28);
