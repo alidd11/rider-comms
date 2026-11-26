@@ -318,6 +318,8 @@ img,svg{-webkit-user-drag:none}
    app, rather than sitting half see-through over the map. Centre-on-me and
    Go live stay. */
 #app.safety-locked .screen-map #mapAvatarButton,
+#app.safety-locked .screen-map .map-avatar-menu,
+#app.safety-locked .screen-map #mapAvatarBadge,
 #app.safety-locked .screen-map #mapSearchSlot,
 #app.safety-locked .screen-map #reportHazardBtn,
 #app.safety-locked .screen-map #navReportBtn,#app.safety-locked .screen-map #navStopsBtn{display:none}
