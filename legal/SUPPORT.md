@@ -3,8 +3,8 @@
 Email **[support email]** and we'll reply within [2 working days]. Safety
 reports made in the app are reviewed within 24 hours.
 
-In danger or hurt? Call the emergency services first. Rider Comms can't send
-help.
+In danger or hurt? Call the emergency services first. We can't send help
+to you.
 
 ## Common questions
 

@@ -80,7 +80,7 @@
       }),
       helpContact: () => ({
         title: 'Contact support',
-        body: `<a class="button primary wide help-contact" href="support.html" target="_blank" rel="noopener">${icon('message')}<span>Contact support</span></a><p class="help-emergency">${icon('info')}<span>In danger or hurt? Call the emergency services first. Rider Comms can’t send help.</span></p><p class="caption help-contact-note">We reply within 2 working days. Safety reports made in the app are reviewed within 24 hours.</p>`,
+        body: `<a class="button primary wide help-contact" href="support.html" target="_blank" rel="noopener">${icon('message')}<span>Contact support</span></a><p class="help-emergency">${icon('info')}<span>In danger or hurt? Call the emergency services first. We can’t send help to you.</span></p><p class="caption help-contact-note">We reply within 2 working days. Safety reports made in the app are reviewed within 24 hours.</p>`,
       }),
       faq: () => ({
         title: 'Common questions',

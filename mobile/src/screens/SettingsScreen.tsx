@@ -1108,7 +1108,7 @@ function HelpPage(): React.JSX.Element {
           <Ionicons name="chatbubble-ellipses-outline" size={19} color={colors.accentText} />
           <Text style={styles.myProfileEditText}>Contact support</Text>
         </Pressable>
-        <View style={styles.helpEmergency}><Ionicons name="warning-outline" size={18} color={colors.warning} /><Text style={styles.helpEmergencyText}>In danger or hurt? Call the emergency services first. Rider Comms can’t send help.</Text></View>
+        <View style={styles.helpEmergency}><Ionicons name="warning-outline" size={18} color={colors.warning} /><Text style={styles.helpEmergencyText}>In danger or hurt? Call the emergency services first. We can’t send help to you.</Text></View>
         <Text style={styles.pageSectionNote}>We reply within 2 working days. Safety reports made in the app are reviewed within 24 hours.</Text>
       </View>
       <SettingsSection title="Common questions">
