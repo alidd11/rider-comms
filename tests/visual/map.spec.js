@@ -109,6 +109,10 @@ test('PWA map has compact Report and Go live buttons when parked and a glanceabl
   await expect(page.locator('#ridingHud')).toBeVisible();
   await expect(page.locator('#mapBottomBar')).toBeHidden();
   await expect(page.locator('#movementSafetyBanner')).toBeHidden();
+  // The avatar goes, and with it the menu and unread badges that sit on it.
+  await expect(page.locator('#mapAvatarButton')).toBeHidden();
+  await expect(page.locator('.map-avatar-menu')).toBeHidden();
+  await expect(page.locator('#mapAvatarBadge')).toBeHidden();
   await expect(page.locator('#hudSpeedValue')).toHaveText('27');
   const hudHazard = page.locator('#hudHazardBtn');
   const hudBox = await hudHazard.boundingBox();
