@@ -22,6 +22,7 @@ import { SettingsProvider } from '../settings/SettingsContext';
 import { BillingProvider } from '../billing/BillingContext';
 import { FriendsProvider } from '../friends/FriendsContext';
 import { AuthProvider, AuthSplash } from '../auth/AuthContext';
+import { UpdateGate } from '../screens/UpdateGate';
 import { parseNavigationLink } from '../navigationLinks';
 import { colors, useConcreteThemeColors } from '../theme';
 import { MovementSafetyProvider, useMovementSafety } from '../safety/MovementSafetyContext';
@@ -203,6 +204,7 @@ export function AppNavigator(): React.JSX.Element {
     // MapScreen's floating toggle/error banner, and every screen's top
     // padding) return real numbers instead of all zeros.
     <SafeAreaProvider>
+      <UpdateGate>
       <AuthProvider>
        <SettingsProvider>
         <BillingProvider>
@@ -267,6 +269,7 @@ export function AppNavigator(): React.JSX.Element {
         </BillingProvider>
        </SettingsProvider>
       </AuthProvider>
+      </UpdateGate>
     </SafeAreaProvider>
   );
 }
