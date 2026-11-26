@@ -223,8 +223,8 @@ test('PWA plan screen shows every plan and sends buying to the mobile app', asyn
   expect(updates).toEqual([]);
 });
 
-test('PWA Help & Support leads with contact, then questions, safety and legal pages', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('PWA Help & Support leads with contact, then questions, safety and legal pages', async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.__copied = text; } } }); });
   await mockAuthenticatedApi(page);
   await page.goto('/');
   await page.locator('#mapAvatarButton').click();
@@ -245,7 +245,7 @@ test('PWA Help & Support leads with contact, then questions, safety and legal pa
   // App details for a support message: version, how it's running, who, the browser.
   await page.locator('#copyAppDetailsBtn').click();
   await expect(page.locator('#appNotification')).toContainText('App details copied.');
-  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const copied = await page.evaluate(() => window.__copied);
   expect(copied).toMatch(/^Rider Comms 1\.0\.0 · Web \((browser|Home Screen app)\)\nRider: @\S+\nDevice: /);
 });
 
