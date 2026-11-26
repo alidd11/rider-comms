@@ -1382,4 +1382,24 @@ export const MIGRATIONS: Migration[] = [
           'announcement_publish', 'announcement_end', 'scenic_route_edit', 'hazard_expire'));
     `,
   },
+  {
+    // Staff Hub app settings (hazard lifetimes, the oldest phone-app version
+    // allowed and its store links). No row means the built-in default.
+    name: '0074_app_settings',
+    sql: `
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value JSONB NOT NULL,
+        changed_by TEXT NOT NULL,
+        changed_at BIGINT NOT NULL,
+        note TEXT NOT NULL
+      );
+      ALTER TABLE moderation_actions DROP CONSTRAINT IF EXISTS moderation_actions_action_check;
+      ALTER TABLE moderation_actions ADD CONSTRAINT moderation_actions_action_check
+        CHECK (action IN ('dismiss', 'suspend', 'unsuspend', 'verify_email', 'social_post_restore', 'social_post_remove',
+          'staff_grant', 'staff_revoke', 'data_export', 'sign_out_everywhere', 'password_reset_sent', 'staff_mfa_reset',
+          'push_broadcast', 'hazard_remove', 'scenic_route_remove', 'app_switch_on', 'app_switch_off',
+          'announcement_publish', 'announcement_end', 'scenic_route_edit', 'hazard_expire', 'app_setting_change'));
+    `,
+  },
 ];

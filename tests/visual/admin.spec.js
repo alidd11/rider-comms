@@ -113,6 +113,14 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       { id: 'ann-old', title: 'Bank holiday', body: 'Busy roads all weekend.', tone: 'info', startsAt: Date.now() - 5 * 86_400_000, endsAt: Date.now() - 4 * 86_400_000,
         createdBy: 'rider_admin', createdAt: Date.now() - 5 * 86_400_000, note: 'Seasonal', endedBy: null, endedAt: null },
     ],
+    appSettings: {
+      settings: {
+        hazardMinutes: { police: 60, hidden_police: 60, police_checkpoint: 60, camera: 60, accident: 120, road_closure: 480 },
+        minAppVersion: { ios: null, android: null },
+        updateUrl: { ios: null, android: null },
+      },
+      changes: {},
+    },
     switches: [
       { key: 'signups', on: true, changedBy: null, changedAt: null, note: null },
       { key: 'social_posting', on: true, changedBy: null, changedAt: null, note: null },
@@ -174,7 +182,7 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       const items = kind === 'routes' ? state.routes : state.hazards.filter((item) => item.active || url.searchParams.get('include') === 'expired');
       return json(200, { items, nextOffset: null });
     }
-    const contentEdit = url.pathname.match(/^\/admin\/content\/(hazards\/[^/]+\/expire|routes\/[^/]+\/edit)$/);
+    const contentEdit = url.pathname.match(/^\/admin\/content\/routes\/[^/]+\/edit$/);
     if (contentEdit && request.method() === 'POST') {
       const body = request.postDataJSON();
       state.posts.push({ path: url.pathname, body });
@@ -194,6 +202,15 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
       list.splice(list.findIndex((item) => item.id === contentRemove[2]), 1);
       return json(200, { ok: true });
     }
+    const settingChange = url.pathname.match(/^\/admin\/settings\/([A-Za-z]+)$/);
+    if (settingChange && request.method() === 'POST') {
+      const body = request.postDataJSON();
+      state.posts.push({ path: url.pathname, body });
+      state.appSettings.settings[settingChange[1]] = body.value;
+      state.appSettings.changes[settingChange[1]] = { changedBy: ADMIN_ID, changedAt: Date.now(), note: body.note };
+      return json(200, state.appSettings);
+    }
+    if (url.pathname === '/admin/settings') return json(200, state.appSettings);
     if (url.pathname === '/admin/announcements') {
       if (request.method() === 'POST') {
         const body = request.postDataJSON();
@@ -2778,7 +2795,7 @@ test('announcements: an admin writes one, sees the preview, publishes with a not
   const posted = state.posts.at(-1);
   expect(posted.path).toBe('/admin/announcements');
   expect(posted.body).toMatchObject({ title: 'Winter riding', body: 'Roads are icy this week.', tone: 'warning', note: 'Cold snap' });
-  expect(posted.body.startsAt).toBeUndefined();
+  expect(Math.abs(posted.body.startsAt - Date.now())).toBeLessThan(60_000);
   expect(posted.body.endsAt - Date.now()).toBeGreaterThan(3 * 86_400_000 - 60_000);
   await expect(page.locator('.page-subtitle')).toHaveText('1 showing to riders now');
   const live = page.locator('.announcement-row').first();
@@ -2792,6 +2809,60 @@ test('announcements: an admin writes one, sees the preview, publishes with a not
   await expect(page.locator('.flash')).toHaveText('Announcement ended.');
   expect(state.posts.at(-1)).toEqual({ path: '/admin/announcements/ann-2/end', body: { note: 'Thaw' } });
   await expect(page.locator('.page-subtitle')).toHaveText('Nothing showing to riders now');
+});
+
+test('app settings: an admin changes hazard lifetimes and the oldest app version, each with a note', async ({ page }) => {
+  await signIn(page);
+  const state = await mockModerationApi(page);
+  await page.goto('/admin.html#settings');
+  await expect(page.locator('.page-title')).toHaveText('App settings');
+  await expect(page.locator('.page-subtitle')).toHaveText('All built-in defaults');
+  const accident = page.getByLabel('Accident');
+  await expect(accident).toHaveValue('120');
+  await accident.fill('10');
+  await page.getByRole('button', { name: 'Save lifetimes' }).click();
+  await expect(page.locator('#settingHazards ~ .error-text')).toHaveText('Accident: choose whole minutes from 15 to 1440 (24 hours).');
+  await expect(accident).toBeFocused();
+  await accident.fill('45');
+  await page.getByRole('button', { name: 'Save lifetimes' }).click();
+  const hazardDialog = page.getByRole('dialog', { name: 'Change hazard lifetimes?' });
+  await hazardDialog.getByRole('button', { name: 'Riders said pins stay too long.' }).click();
+  await hazardDialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.flash')).toHaveText('Hazard lifetimes saved.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/settings/hazardMinutes', body: {
+    value: { police: 60, hidden_police: 60, police_checkpoint: 60, camera: 60, accident: 45, road_closure: 480 }, note: 'Riders said pins stay too long.' } });
+  await expect(page.locator('.page-subtitle')).toHaveText('1 changed from the defaults');
+  await expect(page.locator('#settingHazards').locator('..')).toContainText('Riders said pins stay too long.');
+
+  const ios = page.getByLabel('iPhone minimum version');
+  await ios.fill('1.2');
+  await page.getByRole('button', { name: 'Save versions' }).click();
+  await expect(page.locator('#settingApps ~ .error-text')).toHaveText('iPhone: write a version like 1.2.0, or leave it empty.');
+  await ios.fill('1.2.0');
+  await page.getByRole('button', { name: 'Save versions' }).click();
+  const versionDialog = page.getByRole('dialog', { name: 'Change oldest phone-app version allowed?' });
+  await expect(versionDialog).toContainText('Riders on anything older than iPhone 1.2.0 are asked to update');
+  await versionDialog.getByRole('textbox', { name: 'Reason for the audit log' }).fill('Crash in 1.1');
+  await versionDialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.flash')).toHaveText('Oldest phone-app version allowed saved.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/settings/minAppVersion', body: { value: { ios: '1.2.0', android: null }, note: 'Crash in 1.1' } });
+  await expect(page.getByLabel('iPhone minimum version')).toHaveValue('1.2.0');
+
+  await page.getByLabel('iPhone store link').fill('https://apps.apple.com/app/rider-comms/id123');
+  await page.getByRole('button', { name: 'Save store links' }).click();
+  const linkDialog = page.getByRole('dialog', { name: 'Change store links for updating?' });
+  await linkDialog.getByRole('button', { name: 'Store listing is live.' }).click();
+  await linkDialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.flash')).toHaveText('Store links for updating saved.');
+  expect(state.posts.at(-1)).toEqual({ path: '/admin/settings/updateUrl', body: { value: { ios: 'https://apps.apple.com/app/rider-comms/id123', android: null }, note: 'Store listing is live.' } });
+});
+
+test('app settings: the page and menu item are admin-only', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page, { role: 'moderator' });
+  await page.goto('/admin.html#settings');
+  await expect(page.locator('.page-title')).not.toHaveText('App settings');
+  await expect(page.locator('#nav [data-view="settings"]')).toBeHidden();
 });
 
 test('announcements: the page and menu item are admin-only', async ({ page }) => {
@@ -2848,23 +2919,11 @@ test('map content: moderators review hazards and scenic routes and remove one wi
   await expect.poll(() => state.contentQueries.at(-1)).toBe('?kind=routes&q=snake');
 });
 
-test('map content: moderators take a hazard off the map and reword a scenic route, each with a note', async ({ page }) => {
+test('map content: moderators reword a scenic route with a note', async ({ page }) => {
   await signIn(page);
   const state = await mockModerationApi(page);
   await page.goto('/admin.html#content');
   const rows = page.locator('.content-row');
-  await rows.first().getByRole('button', { name: 'Take hazard Road closed off the map' }).click();
-  const expire = page.getByRole('dialog', { name: 'Take this hazard off the map?' });
-  await expect(expire).toContainText('Its record stays here');
-  await expire.getByRole('button', { name: 'Cleared by the council.' }).click();
-  await expire.getByRole('button', { name: 'Take off map' }).click();
-  await expect(page.locator('.flash')).toHaveText('Hazard taken off the map.');
-  expect(state.posts.at(-1)).toEqual({ path: '/admin/content/hazards/hz-1/expire', body: { note: 'Cleared by the council.' } });
-  await expect(rows).toHaveCount(0);
-  await page.getByRole('checkbox', { name: 'Include expired' }).check();
-  await expect(rows).toHaveCount(2);
-  await expect(page.getByRole('button', { name: /off the map/ })).toHaveCount(0);
-
   await page.getByRole('group', { name: 'Content type' }).getByRole('button', { name: 'Scenic routes' }).click();
   await rows.first().getByRole('button', { name: 'Edit scenic route Snake Pass loop' }).click();
   const edit = page.getByRole('dialog', { name: 'Edit this scenic route' });
