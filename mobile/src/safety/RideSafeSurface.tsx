@@ -2,6 +2,7 @@ import * as React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, radii, type } from '../theme';
 import { useMovementSafety } from './MovementSafetyContext';
 
@@ -9,6 +10,7 @@ export function RideSafeSurface(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { movementState, locationAccess, trackingError, requestLocationAccess, openLocationSettings } = useMovementSafety();
   const needsSettings = locationAccess === 'blocked' || locationAccess === 'services_disabled';
+  const navigation = useNavigation<{ navigate: (name: 'Tabs', params: { screen: 'Map' }) => void }>();
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl }]}>
       <View style={styles.icon}>
@@ -36,6 +38,17 @@ export function RideSafeSurface(): React.JSX.Element {
         </Pressable>
       )}
       {trackingError && <Text style={styles.errorText} accessibilityLiveRegion="polite">{trackingError}</Text>}
+      {/* The way out: Friends has no tab bar, and iPhone has no back button. */}
+      <Pressable
+        testID="ride-safe-back-to-map"
+        accessibilityRole="button"
+        accessibilityLabel="Back to the map"
+        style={({ pressed }) => [styles.mapButton, pressed && styles.enableButtonPressed]}
+        onPress={() => navigation.navigate('Tabs', { screen: 'Map' })}
+      >
+        <MaterialCommunityIcons name="map-outline" size={22} color={colors.accentText} />
+        <Text style={styles.enableButtonText}>Back to the map</Text>
+      </Pressable>
     </View>
   );
 }
@@ -75,6 +88,8 @@ const styles = StyleSheet.create({
   statusText: { ...type.caption, color: colors.textPrimary, fontWeight: '700' },
   enableButton: { minHeight: 48, marginTop: spacing.lg, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radii.md, backgroundColor: colors.accent },
   enableButtonPressed: { opacity: 0.7 },
+  // A large target: a rider may tap it at a stop with gloves on.
+  mapButton: { minHeight: 56, alignSelf: 'stretch', maxWidth: 420, marginTop: spacing.xl, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderRadius: radii.md, backgroundColor: colors.accent },
   enableButtonText: { ...type.button, color: colors.accentText },
   errorText: { ...type.caption, color: colors.danger, textAlign: 'center', marginTop: spacing.sm, maxWidth: 420 },
 });
