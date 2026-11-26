@@ -14,9 +14,9 @@
   const PERIOD_KEY = 'rider-comms-admin-period';
   const MAX_NOTE_LENGTH = 1000;
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'content', 'audit', 'notifications', 'announcements', 'switches', 'staff', 'system', 'rider'];
-  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', content: 'Map content', audit: 'Audit log', notifications: 'Notifications', announcements: 'Announcements', switches: 'App switches', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
-  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', content: 'moderate', audit: 'view_audit', notifications: 'send_notifications', announcements: 'send_notifications', switches: 'manage_switches', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
+  const VIEWS = ['overview', 'insights', 'company', 'inbox', 'riders', 'moderation', 'cases', 'case', 'partners', 'partner', 'content', 'audit', 'notifications', 'announcements', 'switches', 'settings', 'staff', 'system', 'rider'];
+  const VIEW_TITLES = { overview: 'Overview', insights: 'Insights', company: 'Company areas', inbox: 'Action inbox', riders: 'Riders', moderation: 'Moderation', cases: 'Case desk', case: 'Case details', partners: 'Partners', partner: 'Application', content: 'Map content', audit: 'Audit log', notifications: 'Notifications', announcements: 'Announcements', switches: 'App switches', settings: 'App settings', staff: 'Staff and roles', system: 'System', rider: 'Rider' };
+  const VIEW_PERMISSIONS = { overview: 'view_overview', insights: 'view_overview', company: 'view_overview', inbox: 'moderate', riders: 'view_riders', moderation: 'moderate', cases: 'view_cases', case: 'view_cases', partners: 'review_partners', partner: 'review_partners', content: 'moderate', audit: 'view_audit', notifications: 'send_notifications', announcements: 'send_notifications', switches: 'manage_switches', settings: 'manage_switches', staff: 'manage_staff', system: 'view_system', rider: 'view_riders' };
   /** Ready-made reasons staff can start a note from; they can edit before saving. */
   const NOTE_TEMPLATES = {
     dismiss: ['Checked the conversation: no rule broken.', 'Duplicate of an earlier report.', 'Not enough to act on; watching the account.'],
@@ -41,7 +41,7 @@
   ];
   const PERMISSION_LABELS = [
     ['view_overview', 'Overview'], ['view_riders', 'Rider lookup'], ['moderate', 'Moderation'],
-    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['send_notifications', 'Push notifications and announcements'], ['manage_switches', 'App switches'], ['view_system', 'System'],
+    ['verify_email', 'Verify email'], ['account_help', 'Password resets and devices'], ['view_cases', 'Company case desk'], ['view_audit', 'Audit log'], ['manage_staff', 'Staff'], ['review_partners', 'Seller and advertiser applications'], ['send_notifications', 'Push notifications and announcements'], ['manage_switches', 'App switches and settings'], ['view_system', 'System'],
   ];
   const ROLE_MATRIX = {
     admin: ['view_overview', 'view_riders', 'view_cases', 'moderate', 'verify_email', 'account_help', 'view_audit', 'manage_staff', 'review_partners', 'send_notifications', 'manage_switches', 'view_system'],
@@ -57,14 +57,14 @@
     sexual: 'Sexual content',
     other: 'Other',
   };
-  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route', app_switch_on: 'Turned on', app_switch_off: 'Turned off', announcement_publish: 'Published an announcement', announcement_end: 'Ended an announcement', scenic_route_edit: 'Edited a scenic route', hazard_expire: 'Took a hazard off the map' };
+  const ACTION_LABELS = { dismiss: 'Dismissed a report', suspend: 'Suspended rider', unsuspend: 'Unsuspended rider', verify_email: 'Verified email', social_post_restore: 'Restored a Social post', social_post_remove: 'Removed a Social post', staff_grant: 'Gave a staff role', staff_revoke: 'Removed a staff role', data_export: 'Exported data', sign_out_everywhere: 'Signed out everywhere', password_reset_sent: 'Sent a password reset', staff_mfa_reset: 'Reset two-step sign-in', push_broadcast: 'Sent a push notification', hazard_remove: 'Removed a hazard', scenic_route_remove: 'Removed a scenic route', app_switch_on: 'Turned on', app_switch_off: 'Turned off', announcement_publish: 'Published an announcement', announcement_end: 'Ended an announcement', scenic_route_edit: 'Edited a scenic route', hazard_expire: 'Took a hazard off the map', app_setting_change: 'Changed an app setting' };
   const ACTION_GROUPS = [
     ['all', 'All actions', null],
     ['reports', 'Reports', ['dismiss', 'suspend', 'unsuspend']],
     ['social', 'Social posts', ['social_post_restore', 'social_post_remove']],
     ['accounts', 'Accounts', ['verify_email', 'data_export', 'sign_out_everywhere', 'password_reset_sent']],
     ['staff', 'Staff', ['staff_grant', 'staff_revoke', 'staff_mfa_reset']],
-    ['app', 'App', ['push_broadcast', 'hazard_remove', 'hazard_expire', 'scenic_route_remove', 'scenic_route_edit', 'app_switch_on', 'app_switch_off', 'announcement_publish', 'announcement_end']],
+    ['app', 'App', ['push_broadcast', 'hazard_remove', 'hazard_expire', 'scenic_route_remove', 'scenic_route_edit', 'app_switch_on', 'app_switch_off', 'announcement_publish', 'announcement_end', 'app_setting_change']],
   ];
 
   const pageEl = document.getElementById('page');
@@ -2371,6 +2371,116 @@
     );
   }
 
+  // ------------------------------------------------------------ App settings
+
+  const SETTING_HAZARD_TYPES = ['police', 'hidden_police', 'police_checkpoint', 'camera', 'accident', 'road_closure'];
+  const SETTING_NAMES = { hazardMinutes: 'Hazard lifetimes', minAppVersion: 'Oldest phone-app version allowed', updateUrl: 'Store links for updating' };
+  const PLATFORM_NAMES = { ios: 'iPhone', android: 'Android' };
+
+  /** Settings an admin changes without a deploy: how long hazards last, and
+   *  the oldest phone-app version riders may use. */
+  async function renderSettings(generation) {
+    const { settings, changes } = await api('GET', '/admin/settings');
+    if (!isCurrentRender(generation)) return;
+    await loadNames(Object.values(changes).map((change) => change.changedBy));
+    if (!isCurrentRender(generation)) return;
+    const lastChange = (key) => {
+      const change = changes[key];
+      return change
+        ? el('p', { class: 'muted switch-meta setting-meta' }, ['Changed ', timeEl(change.changedAt), ` by ${riderLabel(change.changedBy).name} · “${change.note}”`])
+        : el('p', { class: 'muted switch-meta setting-meta', text: 'Built-in default' });
+    };
+    const save = async (key, value, button, error, description) => {
+      const choice = await actionDialog({
+        title: `Change ${SETTING_NAMES[key].toLowerCase()}?`,
+        description,
+        confirmLabel: 'Save',
+        templates: key === 'hazardMinutes' ? ['Riders said pins stay too long.', 'Riders said pins vanish too soon.'] : ['Serious bug in older versions.', 'Store listing is live.'],
+      });
+      if (!choice) return;
+      button.disabled = true;
+      try {
+        await api('POST', `/admin/settings/${key}`, { value, note: choice.note });
+        await render();
+        flash(`${SETTING_NAMES[key]} saved.`);
+      } catch (failure) {
+        button.disabled = false;
+        error.textContent = failure.message || 'Couldn’t save. Try again.';
+      }
+    };
+
+    // Hazard lifetimes, in minutes, one per type.
+    const hazardInputs = SETTING_HAZARD_TYPES.map((type) => {
+      const input = el('input', { class: 'input', type: 'number', min: 15, max: 1440, step: 5, inputmode: 'numeric', id: `setting-hazard-${type}` });
+      input.value = String(settings.hazardMinutes[type]);
+      return [type, input];
+    });
+    const hazardError = el('p', { class: 'error-text', role: 'alert' });
+    const hazardSave = el('button', { type: 'button', class: 'button button-primary', text: 'Save lifetimes' });
+    hazardSave.addEventListener('click', () => {
+      const value = Object.fromEntries(hazardInputs.map(([type, input]) => [type, Number(input.value)]));
+      const bad = hazardInputs.find(([, input]) => !Number.isInteger(Number(input.value)) || Number(input.value) < 15 || Number(input.value) > 1440);
+      hazardError.textContent = bad ? `${HAZARD_LABELS[bad[0]]}: choose whole minutes from 15 to 1440 (24 hours).` : '';
+      if (bad) { bad[1].focus(); return; }
+      void save('hazardMinutes', value, hazardSave, hazardError, 'New reports, and reports another rider confirms, last this long. Hazards already on the map keep their time.');
+    });
+    const hazards = el('section', { class: 'card setting-card', 'aria-labelledby': 'settingHazards' }, [
+      el('h2', { class: 'card-title', id: 'settingHazards', text: SETTING_NAMES.hazardMinutes }),
+      el('p', { class: 'card-description', text: 'How long each report stays on the map after the last rider saw it, in minutes.' }),
+      el('div', { class: 'setting-grid' }, hazardInputs.map(([type, input]) => el('label', { class: 'case-field', for: input.id }, [
+        el('span', { class: 'field-label-row' }, [el('span', { text: HAZARD_LABELS[type] }), el('span', { class: 'field-count', text: 'min' })]), input,
+      ]))),
+      hazardError,
+      el('div', { class: 'actions' }, [hazardSave]),
+      lastChange('hazardMinutes'),
+    ]);
+
+    // Phone-app versions and where an out-of-date app goes to update.
+    const platformInputs = (key, attrs) => ['ios', 'android'].map((platform) => {
+      const input = el('input', { class: 'input', id: `setting-${key}-${platform}`, autocomplete: 'off', ...attrs(platform) });
+      input.value = settings[key][platform] ?? '';
+      return [platform, input];
+    });
+    const versionInputs = platformInputs('minAppVersion', () => ({ placeholder: 'No minimum', inputmode: 'decimal', maxlength: 14 }));
+    const urlInputs = platformInputs('updateUrl', (platform) => ({ type: 'url', maxlength: 300,
+      placeholder: platform === 'ios' ? 'https://apps.apple.com/app/…' : 'https://play.google.com/store/apps/details?id=…' }));
+    const appError = el('p', { class: 'error-text', role: 'alert' });
+    const versionSave = el('button', { type: 'button', class: 'button button-primary', text: 'Save versions' });
+    const urlSave = el('button', { type: 'button', class: 'button', text: 'Save store links' });
+    const read = (inputs) => Object.fromEntries(inputs.map(([platform, input]) => [platform, input.value.trim() || null]));
+    versionSave.addEventListener('click', () => {
+      const value = read(versionInputs);
+      const bad = versionInputs.find(([, input]) => input.value.trim() && !/^\d{1,3}\.\d{1,3}\.\d{1,4}$/.test(input.value.trim()));
+      appError.textContent = bad ? `${PLATFORM_NAMES[bad[0]]}: write a version like 1.2.0, or leave it empty.` : '';
+      if (bad) { bad[1].focus(); return; }
+      const floors = Object.entries(value).filter(([, version]) => version).map(([platform, version]) => `${PLATFORM_NAMES[platform]} ${version}`);
+      void save('minAppVersion', value, versionSave, appError, floors.length
+        ? `Riders on anything older than ${floors.join(' or ')} are asked to update when they next open the app. They can’t use it until they do.`
+        : 'Every version of the phone apps can be used.');
+    });
+    urlSave.addEventListener('click', () => {
+      void save('updateUrl', read(urlInputs), urlSave, appError, 'An out-of-date app opens this store page. Only App Store and Google Play links are accepted.');
+    });
+    const field = ([platform, input], label) => el('label', { class: 'case-field', for: input.id }, [el('span', { text: `${PLATFORM_NAMES[platform]} ${label}` }), input]);
+    const apps = el('section', { class: 'card setting-card', 'aria-labelledby': 'settingApps' }, [
+      el('h2', { class: 'card-title', id: 'settingApps', text: 'Phone app updates' }),
+      el('p', { class: 'card-description', text: 'Retire a broken release without a server deploy. The web app always runs the latest version.' }),
+      el('div', { class: 'setting-grid setting-grid-2' }, versionInputs.map((pair) => field(pair, 'minimum version'))),
+      el('div', { class: 'actions' }, [versionSave]),
+      lastChange('minAppVersion'),
+      el('div', { class: 'setting-grid setting-grid-2' }, urlInputs.map((pair) => field(pair, 'store link'))),
+      appError,
+      el('div', { class: 'actions' }, [urlSave]),
+      lastChange('updateUrl'),
+    ]);
+    const changed = Object.keys(changes).length;
+    pageEl.replaceChildren(
+      pageHeader('App settings', changed ? `${changed} changed from the defaults` : 'All built-in defaults'),
+      hazards,
+      apps,
+    );
+  }
+
   // App switches: pause a feature for every rider without a deploy.
   const SWITCH_NAMES = { signups: 'New sign-ups', social_posting: 'Social posting', nearby_voice: 'Nearby Voice' };
   const SWITCH_EFFECTS = {
@@ -3724,6 +3834,8 @@
         await renderAnnouncements(generation);
       } else if (view === 'switches') {
         await renderSwitches(generation);
+      } else if (view === 'settings') {
+        await renderSettings(generation);
       } else if (view === 'partners') {
         await renderPartners(generation);
       } else if (view === 'partner') {

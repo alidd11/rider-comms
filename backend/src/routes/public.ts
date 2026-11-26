@@ -1,4 +1,5 @@
 import { appSwitches } from '../appSwitches.ts';
+import { appSettings } from '../appSettings.ts';
 import { reportOperationalError } from '../errorAlerts.ts';
 import { log } from '../log.ts';
 import { consumeRateLimit, rateLimitSubject, readJsonBody, sendJson } from '../serverHttp.ts';
@@ -28,7 +29,9 @@ export async function handlePublicRoutes(ctx: PublicRouteContext): Promise<unkno
     }
   }
   if (req.method === 'GET' && url.pathname === '/config') {
-    return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '' });
+    // The phone apps check minAppVersion at launch and ask an older one to update.
+    const { minAppVersion, updateUrl } = await appSettings.current();
+    return sendJson(res, 200, { googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '', minAppVersion, updateUrl });
   }
   // Sellers and advertisers apply without a Rider Comms account. Staff
   // review every application; nothing is published automatically.
