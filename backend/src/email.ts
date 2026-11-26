@@ -67,6 +67,14 @@ export function resetEmailDeliveryStatus(): void {
   delivery.lastRefusal = null;
 }
 
+/** Domains reserved for examples and tests (RFC 2606, RFC 6761): no mail can
+ *  ever be delivered there, so asking Resend only produces a refusal. */
+const RESERVED_DOMAIN = /(^|\.)(example\.(com|org|net)|example|test|invalid|localhost)$/i;
+export function isUndeliverableAddress(email: string): boolean {
+  const domain = email.slice(email.lastIndexOf('@') + 1).trim();
+  return RESERVED_DOMAIN.test(domain);
+}
+
 async function sendEmail(
   email: string,
   subject: string,
@@ -78,6 +86,11 @@ async function sendEmail(
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
   const recipient = recipientId(email);
+  // CI test accounts (native builds) use reserved test domains: skip, quietly.
+  if (isUndeliverableAddress(email)) {
+    log('info', 'email_skipped_test_domain', { recipient, message: `Skipped recipient ${recipient}: a reserved test domain.` });
+    return false;
+  }
   if (!apiKey || !from) {
     log('warn', 'email_not_configured', { recipient, message: `Email delivery is not configured; skipped recipient ${recipient}.` });
     return false;
