@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import {
-  HIDE_NET_DENIAL_THRESHOLD,
-  ttlMsForType,
-} from '@rider-comms/shared';
+import { HIDE_NET_DENIAL_THRESHOLD } from '@rider-comms/shared';
 import type { HazardReport, HazardType } from '@rider-comms/shared';
 import { ensureMigrated, getPool, withTransaction } from './db.ts';
 import { latLonBoundingBox } from './geoBoundingBox.ts';
+import { appSettings } from './appSettings.ts';
 
 export type VoteResult = { ok: true } | { ok: false; reason: 'not_found' };
 
@@ -82,9 +80,11 @@ export class HazardStore {
    */
   async create(type: HazardType, lat: number, lon: number, reportedBy: string): Promise<HazardReport> {
     await ensureMigrated();
+    // Staff can change how long each type lasts (Staff Hub, App settings).
+    const ttlMs = await appSettings.hazardTtlMs(type);
     return withTransaction(async (client) => {
       const now = Date.now();
-      const expiresAt = now + ttlMsForType(type);
+      const expiresAt = now + ttlMs;
       // One report of a type at a time, so two riders reporting the same
       // spot at once can't both miss each other's report.
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`hazard_create:${type}`]);
