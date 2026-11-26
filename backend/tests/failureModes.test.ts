@@ -155,8 +155,8 @@ describe('email links and Resend errors', () => {
     process.env.RESEND_API_KEY = 're_test';
     process.env.PUBLIC_APP_URL = 'http://insecure.example';
     const fetchImpl = mock.fn(async () => Response.json({ id: 'x' }));
-    assert.equal(await sendVerificationEmail('rider@example.com', 'token', { fetchImpl: fetchImpl as unknown as typeof fetch }), false);
-    assert.equal(await sendPasswordResetEmail('rider@example.com', 'token', { fetchImpl: fetchImpl as unknown as typeof fetch }), false);
+    assert.equal(await sendVerificationEmail('rider@ridermail.co.uk', 'token', { fetchImpl: fetchImpl as unknown as typeof fetch }), false);
+    assert.equal(await sendPasswordResetEmail('rider@ridermail.co.uk', 'token', { fetchImpl: fetchImpl as unknown as typeof fetch }), false);
     assert.equal(fetchImpl.mock.callCount(), 0);
   });
 
@@ -167,7 +167,7 @@ describe('email links and Resend errors', () => {
     process.env.RESEND_FROM_EMAIL = 'Rider Comms <hello@example.com>';
     process.env.PUBLIC_APP_URL = 'https://app.example/';
     const fetchImpl = async () => new Response('<html>bad gateway</html>', { status: 502 });
-    assert.equal(await sendVerificationEmail('rider@example.com', 'token', { fetchImpl }), false);
+    assert.equal(await sendVerificationEmail('rider@ridermail.co.uk', 'token', { fetchImpl }), false);
     assert.ok(errors.mock.calls.some((call) => String(call.arguments[0]).includes('Resend returned HTTP 502')));
   });
 });

@@ -131,8 +131,8 @@ describe('sendOperationalEmail', () => {
         body = JSON.parse(String(init.body));
         return new Response('{}', { status: 200 });
       }) as unknown as typeof fetch;
-      assert.equal(await sendOperationalEmail('ops@example.com', 'Subject', 'a <b> & c', fetchImpl), true);
-      assert.equal(body.to, 'ops@example.com');
+      assert.equal(await sendOperationalEmail('ops@ridermail.co.uk', 'Subject', 'a <b> & c', fetchImpl), true);
+      assert.equal(body.to, 'ops@ridermail.co.uk');
       assert.equal(body.text, 'a <b> & c');
       assert.match(body.html, /a &lt;b&gt; &amp; c/);
     } finally {
