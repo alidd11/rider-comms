@@ -17,6 +17,7 @@ import { BROADCAST_COOLDOWN_MS, broadcastStore, parseBroadcast } from '../staffB
 import { CONTENT_KINDS, ROUTE_DESCRIPTION_MAX, ROUTE_NAME_MAX, staffContentStore } from '../staffContentStore.ts';
 import { appSwitches, isAppSwitch } from '../appSwitches.ts';
 import { announcementStore, parseAnnouncement } from '../announcements.ts';
+import { appSettings, isAppSettingKey, parseAppSetting } from '../appSettings.ts';
 import type { ContentKind } from '../staffContentStore.ts';
 import { handleCompanyCaseRoutes } from './adminCases.ts';
 import { handlePartnerRoutes } from './adminPartners.ts';
@@ -89,7 +90,7 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
       return sendJson(res, 200, page);
     }
     const action = s[4];
-    const known = (s[2] === 'routes' && (action === 'remove' || action === 'edit')) || (s[2] === 'hazards' && (action === 'remove' || action === 'expire'));
+    const known = (CONTENT_KINDS as readonly string[]).includes(s[2] ?? '') && (action === 'remove' || (s[2] === 'routes' && action === 'edit'));
     if (req.method === 'POST' && s.length === 5 && known) {
       const body = await readJsonBody(req);
       const note = typeof body.note === 'string' ? body.note.trim() : '';
@@ -107,9 +108,6 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
         return route ? sendJson(res, 200, { route }) : sendJson(res, 404, { error: 'not_found' });
       }
       if (await refuseWithoutRecentReauth(ctx)) return;
-      if (action === 'expire') {
-        return (await staffContentStore.expireHazard(id, actorId, note)) ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'not_found' });
-      }
       const result = await staffContentStore.remove(s[2] as ContentKind, id, actorId, note);
       return result.ok ? sendJson(res, 200, result) : sendJson(res, 404, { error: result.error });
     }
@@ -131,6 +129,27 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     }
     if (await refuseWithoutRecentReauth(ctx)) return;
     return sendJson(res, 200, { switch: await appSwitches.set(s[2], body.on, actorId, note) });
+  }
+
+  // App settings (admins only, like the switches): hazard lifetimes and the
+  // oldest phone-app version allowed. A change needs a note and a recent
+  // password check.
+  if (s[1] === 'settings') {
+    if (lacks('manage_switches')) return refuse('manage_switches');
+    if (req.method === 'GET' && s.length === 2) return sendJson(res, 200, await appSettings.read());
+    if (req.method !== 'POST' || s.length !== 3) return sendJson(res, s.length === 2 ? 405 : 404, { error: s.length === 2 ? 'method_not_allowed' : 'not_found' });
+    const key = s[2];
+    if (!isAppSettingKey(key)) return sendJson(res, 404, { error: 'not_found' });
+    const body = await readJsonBody(req);
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (!note || note.length > MAX_MODERATION_NOTE_LENGTH) {
+      return sendJson(res, 400, { error: `a note of 1-${MAX_MODERATION_NOTE_LENGTH} characters is required` });
+    }
+    const value = parseAppSetting(key, body.value);
+    if ('error' in value) return sendJson(res, 400, value);
+    if (await refuseWithoutRecentReauth(ctx)) return;
+    await appSettings.set(key, value, actorId, note);
+    return sendJson(res, 200, await appSettings.read());
   }
 
   // In-app announcements riders see on the map (admins only). Publishing or

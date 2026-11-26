@@ -26,7 +26,7 @@ const e = (method: Endpoint['method'], path: string, tag: string, access: Access
 export const API_ENDPOINTS: readonly Endpoint[] = [
   e('GET', '/health', 'Service', 'public', 'The process is running'),
   e('GET', '/ready', 'Service', 'public', 'The database is reachable and migrated'),
-  e('GET', '/config', 'Service', 'public', 'Public client configuration'),
+  e('GET', '/config', 'Service', 'public', 'Public client configuration, including the oldest phone-app version allowed'),
   e('GET', '/openapi.json', 'Service', 'public', 'This API description'),
   e('POST', '/client-errors', 'Service', 'public', 'Report an app crash or error'),
 
@@ -156,12 +156,13 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('GET', '/admin/announcements', 'Staff dashboard', 'staff', 'In-app announcements, newest first', { permission: 'send_notifications' }),
   e('POST', '/admin/announcements', 'Staff dashboard', 'staff', 'Schedule an in-app announcement riders see on the map, with a note for the audit log', { permission: 'send_notifications', reauth: true }),
   e('POST', '/admin/announcements/{id}/end', 'Staff dashboard', 'staff', 'Take an in-app announcement down early, with a note for the audit log', { permission: 'send_notifications', reauth: true }),
+  e('GET', '/admin/settings', 'Staff dashboard', 'staff', 'App settings (hazard lifetimes, the oldest phone-app version allowed) and who last changed each', { permission: 'manage_switches' }),
+  e('POST', '/admin/settings/{key}', 'Staff dashboard', 'staff', 'Change one app setting, with a note for the audit log', { permission: 'manage_switches', reauth: true }),
   e('GET', '/admin/switches', 'Staff dashboard', 'staff', 'Whether sign-ups, Social posting and Nearby Voice are on, and who last changed each', { permission: 'manage_switches' }),
   e('POST', '/admin/switches/{key}', 'Staff dashboard', 'staff', 'Pause or resume sign-ups, Social posting or Nearby Voice for every rider, with a note for the audit log', { permission: 'manage_switches', reauth: true }),
   e('GET', '/admin/content', 'Staff dashboard', 'staff', 'Hazards and rider-made scenic routes, for review', { permission: 'moderate' }),
   e('POST', '/admin/content/{kind}/{id}/remove', 'Staff dashboard', 'staff', 'Remove a hazard or scenic route with a note for the audit log', { permission: 'moderate', reauth: true }),
   e('POST', '/admin/content/routes/{id}/edit', 'Staff dashboard', 'staff', 'Rename or reword a rider-made scenic route, with a note for the audit log', { permission: 'moderate', reauth: true }),
-  e('POST', '/admin/content/hazards/{id}/expire', 'Staff dashboard', 'staff', 'Take a hazard off the map now but keep its record, with a note for the audit log', { permission: 'moderate', reauth: true }),
   e('GET', '/admin/overview', 'Staff dashboard', 'staff', 'Business overview', { permission: 'view_overview' }),
   e('GET', '/admin/action-inbox', 'Staff dashboard', 'staff', 'Read the unified pending rider report and hidden Social post queue', { permission: 'moderate' }),
   e('GET', '/admin/social/activity', 'Company operations', 'staff', 'Aggregated Rider Social posting and safety activity for 7 or 30 days, without private content or rider identifiers', { permission: 'moderate' }),
