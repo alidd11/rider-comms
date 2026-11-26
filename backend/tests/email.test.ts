@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { emailDeliveryStatus, resetEmailDeliveryStatus, RESEND_TIMEOUT_MS, sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
+import { emailDeliveryStatus, isUndeliverableAddress, resetEmailDeliveryStatus, RESEND_TIMEOUT_MS, sendPasswordResetEmail, sendVerificationEmail } from '../src/email.ts';
 
 // Same fake-fetch shape as mobile/tests/places.test.ts's fakeFetch: never
 // touches the network, and hands the handler the URL + init so it can
@@ -34,7 +34,7 @@ describe('sendVerificationEmail', () => {
     let called = false;
     const fetchImpl = (async () => { called = true; return { ok: true, json: async () => ({}) } as Response; }) as typeof fetch;
 
-    const sent = await sendVerificationEmail('rider@example.com', 'sometoken', { fetchImpl });
+    const sent = await sendVerificationEmail('rider@ridermail.co.uk', 'sometoken', { fetchImpl });
     assert.equal(sent, false);
     assert.equal(called, false);
   });
@@ -44,7 +44,7 @@ describe('sendVerificationEmail', () => {
     let called = false;
     const fetchImpl = (async () => { called = true; return { ok: true, json: async () => ({}) } as Response; }) as typeof fetch;
 
-    const sent = await sendVerificationEmail('rider@example.com', 'sometoken', { fetchImpl });
+    const sent = await sendVerificationEmail('rider@ridermail.co.uk', 'sometoken', { fetchImpl });
     assert.equal(sent, false);
     assert.equal(called, false);
   });
@@ -62,7 +62,7 @@ describe('sendVerificationEmail', () => {
     // AbortSignal.timeout doesn't keep the process alive by itself.
     const keepAlive = setTimeout(() => {}, 1_000);
     try {
-      assert.equal(await sendVerificationEmail('rider@example.com', 'sometoken', { fetchImpl, timeoutMs: 20 }), false);
+      assert.equal(await sendVerificationEmail('rider@ridermail.co.uk', 'sometoken', { fetchImpl, timeoutMs: 20 }), false);
     } finally {
       clearTimeout(keepAlive);
     }
@@ -73,7 +73,7 @@ describe('sendVerificationEmail', () => {
     process.env.RESEND_FROM_EMAIL = 'noreply@example.com';
 
     const sent = await sendVerificationEmail(
-      'rider@example.com',
+      'rider@ridermail.co.uk',
       'sometoken123',
       {
         fetchImpl: fakeFetch((url, init) => {
@@ -81,7 +81,7 @@ describe('sendVerificationEmail', () => {
           assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer test-key');
           const body = JSON.parse(init.body as string);
           assert.equal(body.from, 'noreply@example.com');
-          assert.equal(body.to, 'rider@example.com');
+          assert.equal(body.to, 'rider@ridermail.co.uk');
           assert.match(body.text, /sometoken123/);
           assert.match(body.html, /sometoken123/);
           assert.match(body.text, /https:\/\/alidd11\.github\.io\/rider-comms\/\?verifyToken=sometoken123/);
@@ -92,11 +92,23 @@ describe('sendVerificationEmail', () => {
     assert.equal(sent, true);
   });
 
+  it('never asks Resend to mail a reserved test domain (CI test accounts)', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => { calls += 1; return new Response('{}', { status: 200 }); }) as typeof fetch;
+    for (const address of ['ci@example.com', 'ci@mail.example.org', 'ci@example.net', 'ci@rider.test', 'ci@x.invalid', 'ci@localhost']) {
+      assert.equal(await sendVerificationEmail(address, 'sometoken', { fetchImpl }), false, address);
+    }
+    assert.equal(calls, 0);
+    assert.equal(isUndeliverableAddress('rider@examples.com'), false);
+    assert.equal(isUndeliverableAddress('rider@notexample.com'), false);
+    assert.equal(isUndeliverableAddress('rider@gmail.com'), false);
+  });
+
   it('returns false without throwing on a non-2xx response from Resend', async () => {
     process.env.RESEND_API_KEY = 'test-key';
     process.env.RESEND_FROM_EMAIL = 'noreply@example.com';
 
-    const sent = await sendVerificationEmail('rider@example.com', 'sometoken', {
+    const sent = await sendVerificationEmail('rider@ridermail.co.uk', 'sometoken', {
       fetchImpl: fakeFetch(() => ({ status: 422 })),
     });
     assert.equal(sent, false);
@@ -108,7 +120,7 @@ describe('sendVerificationEmail', () => {
     const logged: string[] = [];
     t.mock.method(console, 'error', (message: string) => { logged.push(message); });
 
-    const sent = await sendVerificationEmail('rider@example.com', 'sometoken', {
+    const sent = await sendVerificationEmail('rider@ridermail.co.uk', 'sometoken', {
       fetchImpl: fakeFetch(() => ({
         status: 403,
         body: { name: 'validation_error', message: 'You can only send testing emails to your own email address (owner@example.com).' },
@@ -126,14 +138,14 @@ describe('sendVerificationEmail', () => {
     process.env.RESEND_FROM_EMAIL = 'noreply@example.com';
     const throwingFetch = (async () => { throw new Error('network down'); }) as typeof fetch;
 
-    const sent = await sendVerificationEmail('rider@example.com', 'sometoken', { fetchImpl: throwingFetch });
+    const sent = await sendVerificationEmail('rider@ridermail.co.uk', 'sometoken', { fetchImpl: throwingFetch });
     assert.equal(sent, false);
   });
 
   it('builds a one-hour password reset link and code', async () => {
     process.env.RESEND_API_KEY = 'test-key';
     process.env.RESEND_FROM_EMAIL = 'noreply@example.com';
-    const sent = await sendPasswordResetEmail('rider@example.com', 'reset-token-123', {
+    const sent = await sendPasswordResetEmail('rider@ridermail.co.uk', 'reset-token-123', {
       fetchImpl: fakeFetch((_url, init) => {
         const body = JSON.parse(init.body as string);
         assert.equal(body.subject, 'Reset your Rider Comms password');
@@ -151,11 +163,11 @@ describe('sendVerificationEmail', () => {
     const originalWarn = console.warn;
     console.warn = (...values: unknown[]) => { messages.push(values.join(' ')); };
     try {
-      await sendPasswordResetEmail('private.rider@example.com', 'token');
+      await sendPasswordResetEmail('private.rider@ridermail.co.uk', 'token');
     } finally {
       console.warn = originalWarn;
     }
-    assert.equal(messages.some((message) => message.includes('private.rider@example.com')), false);
+    assert.equal(messages.some((message) => message.includes('private.rider@ridermail.co.uk')), false);
     assert.equal(messages.length, 1);
   });
 });
@@ -183,13 +195,13 @@ describe('emailDeliveryStatus', () => {
   it('records a sent email and an account-level refusal, but not a refused address', async () => {
     assert.deepEqual(emailDeliveryStatus(), { configured: true, lastSentAt: null, lastRefusedAt: null, lastRefusal: null });
 
-    await sendVerificationEmail('rider@example.com', 'token', { fetchImpl: fakeFetch(() => ({ status: 200 })) });
+    await sendVerificationEmail('rider@ridermail.co.uk', 'token', { fetchImpl: fakeFetch(() => ({ status: 200 })) });
     assert.equal(typeof emailDeliveryStatus().lastSentAt, 'number');
 
-    await sendVerificationEmail('bad@example.com', 'token', { fetchImpl: fakeFetch(() => ({ status: 422, body: { name: 'validation_error', message: 'Invalid `to` field.' } })) });
+    await sendVerificationEmail('bad@ridermail.co.uk', 'token', { fetchImpl: fakeFetch(() => ({ status: 422, body: { name: 'validation_error', message: 'Invalid `to` field.' } })) });
     assert.equal(emailDeliveryStatus().lastRefusedAt, null);
 
-    await sendVerificationEmail('someone@example.com', 'token', { fetchImpl: fakeFetch(() => ({ status: 403, body: { name: 'validation_error', message: 'You can only send testing emails to your own email address (owner@example.com). Please verify a domain.' } })) });
+    await sendVerificationEmail('someone@ridermail.co.uk', 'token', { fetchImpl: fakeFetch(() => ({ status: 403, body: { name: 'validation_error', message: 'You can only send testing emails to your own email address (owner@example.com). Please verify a domain.' } })) });
     const status = emailDeliveryStatus();
     assert.equal(typeof status.lastRefusedAt, 'number');
     assert.match(status.lastRefusal ?? '', /verify a domain/);
@@ -197,7 +209,7 @@ describe('emailDeliveryStatus', () => {
   });
 
   it('records a refusal with no reason by its status', async () => {
-    await sendVerificationEmail('someone@example.com', 'token', { fetchImpl: fakeFetch(() => ({ status: 401 })) });
+    await sendVerificationEmail('someone@ridermail.co.uk', 'token', { fetchImpl: fakeFetch(() => ({ status: 401 })) });
     assert.equal(emailDeliveryStatus().lastRefusal, 'HTTP 401');
   });
 });
