@@ -45,10 +45,20 @@ import type { ConnectionKind } from './src/ProfileConnectionsSheet';
 type Screen = 'Home' | 'Reels' | 'Create' | 'Clubs' | 'Shop' | 'Profile' | 'Messages';
 type Icon = React.ComponentProps<typeof Ionicons>['name'];
 
-const primaryTabs: { name: Screen; icon: Icon; activeIcon: Icon }[] = [
+type Tab = { name: Screen; icon: Icon; activeIcon: Icon };
+const coreTabs: Tab[] = [
   { name: 'Home', icon: 'home-outline', activeIcon: 'home' },
   { name: 'Reels', icon: 'play-circle-outline', activeIcon: 'play-circle' },
   { name: 'Create', icon: 'add-circle-outline', activeIcon: 'add-circle' },
+];
+// Clubs and Shop have no backend yet, so the live app doesn't offer them:
+// its last two tabs are Messages and Profile, which work today. Test
+// fixtures keep Clubs and Shop so their screens stay covered.
+const launchTabs: Tab[] = [
+  { name: 'Messages', icon: 'chatbubble-ellipses-outline', activeIcon: 'chatbubble-ellipses' },
+  { name: 'Profile', icon: 'person-circle-outline', activeIcon: 'person-circle' },
+];
+const previewTabs: Tab[] = [
   { name: 'Clubs', icon: 'people-outline', activeIcon: 'people' },
   { name: 'Shop', icon: 'bag-outline', activeIcon: 'bag' },
 ];
@@ -61,6 +71,7 @@ const topics: { topic: Topic; label: string }[] = [
 // Production ships with no fictional accounts, social proof, merchant listings or posts.
 // CI enables isolated fixtures only in its browser-test export.
 const demoClubs = socialFixturesEnabled ? fixtureClubs : [];
+const primaryTabs: Tab[] = [...coreTabs, ...(socialFixturesEnabled ? previewTabs : launchTabs)];
 const demoEvents = socialFixturesEnabled ? fixtureEvents : [];
 const demoListings = socialFixturesEnabled ? fixtureListings : [];
 const demoPosts = socialFixturesEnabled ? fixturePosts : [];
@@ -249,8 +260,10 @@ function BottomTabs({ screen, onNavigate }: { screen: Screen; onNavigate: (next:
             alignItems: 'center', justifyContent: 'center',
           }}>
             <Ionicons name="add" size={27} color={C.accentText}/>
-          </View> : <Ionicons name={tab.name === screen ? tab.activeIcon : tab.icon} size={24}
-            color={tab.name === screen ? C.ink : C.muted} />}
+          </View> : <View style={{ height: 33, justifyContent: 'center' }}>
+            <Ionicons name={tab.name === screen ? tab.activeIcon : tab.icon} size={24}
+              color={tab.name === screen ? C.ink : C.muted} />
+          </View>}
           <Text style={[s.tabLabel, tab.name === screen && { color: C.ink }]}>{tab.name}</Text>
         </Pressable>
       ))}
@@ -977,10 +990,10 @@ function AuthenticatedSocialApp(): React.JSX.Element {
             <Text accessibilityRole="header" style={[s.title, { marginRight: 'auto' }]}>
               {screen === 'Shop' ? 'Shop' : 'Clubs & events'}
             </Text> : <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
-          <View style={s.headerTools}>
+          {socialFixturesEnabled ? <View style={s.headerTools}>
             <IconButton name="chatbubble-ellipses-outline" label="Open messages" onPress={() => navigate('Messages')} />
             <IconButton name="person-circle-outline" label="Open profile" onPress={() => navigate('Profile')} />
-          </View>
+          </View> : null}
         </View> : null}
         {notice ? (
           <Pressable style={s.notice} accessibilityRole="button" accessibilityLabel="Dismiss notice" onPress={() => setNotice(null)}>
