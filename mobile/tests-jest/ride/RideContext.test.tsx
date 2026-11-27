@@ -311,6 +311,23 @@ test('flags group positions as unreachable after repeated network failures, and 
   expect(result.current.rideLocations).toHaveLength(1);
 });
 
+test('sends one group position at a time when the signal is too slow to keep up', async () => {
+  let finish: (value: { locations: never[] }) => void = () => {};
+  const client = {
+    getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ shareRideLocation: true }) })),
+    getRide: jest.fn(async () => fakeRide({ shareRideLocation: true })),
+    updateRideLocation: jest.fn(() => new Promise<{ locations: never[] }>((resolve) => { finish = resolve; })),
+  };
+  await renderRide(client);
+  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledTimes(1));
+  // Two more ticks come round while the first update is still out.
+  await act(async () => { jest.advanceTimersByTime(20_000); });
+  expect(client.updateRideLocation).toHaveBeenCalledTimes(1);
+  await act(async () => { finish({ locations: [] }); });
+  await act(async () => { jest.advanceTimersByTime(10_000); });
+  await waitFor(() => expect(client.updateRideLocation).toHaveBeenCalledTimes(2));
+});
+
 test('doesn’t treat a 4xx answer as the backend being unreachable', async () => {
   const client = {
     getCurrentRide: jest.fn(async () => ({ ride: fakeRide({ shareRideLocation: true }) })),
