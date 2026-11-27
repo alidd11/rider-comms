@@ -258,8 +258,7 @@ export function useLiveReels(client: FeedClient, enabled: boolean, refreshKey = 
   return { ...(reels ?? emptyReels), loading: enabled && reels === null };
 }
 
-/** The rider's own posts on their profile, where they can also delete them. */
-/** The rider's own posts on their profile, or only their Reels. */
+/** The rider's own posts on their profile, or only their Reels, where they can also delete them. */
 export function OwnPosts({ client, riderId, refreshKey, only, canPublish, onCount, onNotice, onOpenReel, onCreate, onDeleted }: {
   client: FeedClient; riderId: string; refreshKey: number; only?: 'reel'; canPublish: boolean;
   onDeleted: (postId: string, authorId: string, why: PostAction) => void;
@@ -282,10 +281,9 @@ export function OwnPosts({ client, riderId, refreshKey, only, canPublish, onCoun
     <Text style={s.cardHeading}>{only ? 'Your Reels will appear here' : 'Your posts will appear here'}</Text>
     {feed.storageUnavailable || !canPublish ? <Text style={s.muted}>
       {feed.storageUnavailable ? 'Social media is unavailable.' : 'Publishing is currently paused.'}
-    </Text> : null}
-    <Pressable accessibilityRole="button" accessibilityLabel={only ? 'Create first Reel' : 'Create first post'} style={s.cta} onPress={onCreate}>
+    </Text> : <Pressable accessibilityRole="button" accessibilityLabel={only ? 'Create first Reel' : 'Create first post'} style={s.cta} onPress={onCreate}>
       <Text style={s.ctaText}>{only ? 'Create Reel' : 'Create post'}</Text>
-    </Pressable>
+    </Pressable>}
   </View>;
   return <View testID={only ? 'own-reels' : 'own-posts'} style={{ marginHorizontal: -16 }}>
     {shown.map(post => <LivePostCard key={post.id} post={post} profile={feed.profiles[post.authorId]} mine
