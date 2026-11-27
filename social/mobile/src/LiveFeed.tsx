@@ -1,24 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AccountApiError, accountErrorMessage, SOCIAL_REPORT_REASONS } from './authClient';
-import type { RiderAccountClient, RiderProfile, SocialFeedScope, SocialPost, SocialReportReason } from './authClient';
+import { AccountApiError, accountErrorMessage } from './authClient';
+import type { RiderAccountClient, RiderProfile, SocialFeedScope, SocialPost } from './authClient';
 import { C, s } from './styles';
 import { IdentityAvatar } from './IdentityAvatar';
+import { PostActions } from './PostActions';
+import type { PostAction } from './PostActions';
 
 type FeedClient = Pick<RiderAccountClient, 'socialFeed' | 'riderSocialPosts' | 'riderProfiles' | 'deleteSocialPost' |
   'reportSocialPost' | 'blockRider' | 'socialMediaUrl' | 'socialPost'>;
 
 /** Media links last at least 20 minutes; reload well before then. */
 export const MEDIA_LINK_REFRESH_MS = 15 * 60_000;
-
-const REASON_LABELS: Record<SocialReportReason, string> = {
-  harassment: 'Bullying or harassment',
-  unsafe: 'Dangerous riding or a safety risk',
-  spam: 'Spam or scam',
-  sexual: 'Nudity or sexual content',
-  other: 'Something else',
-};
 
 /** "5 min", "3 h", "2 d", or the date. */
 export function postAge(createdAt: number, now = Date.now()): string {
@@ -43,18 +37,15 @@ function authorLabel(profile: RiderProfile | undefined): { name: string; handle:
   return { name: profile.displayName || handle, handle };
 }
 
-type Panel = { postId: string; view: 'menu' | 'report' | 'confirm-delete' | 'confirm-block' };
-
 export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemoved, onNotice, onStaleMedia }: {
   post: SocialPost; profile?: RiderProfile; mine: boolean; client: FeedClient;
   onOpenReel?: (postId: string) => void;
   /** A photo didn't load, most likely because its link expired: fetch the post again. */
   onStaleMedia?: (postId: string) => void;
-  onRemoved: (postId: string, why: 'deleted' | 'reported' | 'blocked') => void;
+  onRemoved: (postId: string, why: PostAction) => void;
   onNotice: (message: string) => void;
 }) {
-  const [panel, setPanel] = useState<Panel['view'] | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [panel, setPanel] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(0);
   const [width, setWidth] = useState(0);
@@ -69,18 +60,6 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
   };
   const aspect = first ? mediaAspect(first.width, first.height) : 1;
 
-  async function run(action: () => Promise<void>, why: 'deleted' | 'reported' | 'blocked', done: string) {
-    setBusy(true);
-    try {
-      await action();
-      onNotice(done);
-      onRemoved(post.id, why);
-    } catch (error) {
-      onNotice(accountErrorMessage(error));
-      setBusy(false);
-    }
-  }
-
   return <View testID={'live-post-' + post.id} style={{ marginBottom: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border }}>
     <View style={[s.rowBetween, { paddingHorizontal: 14, paddingVertical: 9 }]}>
       <View style={[s.row, { flex: 1 }]}>
@@ -91,7 +70,7 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
         </View>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={'Post options for ' + (author.handle || author.name)}
-        onPress={() => setPanel(current => current ? null : 'menu')}
+        onPress={() => setPanel(current => !current)}
         style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name="ellipsis-horizontal" size={22} color={C.ink}/>
       </Pressable>
@@ -129,38 +108,10 @@ export function LivePostCard({ post, profile, mine, client, onOpenReel, onRemove
     </Pressable> : null}
 
     {panel ? <View testID="post-options" style={[s.card, { marginHorizontal: 14, marginTop: 10, padding: 6 }]}>
-      {busy ? <ActivityIndicator color={C.accent} style={{ margin: 14 }}/> : null}
-      {!busy && panel === 'menu' && mine ? <PanelButton icon="trash-outline" label="Delete post" danger onPress={() => setPanel('confirm-delete')}/> : null}
-      {!busy && panel === 'menu' && !mine ? <>
-        <PanelButton icon="flag-outline" label="Report post" onPress={() => setPanel('report')}/>
-        <PanelButton icon="ban-outline" label={'Block ' + (author.handle || 'this rider')} danger onPress={() => setPanel('confirm-block')}/>
-      </> : null}
-      {!busy && panel === 'report' ? <>
-        <Text style={[s.small, { padding: 10 }]}>Why are you reporting this post? It’s hidden from you straight away.</Text>
-        {SOCIAL_REPORT_REASONS.map(reason => <PanelButton key={reason} icon="chevron-forward" label={REASON_LABELS[reason]}
-          onPress={() => void run(() => client.reportSocialPost(post.id, reason), 'reported', 'Thanks. We’ll review this post.')}/>)}
-      </> : null}
-      {!busy && panel === 'confirm-delete' ? <>
-        <Text style={[s.small, { padding: 10 }]}>Delete this post? Its photos or video are removed too. This can’t be undone.</Text>
-        <PanelButton icon="trash" label="Delete" danger onPress={() => void run(() => client.deleteSocialPost(post.id), 'deleted', 'Post deleted.')}/>
-      </> : null}
-      {!busy && panel === 'confirm-block' ? <>
-        <Text style={[s.small, { padding: 10 }]}>Block {author.handle || 'this rider'}? You won’t see each other’s posts, and they can’t message you, in Social or Rider Comms.</Text>
-        <PanelButton icon="ban" label="Block" danger onPress={() => void run(() => client.blockRider(post.authorId), 'blocked', 'Blocked.')}/>
-      </> : null}
-      {!busy ? <PanelButton icon="close" label="Cancel" onPress={() => setPanel(null)}/> : null}
+      <PostActions postId={post.id} authorId={post.authorId} handle={author.handle} mine={mine} client={client}
+        onRemoved={why => onRemoved(post.id, why)} onNotice={onNotice} onClose={() => setPanel(false)}/>
     </View> : null}
   </View>;
-}
-
-function PanelButton({ icon, label, danger = false, onPress }: {
-  icon: React.ComponentProps<typeof Ionicons>['name']; label: string; danger?: boolean; onPress: () => void;
-}) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
-    style={[s.row, { minHeight: 46, paddingHorizontal: 10 }]}>
-    <Ionicons name={icon} size={20} color={danger ? C.danger : C.ink}/>
-    <Text style={[s.body, danger ? { color: C.danger } : null]}>{label}</Text>
-  </Pressable>;
 }
 
 /** Loads a feed page by page, and the riders' names for it. */
@@ -171,6 +122,7 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
   const [total, setTotal] = useState<number | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
+  const [storageUnavailable, setStorageUnavailable] = useState(false);
   const request = useRef(0);
   const key = typeof source === 'string' ? source : 'rider:' + source.riderId;
 
@@ -188,6 +140,7 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
       setProfiles(current => ({ ...current, ...names }));
       setPosts(current => after ? [...current, ...page.posts.filter(post => !current.some(old => old.id === post.id))] : page.posts);
       setCursor(page.nextCursor);
+      setStorageUnavailable(false);
       if (!after) setTotal(typeof page.total === 'number' ? page.total : null);
       setState('ready');
     } catch (failure) {
@@ -198,6 +151,7 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
         setPosts([]);
         setCursor(null);
         setTotal(0);
+        setStorageUnavailable(true);
         setState('ready');
         return;
       }
@@ -216,20 +170,23 @@ export function useLiveFeed(client: FeedClient, source: SocialFeedScope | { ride
     );
   }, [client]);
 
-  const remove = useCallback((postId: string, authorId?: string) => {
-    setPosts(current => current.filter(post => post.id !== postId && (!authorId || post.authorId !== authorId)));
-    if (!authorId) setTotal(count => count === null ? null : Math.max(0, count - 1));
+  const remove = useCallback((postId: string) => {
+    setPosts(current => current.filter(post => post.id !== postId));
+    setTotal(count => count === null ? null : Math.max(0, count - 1));
   }, []);
 
-  return { posts, profiles, total, state, error, hasMore: Boolean(cursor), reload: () => void load(null), loadMore: () => void load(cursor), remove, refreshPost };
+  return { posts, profiles, total, state, error, storageUnavailable, hasMore: Boolean(cursor), reload: () => void load(null), loadMore: () => void load(cursor), remove, refreshPost };
 }
 
 /** Home's real feed: For you (everyone in the test) and Following (friends). */
-export function LiveFeed({ client, riderId, scope, refreshKey, empty, onOpenReel, onNotice }: {
+export function LiveFeed({ client, riderId, scope, refreshKey, empty, onOpenReel, onNotice, onRemoved, isVisible }: {
   client: FeedClient; riderId: string; scope: 'for-you' | 'following'; refreshKey: number; empty: React.ReactNode;
   onOpenReel: (postId: string) => void; onNotice: (message: string) => void;
+  onRemoved: (postId: string, authorId: string, why: PostAction) => void;
+  isVisible: (post: SocialPost) => boolean;
 }) {
   const feed = useLiveFeed(client, scope, refreshKey);
+  const visiblePosts = feed.posts.filter(isVisible);
   return <View testID="live-feed">
     {feed.state === 'loading' ? <ActivityIndicator accessibilityLabel="Loading posts" color={C.accent} style={{ margin: 30 }}/> : null}
     {feed.state === 'error' ? <View style={[s.card, s.pad, { marginHorizontal: 16 }]}>
@@ -238,12 +195,12 @@ export function LiveFeed({ client, riderId, scope, refreshKey, empty, onOpenReel
         <Text style={s.ghostText}>Try again</Text>
       </Pressable>
     </View> : null}
-    {feed.state === 'ready' && feed.posts.length === 0 ? (scope === 'following'
+    {feed.state === 'ready' && visiblePosts.length === 0 ? (scope === 'following'
       ? <Text style={[s.muted, { padding: 18, textAlign: 'center' }]}>Posts from your Rider Comms friends will show here.</Text>
       : empty) : null}
-    {feed.posts.map(post => <LivePostCard key={post.id} post={post} profile={feed.profiles[post.authorId]}
+    {visiblePosts.map(post => <LivePostCard key={post.id} post={post} profile={feed.profiles[post.authorId]}
       mine={post.authorId === riderId} client={client} onOpenReel={onOpenReel} onNotice={onNotice} onStaleMedia={feed.refreshPost}
-      onRemoved={(postId, why) => feed.remove(postId, why === 'blocked' ? post.authorId : undefined)}/>)}
+      onRemoved={(postId, why) => onRemoved(postId, post.authorId, why)}/>)}
     {feed.hasMore && feed.state === 'ready' ? <Pressable accessibilityRole="button" accessibilityLabel="Load more posts"
       style={[s.ghost, { marginHorizontal: 16, marginBottom: 20 }]} onPress={feed.loadMore}>
       <Text style={s.ghostText}>More posts</Text>
@@ -257,6 +214,7 @@ export function reelPreviewFromPost(post: SocialPost, profile: RiderProfile | un
   const author = authorLabel(profile);
   return {
     id: post.id,
+    published: true,
     authorId: post.authorId,
     handle: author.handle || author.name,
     title: post.caption || 'Reel',
@@ -300,10 +258,10 @@ export function useLiveReels(client: FeedClient, enabled: boolean, refreshKey = 
   return { ...(reels ?? emptyReels), loading: enabled && reels === null };
 }
 
-/** The rider's own posts on their profile, where they can also delete them. */
-/** The rider's own posts on their profile, or only their Reels. */
-export function OwnPosts({ client, riderId, refreshKey, only, onCount, onNotice, onOpenReel, onCreate }: {
-  client: FeedClient; riderId: string; refreshKey: number; only?: 'reel';
+/** The rider's own posts on their profile, or only their Reels, where they can also delete them. */
+export function OwnPosts({ client, riderId, refreshKey, only, canPublish, onCount, onNotice, onOpenReel, onCreate, onDeleted }: {
+  client: FeedClient; riderId: string; refreshKey: number; only?: 'reel'; canPublish: boolean;
+  onDeleted: (postId: string, authorId: string, why: PostAction) => void;
   /** Told the rider's post count once it's known, and again after a delete. */
   onCount?: (count: number) => void;
   onNotice: (message: string) => void; onOpenReel: (postId: string) => void; onCreate: () => void;
@@ -321,13 +279,18 @@ export function OwnPosts({ client, riderId, refreshKey, only, onCount, onNotice,
   if (!shown.length && !feed.hasMore) return <View style={{ alignItems: 'center', paddingVertical: 44, gap: 12 }}>
     <Ionicons name={only ? 'play-circle-outline' : 'images-outline'} size={33} color={C.accent}/>
     <Text style={s.cardHeading}>{only ? 'Your Reels will appear here' : 'Your posts will appear here'}</Text>
-    <Pressable accessibilityRole="button" accessibilityLabel={only ? 'Create first Reel' : 'Create first post'} style={s.cta} onPress={onCreate}>
+    {feed.storageUnavailable || !canPublish ? <Text style={s.muted}>
+      {feed.storageUnavailable ? 'Social media is unavailable.' : 'Publishing is currently paused.'}
+    </Text> : <Pressable accessibilityRole="button" accessibilityLabel={only ? 'Create first Reel' : 'Create first post'} style={s.cta} onPress={onCreate}>
       <Text style={s.ctaText}>{only ? 'Create Reel' : 'Create post'}</Text>
-    </Pressable>
+    </Pressable>}
   </View>;
   return <View testID={only ? 'own-reels' : 'own-posts'} style={{ marginHorizontal: -16 }}>
     {shown.map(post => <LivePostCard key={post.id} post={post} profile={feed.profiles[post.authorId]} mine
-      client={client} onOpenReel={onOpenReel} onNotice={onNotice} onStaleMedia={feed.refreshPost} onRemoved={(postId) => feed.remove(postId)}/>)}
+      client={client} onOpenReel={onOpenReel} onNotice={onNotice} onStaleMedia={feed.refreshPost} onRemoved={(postId, why) => {
+        feed.remove(postId);
+        onDeleted(postId, post.authorId, why);
+      }}/>)}
     {feed.hasMore ? <Pressable accessibilityRole="button" accessibilityLabel="Load more of your posts"
       style={[s.ghost, { marginHorizontal: 16 }]} onPress={feed.loadMore}>
       <Text style={s.ghostText}>More posts</Text>

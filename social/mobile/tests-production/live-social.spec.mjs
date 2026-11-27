@@ -44,16 +44,21 @@ async function mockApi(page, state) {
     if (pathname === '/social/bootstrap') return json(200, { entitlement: 'beta', policyVersion: 'social-open-beta-v1', capabilities: {
       mediaUpload: true, privatePosting: false, publicPosting: true, liveStreaming: false, marketplaceCheckout: false, creatorPayouts: false } });
     if (pathname === `/riders/${me}/friends`) return json(200, { friends: [], nextCursor: null });
-    if (pathname === '/conversations') return json(200, { conversations: [], nextCursor: null });
+    if (pathname === '/conversations') return json(200, { conversations: state.conversations ?? [], nextCursor: null });
     if (pathname === `/riders/${me}/profile`) return json(200, { riderId: me, displayName: 'Live Smoke', handle: 'live_smoke' });
     if (pathname === '/profiles/batch') return json(200, { profiles: {
       [me]: { riderId: me, displayName: 'Live Smoke', handle: 'live_smoke' },
       [other]: { riderId: other, displayName: 'Sam Rider', handle: 'sam_rides' },
     } });
+    if (pathname === '/blocks' && method === 'POST') {
+      state.blocks?.push(request.postDataJSON());
+      // Keep returning stale cached feed and inbox pages to exercise the UI's immediate filtering.
+      return json(201, { blocked: true });
+    }
     if (pathname === '/social/feed') {
       const scope = searchParams.get('scope');
       const posts = state.posts.filter(item => scope === 'reels' ? item.kind === 'reel' :
-        scope !== 'following' || item.authorId === me);
+        scope !== 'following' || item.authorId === me || state.following);
       return json(200, { posts, nextCursor: null });
     }
     if (pathname === `/social/riders/${me}/posts`) return json(200, { posts: state.posts.filter((item) => item.authorId === me), nextCursor: null });
@@ -193,8 +198,8 @@ test('does not keep refreshing signed links for an unavailable photo', async ({ 
   expect(refreshes).toBe(1);
 });
 
-test('shows published Reels while uploading is disabled', async ({ page }) => {
-  const published = post('published-reel', other, 'A published ride', { kind: 'reel' });
+test('shows and manages published profile content while uploading is disabled', async ({ page }) => {
+  const published = post('published-reel', me, 'A published ride', { kind: 'reel' });
   published.media[0].kind = 'video';
   const state = { posts: [published], calls: [], uploads: [], created: [], reports: [] };
   await mockApi(page, state);
@@ -212,6 +217,17 @@ test('shows published Reels while uploading is disabled', async ({ page }) => {
   await expect(page.getByTestId('reel-caption-published-reel')).toBeVisible();
   await expect(page.locator('video')).toHaveAttribute('src', /\/social\/media\/published-reel-m\/file/);
   expect(state.uploads).toEqual([]);
+  await page.getByRole('tab', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await expect(page.getByTestId('own-posts').getByText('A published ride', { exact: false })).toBeVisible();
+  await page.getByRole('tab', { name: 'Reels profile tab' }).click();
+  const ownReel = page.getByTestId('own-reels').getByTestId('live-post-published-reel');
+  await expect(ownReel).toBeVisible();
+  await ownReel.getByRole('button', { name: 'Post options for @live_smoke' }).click();
+  await ownReel.getByRole('button', { name: 'Delete post' }).click();
+  await ownReel.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(ownReel).toHaveCount(0);
+  await expect(page.getByText('Publishing is currently paused.')).toBeVisible();
 });
 
 
@@ -229,4 +245,55 @@ test('a saved rider Reel appears in the profile and opens the right video', asyn
   await page.getByRole('button', { name: 'Watch saved Reel saved-rider-reel' }).click();
   await expect(page.getByTestId('reel-caption-saved-rider-reel')).toBeVisible();
   await expect(page.locator('video')).toHaveAttribute('src', /saved-rider-reel-m/);
+});
+
+
+test('reports a Reel and omits it from both feeds and Saved', async ({ page }) => {
+  const reel = post('reportable-reel', other, 'Reportable ride', { kind: 'reel' });
+  reel.media[0].kind = 'video';
+  const state = { posts: [reel], calls: [], uploads: [], created: [], reports: [], following: true };
+  await mockApi(page, state);
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Reels', exact: true }).click();
+  await page.getByRole('tab', { name: 'Following videos' }).click();
+  await expect(page.getByTestId('reel-caption-reportable-reel')).toBeVisible();
+  await page.getByRole('tab', { name: 'For you videos' }).click();
+  await page.getByRole('button', { name: 'Save Reel reportable-reel' }).click();
+  await page.getByRole('button', { name: 'Reel options reportable-reel' }).click();
+  await page.getByRole('button', { name: 'Report Reel' }).click();
+  await page.getByRole('button', { name: 'Spam or scam' }).click();
+  await expect(page.getByText('Thanks. We’ll review this Reel.')).toBeVisible();
+  expect(state.reports).toEqual([{ id: 'reportable-reel', reason: 'spam', details: '' }]);
+  await expect(page.getByTestId('reel-caption-reportable-reel')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Following videos' }).click();
+  await expect(page.getByTestId('reel-caption-reportable-reel')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tab', { name: 'Saved profile tab' }).click();
+  await expect(page.getByText('No saved Reels yet')).toBeVisible();
+});
+
+test('blocking a Reel author also hides their other posts and shared inbox preview', async ({ page }) => {
+  const reel = post('blockable-reel', other, 'Blockable ride', { kind: 'reel' });
+  reel.media[0].kind = 'video';
+  const state = { posts: [reel, post('other-photo', other, 'Another post')], calls: [], blocks: [], following: true,
+    conversations: [{ friend: { riderId: other, displayName: 'Sam Rider', handle: 'sam_rides' },
+      lastMessage: { id: 'test-message', fromRiderId: other, toRiderId: me, text: 'Previous chat', createdAt: 1731000000 }, unreadCount: 1 }] };
+  await mockApi(page, state);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await expect(page.getByText('Previous chat')).toBeVisible();
+  await page.getByRole('tab', { name: 'Reels', exact: true }).click();
+  await page.getByRole('button', { name: 'Reel options blockable-reel' }).click();
+  await page.getByRole('button', { name: 'Block @sam_rides' }).click();
+  await page.getByRole('button', { name: 'Block', exact: true }).click();
+  await expect(page.getByText('Blocked.')).toBeVisible();
+  expect(state.blocks).toEqual([{ riderId: other }]);
+  await expect(page.getByTestId('reel-caption-blockable-reel')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Home', exact: true }).click();
+  await expect(page.getByTestId('home-starter-feed')).toBeVisible();
+  await expect(page.getByTestId('live-post-other-photo')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open messages' }).click();
+  await expect(page.getByText('No conversations yet')).toBeVisible();
+  await expect(page.getByText('Previous chat')).toHaveCount(0);
 });

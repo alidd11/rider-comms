@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, ImageBackground, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, ImageBackground, Linking, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CDark as C } from './styles';
+import { C as menuColors, CDark as C } from './styles';
+import { PostActions } from './PostActions';
+import type { PostAction, PostActionClient } from './PostActions';
 import { BrandMark } from './BrandMark';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
@@ -17,13 +19,14 @@ export type ReelPreview = {
   videoUrl?: string;
   hasAudio?: boolean;
   editorialPreview?: boolean;
+  published?: boolean;
   clipSourceUrl?: string;
   clipCredit?: string;
   theme: string;
   category: 'CARS' | 'MOTORCYCLES' | 'CYCLING';
 };
 
-type ReelAction = 'share' | 'sound' | 'options';
+type ReelAction = 'share' | 'sound';
 
 // Keep the image unobscured: caption legibility is provided by glyph shadows,
 // not a translucent rectangle that darkens the bottom third of each Reel.
@@ -33,6 +36,10 @@ const reelTextShadow = {
   textShadowRadius: 5,
 } as const;
 type Props = {
+  riderId: string;
+  client: PostActionClient;
+  onRemoved: (postId: string, authorId: string, why: PostAction) => void;
+  onNotice: (message: string) => void;
   items: readonly ReelPreview[];
   followingItems: readonly ReelPreview[];
   initialReelId?: string | null;
@@ -190,7 +197,7 @@ function ActiveReelVideo({ uri, poster, hasAudio }: Omit<PlaybackProps, 'onRetry
 }
 
 export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds, onToggleSavedReel,
-  followedAuthors, onToggleFollow, onOpenComments, onOpenCreator, onCreateReel }: Props) {
+  followedAuthors, onToggleFollow, onOpenComments, onOpenCreator, onCreateReel, riderId, client, onRemoved, onNotice }: Props) {
   const insets = useSafeAreaInsets();
   // The image intentionally extends behind the status bar, but controls do not.
   // For installed web PWAs the CSS env() inset is authoritative, not JS insets.
@@ -207,6 +214,7 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
   const [likes, setLikes] = useState<Set<string>>(() => new Set());
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState<string | null>(null);
+  const [optionsReel, setOptionsReel] = useState<ReelPreview | null>(null);
   const scroller = useRef<ScrollViewInstance>(null);
   const lastPageHeight = useRef(0);
 
@@ -283,7 +291,6 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
   const explain = (action: ReelAction) => {
     if (action === 'sound') setNotice('This one is a photo, so there’s no sound.');
     if (action === 'share') setNotice('Sharing isn’t available yet.');
-    if (action === 'options') setNotice('There are no options for this Reel.');
   };
 
   if (!activeItems.length) {
@@ -417,8 +424,8 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
                     onPress={() => explain('share')} />
                   <ReelActionButton label={'Save Reel ' + reel.id} icon={savedReelIds.has(reel.id) ? 'bookmark' : 'bookmark-outline'}
                     active={savedReelIds.has(reel.id)} onPress={() => onToggleSavedReel(reel.id)} />
-                  <ReelActionButton label={'Reel options ' + reel.id} icon="ellipsis-horizontal"
-                    onPress={() => explain('options')} />
+                  {reel.published ? <ReelActionButton label={'Reel options ' + reel.id} icon="ellipsis-horizontal"
+                    onPress={() => setOptionsReel(reel)} /> : null}
                 </View> : null}
               </ImageBackground>
             </View>
@@ -446,6 +453,23 @@ export function ReelsScreen({ items, followingItems, initialReelId, savedReelIds
         }}>
         <Text style={{ color: C.ink, fontSize: 13 }}>{notice}</Text>
       </Pressable> : null}
+      {optionsReel ? <Modal transparent animationType="fade" onRequestClose={() => setOptionsReel(null)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.63)' }}>
+          <View accessibilityViewIsModal style={{ width: '100%', maxWidth: 620, maxHeight: '85%',
+            paddingTop: 12, paddingBottom: Math.max(12, insets.bottom),
+            borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: menuColors.panel }}>
+            <Text accessibilityRole="header" style={{ fontSize: 18, fontWeight: '700', color: menuColors.ink, padding: 12 }}>
+              Reel options
+            </Text>
+            <ScrollView style={{ flexGrow: 0 }}>
+              <PostActions postId={optionsReel.id} authorId={optionsReel.authorId} handle={optionsReel.handle}
+                mine={optionsReel.authorId === riderId} client={client} item="Reel" onNotice={onNotice}
+                onRemoved={why => onRemoved(optionsReel.id, optionsReel.authorId, why)}
+                onClose={() => setOptionsReel(null)}/>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal> : null}
       {Platform.OS === 'web' ? <View nativeID="social-reels-swipe-buttons" pointerEvents="box-none" style={{
         position: 'absolute', right: 10, top: 72, gap: 3,
       }}>
