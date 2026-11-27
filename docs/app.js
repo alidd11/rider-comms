@@ -1120,7 +1120,9 @@
   async function loadNearbyHazards(lat, lon) {
     try {
       const result = await apiFetch('GET', `/hazards/nearby?lat=${lat}&lon=${lon}`);
-      nearbyHazards = result.hazards;
+      // A reply without a list (an outage page, a proxy) keeps the last one;
+      // an undefined list would break every later map redraw.
+      if (Array.isArray(result?.hazards)) nearbyHazards = result.hazards;
     } catch {
       // keep whatever was last loaded
     }
