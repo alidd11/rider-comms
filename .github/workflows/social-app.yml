@@ -45,6 +45,9 @@ jobs:
         env:
           EXPO_PUBLIC_SOCIAL_TEST_FIXTURES: 'true'
       - run: test -f dist/index.html
+      # Microsoft's repository on the runner image isn't needed, and when it
+      # refuses (403) apt update fails before the browsers install.
+      - run: sudo rm -f /etc/apt/sources.list.d/microsoft-prod*
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       # The preview deployed to Railway has NO demo fixtures. Re-export it and
