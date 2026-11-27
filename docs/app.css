@@ -572,7 +572,7 @@ body:has(#destinationCard:not([hidden])) .screen-map .map-actions{display:none}
 .ride-hero{
   position:relative;height:184px;overflow:hidden;border:1px solid var(--border);
   border-radius:var(--radius-lg);background-color:var(--surface);
-  background-image:linear-gradient(180deg,rgb(4 8 11/.06) 30%,rgb(4 8 11/.78) 100%),url("assets/hero/ride.jpg");
+  background-image:linear-gradient(180deg,rgb(4 8 11/.06) 30%,rgb(4 8 11/.78) 100%),url("assets/hero/ride.webp");
   background-size:cover;background-position:center 56%;
 }
 .ride-entry{overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface)}
@@ -685,7 +685,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   border-radius:0;
   background:
     linear-gradient(180deg,rgb(3 7 9/.04) 28%,rgb(3 7 9/.22) 58%,rgb(3 7 9/.78) 100%),
-    url("assets/hero/ride.jpg");
+    url("assets/hero/ride.webp");
   background-position:center 50%;
   background-size:cover;
 }
@@ -890,7 +890,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
     border:0;
     background-image:
       linear-gradient(180deg,rgb(3 7 9/.03) 28%,rgb(3 7 9/.18) 58%,rgb(3 7 9/.82) 100%),
-      url("assets/hero/ride.jpg");
+      url("assets/hero/ride.webp");
     background-size:cover;
   }
   #rideJoinState .ride-hero::after{
@@ -1259,7 +1259,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   border-radius:0;
   background:
     linear-gradient(180deg,rgb(1 7 10/.20) 0%,rgb(2 9 12/.36) 32%,rgb(2 8 10/.80) 67%,#03090b 100%),
-    url("assets/hero/auth.jpg");
+    url("assets/hero/auth.webp");
   background-position:center center;
   background-size:cover;
 }
@@ -1471,7 +1471,7 @@ body:has(#sheetBackdrop:not([hidden])) #joinNearbyBtn{opacity:0;pointer-events:n
   overflow:hidden;
   background:
     linear-gradient(180deg,rgb(2 9 12/.34),rgb(2 9 12/.62) 55%,rgb(2 8 10/.92)),
-    url("assets/hero/auth.jpg");
+    url("assets/hero/auth.webp");
   background-size:cover;
   background-position:center center;
   color:#f4fafa;
@@ -2834,11 +2834,11 @@ html.map-day .nav-summary-stat{border-left-color:rgb(11 18 22/.1)}
 .place-badge{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;background:var(--accent)}
 .place-badge svg{width:18px;height:18px}
 .place-badge-ride{background:#5755a8}
-@media(max-width:440px){
-  .map-drawer-shortcuts button{flex-direction:column;padding:6px 2px;min-height:68px}
-  .map-drawer-shortcuts button .place-badge{width:26px;height:26px}
-  .map-drawer-shortcuts button .shortcut-text{text-align:center;font-size:.8125rem}
-}
+/* Icon above words at every width: side by side, four shortcuts squeeze
+   "Group Ride" onto two lines in the desktop column. */
+.map-drawer-shortcuts button{flex-direction:column;padding:6px 2px;min-height:68px}
+.map-drawer-shortcuts button .place-badge{width:26px;height:26px}
+.map-drawer-shortcuts button .shortcut-text{text-align:center;font-size:.8125rem}
 .place-badge-home{background:var(--place-home)}
 .place-badge-work{background:var(--place-work)}
 .place-badge-fuel{background:var(--place-fuel)}
@@ -3277,7 +3277,7 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 /* Premium Rider Cockpit — Ride (PWA/native parity with HostPanel).
    The photo is decorative; the copy, join code and privacy state stay readable. */
 #rideJoinState .ride-hero{display:flex;align-items:flex-end;
-  background-image:linear-gradient(180deg,rgba(3,10,14,.18),rgba(3,10,14,.80)),url("assets/hero/ride.jpg")}
+  background-image:linear-gradient(180deg,rgba(3,10,14,.18),rgba(3,10,14,.80)),url("assets/hero/ride.webp")}
 #rideJoinState .ride-hero::after{z-index:0}
 .ride-hero-content{position:relative;z-index:1;display:grid;gap:3px;padding:16px 18px;max-width:100%;color:#fff}
 .ride-hero-eyebrow{font-size:.65rem;font-weight:800;letter-spacing:.13em;color:#bfefff}
@@ -3318,5 +3318,14 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .announcement-copy span{color:var(--text-secondary);overflow-wrap:anywhere}
 .announcement-close{flex:none;width:44px;height:44px;margin:-8px -2px -8px 0;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text-muted)}
 .announcement-close svg{width:16px;height:16px}
+/* Wide screens: Profile is one 640px column like the other settings pages.
+   Its sections are grid items, so the rows need an explicit width or they
+   shrink to their text. */
+@media(min-width:700px){
+  .my-profile-page{width:min(100%,640px);margin-inline:auto}
+  .my-profile-page .my-profile-hero{margin-inline:0}
+  .my-profile-page .my-profile-section .settings-page-heading{padding-inline:2px}
+  .my-profile-page .my-profile-section .settings-rows{width:100%}
+}
 /* Press and hold drops a pin: no text selection or iOS callout on the map. */
 .google-map{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}

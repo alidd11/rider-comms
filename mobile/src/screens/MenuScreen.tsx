@@ -143,14 +143,21 @@ export function MenuScreen({ navigation }: Props): React.JSX.Element {
           <Text style={styles.sectionTitle} accessibilityRole="header">Recent rides</Text>
           <Text style={styles.sectionCaption}>Last 10 · this device</Text>
         </View>
-        <View style={styles.stats} accessibilityLabel="Recent ride totals on this device" testID="menu-ride-stats">
-          {[[stats.rides, 'Rides'], [stats.time, 'Ride time'], [stats.distance, stats.distanceLabel]].map(([value, label], index) => (
-            <View key={label} style={[styles.stat, index > 0 && styles.statDivider]} accessible accessibilityLabel={`${label}: ${value}`}>
-              <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
-              <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
-            </View>
-          ))}
-        </View>
+        {/* A new rider sees what the totals will be, not a row of zeros (web: #appMenuStatsEmpty). */}
+        {stats.rides === '0' ? (
+          <View style={styles.statsEmpty} testID="menu-ride-stats-empty">
+            <Text style={styles.statsEmptyText}>No rides yet. Your time and distance show here after your first ride.</Text>
+          </View>
+        ) : (
+          <View style={styles.stats} accessibilityLabel="Recent ride totals on this device" testID="menu-ride-stats">
+            {[[stats.rides, 'Rides'], [stats.time, 'Ride time'], [stats.distance, stats.distanceLabel]].map(([value, label], index) => (
+              <View key={label} style={[styles.stat, index > 0 && styles.statDivider]} accessible accessibilityLabel={`${label}: ${value}`}>
+                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+                <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={styles.navigationSections}>
           <View>
@@ -194,6 +201,8 @@ const styles = StyleSheet.create({
   stats: { flexDirection: 'row', minHeight: 68, borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: 'hidden' },
   stat: { flex: 1, minWidth: 0, justifyContent: 'center', paddingVertical: 9, paddingHorizontal: 10 },
   statDivider: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border },
+  statsEmpty: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: radii.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border },
+  statsEmptyText: { ...type.body, color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
   statValue: { ...type.heading, color: colors.textPrimary, fontSize: 22, lineHeight: 26, fontWeight: '800' },
   statLabel: { ...type.caption, color: colors.textSecondary, marginTop: 4, fontSize: 12 },
   navigationSections: { gap: 11, marginTop: 14 },

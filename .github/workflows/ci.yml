@@ -179,6 +179,11 @@ jobs:
           # Do not put timeout *outside* sudo: it can kill the parent
           # while leaving an apt-get child holding dpkg's lock. This caused
           # repeated WebKit failures (missing libevent-2.1.so.7) on PR CI.
+          # Browser libraries come from Ubuntu's mirrors. The runner image
+          # also lists Microsoft's package repository, which nothing here
+          # uses; when it refuses (403 on 27 Nov 2026) apt update fails and
+          # not one test runs. Drop it first.
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod*
           deps_ready=false
           for attempt in 1 2; do
             if sudo -E env "PATH=$PATH" npx playwright install-deps chromium webkit; then
