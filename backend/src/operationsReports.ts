@@ -74,6 +74,7 @@ export async function caseActivityReport(kinds: CaseKind[], days: OperationsWind
     return result;
   }, { created: 0, active: 0, resolvedTransitions: 0, internalNotes: 0,
     assignmentChanges: 0, configuredTargets: 0, overdueTargets: 0, dueSoonTargets: 0 });
+  const handling = await caseHandlingTimes(kinds, from, to);
   return {
     days, windowStart: from, generatedAt: to, scope: 'permitted_internal_cases',
     completeForRetainedData: true, since: 'company_case_system_launch',
@@ -81,8 +82,42 @@ export async function caseActivityReport(kinds: CaseKind[], days: OperationsWind
     metricDefinitions: {
       resolvedTransitions: 'Status changes to resolved or closed in the selected window',
       internalTargets: 'Staff-set internal due_at values on active cases only; not legal deadlines',
+      handling: 'For cases opened in the window: time from opening to the first staff action (note, owner, status or priority change), and to first resolved or closed',
     },
-    totals, byKind,
+    totals, byKind, handling,
+  };
+}
+
+type HandlingRow = {
+  opened: string; acted: string; resolved: string;
+  median_first_action_ms: string | null; median_resolve_ms: string | null;
+};
+
+/** Median handling times for cases opened in the window. Cases still waiting
+ * for a first action, or not yet resolved, are counted but have no time. */
+async function caseHandlingTimes(kinds: CaseKind[], from: number, to: number) {
+  const { rows } = await getPool().query<HandlingRow>(`
+    WITH opened AS (
+      SELECT c.id, c.created_at,
+        (SELECT MIN(e.created_at) FROM company_case_events e
+          WHERE e.case_id = c.id AND e.event <> 'created') AS first_action_at,
+        (SELECT MIN(e.created_at) FROM company_case_events e
+          WHERE e.case_id = c.id AND e.event = 'status' AND e.to_value IN ('resolved', 'closed')) AS resolved_at
+      FROM company_cases c
+      WHERE c.kind = ANY($3::text[]) AND c.created_at >= $1 AND c.created_at < $2
+    )
+    SELECT COUNT(*) AS opened,
+      COUNT(first_action_at) AS acted,
+      COUNT(resolved_at) AS resolved,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY first_action_at - created_at) AS median_first_action_ms,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY resolved_at - created_at) AS median_resolve_ms
+    FROM opened
+  `, [from, to, kinds]);
+  const row = rows[0]!;
+  const ms = (value: string | null) => (value === null ? null : Math.round(Number(value)));
+  return {
+    opened: Number(row.opened), acted: Number(row.acted), resolved: Number(row.resolved),
+    medianFirstActionMs: ms(row.median_first_action_ms), medianResolveMs: ms(row.median_resolve_ms),
   };
 }
 

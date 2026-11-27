@@ -446,6 +446,16 @@
 
   const numberFormat = new Intl.NumberFormat();
   const compactFormat = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
+  /** A median handling time, e.g. "in 3 h", or a dash when no case has got there yet. */
+  function caseDuration(ms) {
+    if (ms === null || ms === undefined) return '—';
+    const minutes = Math.round(ms / 60_000);
+    if (minutes < 60) return `in ${Math.max(1, minutes)} min`;
+    const hours = ms / 3_600_000;
+    if (hours < 48) return `in ${Math.round(hours)} h`;
+    return `in ${Math.round(hours / 24)} days`;
+  }
+
   function formatNumber(value) {
     if (value === null || value === undefined) return '—';
     return Math.abs(value) >= 10_000 ? compactFormat.format(value) : numberFormat.format(value);
@@ -2918,7 +2928,13 @@
       history ? el('div', { class: 'case-activity-body' }, [
         el('p', { class: 'case-help', text:
           'Complete counts from retained internal cases and events, across the workstreams your role may access. ' +
-          'This is not a response-time SLA or a legal deadline report.' }),
+          'Handling times are medians for cases opened in this period; they are internal measures, not legal deadlines.' }),
+        history.handling ? el('div', { class: 'case-activity-stats', 'aria-label': 'Handling times' }, [
+          el('span', { text: 'First action ' + caseDuration(history.handling.medianFirstActionMs) +
+            ` (${formatNumber(history.handling.acted)} of ${formatNumber(history.handling.opened)})` }),
+          el('span', { text: 'Resolved ' + caseDuration(history.handling.medianResolveMs) +
+            ` (${formatNumber(history.handling.resolved)} of ${formatNumber(history.handling.opened)})` }),
+        ]) : null,
         el('div', { class: 'case-activity-stats' }, [
           el('span', { text: 'Opened ' + formatNumber(history.totals.created) }),
           el('span', { text: 'Resolved/closed changes ' + formatNumber(history.totals.resolvedTransitions) }),
