@@ -558,7 +558,12 @@ test('PWA tells the group aloud (and in a toast) when a rider\'s position stops 
   expect(await page.evaluate(() => window.__spoken)).toHaveLength(1);
   // Sam's position comes back (timed on the page's clock, which has run on).
   otherUpdatedAt = (await page.evaluate(() => Date.now())) + 20_000;
-  await page.clock.runFor(22_000);
+  // Tick by tick, letting each update's reply arrive: a tick that comes
+  // round while the last update is still out is skipped.
+  for (let step = 0; step < 3; step += 1) {
+    await page.clock.runFor(10_000);
+    await page.waitForTimeout(150);
+  }
   await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual([
     'Sam’s position hasn’t updated for 2 minutes.',
     'Sam’s position is updating again.',
