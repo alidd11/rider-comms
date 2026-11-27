@@ -66,3 +66,17 @@ test('own profile remains usable at narrow iPhone widths', async ({ page }, test
   await edit.click();
   await expect(page.locator('#sheetTitle')).toHaveText('Edit profile');
 });
+
+test('own profile is one readable column on a wide screen', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  await openOwnProfile(page);
+  const widths = await page.locator('#sheetBody').evaluate((body) => ({
+    card: body.querySelector('.my-profile-hero').getBoundingClientRect().width,
+    rows: body.querySelector('.my-profile-section .settings-rows').getBoundingClientRect().width,
+  }));
+  expect(widths.card).toBeLessThanOrEqual(641);
+  // The Instagram and TikTok rows span the column, not just their words.
+  expect(Math.abs(widths.rows - widths.card)).toBeLessThan(2);
+});
