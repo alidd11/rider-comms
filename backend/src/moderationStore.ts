@@ -581,9 +581,20 @@ export class ModerationStore {
   }
 
   /** Records that staff sent a rider a password reset email. */
-  async recordStaffMfaReset(riderId: string, adminId: string, note: string, now = Date.now()): Promise<ModerationAction> {
+  /** An admin switches off a colleague's two-step sign-in. Removing it, the
+   * security event and the audit entry commit together, so a reset is never
+   * left unrecorded. Null when the colleague had no two-step sign-in. */
+  async resetStaffMfa(riderId: string, adminId: string, note: string, now = Date.now()): Promise<ModerationAction | null> {
     await ensureMigrated();
-    return withTransaction((client) => this.recordAction(client, adminId, riderId, null, 'staff_mfa_reset', note, now));
+    return withTransaction(async (client) => {
+      const { rowCount } = await client.query('DELETE FROM staff_mfa WHERE rider_id = $1', [riderId]);
+      if (!rowCount) return null;
+      await client.query(
+        "INSERT INTO security_events (rider_id, event, session_id, device, created_at) VALUES ($1, 'mfa_reset', NULL, NULL, $2)",
+        [riderId, now],
+      );
+      return this.recordAction(client, adminId, riderId, null, 'staff_mfa_reset', note, now);
+    });
   }
 
   /** A staff push to riders; the sender is the target, the note says why. */
