@@ -3316,3 +3316,5 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
   .my-profile-page .my-profile-section .settings-page-heading{padding-inline:2px}
   .my-profile-page .my-profile-section .settings-rows{width:100%}
 }
+/* Press and hold drops a pin: no text selection or iOS callout on the map. */
+.google-map{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
