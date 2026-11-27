@@ -3064,6 +3064,9 @@
   function renderMenuRideStats() {
     if (!$('#appMenuStats')) return;
     const history = loadRideHistory();
+    // A new rider sees what the totals will be, not a row of zeros.
+    $('#appMenuStats').hidden = history.length === 0;
+    $('#appMenuStatsEmpty').hidden = history.length > 0;
     const unit = state.unit === 'km' ? 'km' : 'mi';
     const minutes = Math.round(history.reduce((sum, entry) => sum + entry.durationMs, 0) / 60_000);
     const metres = history.reduce((sum, entry) => sum + (entry.distanceMeters ?? 0), 0);

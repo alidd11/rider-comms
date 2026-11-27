@@ -564,7 +564,7 @@ a { color: inherit; }
 .result-count { font-size: 13px; color: var(--muted-fg); }
 
 /* Moderation */
-.reports { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; max-width: 760px; }
+.reports { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .report { padding: 16px; }
 @media (min-width: 900px) { .report { padding: 20px; } }
 .report-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
