@@ -1,6 +1,6 @@
 // Premium Rider Cockpit menu IA, navigation and responsive screenshots.
 import { expect, test } from '@playwright/test';
-import { assertNoViewportOverflow, mockAuthenticatedApi } from './helpers.js';
+import { assertNoViewportOverflow, mockAuthenticatedApi, RIDER_ID } from './helpers.js';
 
 test('rider menu is grouped, legible and keeps every destination reachable', async ({ page }, testInfo) => {
   await mockAuthenticatedApi(page, 'stationary');
@@ -14,6 +14,9 @@ test('rider menu is grouped, legible and keeps every destination reachable', asy
   await expect(page.locator('#appMenuStatsHeading')).toHaveText('Recent rides');
   await expect(page.locator('.app-menu-section-heading > span')).toHaveText('Last 10 · this device');
   await expect(page.locator('#appMenuStats')).toHaveAttribute('aria-label', 'Recent ride totals on this device');
+  // No rides on this device yet: a line saying what will show, not a row of zeros.
+  await expect(page.locator('#appMenuStats')).toBeHidden();
+  await expect(page.locator('#appMenuStatsEmpty')).toHaveText('No rides yet. Your time and distance show here after your first ride.');
   // Rider Social may be present only for server-entitled riders. Check the
   // six unconditional destinations by their original route keys instead of
   // assuming a fixed row count in the presence of that optional entry.
@@ -99,4 +102,20 @@ test('menu remains stationary when it fits and scrolls only on genuinely short v
   const help = menu.locator('[data-menu-sheet="help"]');
   await help.scrollIntoViewIfNeeded();
   await expect(help).toBeInViewport({ ratio: 0.9 });
+});
+
+test('PWA menu totals the rides kept on this device once there are some', async ({ page }) => {
+  await mockAuthenticatedApi(page);
+  await page.addInitScript((riderId) => {
+    localStorage.setItem(`riderComms.rideHistory.${riderId}`, JSON.stringify([
+      { endedAt: Date.now(), durationMs: 5_400_000, riders: 3, distanceMeters: 80_467 },
+      { endedAt: Date.now() - 86_400_000, durationMs: 900_000, riders: 1, distanceMeters: null },
+    ]));
+  }, RIDER_ID);
+  await page.goto('/');
+  await page.locator('#mapAvatarButton').click();
+  await expect(page.locator('#appMenuStatsEmpty')).toBeHidden();
+  await expect(page.locator('#appMenuStatRides')).toHaveText('2');
+  await expect(page.locator('#appMenuStatTime')).toHaveText('1h 45m');
+  await expect(page.locator('#appMenuStatDistance')).toHaveText('50.0');
 });
