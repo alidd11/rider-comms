@@ -137,7 +137,7 @@ test('PWA Settings is a real settings list matching the native app', async ({ pa
   // About is the last section of Help & Support.
   await page.locator('#settingsList [data-settings-open="help"]').click();
   await expect(page.locator('#sheetBody .settings-page-heading').last()).toHaveText('About');
-  await expect(page.locator('#sheetBody')).toContainText('Version 0.3.0 · PWA');
+  await expect(page.locator('#sheetBody')).toContainText('Version 1.0.0 · Web');
   await page.screenshot({ path: testInfo.outputPath('settings-approved-mockup-parity.png'), fullPage: true });
   await assertNoViewportOverflow(page);
 });
@@ -224,20 +224,29 @@ test('PWA plan screen shows every plan and sends buying to the mobile app', asyn
 });
 
 test('PWA Help & Support leads with contact, then questions, safety and legal pages', async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.__copied = text; } } }); });
   await mockAuthenticatedApi(page);
   await page.goto('/');
   await page.locator('#mapAvatarButton').click();
   await page.locator('[data-menu-sheet="help"]').click();
   await expect(page.locator('#sheetTitle')).toHaveText('Help & Support');
   await expect(page.locator('.help-contact')).toHaveAttribute('href', 'support.html');
+  // Emergencies first, then harassment, before account questions.
+  await expect(page.locator('.help-emergency')).toContainText('Call the emergency services first');
   const questions = page.locator('.faq-item');
   await expect(questions).toHaveCount(7);
+  await expect(questions.first().locator('summary')).toHaveText('Someone is bothering me');
   await expect(questions.first().locator('p')).toBeHidden();
   await questions.first().locator('summary').click();
   await expect(questions.first().locator('p')).toBeVisible();
   await expect(page.locator('.help-links .settings-row')).toHaveText(['Privacy Policy', 'Terms of Service', 'Community Guidelines']);
   // No browser-only wording on a page the native app mirrors.
   await expect(page.locator('#sheetBody')).not.toContainText('kept in this browser');
+  // App details for a support message: version, how it's running, who, the browser.
+  await page.locator('#copyAppDetailsBtn').click();
+  await expect(page.locator('#appNotification')).toContainText('App details copied.');
+  const copied = await page.evaluate(() => window.__copied);
+  expect(copied).toMatch(/^Rider Comms 1\.0\.0 · Web \((browser|Home Screen app)\)\nRider: @\S+\nDevice: /);
 });
 
 test('PWA navigation preference offers Rider Comms, Google Maps, Waze and Apple Maps', async ({ page }) => {
