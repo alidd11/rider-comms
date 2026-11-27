@@ -32,6 +32,7 @@ const nightButton = document.getElementById('nightStyle');
 const resetButton = document.getElementById('resetCamera');
 const demoOverlayButton = document.getElementById('demoOverlay');
 const retryButton = document.getElementById('retryMapTiles');
+const mapShell = document.querySelector('.map-shell');
 
 // This UI is a fixed, synthetic lane diagram. It is deliberately independent
 // from the real map and cannot provide legal permission or navigation advice.
@@ -81,6 +82,8 @@ function watchForLoading(message) {
 function applyButtonState(theme) {
   dayButton.setAttribute('aria-pressed', String(theme === 'day'));
   nightButton.setAttribute('aria-pressed', String(theme === 'night'));
+  // Theme the floating UI in sync with the selected real basemap style.
+  mapShell.dataset.theme = theme;
 }
 
 async function startPreview() {
@@ -94,6 +97,7 @@ async function startPreview() {
     let mapHasErrors = false;
     let currentTheme = 'day';
     const demoSourceId = 'rider-maps-synthetic-line';
+    const demoCasingId = 'rider-maps-synthetic-line-casing';
     const map = new Map({
       container: 'map',
       style: openMapStyle('day'),
@@ -108,12 +112,22 @@ async function startPreview() {
     function addDemoOverlay() {
       if (!overlayVisible || !map.isStyleLoaded() || map.getSource(demoSourceId)) return;
       map.addSource(demoSourceId, { type: 'geojson', data: illustrativeLine() });
+      // Contrast edge preserves legibility over light roads and dark buildings.
+      // This line is synthetic geometry, NOT a road-matched navigation route.
+      map.addLayer({
+        id: demoCasingId,
+        type: 'line',
+        source: demoSourceId,
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': currentTheme === 'night' ? '#211b3b' : '#ffffff',
+          'line-width': 10, 'line-opacity': 0.95 },
+      });
       map.addLayer({
         id: demoSourceId,
         type: 'line',
         source: demoSourceId,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#16c3ec', 'line-width': 6, 'line-opacity': 0.92 },
+        paint: { 'line-color': '#6738ed', 'line-width': 6, 'line-opacity': 0.98 },
       });
     }
     map.on('error', () => {
@@ -149,6 +163,7 @@ async function startPreview() {
       if (overlayVisible) addDemoOverlay();
       else if (map.getSource(demoSourceId)) {
         if (map.getLayer(demoSourceId)) map.removeLayer(demoSourceId);
+        if (map.getLayer(demoCasingId)) map.removeLayer(demoCasingId);
         map.removeSource(demoSourceId);
       }
       announceReady(overlayVisible

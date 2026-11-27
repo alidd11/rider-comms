@@ -125,6 +125,7 @@ test('standalone map sandbox reports blocked MapLibre CDN instead of infinite lo
   }
   await expect(page.locator('#map')).toHaveCount(0);
   // Synthetic lane guidance is fully offline and is NOT legal permission.
+  await map.locator('#mapOptions > summary').click();
   await map.locator('#laneGuidanceDemo summary').click();
   await expect(map.locator('#laneAccessStatus')).toHaveAttribute('data-example-access', 'illustrative_permitted');
   await expect(map.locator('#laneAccessStatus')).toContainText('synthetic timetable');

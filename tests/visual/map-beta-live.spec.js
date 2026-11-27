@@ -25,7 +25,8 @@ test('Rider Comms Maps beta renders real tiles and captures day/night screenshot
 
   await expect(status).toHaveAttribute('data-load-state', 'loaded', { timeout: 45000 });
   await expect(canvas).toBeVisible();
-  await expect(map.locator('#retryMapTiles')).toBeVisible();
+  await expect(map.locator('#mapOptions')).not.toHaveAttribute('open', '');
+  await expect(map.locator('.map-shell')).toHaveAttribute('data-theme', 'day');
   expect(tileResponses.length).toBeGreaterThan(0);
   const geometry = await canvas.evaluate((el) => ({ width: el.width, height: el.height }));
   expect(geometry.width).toBeGreaterThan(0);
@@ -36,11 +37,13 @@ test('Rider Comms Maps beta renders real tiles and captures day/night screenshot
 
   await map.locator('#nightStyle').click();
   await expect(map.locator('#nightStyle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(map.locator('.map-shell')).toHaveAttribute('data-theme', 'night');
   await expect(status).toHaveAttribute('data-load-state', 'loaded', { timeout: 45000 });
   await testInfo.attach('maps-beta-real-tiles-night.png', {
     body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
   });
 
+  await map.locator('#mapOptions > summary').click();
   await map.locator('#demoOverlay').click();
   await expect(map.locator('#demoOverlay')).toHaveAttribute('aria-pressed', 'true');
   await expect(status).toContainText(/Illustrative overlay shown|synthetic overlay visible/);
