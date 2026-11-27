@@ -2945,6 +2945,8 @@ html.map-day .nav-end-button{background:rgb(11 18 22/.06);border-color:rgb(11 18
 .chat-composer button,.chat-composer .icon-button{border-radius:50%}
 @media(prefers-reduced-motion:reduce){.screen,.friend-row,.roster-row,.request-row,.app-menu-list button{animation:none}}
 .app-menu-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 6px}
+.app-menu-stats[hidden]{display:none}
+.app-menu-stats-empty{margin:12px 0 6px;padding:14px 16px;border:1px dashed var(--border);border-radius:var(--radius-md,12px);color:var(--text-secondary);font-size:.9rem;line-height:1.4}
 .app-menu-stats>div{display:grid;gap:2px;padding:12px 12px 11px;border-radius:var(--radius-lg);background:var(--surface);box-shadow:var(--shadow-card)}
 .app-menu-stats strong{font-size:1.375rem;font-weight:850;letter-spacing:-.02em;color:var(--text)}
 .app-menu-stats span{color:var(--text-muted);font-size:.8125rem;font-weight:650}
@@ -3224,8 +3226,10 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
    Profile viewing is intentionally read-only; edits remain behind the existing
    save screen and connected-profile visibility stays server-authoritative. */
 .my-profile-page{display:grid;gap:24px;padding:4px 0 16px}
+/* The page is full bleed so its rows reach the edges; the card and headings
+   keep the 16px gutter the rows' text uses. */
 .my-profile-page .my-profile-hero{
-  display:grid;align-items:stretch;gap:16px;margin:0;padding:16px;
+  display:grid;align-items:stretch;gap:16px;margin:0 16px;padding:16px;
   text-align:left;border:1px solid var(--border);
   border-radius:var(--radius-lg);background:var(--surface)
 }
@@ -3260,7 +3264,7 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .my-profile-edit-action:active{opacity:.65}
 .my-profile-edit-action:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
 .my-profile-page .my-profile-section{display:grid;gap:8px;margin:0}
-.my-profile-page .my-profile-section .settings-page-heading{margin:0;padding:0 2px}
+.my-profile-page .my-profile-section .settings-page-heading{margin:0;padding:0 16px}
 @media(max-width:360px){
   .my-profile-page .my-profile-hero{padding:13px}
   .my-profile-identity{gap:12px}
