@@ -2943,3 +2943,16 @@ test('map content: moderators reword a scenic route with a note', async ({ page 
   await expect(rows.first()).toContainText('Snake Pass');
   await expect(rows.first()).toContainText('Peak District curves.');
 });
+
+test('partners: the two filters share the row evenly, and take the full width on a phone', async ({ page }) => {
+  await signIn(page);
+  await mockModerationApi(page);
+  await page.goto('/admin.html#partners');
+  const status = page.getByRole('combobox', { name: 'Status' });
+  const type = page.getByRole('combobox', { name: 'Type' });
+  await expect(type).toBeVisible();
+  const [a, b] = [await status.boundingBox(), await type.boundingBox()];
+  expect(Math.abs(a.width - b.width)).toBeLessThan(2);
+  if ((page.viewportSize()?.width ?? 0) <= 600) expect(b.x).toBeCloseTo(a.x, 0);
+  else expect(b.y).toBeCloseTo(a.y, 0);
+});
