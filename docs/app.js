@@ -7184,6 +7184,54 @@
     showDestinationCard(location, label, address);
   }
 
+  // Press and hold the map (or right-click it) to drop a pin there and get
+  // directions, like other map apps. It needs no place search, so it works
+  // when search is down. Never while riding or navigating (native:
+  // MapScreen onLongPress).
+  const DROP_PIN_HOLD_MS = 500;
+  const DROP_PIN_SLOP_PX = 10;
+  let lastPinDropAt = 0;
+  function dropPinAllowed() {
+    return !navSteps.length
+      && !window.RiderMovementSafety?.isLockedForSafety?.(movementState)
+      && !$('#app')?.classList.contains('nav-mode');
+  }
+  function dropPin(latLng) {
+    if (!latLng || typeof latLng.lat !== 'function' || !dropPinAllowed()) return;
+    // A long press on Android also fires contextmenu: one pin, not two.
+    const now = Date.now();
+    if (now - lastPinDropAt < 800) return;
+    lastPinDropAt = now;
+    haptic('select');
+    setDestinationMarker(latLng, 'Dropped pin');
+  }
+  function wireDropPin(createdMap, element) {
+    createdMap.addListener?.('contextmenu', (event) => dropPin(event?.latLng));
+    let timer = null;
+    let start = null;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    element.addEventListener('touchstart', (event) => {
+      cancel();
+      if (event.touches.length !== 1) return;
+      start = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+      // Borrow the map's projection now, so it is ready when the hold ends.
+      navigationCameraProjection();
+      timer = setTimeout(() => {
+        timer = null;
+        const rect = element.getBoundingClientRect();
+        const point = new google.maps.Point(start.x - rect.left, start.y - rect.top);
+        dropPin(navigationCameraProjection()?.fromContainerPixelToLatLng?.(point));
+      }, DROP_PIN_HOLD_MS);
+    }, { passive: true });
+    element.addEventListener('touchmove', (event) => {
+      const touch = event.touches[0];
+      if (!start || !touch || event.touches.length > 1
+        || Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > DROP_PIN_SLOP_PX) cancel();
+    }, { passive: true });
+    element.addEventListener('touchend', cancel, { passive: true });
+    element.addEventListener('touchcancel', cancel, { passive: true });
+  }
+
   // Rider Comms guidance is opt-in through Settings. It remains a development
   // navigation surface until physical-route, backgrounding and reroute tuning
   // are validated, while riders can always choose an external provider.
@@ -9381,6 +9429,7 @@
       updateNavigationPositionIcon();
       updateNavigationControls();
     });
+    wireDropPin(created, element);
     return created;
   }
 
