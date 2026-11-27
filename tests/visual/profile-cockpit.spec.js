@@ -30,6 +30,18 @@ test('Premium Rider Cockpit profile keeps identity, editing and visibility contr
   }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
   expect(dimensions.height).toBeLessThan(360);
+  // Full-bleed rows reach the edges; the card and the section heading keep the gutter.
+  const edges = await body.evaluate((element) => {
+    const page = element.getBoundingClientRect();
+    const card = element.querySelector('.my-profile-hero').getBoundingClientRect();
+    const heading = element.querySelector('.my-profile-section .settings-page-heading');
+    const text = document.createRange();
+    text.selectNodeContents(heading);
+    return { cardLeft: card.left - page.left, cardRight: page.right - card.right, headingLeft: text.getBoundingClientRect().left - page.left };
+  });
+  expect(edges.cardLeft).toBeGreaterThanOrEqual(12);
+  expect(edges.cardRight).toBeGreaterThanOrEqual(12);
+  expect(edges.headingLeft).toBeGreaterThanOrEqual(12);
   await body.screenshot({ path: testInfo.outputPath(`premium-profile-${testInfo.project.name}.png`) });
 
   await hero.locator('.my-profile-edit-action').click();
