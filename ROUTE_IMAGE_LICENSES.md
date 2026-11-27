@@ -63,6 +63,8 @@ Two photographs outside the route catalogue are bundled with the native apps (`m
 | `mobile/assets/hero/auth.jpg` | Sign-in screen | `photo-1552306062-29a5560e1c31` | [images.unsplash.com](https://images.unsplash.com/photo-1552306062-29a5560e1c31) |
 | `mobile/assets/hero/ride.jpg` | Ride tab | `photo-1770614956862-a143fb5e4921` | [images.unsplash.com](https://images.unsplash.com/photo-1770614956862-a143fb5e4921) |
 
+The web app ships the same two photographs as WebP (`docs/assets/hero/auth.webp`, `ride.webp`), re-encoded from these files at the same size.
+
 Before release, open each photo's Unsplash page, confirm it is a standard (not Unsplash+) photo and record the photographer here. Unsplash doesn't require credit, but keeping it makes a takedown or licence question easy to answer.
 
 The Inter typeface in `docs/fonts/` is under the SIL Open Font License (`docs/fonts/Inter-LICENSE.txt`).

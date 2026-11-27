@@ -76,7 +76,7 @@ test('login baseline matches the approved night-rider concept in day and night',
     });
 
     expect(visual.screenBackground).toBe('rgb(3, 9, 11)');
-    expect(visual.backgroundImage).toContain('assets/hero/auth.jpg');
+    expect(visual.backgroundImage).toContain('assets/hero/auth.webp');
     expect(visual.inputHeight).toBeGreaterThanOrEqual(43);
     expect(visual.inputHeight).toBeLessThanOrEqual(47);
     expect(visual.inputRadius).toBeGreaterThanOrEqual(6);
