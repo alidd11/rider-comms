@@ -4656,6 +4656,15 @@
     }, delayMs);
   }
 
+  // When the phone gets signal back, reconnect now instead of waiting out a
+  // backoff that may have grown to a minute. Only a pending retry is cut
+  // short: a connected room is left alone, and a hidden page waits for the
+  // rider to come back to it (presence resumes first).
+  window.addEventListener('online', () => {
+    if (!voiceReconnectTimer || document.visibilityState !== 'visible') return;
+    syncVoiceConnection();
+  });
+
   function clearPublicVoiceRefresh() {
     if (publicVoiceRefreshTimer) {
       clearTimeout(publicVoiceRefreshTimer);
