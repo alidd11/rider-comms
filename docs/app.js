@@ -3198,7 +3198,6 @@
     email: { title: 'Email', sections: [['', 'emailStatus']], back: 'account' },
     devices: { title: 'Signed-in devices', sections: [['', 'sessions']], back: 'account' },
     help: { title: 'Help & Support', sections: [['', 'helpContact'], ['Common questions', 'faq'], ['Riding safely', 'safetyGuidance'], ['Legal', 'legalLinks'], ['About', 'aboutCard']] },
-    about: { title: 'About', sections: [['', 'aboutCard']] },
   };
   const SETTINGS_PAGE_FOR_SECTION = {
     profile: 'editProfile', profileView: 'myProfile', plans: 'plan',
@@ -3215,16 +3214,24 @@
   // The hazard picker closes itself if nothing is picked (native mirrors).
   const HAZARD_AUTO_CLOSE_SECONDS = 10;
   let hazardAutoCloseTimer;
+  // The app version, the same as mobile/app.json (scripts/check-client-parity.mjs checks).
+  const APP_VERSION = '1.0.0';
+  // What support needs to know about this copy of the app, for the rider to paste.
+  async function copyAppDetails() {
+    const mode = document.documentElement.classList.contains('pwa-standalone') ? 'Home Screen app' : 'browser';
+    const details = `Rider Comms ${APP_VERSION} · Web (${mode})\nRider: ${state.profile.handle}\nDevice: ${navigator.userAgent}`;
+    try { await navigator.clipboard.writeText(details); showToast('App details copied.'); } catch { showToast('Couldn’t copy the app details.'); }
+  }
   // Help & Support's common questions. The native Help page has the same
   // list (scripts/check-client-parity.mjs keeps them equal).
   const HELP_FAQ = [
-    ['I can’t sign in', 'Use Forgot password? on the sign-in screen. We’ll email a reset link and code to the address on your account.'],
+    ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster, a friend request or the Nearby Voice rider list. Reports are reviewed within 24 hours.'],
+  ['I can’t sign in', 'Use Forgot password? on the sign-in screen. We’ll email a reset link and code to the address on your account.'],
     ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Account and login → Email and send a new one.'],
     ['I’m not getting notifications', 'Open Settings → Notifications and turn on Notifications on this device, then check Rider Comms is allowed to send notifications in your phone’s settings. On iPhone, add the web app to your Home Screen first.'],
     ['Voice isn’t connecting', 'Check that Rider Comms can use your microphone and that you have a data connection. Your map and ride keep working while voice reconnects.'],
     ['My location isn’t showing', 'Location is only shared when you turn it on: Go live for Nearby, or the location switch in a group ride. Check that location access is allowed for Rider Comms.'],
-    ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster or a friend request. Reports are reviewed within 24 hours.'],
-    ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away.'],
+      ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away. Encrypted backups expire within 30 days.'],
   ];
 
   // Server-validated admin map beta entry. The standalone map reads no
@@ -3367,15 +3374,16 @@
       }),
       safetyGuidance: () => ({
         title: 'Riding safely',
-        body: '<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Stop sharing on Nearby or in a group ride at any time.</small></span></div><div><span class="setting-icon"><svg><use href="#i-info"/></svg></span><span><strong>Not an emergency service</strong><small>Call the appropriate emergency service if you need urgent help.</small></span></div></div>',
+        body: '<div class="safety-guidance"><div><span class="setting-icon"><svg><use href="#i-ride"/></svg></span><span><strong>Set up while stationary</strong><small>Complete profile, route and group controls before moving.</small></span></div><div><span class="setting-icon"><svg><use href="#i-location"/></svg></span><span><strong>Control your location</strong><small>Stop sharing on Nearby or in a group ride at any time.</small></span></div></div>',
       }),
       aboutCard: () => ({
         title: 'About',
-        body: `<div class="settings-about-card"><strong>Rider Comms</strong><span>Version 0.3.0 · PWA</span><span>Signed in as ${escapeHtml(state.profile.displayName)} (${escapeHtml(state.profile.handle)})</span></div>`,
+        body: `<div class="settings-about-card"><strong>Rider Comms</strong><span>Version ${APP_VERSION} · Web</span><span>Signed in as ${escapeHtml(state.profile.displayName)} (${escapeHtml(state.profile.handle)})</span><button type="button" class="button secondary" id="copyAppDetailsBtn">${icon('copy')}<span>Copy app details</span></button></div><p class="caption">Paste these into your message to support so we can help faster.</p>`,
+        ready: () => $('#copyAppDetailsBtn')?.addEventListener('click', () => void copyAppDetails()),
       }),
       helpContact: () => ({
         title: 'Contact support',
-        body: `<a class="button primary wide help-contact" href="support.html" target="_blank" rel="noopener">${icon('message')}<span>Contact support</span></a><p class="caption help-contact-note">We reply within 2 working days. Safety reports made in the app are reviewed within 24 hours.</p>`,
+        body: `<a class="button primary wide help-contact" href="support.html" target="_blank" rel="noopener">${icon('message')}<span>Contact support</span></a><p class="help-emergency">${icon('info')}<span>In danger or hurt? Call the emergency services first. We can’t send help to you.</span></p><p class="caption help-contact-note">We reply within 2 working days. Safety reports made in the app are reviewed within 24 hours.</p>`,
       }),
       faq: () => ({
         title: 'Common questions',
