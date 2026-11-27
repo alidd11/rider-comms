@@ -131,7 +131,8 @@ export function useHazardReports(
       if (!location) return;
       try {
         const { hazards: fetched } = await client.getNearbyHazards(location.lat, location.lon);
-        if (!cancelled) setHazards(fetched);
+        // A reply without a list keeps the last one (web: loadNearbyHazards).
+        if (!cancelled && Array.isArray(fetched)) setHazards(fetched);
       } catch {
         // Nearby hazards are a secondary layer on top of the core map.
       }
