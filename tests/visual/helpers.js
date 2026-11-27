@@ -132,6 +132,8 @@ export async function mockAuthenticatedApi(page, movement = 'stationary', backen
           window.__riderCommsTestMap = this;
           window.__riderCommsTestMaps = [...(window.__riderCommsTestMaps || []), this];
         }
+        addListener(event, fn) { ((this.listeners ||= {})[event] ||= []).push(fn); }
+        trigger(event, payload = {}) { ((this.listeners || {})[event] || []).forEach((fn) => fn(payload)); }
         getZoom() { return this.zoom; }
         panTo(centre) { this.centre = centre; }
         setZoom(zoom) { this.zoom = zoom; }

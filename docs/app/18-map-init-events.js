@@ -51,6 +51,7 @@
       updateNavigationPositionIcon();
       updateNavigationControls();
     });
+    wireDropPin(created, element);
     return created;
   }
 

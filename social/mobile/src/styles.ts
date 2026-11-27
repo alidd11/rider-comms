@@ -43,7 +43,9 @@ export const R = BRAND_RADII;
 
 export const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  root: { flex: 1, backgroundColor: C.bg, width: '100%', overflow: 'hidden' },
+  // One phone-width column on tablets and desktop browsers, so Home, Profile,
+  // Shop and Messages all read the same way instead of stretching edge to edge.
+  root: { flex: 1, backgroundColor: C.bg, width: '100%', maxWidth: 680, alignSelf: 'center', overflow: 'hidden' },
   header: { paddingHorizontal: 17, paddingTop: 4, paddingBottom: 4, minHeight: 56, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.bg },
   wordmark: { color: C.accent, fontSize: 11, fontWeight: '900', letterSpacing: 3 },
   brandTitle: { color: C.ink, fontSize: 27, fontWeight: '900', letterSpacing: -1.2 },
