@@ -9,6 +9,7 @@ import { fetchDrivingRoute } from './directionsProvider.ts';
 import { DirectionsCache, wrapDirectionsProviderWithCache } from './directionsCache.ts';
 import type { DirectionsProvider } from './directionsCache.ts';
 import { RetentionStore } from './retentionStore.ts';
+import { CiTestAccountSweep } from './ciTestAccountSweep.ts';
 import { configureErrorAlerts, ErrorAlerter, flushErrorAlerts, reportOperationalError } from './errorAlerts.ts';
 import { DEFAULT_PUBLIC_APP_URL, sendOperationalEmail } from './email.ts';
 import { SITE_CHECK_INTERVAL_MS, SiteMonitor } from './siteMonitor.ts';
@@ -408,6 +409,7 @@ async function startProductionServer(): Promise<void> {
   const productionSocialActivityStore = new SocialActivityStore();
   const productionSocialEventStore = new SocialEventStore();
   const productionRetentionStore = new RetentionStore();
+  const productionCiTestAccountSweep = new CiTestAccountSweep();
   const productionAdminStatsStore = new AdminStatsStore();
   const productionModerationStore = new ModerationStore();
   const productionSocialPostStore = new SocialPostStore();
@@ -431,6 +433,11 @@ async function startProductionServer(): Promise<void> {
     logInfo('social_state_cleaned', { activity, events });
   };
   const sweepRetention = async () => logInfo('retention_sweep_completed', await productionRetentionStore.sweep());
+  // Native CI accounts a cancelled run never deleted (ciTestAccountSweep.ts).
+  const sweepCiTestAccounts = async () => {
+    const counts = await productionCiTestAccountSweep.sweep();
+    if (counts.deleted > 0) logInfo('ci_test_accounts_deleted', counts);
+  };
   // Renewals and cancellations, whether or not store notifications arrive.
   const sweepBilling = async () => {
     const counts = await productionBillingStore.sweep();
@@ -490,6 +497,7 @@ async function startProductionServer(): Promise<void> {
     scheduleMaintenance(SOCIAL_RATE_CLEANUP_INTERVAL_MS, 'social_rate_cleanup_failed', onceAcrossReplicas('social_rate_cleanup', SOCIAL_RATE_CLEANUP_INTERVAL_MS, cleanSocialRates)),
     scheduleMaintenance(SOCIAL_STATE_CLEANUP_INTERVAL_MS, 'social_state_cleanup_failed', onceAcrossReplicas('social_state_cleanup', SOCIAL_STATE_CLEANUP_INTERVAL_MS, cleanSocialState)),
     scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'retention_sweep_failed', onceAcrossReplicas('retention_sweep', RETENTION_SWEEP_INTERVAL_MS, sweepRetention)),
+    scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'ci_test_account_sweep_failed', onceAcrossReplicas('ci_test_account_sweep', RETENTION_SWEEP_INTERVAL_MS, sweepCiTestAccounts)),
     scheduleMaintenance(BILLING_SWEEP_INTERVAL_MS, 'billing_sweep_failed', onceAcrossReplicas('billing_sweep', BILLING_SWEEP_INTERVAL_MS, sweepBilling)),
     scheduleMaintenance(RETENTION_SWEEP_INTERVAL_MS, 'active_riders_snapshot_failed', onceAcrossReplicas('active_riders_snapshot', RETENTION_SWEEP_INTERVAL_MS, recordActiveRiders)),
     scheduleMaintenance(SITE_CHECK_INTERVAL_MS, 'site_check_failed', onceAcrossReplicas('site_check', SITE_CHECK_INTERVAL_MS, () => siteMonitor.check())),
