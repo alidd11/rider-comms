@@ -3307,3 +3307,5 @@ html.map-day .nav-trip-turns li{border-top-color:rgb(11 18 22/.08)}
 .announcement-copy span{color:var(--text-secondary);overflow-wrap:anywhere}
 .announcement-close{flex:none;width:44px;height:44px;margin:-8px -2px -8px 0;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text-muted)}
 .announcement-close svg{width:16px;height:16px}
+/* Press and hold drops a pin: no text selection or iOS callout on the map. */
+.google-map{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
