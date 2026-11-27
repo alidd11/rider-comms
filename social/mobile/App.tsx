@@ -965,7 +965,7 @@ function AuthenticatedSocialApp(): React.JSX.Element {
       edges={Platform.OS === 'web' ? [] : screen === 'Reels' && !story ? ['left', 'right'] : ['top', 'left', 'right']}
       style={s.safe}>
       <StatusBar barStyle={colorScheme === 'light' ? 'dark-content' : 'light-content'} />
-      <View style={s.root}>
+      <View nativeID="social-app-column" style={s.root}>
         {/* Messages and Profile have their own title rows, so no top bar above them. */}
         {!story && screen !== 'Reels' && screen !== 'Create' && screen !== 'Messages' && screen !== 'Profile' ? <View style={[s.header, screen !== 'Home' && { minHeight: 52, justifyContent: 'flex-end' }]}>
           {screen === 'Home' ? <Pressable accessibilityRole="button"
