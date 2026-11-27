@@ -97,7 +97,7 @@ describe('draft UK route-level charging preview combines independent fee units',
     }
   });
   it('classifies an unknown vehicle before comparing it with motorway hints', () => {
-    for (const riderVehicle of [null, 'motorbike_car', '__proto__', {}]) {
+    for (const riderVehicle of [null, 'motorbike_car', '__proto__', 'scooter', 'moped', {}]) {
       for (const m6Journeys of [sample.m6Journeys, []]) {
         const out = previewUKRoadCharges({ ...sample, riderVehicle, m6Journeys });
         assert.equal(out.status, 'unknown_vehicle');

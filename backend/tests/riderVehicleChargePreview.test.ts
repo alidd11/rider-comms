@@ -20,20 +20,20 @@ const passage: RouteChargePassage = {
   rule: congestion,
 };
 describe('offline Rider Comms vehicle category to charge preview', () => {
-  it('covers all five native/PWA vehicle categories with explicit regulatory classes', () => {
+  it('maps unambiguous coarse categories and withholds unresolved scooter classification', () => {
     assert.deepEqual([
       'motorcycle_large', 'motorcycle_small', 'scooter', 'car', 'van',
     ].map(selection => classifyRiderVehicleForCharging(selection)), [
       { selection: 'motorcycle_large', chargeClass: 'motorcycle', officialEligibilityVerified: false },
       { selection: 'motorcycle_small', chargeClass: 'motorcycle', officialEligibilityVerified: false },
-      { selection: 'scooter', chargeClass: 'motorcycle', officialEligibilityVerified: false },
+      null,
       { selection: 'car', chargeClass: 'car', officialEligibilityVerified: false },
       { selection: 'van', chargeClass: 'van', officialEligibilityVerified: false },
     ]);
   });
   it('never accepts an invalid vehicle or a prototype property as a known type', () => {
     for (const invalid of [undefined, null, '', 'unknown', 'heavy', 'bicycle',
-      '__proto__', 'constructor', 0, {}, ['car']]) {
+      '__proto__', 'constructor', 'scooter', 'moped', 0, {}, ['car']]) {
       assert.equal(classifyRiderVehicleForCharging(invalid), null);
       assert.deepEqual(previewRiderChargeExposure(invalid, [passage]), {
         status: 'unknown_vehicle', classification: null, summary: null,
@@ -42,7 +42,7 @@ describe('offline Rider Comms vehicle category to charge preview', () => {
     }
   });
   it('maps selections only to possible charge exposure, never a verified exemption', () => {
-    const motorcycle = previewRiderChargeExposure('scooter', [passage]);
+    const motorcycle = previewRiderChargeExposure('motorcycle_small', [passage]);
     assert.equal(motorcycle.status, 'advisory_only');
     if (motorcycle.status !== 'advisory_only') return;
     assert.equal(motorcycle.classification.officialEligibilityVerified, false);

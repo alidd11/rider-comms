@@ -14,10 +14,11 @@ import {
   type RouteChargeSummary,
 } from './routeChargeSummary.ts';
 
-const CHARGE_CLASS_BY_VEHICLE: Readonly<Record<VehicleCategory, ChargeVehicleClass>> = Object.freeze({
+const CHARGE_CLASS_BY_VEHICLE: Readonly<Partial<Record<VehicleCategory, ChargeVehicleClass>>> = Object.freeze({
   motorcycle_large: 'motorcycle',
   motorcycle_small: 'motorcycle',
-  scooter: 'motorcycle',
+  // Scooter body style is not sufficient to identify the regulatory class.
+  // Keep unresolved moped/scooter classifications unknown until scheme review.
   car: 'car',
   van: 'van',
 });
@@ -34,9 +35,11 @@ export function classifyRiderVehicleForCharging(selection: unknown): RiderVehicl
   if (typeof selection !== 'string'
     || !Object.hasOwn(CHARGE_CLASS_BY_VEHICLE, selection)) return null;
   const vehicleCategory = selection as VehicleCategory;
+  const chargeClass = CHARGE_CLASS_BY_VEHICLE[vehicleCategory];
+  if (chargeClass === undefined) return null;
   return {
     selection: vehicleCategory,
-    chargeClass: CHARGE_CLASS_BY_VEHICLE[vehicleCategory],
+    chargeClass,
     officialEligibilityVerified: false,
   };
 }

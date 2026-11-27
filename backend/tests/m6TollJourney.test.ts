@@ -47,6 +47,8 @@ describe('offline M6 Toll: count a reviewed candidate trip, NOT its toll plazas'
   it('rejects unknown rider selection, bad zones, malformed times and unrealistic journeys', () => {
     assert.equal(reviewM6TollJourney({ ...trip, riderVehicle: 'vehicle-unknown' }).reason, 'unknown_vehicle');
     assert.equal(reviewM6TollJourney({ ...trip, riderVehicle: '__proto__' }).reason, 'unknown_vehicle');
+    assert.equal(reviewM6TollJourney({ ...trip, riderVehicle: 'scooter' }).reason, 'unknown_vehicle');
+    assert.equal(reviewM6TollJourney({ ...trip, riderVehicle: 'moped' }).reason, 'unknown_vehicle');
     assert.equal(reviewM6TollJourney({ ...trip, observedZones: 0 as 1 }).reason, 'invalid_observed_zones');
     assert.equal(reviewM6TollJourney({ ...trip, observedZones: 4 as 1 }).reason, 'invalid_observed_zones');
     assert.equal(reviewM6TollJourney({ ...trip, enteredAt: '2026-02-30T11:00:00Z' }).reason, 'invalid_journey');

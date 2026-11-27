@@ -101,3 +101,7 @@ Do not purchase, provision or assume a production service is £0. Final native
 verification should occur on the **exact integration head**, after other
 shared-source changes stabilise; never report a previous head's green checks
 as proof of a newer head.
+
+## Continuous driving within daily zones
+
+A zone entry is not enough: a vehicle driven inside a daily zone across London midnight or into operating hours may incur additional exposure without crossing the boundary. See TfL https://tfl.gov.uk/modes/driving/ultra-low-emission-zone/cars . The new disconnected research helper `dailyDrivingInterval.ts` samples an exact half-open continuous-driving interval (maximum two hours); no parking inference, ETA uncertainty claim, or verified entitlement. It is not wired to the existing crossing summary. Future route coverage must deduplicate by scheme/zone/date across interval observations and crossing events. Scooters and mopeds are withheld from the coarse charge preview until scheme-specific class evidence is available, matching the Maps identity handoff. 
