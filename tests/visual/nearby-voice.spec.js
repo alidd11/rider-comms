@@ -878,3 +878,65 @@ test('goes live when iOS hands back fixes with an old timestamp', async ({ page 
   expect(presenceBodies[0].fixAgeMs).toBeLessThan(30_000);
   expect(Date.now() - presenceBodies[0].recordedAt).toBeGreaterThan(100_000);
 });
+
+test('PWA reconnects Nearby Voice as soon as the signal comes back, not after the backoff', async ({ page }) => {
+  let tokenRequests = 0;
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === `/riders/${RIDER_ID}/profile` && request.method() === 'PUT') {
+      return { body: { ...PROFILE, shareLocation: true } };
+    }
+    if (url.pathname === '/presence' && request.method() === 'POST') {
+      return { body: { inZoneWith: ['rider_peer01'], transitions: [{ a: RIDER_ID, b: 'rider_peer01', type: 'entered' }], radiusMiles: 1 } };
+    }
+    if (url.pathname === '/profiles/rider_peer01') {
+      return { body: { riderId: 'rider_peer01', displayName: 'Peer Rider', handle: '@peer', avatarId: 'ridge' } };
+    }
+    if (url.pathname === '/voice/token' && request.method() === 'POST') {
+      tokenRequests += 1;
+      return { body: { connections: [{ peerId: 'rider_peer01', token: 'visual-livekit-token', url: 'wss://voice.example.test' }], refreshAfterMs: 60_000 } };
+    }
+    return null;
+  });
+  await page.addInitScript(() => {
+    const fakeStream = { getTracks: () => [{ stop() {} }] };
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => fakeStream } });
+    class FakeAudioContext {
+      createMediaStreamSource() { return { connect() {} }; }
+      createAnalyser() { return { fftSize: 512, frequencyBinCount: 32, getByteTimeDomainData(data) { data.fill(128); } }; }
+      close() { return Promise.resolve(); }
+    }
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: FakeAudioContext });
+    Object.defineProperty(HTMLScriptElement.prototype, 'integrity', { configurable: true, get() { return ''; }, set() {} });
+  });
+  await page.route('https://cdn.jsdelivr.net/npm/livekit-client@2.22.3/dist/livekit-client.umd.js', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/javascript',
+    body: `
+      (() => {
+        const RoomEvent = { TrackSubscribed: 'trackSubscribed', TrackUnsubscribed: 'trackUnsubscribed', Reconnected: 'reconnected', Disconnected: 'disconnected' };
+        window.__voiceRooms = [];
+        class Room {
+          constructor() { this.handlers = new Map(); this.canPlaybackAudio = true; this.localParticipant = { setMicrophoneEnabled: async () => {} }; window.__voiceRooms.push(this); }
+          on(event, handler) { this.handlers.set(event, [...(this.handlers.get(event) || []), handler]); return this; }
+          emit(event, ...args) { for (const handler of this.handlers.get(event) || []) handler(...args); }
+          async connect() {}
+          async startAudio() {}
+          async disconnect() { this.emit(RoomEvent.Disconnected); }
+        }
+        window.LivekitClient = { Room, RoomEvent, Track: { Kind: { Audio: 'audio' } } };
+      })();
+    `,
+  }));
+
+  await page.goto('/');
+  await page.locator('#joinNearbyBtn').click();
+  await expect.poll(() => tokenRequests).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__voiceRooms.length)).toBe(1);
+  // The signal drops: the room reports a disconnect it didn't ask for, and a
+  // retry is scheduled two seconds out.
+  await page.evaluate(() => window.__voiceRooms[0].emit('disconnected'));
+  await page.waitForTimeout(200);
+  expect(tokenRequests).toBe(1);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(() => tokenRequests, { timeout: 1_000 }).toBe(2);
+});
