@@ -88,4 +88,5 @@ for (const src of ['../docs/app.js','../docs/map-beta/preview.mjs','../mobile/sr
   const content=readFileSync(new URL(src,import.meta.url),'utf8');
   assert.doesNotMatch(content,/buildLocalMapGraph|verifyLocalGraphInput/);
 }
+execFileSync(process.execPath, ['--test', new URL('./check-local-map-graph-isolation.mjs', import.meta.url).pathname], { stdio: 'inherit' });
 console.log('Maps local graph pipeline: pinned offline inputs, bounded tool invocation and synthetic build evidence validated.');

@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join, relative, isAbsolute, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertDirectoryOnlyGraphConfig, assertNoUnhashedCompressedTile } from './local-map-graph-isolation.mjs';
 
 export const LOCAL_MAP_GRAPH_RELEASED = false;
 const SHA = /^[a-f0-9]{64}$/;
@@ -107,6 +108,7 @@ function graphTileHash(root) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
       if (entry.isSymbolicLink()) throw new Error('Symlink in generated graph');
+      assertNoUnhashedCompressedTile(entry.name);
       if (entry.isDirectory()) visit(path);
       else if (entry.isFile() && entry.name.endsWith('.gph')) {
         entries.push({ path: relative(root, path).replaceAll('\\', '/'), sha256: hashFile(path) });
@@ -127,16 +129,15 @@ export function buildLocalMapGraph(input) {
   mkdirSync(tileDir);
   const configJson = runTool(plan.configBin, [
     '--mjolnir-tile-dir', tileDir,
-    '--mjolnir-tile-extract', join(plan.outputDir, 'valhalla_tiles.tar'),
+    '--mjolnir-tile-extract', '',
+    '--mjolnir-traffic-extract', '',
     '--mjolnir-timezone', join(tileDir, 'timezones.sqlite'),
     '--mjolnir-admin', join(tileDir, 'admins.sqlite'),
   ], plan.outputDir, 120000);
   if (configJson.length > MAX_CONFIG_SIZE * 64) throw new Error('Valhalla config too large');
   let config;
   try { config = JSON.parse(configJson); } catch { throw new Error('Invalid Valhalla config JSON'); }
-  if (!object(config) || !object(config.mjolnir) || config.mjolnir.tile_dir !== tileDir) {
-    throw new Error('Valhalla config does not target isolated output tile directory');
-  }
+  assertDirectoryOnlyGraphConfig(config, tileDir);
   const configPath = join(plan.outputDir, 'valhalla.json');
   writeFileSync(configPath, configJson, { flag:'wx', mode:0o600 });
   runTool(plan.buildBin, ['-c', configPath, plan.pbfPath], plan.outputDir, 30 * 60 * 1000);

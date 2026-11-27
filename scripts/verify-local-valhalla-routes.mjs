@@ -13,6 +13,7 @@ import { resolve, join, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { draftMultiVehicleRoute, validateResearchGraphSnapshot } from '../map-lab/multi-vehicle-routing.mjs';
 import { fromValhallaTrip } from '../map-lab/route-adapters.mjs';
+import { assertDirectoryOnlyGraphConfig, assertNoUnhashedCompressedTile } from './local-map-graph-isolation.mjs';
 
 export const LOCAL_ROUTE_ACCEPTANCE_RELEASED = false;
 const SHA = /^[a-f0-9]{64}$/;
@@ -72,6 +73,7 @@ function listTiles(root) {
     for (const item of readdirSync(dir, { withFileTypes: true })) {
       if (tiles.length >= MAX_TILES) throw new RangeError('Graph tile limit exceeded');
       if (item.isSymbolicLink()) throw new Error('Symlink found in routing graph');
+      assertNoUnhashedCompressedTile(item.name);
       const path = join(dir, item.name);
       if (item.isDirectory()) visit(path);
       else if (!item.isFile()) throw new Error('Unsupported graph entry');
@@ -108,9 +110,7 @@ export async function verifyLocalRouteEvidence(graphDir, binary) {
   const tilesDir = join(root, 'valhalla_tiles');
   if (await sha256(configPath) !== evidence.configSha256) throw new Error('Valhalla config checksum mismatch');
   const config = readSmallJson(configPath, MAX_SUITE_BYTES);
-  if (!record(config.mjolnir) || config.mjolnir.tile_dir !== tilesDir) {
-    throw new Error('Valhalla config does not point at the verified isolated graph');
-  }
+  assertDirectoryOnlyGraphConfig(config, tilesDir);
   const tiles = listTiles(tilesDir);
   const digest = createHash('sha256');
   for (const tile of tiles) digest.update(tile.relativePath + '\0' + await sha256(tile.path) + '\n');

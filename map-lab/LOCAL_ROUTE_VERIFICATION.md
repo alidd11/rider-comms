@@ -23,6 +23,8 @@ Valhalla's [documented one-shot mode](https://github.com/valhalla/valhalla#valha
 runs `valhalla_service valhalla.json route '{...}'` locally: logs go to stderr,
 the route JSON to stdout. The runner does not download maps, start HTTP
 servers, call public demo routing APIs, or handle live rider locations.
+The graph configuration must use only the hashed directory: alternate tile archives, remote tile/elevation URLs, incident or traffic sources and untracked compressed graph tiles are rejected. This is not an OS network sandbox.
+
 Binary checksum pinning does not authenticate the vendor or dynamic
 libraries, and this second-stage runner does not reopen the original PBF.
 The operator must verify those separately.

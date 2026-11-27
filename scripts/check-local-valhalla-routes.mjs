@@ -113,6 +113,24 @@ const link=join(tiles,'0','123','002.gph');
 symlinkSync(tilePath, link);
 await rejected(suite);
 rmSync(link);
+const compressed = join(tiles, '0', '123', '001.gph.gz');
+writeFileSync(compressed, 'UNHASHED COMPRESSED TILE');
+await assert.rejects(() => validateLocalRouteSuite(suite), /Unhashed compressed graph tile/);
+rmSync(compressed);
+// Rehash an alternate-source config and manifest; matching hashes alone must not allow it.
+for (const alternate of [{ tile_extract: join(root, 'other.tar') }, { tile_url: 'https://example.test/{tilePath}' }, { traffic_extract: join(root, 'traffic.tar') }]) {
+  writeFileSync(configPath, JSON.stringify({ mjolnir: { tile_dir: tiles, ...alternate } }));
+  const alteredConfigHash = hash(readFileSync(configPath));
+  const alteredManifest = JSON.parse(originalManifest);
+  alteredManifest.buildEvidence.configSha256 = alteredConfigHash;
+  alteredManifest.graph.buildSha256 = hash(JSON.stringify({ sourceSha256: pbfHash, valhallaVersion: version,
+    configToolSha256: configToolHash, buildToolSha256: buildToolHash,
+    configSha256: alteredConfigHash, profileRevision, tileContentSha256: tileHash }));
+  writeFileSync(manifestPath, JSON.stringify(alteredManifest));
+  await assert.rejects(() => validateLocalRouteSuite(suite), /Unverified alternate Valhalla source/);
+}
+writeFileSync(configPath, JSON.stringify({ mjolnir: { tile_dir: tiles } }));
+writeFileSync(manifestPath, originalManifest);
 // Bad route data must not masquerade as a valid route even from a pinned executable.
 const failing = join(root,'mock-valhalla-failing');
 writeFileSync(failing,'#!/usr/bin/env node\nprocess.stdout.write("not-json");\n', {mode:0o755});

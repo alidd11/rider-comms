@@ -73,6 +73,8 @@ Then explicitly initiate the local build:
 
     node scripts/build-local-map-graph.mjs --build /absolute/path/to/local-graph.json
 
+The research builder explicitly disables alternate tile and traffic archives; the verifier rejects remote tile/elevation URLs, incident sources and untracked compressed graph tiles. Existing manifests with a configured tile archive must be rebuilt in a fresh output directory. This is configuration isolation, not an OS network sandbox or a guarantee about the executable's behaviour.
+
 The second command runs the two checksum-pinned binaries directly, without a shell,
 uses an isolated output path, and writes valhalla.json, Valhalla .gph tiles and
 graph-manifest.json. If tools fail, the partial output directory is deliberately

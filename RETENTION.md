@@ -23,6 +23,7 @@ Deletion happens in three ways:
 | Data | Kept for | Deleted by | Source |
 | --- | --- | --- | --- |
 | Account (username, email, password hash) | Until the rider deletes their account | Account deletion | `accountDeletionStore.ts` |
+| Native CI test accounts (`ci<run><attempt>i`/`a` with the same name `@example.com`) | 3 hours after sign-up, if the CI job's own clean-up step didn't run | CI test-account sweep, every 15 minutes, through account deletion | `CI_TEST_ACCOUNT_MAX_AGE_MS`, `ciTestAccountSweep.ts` |
 | Rider profile, avatar, social handles and visibility | Until account deletion | Account deletion | `accountDeletionStore.ts` |
 | First group ride / first Nearby session times (dashboard funnel) | Until account deletion | Account deletion (columns on `users`) | `adminStatsStore.ts` |
 | Login sessions | 30 days from sign-in, or until logout/revocation | Hourly auth sweep | `ACCOUNT_SESSION_TTL_MS`, `authStore.ts` |
@@ -30,7 +31,7 @@ Deletion happens in three ways:
 | Password-reset tokens | 1 hour | Hourly auth sweep | `PASSWORD_RESET_TOKEN_TTL_MS`, `authStore.ts` |
 | Public nearby presence (live coordinates) | Served for 30 s; stored at most 1 hour | 15-minute retention sweep (and on presence updates) | `PresenceStore` 30 s window; `PRESENCE_RETENTION_MS` |
 | Last accepted nearby-presence fix (for the 250 mph movement check) | 30 minutes; never served by any endpoint | 15-minute retention sweep; account deletion | `presence_movement_anchors`; `MOVEMENT_ANCHOR_RETENTION_MS` |
-| Private-ride coordinates | Served for 30 s; stored at most 1 hour | 15-minute retention sweep (and on ride-location reads) | `RIDE_LOCATION_MAX_AGE_MS`; `RIDE_LOCATION_RETENTION_MS` |
+| Private-ride coordinates | Served for 30 s; stored at most 1 hour | 15-minute retention sweep (and on ride-location reads), or account deletion | `RIDE_LOCATION_MAX_AGE_MS`; `RIDE_LOCATION_RETENTION_MS` |
 | Private-ride join codes | 12 hours | 15-minute retention sweep | `shared/src/rideCode.ts`; `retentionStore.ts` |
 | Private rides and membership | Until the host ends the ride, or 30 days after creation | Ride end / 15-minute retention sweep | `RIDE_RETENTION_MS` |
 | Hazard reports and their votes | 1 hour (police, camera, hidden police, checkpoint), 2 hours (accident), 8 hours (road closure) | 15-minute retention sweep (votes cascade) | `ttlMsForType`, `shared/src/hazards.ts` |
