@@ -65,6 +65,7 @@ import { useNavigationSummary } from './useNavigationSummary';
 import { usePresence } from './usePresence';
 import { useInAppNavigation } from './useInAppNavigation';
 import { haptics } from '../haptics';
+import { canDropPin, droppedPinPlace } from '../search/droppedPin';
 import { CURATED_ROUTES } from '../routes/curatedRoutes';
 
 const RIDE_MARKER_REFRESH_MS = 10_000;
@@ -578,6 +579,14 @@ export function MapScreen(): React.JSX.Element {
     setRegroupError(!saved);
   }
 
+  // Press and hold the map to drop a pin there and get directions, like
+  // other map apps; it works without place search (web: dropPin).
+  function dropPin(coordinate: { latitude: number; longitude: number }): void {
+    if (!canDropPin(lockedForSafety, Boolean(activeRoute))) return;
+    haptics.select();
+    selectPlace(droppedPinPlace(coordinate.latitude, coordinate.longitude));
+  }
+
   function selectPlace(place: PlaceResult): void {
     setNavigationTarget(null);
     setSelectedHazardId(null);
@@ -748,6 +757,7 @@ export function MapScreen(): React.JSX.Element {
               stopFollowingRoute();
             }}
             onMapReady={() => setMapReady(true)}
+            onLongPress={(event) => dropPin(event.nativeEvent.coordinate)}
           >
             {selfMapLocation && (activeRoute ? (
               <NavigationPuckMarker
