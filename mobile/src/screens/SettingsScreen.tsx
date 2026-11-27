@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
-import Constants from 'expo-constants';
 import type { File } from 'expo-file-system';
 import { createTemporaryAccountExport } from '../security/accountExportFiles';
 import { MAX_PROFILE_BIO_LENGTH, type SocialVisibility } from '@rider-comms/shared';
@@ -12,6 +11,7 @@ import { colors, spacing, pressedFeedback } from '../theme';
 import { BlockedRidersList } from './BlockedRidersList';
 import { LEGAL_LINKS } from '../legalLinks';
 import { styles } from './SettingsScreen.styles';
+import { AboutPage } from './AboutPage';
 import { useSettings } from '../settings/SettingsContext';
 import type { UnitSystem } from '../settings/SettingsContext';
 import { AVATAR_FAMILIES, AVATAR_PRESETS, getAvatarFamily, getAvatarPreset, type AvatarFamily } from '../settings/avatars';
@@ -208,7 +208,7 @@ function AvatarPickerModal({
 /** The pages a settings row opens (the Settings list itself holds the
  * switches). Keys match the PWA's page tokens, see
  * scripts/check-client-parity.mjs. */
-export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'voiceSound' | 'rideSafe' | 'vehicle' | 'notifications' | 'account' | 'privacy' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help' | 'about';
+export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'voiceSound' | 'rideSafe' | 'vehicle' | 'notifications' | 'account' | 'privacy' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help';
 
 export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   myProfile: 'Profile',
@@ -227,7 +227,6 @@ export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   email: 'Email',
   devices: 'Signed-in devices',
   help: 'Help & Support',
-  about: 'About',
 };
 
 function SettingsRow({ icon, title, subtitle, right, danger = false, showChevron = true, last = false, onPress }: {
@@ -1072,13 +1071,13 @@ function DistanceUnitsPage(): React.JSX.Element {
 // Help & Support's common questions; the PWA has the same list
 // (scripts/check-client-parity.mjs keeps them equal).
 export const HELP_FAQ: ReadonlyArray<readonly [string, string]> = [
+  ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster, a friend request or the Nearby Voice rider list. Reports are reviewed within 24 hours.'],
   ['I can’t sign in', 'Use Forgot password? on the sign-in screen. We’ll email a reset link and code to the address on your account.'],
   ['I didn’t get the verification email', 'Check your spam folder, then open Settings → Account and login → Email and send a new one.'],
   ['I’m not getting notifications', 'Open Settings → Notifications and turn on Notifications on this device, then check Rider Comms is allowed to send notifications in your phone’s settings. On iPhone, add the web app to your Home Screen first.'],
   ['Voice isn’t connecting', 'Check that Rider Comms can use your microphone and that you have a data connection. Your map and ride keep working while voice reconnects.'],
   ['My location isn’t showing', 'Location is only shared when you turn it on: Go live for Nearby, or the location switch in a group ride. Check that location access is allowed for Rider Comms.'],
-  ['Someone is bothering me', 'Report and block them from their profile, a chat, the ride roster or a friend request. Reports are reviewed within 24 hours.'],
-  ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away.'],
+  ['How do I delete my account?', 'Settings → Account and login → Delete account. It permanently deletes your account and its data straight away. Encrypted backups expire within 30 days.'],
 ];
 
 function FaqItem({ question, answer, last }: { question: string; answer: string; last: boolean }): React.JSX.Element {
@@ -1109,6 +1108,7 @@ function HelpPage(): React.JSX.Element {
           <Ionicons name="chatbubble-ellipses-outline" size={19} color={colors.accentText} />
           <Text style={styles.myProfileEditText}>Contact support</Text>
         </Pressable>
+        <View style={styles.helpEmergency}><Ionicons name="warning-outline" size={18} color={colors.warning} /><Text style={styles.helpEmergencyText}>In danger or hurt? Call the emergency services first. We can’t send help to you.</Text></View>
         <Text style={styles.pageSectionNote}>We reply within 2 working days. Safety reports made in the app are reviewed within 24 hours.</Text>
       </View>
       <SettingsSection title="Common questions">
@@ -1117,7 +1117,6 @@ function HelpPage(): React.JSX.Element {
       <PageSection title="Riding safely">
         <View style={styles.safetyRow}><Ionicons name="speedometer-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Set up while stationary</Text><Text style={styles.safetyCopy}>Complete profile, route and group controls before moving.</Text></View></View>
         <View style={styles.safetyRow}><Ionicons name="location-outline" size={21} color={colors.accent} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Control your location</Text><Text style={styles.safetyCopy}>Stop sharing on Nearby or in a group ride at any time.</Text></View></View>
-        <View style={styles.safetyRow}><Ionicons name="warning-outline" size={21} color={colors.warning} /><View style={styles.safetyCopyWrap}><Text style={styles.safetyTitle}>Not an emergency service</Text><Text style={styles.safetyCopy}>Call the appropriate emergency service if you need urgent help.</Text></View></View>
       </PageSection>
       <SettingsSection title="Legal">
         <SettingsRow icon="lock-closed-outline" title="Privacy Policy" onPress={() => open(LEGAL_LINKS.privacy)} />
@@ -1125,22 +1124,6 @@ function HelpPage(): React.JSX.Element {
         <SettingsRow icon="people-outline" title="Community Guidelines" last onPress={() => open(LEGAL_LINKS.guidelines)} />
       </SettingsSection>
       <AboutPage title="About" />
-    </>
-  );
-}
-
-function AboutPage({ title }: { title?: string } = {}): React.JSX.Element {
-  const { displayName, handle } = useSettings();
-  const appVersion = Constants.expoConfig?.version ?? '0.1.0';
-  return (
-    <>
-      <PageSection title={title}>
-        <View style={styles.aboutSummary}>
-          <Text style={styles.aboutTitle}>Rider Comms</Text>
-          <Text style={styles.aboutSummaryValue}>Version {appVersion} · Native</Text>
-          <Text style={styles.aboutSummaryValue}>Signed in as {displayName} ({handle})</Text>
-        </View>
-      </PageSection>
     </>
   );
 }
@@ -1168,7 +1151,6 @@ export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Elem
       {page === 'email' ? <EmailPage /> : null}
       {page === 'devices' ? <DevicesPage /> : null}
       {page === 'help' ? <HelpPage /> : null}
-      {page === 'about' ? <AboutPage /> : null}
     </SettingsPageLayout>
   );
 }

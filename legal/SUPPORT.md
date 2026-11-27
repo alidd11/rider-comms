@@ -3,6 +3,9 @@
 Email **[support email]** and we'll reply within [2 working days]. Safety
 reports made in the app are reviewed within 24 hours.
 
+In danger or hurt? Call the emergency services first. We can't send help
+to you.
+
 ## Common questions
 
 **I can't sign in.** Use *Forgot password?* on the sign-in screen. We'll
@@ -13,7 +16,13 @@ email a reset link and code to the address on your account.
 
 **Someone is bothering me.** Report and block them from their profile, a
 chat, the ride roster, a friend request or the Nearby Voice rider list. See
-the [Community Guidelines](guidelines.html) for what happens next.
+the [Community Guidelines](guidelines.html) for what happens next. Reports
+are reviewed within 24 hours.
+
+**I'm not getting notifications.** Open Settings → Notifications and turn on
+*Notifications on this device*, then check Rider Comms is allowed to send
+notifications in your phone's settings. On iPhone, add the web app to your
+Home Screen first.
 
 **Voice isn't connecting.** Check that Rider Comms can use your microphone
 (iPhone Settings → Rider Comms) and that you have a data connection. Your map

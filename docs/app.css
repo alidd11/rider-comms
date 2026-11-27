@@ -2495,6 +2495,9 @@ html.ride-pill-visible[data-active-screen="settings"] .screen.active{padding-bot
 .help-contact{display:flex;align-items:center;justify-content:center;gap:9px;text-decoration:none}
 .help-contact svg{width:19px;height:19px}
 .help-contact-note{margin:10px 4px 0}
+.help-emergency{display:flex;align-items:flex-start;gap:10px;margin:12px 0 0;padding:12px 14px;border:1px solid var(--warning);border-radius:12px;background:var(--surface);color:var(--text);font-weight:600;font-size:.9375rem;line-height:1.35}
+.help-emergency svg{flex:none;width:20px;height:20px;color:var(--warning);fill:none;stroke:currentColor;stroke-width:2}
+.settings-about-card .button{justify-self:start;margin-top:8px;min-height:44px}
 .faq-list{overflow:hidden;border:1px solid var(--border-soft);border-radius:12px;background:var(--surface)}
 .faq-item{border-bottom:1px solid var(--border-soft)}
 .faq-item:last-child{border-bottom:0}
