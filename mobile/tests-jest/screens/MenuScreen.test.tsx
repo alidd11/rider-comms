@@ -2,9 +2,10 @@ import * as React from 'react';
 import { Linking } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { RIDER_SOCIAL_URL } from '@rider-comms/shared';
 import { MenuScreen } from '../../src/screens/MenuScreen';
 import { ApiError } from '../../src/api/client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RIDER_SOCIAL_URL, rideHistoryStorageKey } from '@rider-comms/shared';
 
 const mockSocialBootstrap = jest.fn<Promise<{ entitlement: string }>, []>();
 let mockActiveRide: object | null = null;
@@ -156,8 +157,22 @@ test('premium menu groups the full rider journey and labels device-local ride to
   expect(screen.getByText('Last 10 · this device')).toBeTruthy();
   expect(screen.getByText('Ride & explore')).toBeTruthy();
   expect(screen.getByText('Account & support')).toBeTruthy();
-  expect(screen.getByTestId('menu-ride-stats')).toBeTruthy();
+  // No rides on this device yet: a line saying what will show, not a row of zeros.
+  expect(screen.queryByTestId('menu-ride-stats')).toBeNull();
+  expect(screen.getByText('No rides yet. Your time and distance show here after your first ride.')).toBeTruthy();
   for (const name of ['Ride', 'Friends', 'Routes', 'Rider Social', 'Your plan', 'Settings', 'Help & Support']) {
     expect(screen.getByLabelText(new RegExp(`^${name}(?:,|$)`))).toBeTruthy();
   }
+});
+
+test('totals the rides kept on this device once there are some', async () => {
+  mockSocialBootstrap.mockResolvedValue({ entitlement: 'none' });
+  await AsyncStorage.setItem(rideHistoryStorageKey('rider_menu'), JSON.stringify([
+    { endedAt: Date.now(), durationMs: 5_400_000, riders: 3, distanceMeters: 80_467 },
+  ]));
+  await renderMenu();
+  expect(screen.getByTestId('menu-ride-stats')).toBeTruthy();
+  expect(screen.queryByTestId('menu-ride-stats-empty')).toBeNull();
+  expect(screen.getByLabelText('Rides: 1')).toBeTruthy();
+  await AsyncStorage.clear();
 });
