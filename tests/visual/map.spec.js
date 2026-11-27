@@ -707,6 +707,19 @@ test('PWA start-up splash gives way when there is no Google map', async ({ page 
   await expect(page.locator('#fallbackMap')).toBeVisible();
 });
 
+test('PWA keeps the map working when the hazard list comes back without hazards', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockAuthenticatedApi(page, 'stationary', ({ url }) => (url.pathname === '/hazards/nearby' ? { body: {} } : null));
+  await page.goto('/');
+  await page.waitForFunction(() => window.__riderCommsTestMap);
+  await expect(page.locator('#reportHazardBtn')).toBeVisible();
+  // A later map redraw (here, a dropped pin) still works.
+  await page.evaluate(() => window.__riderCommsTestMap.trigger('contextmenu', { latLng: new window.google.maps.LatLng(51.5, -0.1) }));
+  await expect(page.locator('#destinationCard')).toContainText('Dropped pin');
+  expect(errors).toEqual([]);
+});
+
 test('PWA drops a pin where the rider presses and holds, with a route to it, but not while riding', async ({ page }) => {
   await mockAuthenticatedApi(page, 'stationary');
   await page.goto('/');
