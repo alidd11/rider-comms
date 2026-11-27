@@ -368,9 +368,8 @@ export async function handleAdminRoutes(ctx: RouteContext): Promise<unknown> {
     if (s.length === 4 && s[3] === 'mfa-reset') {
       const riderId = decodeURIComponent(s[2]!);
       if (riderId === actorId) return sendJson(res, 409, { error: 'use_own_settings' });
-      if (!(await staffMfa.disable(riderId, 'mfa_reset'))) return sendJson(res, 404, { error: 'not_enrolled' });
-      const action = await moderationStore.recordStaffMfaReset(riderId, actorId, note);
-      return sendJson(res, 200, { ok: true, action });
+      const action = await moderationStore.resetStaffMfa(riderId, actorId, note);
+      return action ? sendJson(res, 200, { ok: true, action }) : sendJson(res, 404, { error: 'not_enrolled' });
     }
     if (s.length === 4 && s[3] === 'remove') {
       const result = await moderationStore.removeStaffRole(decodeURIComponent(s[2]!), actorId, note);

@@ -168,7 +168,7 @@ export const API_ENDPOINTS: readonly Endpoint[] = [
   e('GET', '/admin/social/activity', 'Company operations', 'staff', 'Aggregated Rider Social posting and safety activity for 7 or 30 days, without private content or rider identifiers', { permission: 'moderate' }),
   e('GET', '/admin/cases', 'Company operations', 'staff', 'List case records by permitted workstream with bounded cursor pagination', { permission: 'view_cases' }),
   e('GET', '/admin/cases/summary', 'Company operations', 'staff', 'Role-scoped support, appeal, privacy and incident workload totals', { permission: 'view_cases' }),
-  e('GET', '/admin/cases/activity', 'Company operations', 'staff', 'Complete role-scoped internal case event activity for the selected 7 or 30 days, independent of bounded queue samples', { permission: 'view_cases' }),
+  e('GET', '/admin/cases/activity', 'Company operations', 'staff', 'Complete role-scoped internal case event activity for the selected 7 or 30 days, independent of bounded queue samples, with median times to first action and to resolve', { permission: 'view_cases' }),
   e('POST', '/admin/cases', 'Company operations', 'staff', 'Create an internal support, appeal, privacy or incident case (type-restricted)', { permission: 'view_cases', reauth: true }),
   e('GET', '/admin/cases/{caseId}', 'Company operations', 'staff', 'Read an authorised internal case and its attributed history', { permission: 'view_cases' }),
   e('POST', '/admin/cases/{caseId}/notes', 'Company operations', 'staff', 'Append an internal-only case note', { permission: 'view_cases', reauth: true }),

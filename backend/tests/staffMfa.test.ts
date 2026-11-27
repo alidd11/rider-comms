@@ -6,6 +6,7 @@ import { ensureMigrated, getPool, resetDbForTests } from '../src/db.ts';
 import {
   base32Decode, base32Encode, matchTotp, openSecret, otpauthUri, sealSecret, totpAt, TOTP_STEP_SECONDS,
 } from '../src/staffMfa.ts';
+import { ModerationStore } from '../src/moderationStore.ts';
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 const nowStep = () => Math.floor(Date.now() / 1000 / TOTP_STEP_SECONDS);
@@ -174,7 +175,21 @@ describe('staff two-step sign-in', { skip: !hasDatabase && 'DATABASE_URL not set
     const action = await getPool().query<{ action: string; note: string }>(
       "SELECT action, note FROM moderation_actions WHERE target_rider_id = $1 AND action = 'staff_mfa_reset'", [moderator.riderId]);
     assert.equal(action.rows[0]?.note, 'Lost phone and recovery codes');
+    const events = await getPool().query("SELECT 1 FROM security_events WHERE rider_id = $1 AND event = 'mfa_reset'", [moderator.riderId]);
+    assert.equal(events.rowCount, 1);
     assert.equal((await login(moderator.username)).status, 200);
     assert.equal((await call(adminSession, '/admin/mfa/other', {})).status, 404);
+  });
+
+  it('keeps two-step sign-in on when the audit entry cannot be written', async () => {
+    const admin = await makeStaff('admin');
+    const moderator = await makeStaff('moderator');
+    await enrol(moderator.username);
+    const failing = new ModerationStore();
+    (failing as unknown as { recordAction: () => Promise<never> }).recordAction = async () => { throw new Error('audit write failed'); };
+    await assert.rejects(failing.resetStaffMfa(moderator.riderId, admin.riderId, 'Lost phone'), /audit write failed/);
+    const still = await getPool().query('SELECT 1 FROM staff_mfa WHERE rider_id = $1 AND enabled_at IS NOT NULL', [moderator.riderId]);
+    assert.equal(still.rowCount, 1);
+    assert.equal(await new ModerationStore().resetStaffMfa(admin.riderId, admin.riderId, 'Not enrolled'), null);
   });
 });

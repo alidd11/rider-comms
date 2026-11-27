@@ -38,7 +38,7 @@ test.beforeEach(async ({ page }) => {
     const isPilot = pathname === '/social/bootstrap';
     const isFriends = pathname === '/riders/' + testRiderId + '/friends';
     const isConversations = pathname === '/conversations';
-    const isFeed = pathname === '/social/feed';
+    const isFeed = pathname === '/social/feed' || pathname === '/social/riders/' + testRiderId + '/posts';
     const status = isMe || isPilot || isFriends || isConversations || isFeed ? 200 : 404;
     const body = isPilot ? { entitlement: 'pilot', policyVersion: 'social-pilot-v1', capabilities: {
   mediaUpload: false, privatePosting: false, publicPosting: false,
