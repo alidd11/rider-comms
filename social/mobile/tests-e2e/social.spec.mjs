@@ -1247,3 +1247,15 @@ test('visual inventory captures each Social screen at mobile and desktop sizes',
   await expect(page.getByTestId('create-studio')).toBeVisible();
   await capture('create');
 });
+
+test('on a wide screen every tab sits in one centred, phone-width column', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Only wide screens get a column');
+  await page.goto('/');
+  for (const tab of ['Home', 'Clubs', 'Shop']) {
+    await page.getByRole('tab', { name: tab, exact: true }).click();
+    const column = await page.locator('#social-app-column').boundingBox();
+    const viewport = page.viewportSize();
+    expect(column.width, tab).toBeLessThanOrEqual(680);
+    expect(Math.abs(column.x + column.width / 2 - viewport.width / 2), tab).toBeLessThan(2);
+  }
+});

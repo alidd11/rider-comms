@@ -715,7 +715,40 @@ test('PWA keeps the map working when the hazard list comes back without hazards'
   await page.waitForFunction(() => window.__riderCommsTestMap);
   await expect(page.locator('#reportHazardBtn')).toBeVisible();
   // A later map redraw (here, a dropped pin) still works.
-  await page.evaluate(() => window.__riderCommsTestMap.trigger?.('contextmenu', { latLng: new window.google.maps.LatLng(51.5, -0.1) }));
-  await page.waitForTimeout(300);
+  await page.evaluate(() => window.__riderCommsTestMap.trigger('contextmenu', { latLng: new window.google.maps.LatLng(51.5, -0.1) }));
+  await expect(page.locator('#destinationCard')).toContainText('Dropped pin');
   expect(errors).toEqual([]);
+});
+
+test('PWA drops a pin where the rider presses and holds, with a route to it, but not while riding', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'stationary');
+  await page.goto('/');
+  await page.waitForFunction(() => window.__riderCommsTestMap);
+  // Google's map reports a long press or right-click as contextmenu.
+  const press = () => page.evaluate(() => window.__riderCommsTestMap.trigger('contextmenu', { latLng: new window.google.maps.LatLng(51.54123, -0.27891) }));
+  await press();
+  const card = page.locator('#destinationCard');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.rider-card-copy strong')).toHaveText('Dropped pin');
+  await expect(card.locator('.rider-card-copy span')).toHaveText('51.54123, -0.27891');
+  await expect(card.locator('.destination-primary-action')).toContainText('Start route');
+  // One press is one pin, even when the browser reports it twice.
+  await press();
+  expect(await page.evaluate(() => (window.__riderCommsTestMarkers || []).filter((marker) => marker.title === 'Dropped pin').length)).toBe(1);
+});
+
+test('PWA ignores a press and hold on the map while the rider is moving', async ({ page }) => {
+  await mockAuthenticatedApi(page, 'recovering');
+  await page.goto('/');
+  await page.waitForFunction(() => window.__riderCommsTestMap);
+  await page.evaluate(() => {
+    const base = Date.now() - 7000;
+    for (let i = 0; i <= 7; i++) window.gpsTest.success({
+      timestamp: base + i * 1000,
+      coords: { latitude: 51.5074 + i * 0.0012, longitude: -0.1278, accuracy: 5, speed: 12 },
+    });
+  });
+  await expect(page.locator('#app')).toHaveClass(/safety-locked/);
+  await page.evaluate(() => window.__riderCommsTestMap.trigger('contextmenu', { latLng: new window.google.maps.LatLng(51.5, -0.1) }));
+  await expect(page.locator('#destinationCard')).toBeHidden();
 });
