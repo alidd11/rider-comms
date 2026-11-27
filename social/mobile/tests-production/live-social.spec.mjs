@@ -240,7 +240,7 @@ test('a saved rider Reel appears in the profile and opens the right video', asyn
   await page.getByRole('tab', { name: 'Reels' }).click();
   await page.getByRole('button', { name: 'Save Reel saved-rider-reel' }).click();
   await page.getByRole('tab', { name: 'Home' }).click();
-  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tablist', { name: 'Main navigation' }).getByRole('tab', { name: 'Profile' }).click();
   await page.getByRole('tab', { name: 'Saved profile tab' }).click();
   await page.getByRole('button', { name: 'Watch saved Reel saved-rider-reel' }).click();
   await expect(page.getByTestId('reel-caption-saved-rider-reel')).toBeVisible();
