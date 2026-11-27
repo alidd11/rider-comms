@@ -111,3 +111,9 @@ motor_scooter top-speed assumptions and do not infer real motorway permission
 or bus-lane permission from generic routing tags. Keep PWA/iOS/Android mapping
 parity, Ride Safe and Google-data segregation intact. Never integrate Tolls #566,
 or merge/enable Maps #572, without explicit owner authorisation.
+
+## Remote real-data experiment (draft #572)
+
+The CI workflow has a separate, draft-only Greater London graph job; it is not part of the general verify aggregate and never runs on main. The repository owner has authorised remote CI as a substitute when full local checks are unavailable. On PR #572 or manual CI dispatch on the Maps branch, it downloads the fixed 1 November 2026 Greater London extract from Geofabrik, checks the publisher MD5 for transport integrity and measures SHA-256, pulls the official Valhalla 3.9.3 amd64 image pinned by digest, and runs the existing graph builder and four-vehicle route suite inside network-disabled containers. No ports, secrets, rider GPS or persistent hosting. Only small JSON evidence is retained for three days; PBF and tiles are discarded. The hashes for local tool wrappers are not native executable hashes; the separate image digest identifies the container bytes. The monthly extract was chosen over the latest daily file for repeatability; it is not current enough to establish legal road restrictions or charges. No admin/timezone DB or legal-access acceptance is implied. Inspect the separate job's actual result before claiming any real routing success.
+
+Sources: https://download.geofabrik.de/europe/united-kingdom/england/greater-london/index.html and https://github.com/valhalla/valhalla/pkgs/container/valhalla/1579648647?tag=3.9.3 .
