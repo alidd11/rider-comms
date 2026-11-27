@@ -210,10 +210,10 @@ export class StaffMfaStore {
     return ok;
   }
 
-  async disable(riderId: string, event: 'mfa_disabled' | 'mfa_reset' = 'mfa_disabled'): Promise<boolean> {
+  async disable(riderId: string): Promise<boolean> {
     await ensureMigrated();
     const { rowCount } = await getPool().query('DELETE FROM staff_mfa WHERE rider_id = $1', [riderId]);
-    if (rowCount) await this.record(riderId, event);
+    if (rowCount) await this.record(riderId, 'mfa_disabled');
     return Boolean(rowCount);
   }
 

@@ -330,6 +330,7 @@ async function mockModerationApi(page, { admin = true, suspended = false, role =
             && event.createdAt >= start && items.some((item) => item.id === event.caseId)).length,
           configuredTargets: 0, overdueTargets: 0, dueSoonTargets: 0,
         },
+        handling: { opened: 3, acted: 2, resolved: 1, medianFirstActionMs: 95 * 60_000, medianResolveMs: null },
       });
     }
     if (url.pathname === '/admin/social/activity') {
@@ -1174,7 +1175,10 @@ test.describe('staff dashboard', () => {
     await expect(report).not.toHaveAttribute('open', '');
     await report.locator('summary').click();
     await expect(report).toContainText('Complete counts from retained internal cases');
-    await expect(report).toContainText('not a response-time SLA');
+    await expect(report).toContainText('not legal deadlines');
+    const handling = report.getByLabel('Handling times');
+    await expect(handling).toContainText('First action in 2 h (2 of 3)');
+    await expect(handling).toContainText('Resolved — (1 of 3)');
     await page.getByRole('combobox', { name: 'Reporting period' }).selectOption('30');
     await expect(page.locator('.case-activity-report > summary')).toContainText('last 30 days');
     await expect(page.locator('.case-item')).toHaveCount(4);

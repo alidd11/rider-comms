@@ -81,6 +81,10 @@ describe('audited, complete and role-scoped operations reports', { skip: !db && 
     assert.equal(supportReport.totals.created, 1);
     assert.equal(supportReport.totals.internalNotes, 1);
     assert.equal(supportReport.totals.resolvedTransitions, 0);
+    const { handling } = supportReport as unknown as { handling: { opened: number; acted: number; resolved: number; medianFirstActionMs: number | null; medianResolveMs: number | null } };
+    assert.deepEqual({ ...handling, medianFirstActionMs: typeof handling.medianFirstActionMs }, {
+      opened: 1, acted: 1, resolved: 0, medianFirstActionMs: 'number', medianResolveMs: null,
+    });
 
     const modReport = await (await authenticatedFetch(ctx, MOD, '/admin/cases/activity')).json() as {
       byKind: Array<{ kind: string }>; totals: { created: number };
@@ -98,6 +102,34 @@ describe('audited, complete and role-scoped operations reports', { skip: !db && 
     assert.equal((await authenticatedFetch(ctx, CUSTOMER, '/admin/cases/activity')).status, 403);
     assert.equal((await fetch(ctx.baseUrl() + '/admin/cases/activity')).status, 401);
     assert.equal((await authenticatedFetch(ctx, ADMIN, '/admin/cases/activity?days=365')).status, 400);
+  });
+
+  it('reports median times to first action and to resolve for cases opened in the window', async () => {
+    const now = Date.now();
+    const hour = 3_600_000;
+    const cases = [
+      // [opened hours ago, first action after (h), resolved after (h)]
+      [10, 1, 4], [20, 3, 8], [30, 5, null], [40, null, null],
+    ] as const;
+    for (const [index, [ago, acted, resolved]] of cases.entries()) {
+      const id = `00000000-0000-4000-8000-00000000000${index}`;
+      const opened = now - ago * hour;
+      await getPool().query(
+        `INSERT INTO company_cases (id, kind, title, description, created_by, created_at, updated_at)
+         VALUES ($1, 'support', 'Timed case', '', $2, $3, $3)`, [id, ADMIN, opened]);
+      const event = (seq: string, name: string, at: number, to: string | null) => getPool().query(
+        `INSERT INTO company_case_events (id, case_id, actor_id, event, note, to_value, created_at)
+         VALUES ($1, $2, $3, $4, 'x', $5, $6)`, [`${id.slice(0, -2)}${seq}${index}`, id, ADMIN, name, to, at]);
+      await event('1', 'created', opened, null);
+      if (acted !== null) await event('2', 'note', opened + acted * hour, null);
+      if (resolved !== null) await event('3', 'status', opened + resolved * hour, 'resolved');
+    }
+    const report = await (await authenticatedFetch(ctx, ADMIN, '/admin/cases/activity?days=7')).json() as {
+      handling: { opened: number; acted: number; resolved: number; medianFirstActionMs: number; medianResolveMs: number };
+    };
+    assert.deepEqual(report.handling, {
+      opened: 4, acted: 3, resolved: 2, medianFirstActionMs: 3 * hour, medianResolveMs: 6 * hour,
+    });
   });
 
   it('audits internal follow-up targets and prevents stale, cross-team or invalid changes', async () => {
