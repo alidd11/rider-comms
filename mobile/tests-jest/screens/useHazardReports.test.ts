@@ -71,6 +71,18 @@ test('fetches nearby hazards for the current location', async () => {
   expect(client.getNearbyHazards).toHaveBeenCalledWith(51.5, -0.1);
 });
 
+test('a reply without a hazard list keeps the hazards already shown', async () => {
+  jest.useFakeTimers();
+  const client = { getNearbyHazards: jest.fn(async () => ({ hazards: [fakeHazard('h1')] })) };
+  const { result } = await renderHazards({ client });
+  await waitFor(() => expect(result.current.hazards).toEqual([fakeHazard('h1')]));
+  client.getNearbyHazards.mockResolvedValueOnce({} as never);
+  await act(async () => { jest.advanceTimersByTime(60_000); });
+  await act(async () => { await Promise.resolve(); });
+  expect(client.getNearbyHazards).toHaveBeenCalledTimes(2);
+  expect(result.current.hazards).toEqual([fakeHazard('h1')]);
+});
+
 test('clears hazards and skips fetching without a current location', async () => {
   const client = { getNearbyHazards: jest.fn(async () => ({ hazards: [fakeHazard('h1')] })) };
   const { result } = await renderHazards({ client, hasCurrentLocation: false });
