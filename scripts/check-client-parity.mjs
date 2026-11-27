@@ -174,8 +174,8 @@ if (!pwaMapSource.includes("['Legal', 'legalLinks'], ['About', 'aboutCard']") ||
 }
 // Help & Support shows one version: the one in mobile/app.json.
 const nativeAppVersion = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8')).expo.version;
-if (!pwaMapSource.includes(`const APP_VERSION = '${nativeAppVersion}';`)) {
-  throw new Error(`The web app's APP_VERSION must match mobile/app.json (${nativeAppVersion})`);
+if (!pwaMapSource.includes(`const APP_VERSION = '${nativeAppVersion}';`) || !pwaIndexSource.includes(`Rider Comms · Version ${nativeAppVersion}<`)) {
+  throw new Error(`The web app's APP_VERSION and menu footer must match mobile/app.json (${nativeAppVersion})`);
 }
 // Help & Support's common questions are the same on both clients.
 const nativeFaqBlock = nativeSettingsSource.slice(nativeSettingsSource.indexOf('export const HELP_FAQ'), nativeSettingsSource.indexOf('function FaqItem('));
