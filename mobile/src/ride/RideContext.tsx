@@ -273,9 +273,14 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
     }
     let cancelled = false;
     let unreachableTicks = 0;
+    // On a weak signal one update can take longer than the interval. Skip a
+    // tick while the last one is still out, so updates don't pile up on a
+    // slow link and an older reply can't overwrite a newer one.
+    let tickInFlight = false;
 
     const tick = async () => {
-      if (cancelled || AppState.currentState !== 'active') return;
+      if (cancelled || tickInFlight || AppState.currentState !== 'active') return;
+      tickInFlight = true;
       try {
         const permission = await Location.getForegroundPermissionsAsync();
         if (!permission.granted || cancelled) return;
@@ -311,6 +316,8 @@ export function RideProvider({ children }: { children: React.ReactNode }): React
         // A missed foreground tick is retried. The backend keeps a member's
         // last position for 10 minutes (shown as "last seen"), and only while
         // they are still sharing.
+      } finally {
+        tickInFlight = false;
       }
     };
 
