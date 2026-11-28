@@ -558,7 +558,12 @@ test('PWA tells the group aloud (and in a toast) when a rider\'s position stops 
   expect(await page.evaluate(() => window.__spoken)).toHaveLength(1);
   // Sam's position comes back (timed on the page's clock, which has run on).
   otherUpdatedAt = (await page.evaluate(() => Date.now())) + 20_000;
-  await page.clock.runFor(22_000);
+  // Tick by tick, letting each update's reply arrive: a tick that comes
+  // round while the last update is still out is skipped.
+  for (let step = 0; step < 3; step += 1) {
+    await page.clock.runFor(10_000);
+    await page.waitForTimeout(150);
+  }
   await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual([
     'Sam’s position hasn’t updated for 2 minutes.',
     'Sam’s position is updating again.',
@@ -672,4 +677,31 @@ test('Ride cockpit discloses consent state without implying location is shared',
   await expect(page.locator('.ride-location-badge-on')).toBeHidden();
   await expect(page.locator('#activeRideLocationConsent')).not.toBeChecked();
   await expect(page.locator('.ride-ticket-note')).toContainText('Only share this invite');
+});
+
+test('PWA sends one group position at a time when the signal is too slow to keep up', async ({ page }) => {
+  let posts = 0;
+  await mockAuthenticatedApi(page, 'stationary', ({ url, request }) => {
+    if (url.pathname === '/rides/current') return { body: { ride: {
+      rideId: 'ride-slow-1', code: 'ABCDEF', createdBy: RIDER_ID, memberIds: [RIDER_ID], shareRideLocation: true,
+    } } };
+    if (url.pathname === '/rides/ride-slow-1/location' && request.method() === 'POST') {
+      posts += 1;
+      return { body: { ok: true } };
+    }
+    return null;
+  });
+  // Fetching the group's positions hangs, as it would on a very weak signal.
+  await page.route('**/rides/ride-slow-1/locations', () => new Promise(() => {}));
+  await page.clock.install();
+  await page.goto('/');
+  await expect.poll(() => posts).toBe(1);
+  // The next 10-second tick comes round while that update is still out:
+  // it's skipped rather than sending a second one over the slow link.
+  await page.clock.runFor(10_500);
+  await page.waitForTimeout(500);
+  expect(posts).toBe(1);
+  // The stuck request times out, and the following tick sends again.
+  await page.clock.runFor(10_000);
+  await expect.poll(() => posts).toBe(2);
 });
