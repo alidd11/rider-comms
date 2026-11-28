@@ -18,6 +18,20 @@ for (const { path, source } of workflows) {
   }
 }
 
+const native = workflows.find(({ path }) => path.endsWith('native-builds.yml'))?.source ?? '';
+assert.ok(native.includes('for attempt in 1 2; do'), 'Only one iOS Maestro infrastructure retry permitted');
+assert.ok(native.includes('maestro-ios-attempt-${attempt}.xml'), 'Retain attempt-numbered JUnit evidence');
+assert.ok(native.includes('maestro-ios-attempt-${attempt}.log'), 'Retain attempt-numbered console evidence');
+assert.ok(native.includes('redact_test_password'), 'Redact credentials before uploading Maestro logs');
+assert.ok(native.includes('xcrun simctl bootstatus'), 'Transport retry must restart simulator');
+assert.ok(native.includes('exit "$test_status"'), 'Real Maestro assertion must remain fatal');
+assert.ok(native.includes('A driver crash can also surface only as JUnit "Unknown error"'), 'Retain main PR #595 recovery');
+assert.ok(native.includes("grep -Fq '<failure>Unknown error</failure>'"), 'Retry unknown error only with exact JUnit signature');
+assert.ok(native.includes('xcTestDriverStatusCheck:'), 'Transport fault must have XCTest log evidence');
+assert.ok(native.includes('transport=true'), 'Explicit transport evidence is required');
+assert.ok(native.includes('if [ "$attempt" -eq 2 ] || [ "$transport" != true ]; then'), 'One recovery maximum');
+assert.ok(!native.includes('scripts/maestro_transport.py'), 'No duplicate Python Maestro classifier');
+assert.ok(!native.includes('maestro-ios-first-attempt.xml'), 'No obsolete duplicate evidence path');
 const pages = workflows.find(({ path }) => path.endsWith('pages.yml'))?.source ?? '';
 assert.match(pages, /- run: npm ci(?:\n|$)/, 'Pages deployment must install the exact lockfile with npm ci');
 assert.doesNotMatch(pages, /- run: npm install(?:\n|$)/, 'Pages deployment must not mutate dependency resolution');

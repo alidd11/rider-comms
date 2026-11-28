@@ -35,6 +35,10 @@ await cp(
 // Sign-in and ride hero photos, self-hosted so they work offline and no
 // third-party image host sees riders' requests.
 await cp(resolve(source, 'assets', 'hero'), resolve(destination, 'assets', 'hero'), { recursive: true });
+// Publish only a trusted launcher. Do not publish an executable third-party
+// map document as a top-level page on the authenticated Rider Comms origin.
+await mkdir(resolve(destination, 'map-beta'), { recursive: true });
+await cp(resolve(source, 'map-beta', 'index.html'), resolve(destination, 'map-beta', 'index.html'));
 
 const required = ['index.html', 'app.css', 'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js', 'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'config.js', 'manifest.json', 'sw.js'];
 await Promise.all(required.map((file) => readFile(resolve(destination, file))));
@@ -137,7 +141,7 @@ if (!html.includes(`<meta name="theme-color" content="${lightChrome}" media="(pr
 // this over mobile data, and minifying roughly halves app.js. No target is
 // set, so syntax is never lowered, and these are classic scripts sharing
 // globals, so esbuild keeps their top-level names.
-const { transform } = await import('esbuild');
+const { transform, build } = await import('esbuild');
 const minified = [
   'app.js', 'avatar-system.js', 'navigation-road-events.js', 'navigation-guidance.js', 'navigation-camera.js', 'navigation-puck.js', 'voice-activity.js',
   'position-interpolation.js', 'movement-safety.js', 'message-state.js', 'routes.js', 'admin.js',
@@ -153,4 +157,60 @@ await Promise.all(minified.map(async (file) => {
   await writeFile(path, code);
 }));
 
+// The standalone /map-beta/ document is a trusted, inert launcher. It does
+// not load MapLibre or any third-party JS into its own top-level execution
+// context. Instead, it renders a SECOND sandboxed iframe with an opaque
+// origin. Both direct-browser (native) and PWA-embedded previews use it.
+const { outputFiles } = await build({
+  entryPoints: [resolve(source, 'map-beta', 'preview.mjs')],
+  write: false, bundle: true, format: 'iife', platform: 'browser',
+  target: 'es2022', minify: true, legalComments: 'none',
+});
+const previewScript = outputFiles?.[0]?.text;
+if (!previewScript || previewScript.toLowerCase().includes('</script')) {
+  throw new Error('Unsafe or empty map preview bundle');
+}
+const previewTemplate = await readFile(resolve('map-lab/index.html'), 'utf8');
+const previewCss = await readFile(resolve('map-lab/preview.css'), 'utf8');
+// Source map-lab stays developer-only. Strip its local CSP: the srcdoc inherits
+// the verified launcher's CSP, including the exact inline-script SHA-256 hash.
+const cspMeta = previewTemplate.split('\n').find((line) => line.includes('<meta http-equiv="Content-Security-Policy"'));
+if (!cspMeta) throw new Error('Missing map-lab CSP marker');
+let payload = previewTemplate
+  .replace(cspMeta + '\n', '')
+  .replace('<link rel="stylesheet" href="./preview.css">', `<style>${previewCss}</style>`)
+  // Unlike a module, an inline classic script executes as soon as the
+  // parser reaches it. Move it after the controls/status DOM so an aborted
+  // MapLibre CDN request is handled rather than leaving infinite loading.
+  .replace('<script type="module" src="./preview.mjs"></script>', '')
+  .replace('</body>', `<script>${previewScript}</script>\n</body>`);
+if (payload.includes('./preview.mjs') || payload.includes('http-equiv="Content-Security-Policy"')) {
+  throw new Error('Unconverted map preview template');
+}
+const statusMarkup = payload.indexOf('<output id="status"');
+const scriptMarkup = payload.lastIndexOf('<script>');
+if (statusMarkup < 0 || scriptMarkup <= statusMarkup) {
+  throw new Error('Map beta renderer must execute after the status DOM');
+}
+// HTML attribute encoding lets the nested srcdoc reconstruct the exact
+// bytes; do not let third-party HTML or any user input enter this template.
+const escapeAttr = (str) => str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+const betaPath = resolve(destination, 'map-beta', 'index.html');
+const betaTemplate = await readFile(betaPath, 'utf8');
+const wrapperOpen = betaTemplate.indexOf('<script>');
+const wrapperClose = betaTemplate.indexOf('</script>', wrapperOpen);
+const wrapperScript = wrapperOpen !== -1 && wrapperClose > wrapperOpen
+  ? betaTemplate.slice(wrapperOpen + '<script>'.length, wrapperClose) : '';
+if (!wrapperScript || !betaTemplate.includes('__RIDER_MAPS_SRCDOC__')) {
+  throw new Error('Map beta launcher is missing its controlled script or sandbox placeholder');
+}
+const hash = (value) => createHash('sha256').update(value).digest('base64');
+const betaHtml = betaTemplate
+  .replace('__RIDER_MAPS_LAUNCHER_HASH__', hash(wrapperScript))
+  .replace('__RIDER_MAPS_PAYLOAD_HASH__', hash(previewScript))
+  .replace('__RIDER_MAPS_SRCDOC__', escapeAttr(payload));
+if (betaHtml.includes('__RIDER_MAPS_') || !betaHtml.includes('sandbox="allow-scripts"')) {
+  throw new Error('Map beta launcher is incompletely isolated');
+}
+await writeFile(betaPath, betaHtml);
 console.log(`Built PWA at ${destination}`);

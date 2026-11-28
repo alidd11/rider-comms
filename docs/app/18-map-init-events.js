@@ -511,6 +511,9 @@
     $('#closeSheetAll').addEventListener('click', () => closeSheet());
     $('#sheetBackdrop').addEventListener('click', (event) => { if (event.target === $('#sheetBackdrop')) closeSheet(); });
     document.addEventListener('keydown', (event) => {
+      // A native <dialog> is above the Settings sheet: it owns Escape and
+      // Tab focus while open. Never navigate the sheet under the map beta.
+      if ($('#riderMapBetaDialog')?.open) return;
       if ($('#sheetBackdrop').hidden) return;
       if (event.key === 'Escape') {
         event.preventDefault();

@@ -182,6 +182,13 @@ appId: com.ridercomms.app
           visible: "Back to menu(,.*)?"
           timeout: 8000
 - takeScreenshot: authenticated-friends
+# Apple's first-launch Intelligence notification sometimes appears directly
+# above the app's top-left back control in iOS 26 simulators. Wait for that
+# transient system banner to disappear before touching the underlying button.
+# Keep the following menu assertion and all authenticated checks unchanged.
+- extendedWaitUntil:
+    notVisible: "Ready for Apple Intelligence.*"
+    timeout: 20000
 - retry:
     maxRetries: 3
     commands:

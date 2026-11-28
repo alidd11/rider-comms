@@ -387,6 +387,29 @@ function MapNavigationPage(): React.JSX.Element {
   const { navigationProvider, routeAvoidance, setRouteAvoidance } = useSettings();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
+  const { riderId, client } = useAuth();
+  const [adminBetaAllowed, setAdminBetaAllowed] = React.useState(false);
+  React.useEffect(() => {
+    let current = true;
+    setAdminBetaAllowed(false);
+    void client.getStaffAccess().then((access) => {
+      if (current) setAdminBetaAllowed(access.role === 'admin');
+    }).catch(() => { if (current) setAdminBetaAllowed(false); });
+    return () => { current = false; };
+  }, [client, riderId]);
+  const openMapBeta = async () => {
+    try {
+      const access = await client.getStaffAccess();
+      if (access.role !== 'admin') {
+        setAdminBetaAllowed(false);
+        Alert.alert('Admin access required', 'Rider Comms Maps beta is only available to admin accounts.');
+        return;
+      }
+      await Linking.openURL('https://alidd11.github.io/rider-comms/map-beta/');
+    } catch {
+      Alert.alert('Beta map unavailable', 'Couldn’t verify admin access or open the beta map. Check your connection and try again.');
+    }
+  };
   return (
     <>
       <SettingsGroup note="Where a route opens when you tap Go.">
@@ -397,6 +420,11 @@ function MapNavigationPage(): React.JSX.Element {
         <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
         <SwitchRow title="Avoid ferries" value={routeAvoidance.ferries} onValueChange={(ferries) => setRouteAvoidance({ ...routeAvoidance, ferries })} />
       </SettingsGroup>
+      {adminBetaAllowed ? (
+        <SettingsGroup title="Admin beta" note="Opens an experimental map-only preview in your browser. Classic Rider Comms remains responsible for navigation and live ride features.">
+          <PlainRow first title="Rider Comms Maps (beta)" onPress={() => void openMapBeta()} />
+        </SettingsGroup>
+      ) : null}
       <SavedPlacesGroup />
     </>
   );

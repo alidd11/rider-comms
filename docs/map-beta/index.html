@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#07141b">
+  <title>Rider Comms Maps · isolated research preview</title>
+  <!-- CSP hashes are written by scripts/build-pwa.mjs. The source page has no active map. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'sha256-__RIDER_MAPS_LAUNCHER_HASH__' 'sha256-__RIDER_MAPS_PAYLOAD_HASH__' https://unpkg.com; style-src 'unsafe-inline' https://unpkg.com; connect-src https://tiles.openfreemap.org https://assets.openfreemap.com https://unpkg.com; font-src https://assets.openfreemap.com data:; img-src data: blob: https://tiles.openfreemap.org https://assets.openfreemap.com; worker-src blob: data:; frame-src 'self'">
+  <style>
+    :root{color-scheme:dark;font:14px/1.4 system-ui,-apple-system,sans-serif;background:#07141b;color:#eaf5fa}
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
+    .launcher{height:100dvh;display:flex;flex-direction:column;min-height:0}
+    header{display:flex;gap:14px;justify-content:space-between;align-items:center;padding:12px max(14px,env(safe-area-inset-right)) 12px max(14px,env(safe-area-inset-left));background:#102633}
+    header div{min-width:0}strong,small{display:block}strong{font-size:14px}small{color:#b7d5de;font-size:11px}
+    .return-classic{flex:none;min-height:44px;padding:11px 13px;border:1px solid #65c5df;border-radius:10px;color:#fff;text-decoration:none;font-weight:700}
+    .return-classic:focus-visible,.reload-beta:focus-visible{outline:3px solid #58ccf3;outline-offset:3px}
+    .launcher-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .reload-beta{font:inherit;flex:none;min-height:44px;padding:11px 13px;border:1px solid #4c8196;border-radius:10px;background:#193b4b;color:#e7f6ff;cursor:pointer}
+    .reload-beta:hover{border-color:#65c5df}
+    #mapBetaSandbox{border:0;width:100%;flex:1;min-height:0;background:#102634}
+    footer{padding:7px 12px max(7px,env(safe-area-inset-bottom));background:#102633;color:#c6dae1;font-size:10px;text-align:center}
+  </style>
+</head>
+<body>
+  <main class="launcher">
+    <header>
+      <div><strong>Rider Comms Maps</strong><small>Sandboxed admin research preview · not navigation</small></div>
+      <div class="launcher-actions">
+        <button type="button" class="reload-beta" id="retryMapBeta" aria-label="Reload experimental map">Reload map</button>
+        <a class="return-classic" href="../index.html" aria-label="Return to the classic Rider Comms map">Use classic map</a>
+      </div>
+    </header>
+    <!-- The live map exists ONLY in the opaque-origin srcdoc child injected by the build. -->
+    <iframe id="mapBetaSandbox" title="OpenStreetMap experimental basemap"
+      sandbox="allow-scripts" referrerpolicy="no-referrer"
+      allow="geolocation 'none'; microphone 'none'; camera 'none'"
+      srcdoc="__RIDER_MAPS_SRCDOC__"></iframe>
+    <footer>© OpenStreetMap contributors · Tiles by OpenFreeMap · This is not a route or rider-location view</footer>
+  </main>
+  <script>(() => {
+  const back = document.querySelector('.return-classic');
+  const mapFrame = document.querySelector('#mapBetaSandbox');
+  // Manual recovery only: reconstruct the same fixed, opaque sandboxed
+  // srcdoc after a CDN or network error. Never use a new URL or any user data.
+  document.querySelector('#retryMapBeta')?.addEventListener('click', () => {
+    if (mapFrame && mapFrame.getAttribute('sandbox') === 'allow-scripts') {
+      mapFrame.srcdoc = mapFrame.srcdoc;
+    }
+  });
+  const requestParentClose = () => {
+    if (window.parent !== window) {
+      // The only permitted command to the outer Rider Comms PWA frame.
+      window.parent.postMessage({ type: 'rider-comms-close-map-beta' }, '*');
+    }
+  };
+  if (window.parent !== window && back) {
+    back.addEventListener('click', (event) => {
+      event.preventDefault();
+      requestParentClose();
+    });
+  }
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || window.parent === window) return;
+    event.preventDefault();
+    event.stopPropagation();
+    requestParentClose();
+  }, { capture: true });
+  window.addEventListener('message', (event) => {
+    if (event.origin !== 'null'
+        || event.source !== mapFrame?.contentWindow
+        || event.data?.type !== 'rider-comms-close-map-beta') return;
+    requestParentClose();
+  });
+  // A visible iframe is not proof its close relay has initialised.
+  document.documentElement.dataset.escapeRelayReady = 'true';
+})();</script>
+</body>
+</html>
