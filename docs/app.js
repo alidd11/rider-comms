@@ -4617,6 +4617,15 @@
     }, delayMs);
   }
 
+  // When the phone gets signal back, reconnect now instead of waiting out a
+  // backoff that may have grown to a minute. Only a pending retry is cut
+  // short: a connected room is left alone, and a hidden page waits for the
+  // rider to come back to it (presence resumes first).
+  window.addEventListener('online', () => {
+    if (!voiceReconnectTimer || document.visibilityState !== 'visible') return;
+    syncVoiceConnection();
+  });
+
   function clearPublicVoiceRefresh() {
     if (publicVoiceRefreshTimer) {
       clearTimeout(publicVoiceRefreshTimer);
@@ -5931,9 +5940,14 @@
       // background refresh only continues an approved location flow.
       if (!locationPermissionReady) return;
       if (rideLocationTimer) return;
+      // On a weak signal one update can take longer than the interval. Skip
+      // a tick while the last one is still out, so updates don't pile up on
+      // a slow link and an older reply can't overwrite a newer one.
+      let tickInFlight = false;
       const tick = async () => {
         const ride = state.activeRide;
-        if (!ride) return;
+        if (!ride || tickInFlight) return;
+        tickInFlight = true;
         try {
           const position = await currentPosition();
           if (state.activeRide?.rideId !== ride.rideId || !state.activeRide.shareRideLocation || !session) return;
@@ -5972,6 +5986,8 @@
           if (rideUnreachableTicks === RIDE_UNREACHABLE_TICKS) {
             showToast("Can’t reach Rider Comms. Group positions may be out of date; voice keeps working if it’s connected.");
           }
+        } finally {
+          tickInFlight = false;
         }
       };
       rideLocationTimer = setInterval(tick, RIDE_LOCATION_REFRESH_MS);

@@ -163,28 +163,15 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByRole('button', { name: 'Choose Reel video' })).toBeVisible();
   await page.getByRole('button', { name: 'Close Create' }).click();
 
-  await page.getByRole('tab', { name: 'Clubs' }).click();
-  await expect(page.getByRole('heading', { name: 'Clubs & events', exact: true })).toBeVisible();
-  await expect(page.getByText('Clubs and meets haven’t opened yet')).toBeVisible();
-  await expect(page.getByText('Upcoming events')).toHaveCount(0);
-  await verifyScreen(page, testInfo, 'clubs-empty');
-  await page.getByRole('button', { name: 'Open messages from Clubs' }).click();
+  // Clubs and Shop have no backend yet: the live app's last two tabs are Messages and Profile.
+  await expect(mainNavigation.getByRole('tab', { name: 'Clubs' })).toHaveCount(0);
+  await expect(mainNavigation.getByRole('tab', { name: 'Shop' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open profile' })).toHaveCount(0);
+  await mainNavigation.getByRole('tab', { name: 'Messages' }).click();
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
+  await expect(mainNavigation.getByRole('tab', { name: 'Messages' })).toHaveAttribute('aria-selected', 'true');
 
-  await page.getByRole('tab', { name: 'Shop' }).click();
-  await expect(page.getByTestId('shop-launch-state')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Shop', exact: true })).toBeVisible();
-  await expect(page.getByText('Listings aren’t open yet')).toBeVisible();
-  for (const section of ['Discover', 'Saved', 'Basket', 'Orders']) {
-    await expect(page.getByRole('button', { name: 'Shop section ' + section })).toHaveCount(0);
-  }
-  await expect(page.getByRole('textbox', { name: 'Search marketplace' })).toHaveCount(0);
-  await verifyScreen(page, testInfo, 'shop-empty');
-  await page.getByRole('button', { name: 'Browse Reels from Shop' }).click();
-  await expect(page.getByTestId('reels-viewport')).toBeVisible();
-  await page.getByRole('tab', { name: 'Shop' }).click();
-
-  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tablist', { name: 'Main navigation' }).getByRole('tab', { name: 'Profile' }).click();
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
   await expect(page.getByText('Profile preview')).toHaveCount(0);
   await expect(page.getByText('Your posts will appear here')).toBeVisible();
@@ -205,7 +192,7 @@ test('production: every major route and empty state is visible, navigable and er
   const exploreSaved = page.getByRole('button', { name: 'Explore Reels from Saved' });
   await expect(exploreSaved).toBeVisible();
   const savedBounds = await exploreSaved.boundingBox();
-  const tabBarBounds = await page.getByRole('tab', { name: 'Shop', exact: true }).boundingBox();
+  const tabBarBounds = await page.getByRole('tab', { name: 'Profile', exact: true }).boundingBox();
   expect(savedBounds).not.toBeNull();
   expect(tabBarBounds).not.toBeNull();
   // On iPhone WebKit the empty-state CTA must fit above the fixed bottom bar.
@@ -216,7 +203,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('reels-viewport')).toBeVisible();
   // Immersive Reels intentionally hides the global header; Home restores it.
   await page.getByRole('tab', { name: 'Home', exact: true }).click();
-  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tablist', { name: 'Main navigation' }).getByRole('tab', { name: 'Profile' }).click();
   await expect(page.getByRole('tab', { name: 'Garage profile tab' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open settings and privacy' }).click();
   await expect(page.getByTestId('social-settings')).toBeVisible();
@@ -226,7 +213,7 @@ test('production: every major route and empty state is visible, navigable and er
   await expect(page.getByTestId('social-profile-summary')).toBeVisible();
 
   await page.getByRole('tab', { name: 'Home', exact: true }).click();
-  await page.getByRole('button', { name: 'Open messages' }).click();
+  await page.getByRole('tablist', { name: 'Main navigation' }).getByRole('tab', { name: 'Messages' }).click();
   await expect(page.getByTestId('shared-message-inbox')).toBeVisible();
   await expect(page.getByTestId('messages-empty-visual')).toBeVisible();
   await verifyScreen(page, testInfo, 'messages-empty');
@@ -275,7 +262,7 @@ test('production: profile edits go to the rider\'s Rider Comms account', async (
   const uncaught = [];
   page.on('pageerror', e => uncaught.push(e.message));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tablist', { name: 'Main navigation' }).getByRole('tab', { name: 'Profile' }).click();
   await page.getByRole('button', { name: 'Edit profile' }).click();
   await page.getByRole('textbox', { name: 'Bio' }).fill('Production identity persistence check');
   const saved = page.waitForRequest(request => request.method() === 'PUT' &&
@@ -291,7 +278,7 @@ test('production: profile edits go to the rider\'s Rider Comms account', async (
   await expect(page.getByText('Drafts cleared.')).toBeVisible();
 
   await page.reload();
-  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.getByRole('tablist', { name: 'Main navigation' }).getByRole('tab', { name: 'Profile' }).click();
   await expect(page.getByTestId('profile-bio')).toHaveText('Production identity persistence check');
   await expect(page.getByTestId('social-app-recovery')).toHaveCount(0);
   expect(uncaught).toEqual([]);
@@ -349,7 +336,7 @@ test('production: offline message refresh recovers on the same screen without le
       body: JSON.stringify({ conversations: [], nextCursor: null }) });
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open messages' }).click();
+  await page.getByRole('tablist', { name: 'Main navigation' }).getByRole('tab', { name: 'Messages' }).click();
   await expect(page.getByText('Can’t load your Rider Comms conversations. Try again.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Refresh shared messages' })).toBeEnabled();
   await page.getByRole('button', { name: 'Refresh shared messages' }).click();
