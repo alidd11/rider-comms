@@ -330,3 +330,59 @@ test('saves units, social visibility and route options', async () => {
   expect(result.current.routeAvoidance).toEqual({ highways: true, tolls: false, ferries: true });
   expect(JSON.parse((await AsyncStorage.getItem(`@rider-comms/settings/route-avoidance/${RIDER_ID}`)) ?? 'null')).toEqual({ highways: true, tolls: false, ferries: true });
 });
+
+test('restores, normalises and clears future toll declarations without affecting other riders', async () => {
+  await seedCache({});
+  const key = `@rider-comms/settings/toll-exemptions/${RIDER_ID}`;
+  await AsyncStorage.setItem(key, JSON.stringify(['dart_charge', 'london_ulez', 'invalid']));
+  const otherRiderKey = '@rider-comms/settings/toll-exemptions/another-rider';
+  await AsyncStorage.setItem(otherRiderKey, JSON.stringify(['blackwall_silvertown']));
+  const updateProfile = jest.fn(async () => fakeProfile());
+  const { result } = await renderSettings({
+    getProfile: jest.fn(async () => fakeProfile()),
+    updateProfile,
+  });
+  await waitFor(() => expect(result.current.tollExemptions).toEqual(['london_ulez', 'dart_charge']));
+
+  await act(async () => {
+    result.current.setTollExemptions(['london_congestion', 'london_congestion', 'dart_charge']);
+  });
+  expect(result.current.tollExemptions).toEqual(['london_congestion', 'dart_charge']);
+  await waitFor(async () => {
+    expect(JSON.parse((await AsyncStorage.getItem(key)) ?? 'null')).toEqual(['london_congestion', 'dart_charge']);
+  });
+
+  await act(() => { result.current.resetAll(); });
+  expect(result.current.tollExemptions).toEqual([]);
+  await waitFor(async () => { expect(await AsyncStorage.getItem(key)).toBeNull(); });
+  expect(JSON.parse((await AsyncStorage.getItem(otherRiderKey)) ?? 'null')).toEqual(['blackwall_silvertown']);
+  await waitFor(() => expect(updateProfile).toHaveBeenCalledWith(RIDER_ID, expect.objectContaining({ displayName: 'Rider' })));
+});
+
+test('a toll toggle before its saved list loads cannot overwrite stored exemptions', async () => {
+  const key = `@rider-comms/settings/toll-exemptions/${RIDER_ID}`;
+  await AsyncStorage.setItem(key, JSON.stringify(['london_ulez', 'dart_charge']));
+  const originalGet = AsyncStorage.getItem;
+  let finishRead!: (value: string | null) => void;
+  AsyncStorage.getItem = jest.fn((storageKey: string) => storageKey === key
+    ? new Promise<string | null>(resolve => { finishRead = resolve; })
+    : originalGet(storageKey));
+  const writeSpy = jest.spyOn(AsyncStorage, 'setItem');
+  // The storage mock is already a jest.fn, so drop the seeding write above.
+  writeSpy.mockClear();
+  try {
+    const { result } = await renderSettings({ getProfile: jest.fn(async () => fakeProfile()) });
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect(result.current.tollExemptionsLoaded).toBe(false);
+    await act(() => { result.current.setTollExemptions(['london_congestion']); });
+    expect(writeSpy).not.toHaveBeenCalledWith(key, expect.anything());
+    await act(async () => { finishRead(JSON.stringify(['london_ulez', 'dart_charge'])); });
+    await waitFor(() => expect(result.current.tollExemptionsLoaded).toBe(true));
+    expect(result.current.tollExemptions).toEqual(['london_ulez', 'dart_charge']);
+    await act(() => { result.current.setTollExemptions(['london_congestion']); });
+    await waitFor(() => expect(writeSpy).toHaveBeenCalledWith(key, JSON.stringify(['london_congestion'])));
+  } finally {
+    writeSpy.mockRestore();
+    AsyncStorage.getItem = originalGet;
+  }
+});

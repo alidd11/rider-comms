@@ -465,6 +465,11 @@ test('@viewport standalone canvas, navigation and scroll geometry remain coheren
   }
 
   await openTab(page, 'map');
+  // The map screen animates its entrance with translateY(10px) for 160ms.
+  // WebKit can measure a fractional transformed bottom after returning from
+  // Settings unless the animation has actually ended. Preserve the strict
+  // 2px viewport tolerance: first measure the settled, untransformed map.
+  await expect(page.locator('.screen[data-screen="map"]')).toHaveCSS('transform', 'none');
   const baseline = await standaloneGeometry(page);
   await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));

@@ -703,6 +703,15 @@
   let destinationMarker;
   let navigationTrafficLayer;
 
+  // Both clients must remain disabled until the feature is ready to launch.
+  const TOLLS_EXEMPTIONS_RELEASED = false;
+  // Keep these IDs aligned with mobile/src/tollExemptionPreference.ts.
+  const TOLL_EXEMPTION_OPTIONS = [
+    ['london_congestion', 'London Congestion Charge'],
+    ['london_ulez', 'London ULEZ'],
+    ['blackwall_silvertown', 'Blackwall & Silvertown tunnels'],
+    ['dart_charge', 'Dartford Crossing'],
+  ];
   function loadState() {
     try {
       const stored = JSON.parse(localStorage.getItem(stateStorageKey()) || 'null');
@@ -717,6 +726,9 @@
         avoidHighways: stored.avoidHighways === true,
         avoidTolls: stored.avoidTolls === true,
         avoidFerries: stored.avoidFerries === true,
+        tollExemptions: Array.isArray(stored.tollExemptions)
+          ? TOLL_EXEMPTION_OPTIONS.filter(([id]) => stored.tollExemptions.includes(id)).map(([id]) => id)
+          : [],
         spokenDirections: stored.spokenDirections !== false,
         vehicleCategory: RIDER_VEHICLE_OPTIONS.some(([option]) => option === stored.vehicleCategory) ? stored.vehicleCategory : 'motorcycle_large',
         unit: storedProfile.unitSystem === 'km' ? 'km' : storedProfile.unitSystem === 'mi' ? 'mi' : stored.unit === 'km' ? 'km' : 'mi',
@@ -3191,6 +3203,7 @@
     // The Settings root lists categories, each its own page.
     general: { title: 'General', sections: [['', 'generalSettings']], fullBleed: true },
     mapNavigation: { title: 'Map & navigation', sections: [['', 'mapNavigationSettings'], ['Saved places', 'savedPlacesSettings']], fullBleed: true },
+    tollsExemptions: { title: 'Tolls & exemptions', sections: [['', 'tollsExemptionsSettings']], fullBleed: true, back: 'mapNavigation' },
     voiceSound: { title: 'Voice and sound', sections: [['', 'voiceSoundSettings']], fullBleed: true },
     rideSafe: { title: 'Ride Safe', sections: [['', 'rideSafeSettings']], fullBleed: true },
     vehicle: { title: 'Vehicle details', sections: [['', 'vehicleSettings']], fullBleed: true },
@@ -3240,6 +3253,8 @@
   ];
 
   function openSheet(type) {
+    // A hidden future feature must not be accessible through internal page tokens.
+    if (type === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED) type = 'mapNavigation';
     const templates = {
       blocked: () => ({
         title: 'Blocked riders',
@@ -3397,13 +3412,36 @@
         title: 'Map & navigation',
         body: `${settingsRowsMarkup([
           settingsLink('navigationApp', 'Navigation app', NAVIGATION_PROVIDERS[navigationProvider(state.navigationProvider)].label),
-        ], 'Where a route opens when you tap Go.')}<h3 class="settings-page-heading">Route options</h3>${settingsRowsMarkup([
+          ...(TOLLS_EXEMPTIONS_RELEASED ? [settingsLink('tollsExemptions', 'Tolls & exemptions')] : []),
+        ], TOLLS_EXEMPTIONS_RELEASED ? 'Choose your navigation provider and configure road charges.' : 'Where a route opens when you tap Go.')}<h3 class="settings-page-heading">Route options</h3>${settingsRowsMarkup([
           settingsToggle('avoidHighways', 'Avoid motorways', state.avoidHighways),
-          settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
+          ...(!TOLLS_EXEMPTIONS_RELEASED ? [settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls)] : []),
           settingsToggle('avoidFerries', 'Avoid ferries', state.avoidFerries),
         ], 'Route options apply to routes Rider Comms plans.')}`,
         ready: () => { wireSettingsLinks($('#sheetBody')); wireToggles(); },
       }),
+      tollsExemptionsSettings: () => (TOLLS_EXEMPTIONS_RELEASED ? ({
+        title: 'Tolls & exemptions',
+        body: `<h3 class="settings-page-heading">Routing</h3>${settingsRowsMarkup([
+          settingsToggle('avoidTolls', 'Avoid tolls', state.avoidTolls),
+        ], 'Avoid tolls prefers toll-free roads where available. It may still include toll roads when no suitable alternative exists.')}
+        <h3 class="settings-page-heading">My exemptions</h3>${settingsRowsMarkup(
+          TOLL_EXEMPTION_OPTIONS.map(([id, label]) => `<div class="settings-row settings-row-toggle"><span class="settings-row-label">${escapeHtml(label)}</span><button type="button" class="toggle" data-toll-exemption="${id}" aria-label="${escapeHtml(label)}" aria-pressed="${(state.tollExemptions || []).includes(id)}"></button></div>`),
+          'Only select charges you’ve confirmed you don’t need to pay. Selections are stored on this device, but they don’t yet change routing, prices or legal eligibility.'
+        )}
+        ${settingsRowsMarkup(['<a class="settings-row" href="https://tfl.gov.uk/modes/driving/check-your-vehicle/" target="_blank" rel="noopener noreferrer"><span class="settings-row-label">Check London charges with TfL</span><span class="settings-row-chevron">' + icon('chevron') + '</span></a>'], 'Confirm your eligibility with the charging authority before travelling.')}`,
+        ready: () => {
+          wireToggles();
+          $$('[data-toll-exemption]', $('#sheetBody')).forEach((button) => button.addEventListener('click', () => {
+            const id = button.dataset.tollExemption;
+            if (!TOLL_EXEMPTION_OPTIONS.some(([option]) => option === id)) return;
+            const previous = (state.tollExemptions || []).includes(id);
+            state.tollExemptions = previous ? state.tollExemptions.filter((item) => item !== id) : [...(state.tollExemptions || []), id];
+            persist();
+            button.setAttribute('aria-pressed', String(!previous));
+          }));
+        },
+      }) : ({ title: 'Map & navigation', body: '', ready: () => {} })),
       savedPlacesSettings: () => {
         const saved = loadSavedPlaces();
         return {
@@ -3667,6 +3705,7 @@
       state.avoidHighways = false;
       state.avoidTolls = false;
       state.avoidFerries = false;
+      state.tollExemptions = [];
       state.spokenDirections = true;
       state.vehicleCategory = 'motorcycle_large';
       window.RiderCuratedRoutes?.setVehicle?.(state.vehicleCategory);

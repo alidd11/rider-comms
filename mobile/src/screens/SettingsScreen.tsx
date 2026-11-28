@@ -22,6 +22,7 @@ import { useAuth } from '../auth/AuthContext';
 import { RiderAvatar } from '../components/RiderAvatar';
 import { ApiError, type AccountSessionSummary } from '../api/client';
 import { NAVIGATION_PROVIDER_OPTIONS, type NavigationProvider } from '../navigationPreference';
+import { TOLL_EXEMPTION_OPTIONS, TOLLS_EXEMPTIONS_RELEASED } from '../tollExemptionPreference';
 import { CategoryRow, CheckRow, InfoRow, PlainRow, SegmentedRow, SettingsGroup, SettingsHeader, SwitchRow, useSettingsPalette } from './SettingsListUi';
 import { RIDER_VEHICLE_GROUPS, RIDER_VEHICLE_OPTIONS, riderVehicleLabel } from '../riderPreferences';
 import { MotorbikeIcon } from '../components/MotorbikeIcon';
@@ -208,7 +209,7 @@ function AvatarPickerModal({
 /** The pages a settings row opens (the Settings list itself holds the
  * switches). Keys match the PWA's page tokens, see
  * scripts/check-client-parity.mjs. */
-export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'voiceSound' | 'rideSafe' | 'vehicle' | 'notifications' | 'account' | 'privacy' | 'navigationApp' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help';
+export type SettingsPageKey = 'myProfile' | 'editProfile' | 'general' | 'mapNavigation' | 'voiceSound' | 'rideSafe' | 'vehicle' | 'notifications' | 'account' | 'privacy' | 'navigationApp' | 'tollsExemptions' | 'distanceUnits' | 'blockedRiders' | 'email' | 'devices' | 'help';
 
 export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   myProfile: 'Profile',
@@ -222,6 +223,7 @@ export const SETTINGS_PAGE_TITLES: Record<SettingsPageKey, string> = {
   account: 'Account and login',
   privacy: 'Privacy',
   navigationApp: 'Navigation app',
+  tollsExemptions: 'Tolls & exemptions',
   distanceUnits: 'Distance units',
   blockedRiders: 'Blocked riders',
   email: 'Email',
@@ -282,7 +284,7 @@ function PageSection({ title, children, note }: { title?: string; children: Reac
 
 // Pages reached from the Settings root get one header (back, centred
 // title, X to close Settings); the category pages are full-width groups.
-const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy']);
+const SETTINGS_CATEGORY_PAGES = new Set<SettingsPageKey>(['general', 'mapNavigation', 'tollsExemptions', 'voiceSound', 'rideSafe', 'vehicle', 'notifications', 'account', 'privacy']);
 const MENU_PAGES = new Set<SettingsPageKey>(['myProfile', 'editProfile', 'help']);
 
 /** Full-screen settings page: a header (back, centred title, X),
@@ -389,15 +391,37 @@ function MapNavigationPage(): React.JSX.Element {
   const navigationAppLabel = NAVIGATION_PROVIDER_OPTIONS.find((option) => option.id === navigationProvider)?.label ?? '';
   return (
     <>
-      <SettingsGroup note="Where a route opens when you tap Go.">
+      <SettingsGroup note={TOLLS_EXEMPTIONS_RELEASED ? 'Choose your navigation provider and configure road charges.' : 'Where a route opens when you tap Go.'}>
         <PlainRow first title="Navigation app" value={navigationAppLabel} onPress={() => navigation.push('SettingsPage', { page: 'navigationApp' })} />
+        {TOLLS_EXEMPTIONS_RELEASED ? <PlainRow title="Tolls & exemptions" onPress={() => navigation.push('SettingsPage', { page: 'tollsExemptions' })} /> : null}
       </SettingsGroup>
       <SettingsGroup title="Route options" note="Route options apply to routes Rider Comms plans.">
         <SwitchRow first title="Avoid motorways" value={routeAvoidance.highways} onValueChange={(highways) => setRouteAvoidance({ ...routeAvoidance, highways })} />
-        <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+        {!TOLLS_EXEMPTIONS_RELEASED ? <SwitchRow title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} /> : null}
         <SwitchRow title="Avoid ferries" value={routeAvoidance.ferries} onValueChange={(ferries) => setRouteAvoidance({ ...routeAvoidance, ferries })} />
       </SettingsGroup>
       <SavedPlacesGroup />
+    </>
+  );
+}
+
+/** Dedicated settings page. Recorded exemptions are not yet enforced by routing. */
+function TollsExemptionsPage(): React.JSX.Element {
+  const { routeAvoidance, setRouteAvoidance, tollExemptions, tollExemptionsLoaded, setTollExemptions } = useSettings();
+  return (
+    <>
+      <SettingsGroup title="Routing" note="Avoid tolls prefers toll-free roads where available. It may still include toll roads when no suitable alternative exists.">
+        <SwitchRow first title="Avoid tolls" value={routeAvoidance.tolls} onValueChange={(tolls) => setRouteAvoidance({ ...routeAvoidance, tolls })} />
+      </SettingsGroup>
+      <SettingsGroup title="My exemptions" note="Only select charges you’ve confirmed you don’t need to pay. These selections are stored on this device, but they don’t yet change routing, prices or legal eligibility.">
+        {TOLL_EXEMPTION_OPTIONS.map(({ id, label }, index) => (
+          <SwitchRow key={id} first={index === 0} title={label} value={tollExemptions.includes(id)} disabled={!tollExemptionsLoaded}
+            onValueChange={(enabled) => setTollExemptions(enabled ? [...tollExemptions, id] : tollExemptions.filter((item) => item !== id))} />
+        ))}
+      </SettingsGroup>
+      <SettingsGroup note="Confirm your eligibility with the charging authority before travelling.">
+        <PlainRow first title="Check London charges with TfL" onPress={() => void Linking.openURL('https://tfl.gov.uk/modes/driving/check-your-vehicle/')} />
+      </SettingsGroup>
     </>
   );
 }
@@ -1133,12 +1157,17 @@ type SettingsPageProps = NativeStackScreenProps<RootStackParamList, 'SettingsPag
 /** One full page per Settings option, everything for it shown directly. */
 export function SettingsPageScreen({ route }: SettingsPageProps): React.JSX.Element {
   const { page } = route.params;
+  // Guard direct/internal navigation as well as the entry row until launch.
+  if (page === 'tollsExemptions' && !TOLLS_EXEMPTIONS_RELEASED) {
+    return <SettingsPageLayout title="Map & navigation" page="mapNavigation"><MapNavigationPage /></SettingsPageLayout>;
+  }
   return (
     <SettingsPageLayout title={SETTINGS_PAGE_TITLES[page]} page={page}>
       {page === 'myProfile' ? <MyProfilePage /> : null}
       {page === 'editProfile' ? <EditProfilePage /> : null}
       {page === 'general' ? <GeneralPage /> : null}
       {page === 'mapNavigation' ? <MapNavigationPage /> : null}
+      {page === 'tollsExemptions' ? <TollsExemptionsPage /> : null}
       {page === 'voiceSound' ? <VoiceSoundPage /> : null}
       {page === 'rideSafe' ? <RideSafePage /> : null}
       {page === 'vehicle' ? <VehiclePage /> : null}

@@ -26,6 +26,7 @@ import {
   routeAvoidanceStorageKey,
   type RouteAvoidance,
 } from '../routeOptionsPreference';
+import { parseTollExemptions, tollExemptionsStorageKey, TollExemptionsStorageGuard, type TollExemptionId } from '../tollExemptionPreference';
 
 const LEGACY_CACHE_KEY = '@rider-comms/settings/cachedProfile';
 const cacheKey = (riderId: string): string => `@rider-comms/settings/profile/${riderId}`;
@@ -39,6 +40,9 @@ type ProfileState = typeof DEFAULTS;
 interface SettingsContextValue extends ProfileState {
   navigationProvider: NavigationProvider;
   routeAvoidance: RouteAvoidance;
+  tollExemptions: TollExemptionId[];
+  tollExemptionsLoaded: boolean;
+  setTollExemptions: (value: TollExemptionId[]) => void;
   rideSafeEnabled: boolean;
   rideSafeLoaded: boolean;
   spokenDirections: boolean;
@@ -66,6 +70,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
   const [state, setState] = React.useState<ProfileState>(DEFAULTS); const [loaded, setLoaded] = React.useState(false);
   const [navigationProvider, setNavigationProviderState] = React.useState<NavigationProvider>(DEFAULT_NAVIGATION_PROVIDER);
   const [routeAvoidance, setRouteAvoidanceState] = React.useState<RouteAvoidance>(DEFAULT_ROUTE_AVOIDANCE);
+  const [tollExemptions, setTollExemptionsState] = React.useState<TollExemptionId[]>([]);
+  const [tollExemptionsLoaded, setTollExemptionsLoaded] = React.useState(false);
+  const tollExemptionsReady = React.useRef(false);
+  const tollExemptionsStorage = React.useRef(new TollExemptionsStorageGuard());
   const [rideSafeEnabled, setRideSafeEnabledState] = React.useState(DEFAULT_RIDE_SAFE_ENABLED);
   const [rideSafeLoaded, setRideSafeLoaded] = React.useState(false);
   const [spokenDirections, setSpokenDirectionsState] = React.useState(DEFAULT_SPOKEN_DIRECTIONS);
@@ -92,6 +100,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
       .then((value) => { if (!cancelled) setRouteAvoidanceState(parseRouteAvoidance(value)); })
       .catch(() => { if (!cancelled) setRouteAvoidanceState(DEFAULT_ROUTE_AVOIDANCE); });
     return () => { cancelled = true; };
+  }, [riderId]);
+  React.useEffect(() => {
+    const storage = tollExemptionsStorage.current;
+    const token = storage.beginLoad();
+    tollExemptionsReady.current = false;
+    setTollExemptionsLoaded(false);
+    setTollExemptionsState([]);
+    const finish = (value: TollExemptionId[]): void => {
+      if (!storage.isCurrent(token)) return;
+      setTollExemptionsState(value);
+      tollExemptionsReady.current = true;
+      setTollExemptionsLoaded(true);
+    };
+    AsyncStorage.getItem(tollExemptionsStorageKey(riderId))
+      .then((value) => finish(parseTollExemptions(value)))
+      .catch(() => finish([]));
+    return () => { tollExemptionsReady.current = false; storage.invalidate(); };
   }, [riderId]);
   React.useEffect(() => {
     let cancelled = false;
@@ -194,6 +219,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setRouteAvoidanceState(next);
     void AsyncStorage.setItem(routeAvoidanceStorageKey(riderId), JSON.stringify(next));
   }, [riderId]);
+  const setTollExemptions = React.useCallback((value: TollExemptionId[]) => {
+    if (!tollExemptionsReady.current) return; // Never clobber an unread saved list.
+    const next = parseTollExemptions(JSON.stringify(value));
+    tollExemptionsStorage.current.invalidate();
+    setTollExemptionsState(next);
+    tollExemptionsStorage.current.enqueue(() => AsyncStorage.setItem(tollExemptionsStorageKey(riderId), JSON.stringify(next)));
+  }, [riderId]);
   const setRideSafeEnabled = React.useCallback((value: boolean) => {
     setRideSafeEnabledState(value);
     void AsyncStorage.setItem(rideSafeStorageKey(riderId), String(value));
@@ -212,6 +244,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     setState(DEFAULTS);
     setNavigationProviderState(DEFAULT_NAVIGATION_PROVIDER);
     setRouteAvoidanceState(DEFAULT_ROUTE_AVOIDANCE);
+    tollExemptionsStorage.current.invalidate();
+    tollExemptionsReady.current = true;
+    setTollExemptionsLoaded(true);
+    setTollExemptionsState([]);
     setRideSafeEnabledState(DEFAULT_RIDE_SAFE_ENABLED);
     setSpokenDirectionsState(DEFAULT_SPOKEN_DIRECTIONS);
     setRiderVehicleState(DEFAULT_RIDER_VEHICLE);
@@ -220,11 +256,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     void AsyncStorage.removeItem(cacheKey(riderId));
     void AsyncStorage.removeItem(navigationProviderStorageKey(riderId));
     void AsyncStorage.removeItem(routeAvoidanceStorageKey(riderId));
+    tollExemptionsStorage.current.enqueue(() => AsyncStorage.removeItem(tollExemptionsStorageKey(riderId)));
     void AsyncStorage.removeItem(rideSafeStorageKey(riderId));
     void client.updateProfile(riderId, DEFAULTS).catch(() => setProfileError('Couldn’t reset your settings. Check your connection and try again.'));
   }, [client, riderId]);
   const clearProfileError = React.useCallback(() => setProfileError(null), []);
-  const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, spokenDirections, setSpokenDirections, riderVehicle, setRiderVehicle, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile }), [state, setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, spokenDirections, setSpokenDirections, riderVehicle, setRiderVehicle, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile]);
+  const value = React.useMemo(() => ({ ...state, ...setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, tollExemptions, tollExemptionsLoaded, setTollExemptions, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, spokenDirections, setSpokenDirections, riderVehicle, setRiderVehicle, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile }), [state, setters, navigationProvider, setNavigationProvider, routeAvoidance, setRouteAvoidance, tollExemptions, tollExemptionsLoaded, setTollExemptions, rideSafeEnabled, rideSafeLoaded, setRideSafeEnabled, spokenDirections, setSpokenDirections, riderVehicle, setRiderVehicle, loaded, saving, profileError, clearProfileError, resetAll, refreshProfile]);
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 export function useSettings(): SettingsContextValue { const value = React.useContext(SettingsContext); if (!value) throw new Error('useSettings() must be called within SettingsProvider'); return value; }
