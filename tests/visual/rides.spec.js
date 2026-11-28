@@ -522,6 +522,16 @@ test('PWA tells a member, on screen and aloud, when the host sets a regroup poin
   expect(await page.evaluate(() => window.__spoken)).toEqual(['Regroup at Esso, A1.']);
 });
 
+/** Runs the page clock 10 s (one position tick) at a time and lets each
+ * update's reply arrive. Ticks that come round while the last update is still
+ * out are skipped, so one long jump can pass without a fresh fetch. */
+async function rideTicks(page, ms) {
+  for (let elapsed = 0; elapsed < ms; elapsed += 10_000) {
+    await page.clock.runFor(Math.min(10_000, ms - elapsed));
+    await page.waitForTimeout(150);
+  }
+}
+
 test('PWA tells the group aloud (and in a toast) when a rider\'s position stops updating, and when it is back', async ({ page }) => {
   const other = { riderId: 'rider_drop01', displayName: 'Sam', handle: '@sam' };
   let otherUpdatedAt = null;
@@ -549,21 +559,16 @@ test('PWA tells the group aloud (and in a toast) when a rider\'s position stops 
   await expect.poll(() => page.evaluate(() => (window.__riderCommsTestMarkers || [])
     .find((marker) => marker.position?.lat === 51.51)?.title)).toMatch(/^Sam/);
   otherUpdatedAt = await page.evaluate(() => Date.now());
-  await page.clock.runFor(90_000);
+  await rideTicks(page, 90_000);
   expect(await page.evaluate(() => window.__spoken)).toEqual([]);
   // Two minutes without an update: said once.
-  await page.clock.runFor(40_000);
+  await rideTicks(page, 40_000);
   await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual(['Sam’s position hasn’t updated for 2 minutes.']);
-  await page.clock.runFor(30_000);
+  await rideTicks(page, 30_000);
   expect(await page.evaluate(() => window.__spoken)).toHaveLength(1);
   // Sam's position comes back (timed on the page's clock, which has run on).
   otherUpdatedAt = (await page.evaluate(() => Date.now())) + 20_000;
-  // Tick by tick, letting each update's reply arrive: a tick that comes
-  // round while the last update is still out is skipped.
-  for (let step = 0; step < 3; step += 1) {
-    await page.clock.runFor(10_000);
-    await page.waitForTimeout(150);
-  }
+  await rideTicks(page, 30_000);
   await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual([
     'Sam’s position hasn’t updated for 2 minutes.',
     'Sam’s position is updating again.',
