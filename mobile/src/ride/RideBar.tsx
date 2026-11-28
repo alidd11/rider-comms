@@ -8,7 +8,7 @@ import { userFacingError } from '../errors/userFacingError';
 // auto-publishes an open mic.
 import * as React from 'react';
 import { useVoiceMute } from '../voice/VoiceMuteContext';
-import { View, Text, Pressable, Modal, Alert, Share } from 'react-native';
+import { View, Text, Pressable, Modal, Alert, AppState, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LiveKitRoom } from '@livekit/react-native';
@@ -19,6 +19,7 @@ import { acquireVoiceAudioSession, releaseVoiceAudioSession } from '../audio/aud
 import { useVoiceActivity } from '../audio/useVoiceActivity';
 import { useAuth } from '../auth/AuthContext';
 import { ActiveSpeakerBridge } from '../voice/ActiveSpeakerBridge';
+import { voiceRetryDelayMs } from '../voice/voiceRetry';
 import { colors, pressedFeedback } from '../theme';
 import { styles } from './RideBar.styles';
 import { useRide } from './RideContext';
@@ -189,12 +190,28 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
       return next;
     });
   }, [riderId]);
+  // Reconnects back off (voiceRetry.ts); a connection resets the count.
+  const voiceRetryAttempts = React.useRef(0);
   const scheduleVoiceRetry = React.useCallback(() => {
     if (voiceRetryTimer.current) return;
+    const delay = voiceRetryDelayMs(voiceRetryAttempts.current);
+    voiceRetryAttempts.current += 1;
     voiceRetryTimer.current = setTimeout(() => {
       voiceRetryTimer.current = undefined;
       setVoiceRetryVersion((version) => version + 1);
-    }, 2_000);
+    }, delay);
+  }, []);
+
+  // Back in the app (the phone was locked, or the rider switched apps):
+  // don't sit out a backoff that may have grown to a minute.
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active' || !voiceRetryTimer.current) return;
+      clearTimeout(voiceRetryTimer.current);
+      voiceRetryTimer.current = undefined;
+      setVoiceRetryVersion((version) => version + 1);
+    });
+    return () => subscription.remove();
   }, []);
 
   const handleVoiceRuntimeError = React.useCallback((message: string) => {
@@ -209,6 +226,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
   // setup itself failed; ordinary token/LiveKit retries keep a healthy audio
   // session leased so Bluetooth/music playback is not needlessly disrupted.
   const retryVoiceManually = React.useCallback(() => {
+    voiceRetryAttempts.current = 0;
     if (voiceRetryTimer.current) {
       clearTimeout(voiceRetryTimer.current);
       voiceRetryTimer.current = undefined;
@@ -352,7 +370,7 @@ export function RideBar({ controlsVisible = true }: { controlsVisible?: boolean 
       serverUrl={voice.url}
       token={voice.token}
       connect={voiceConnected}
-      onConnected={() => { setRoomStatus('connected'); setRoomError(null); }}
+      onConnected={() => { voiceRetryAttempts.current = 0; setRoomStatus('connected'); setRoomError(null); }}
       onDisconnected={() => {
         setRoomStatus('disconnected');
         setRemoteSpeakerIds(new Set());
